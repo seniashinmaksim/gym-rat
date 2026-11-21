@@ -291,10 +291,12 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
 export function Table({ head, children, dense }: { head: ReactNode[]; children: ReactNode; dense?: boolean }) {
   return (
     <div className="scroll-x">
-      <table className="w-full min-w-[560px] text-left text-sm">
+      {/* Up to 5 columns: natural width, so every column fits on a phone (it only scrolls if it truly
+          cannot fit). Wide tables (6+ columns) keep a minimum width and scroll sideways. */}
+      <table className={cx('w-full text-left text-sm', head.length >= 6 && 'min-w-[560px]')}>
         <thead>
           <tr className="border-b border-ink-200 text-[11px] uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
-            {head.map((h, i) => <th key={i} className={cx('whitespace-nowrap px-3 font-medium', dense ? 'py-1.5' : 'py-2', i > 0 && 'text-right')}>{h}</th>)}
+            {head.map((h, i) => <th key={i} className={cx('whitespace-nowrap px-2 font-medium sm:px-3', dense ? 'py-1.5' : 'py-2', i > 0 && 'text-right')}>{h}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-ink-100 dark:divide-ink-800/70">{children}</tbody>
@@ -304,7 +306,7 @@ export function Table({ head, children, dense }: { head: ReactNode[]; children: 
 }
 
 export function Td({ children, className, right = true }: { children: ReactNode; className?: string; right?: boolean }) {
-  return <td className={cx('whitespace-nowrap px-3 py-2 tabular-nums', right && 'text-right', className)}>{children}</td>;
+  return <td className={cx('whitespace-nowrap px-2 py-2 tabular-nums sm:px-3', right && 'text-right', className)}>{children}</td>;
 }
 
 export function fmt(n: number | null | undefined, digits = 1): string {

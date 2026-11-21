@@ -6,6 +6,7 @@ import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { exerciseLabel, type Registry } from './registry';
 import { adviceFor, buildProgression, type ProgressionSeries } from './progression';
 import { failureProfile, type FailureProfile } from './failure';
+import { bodyWeightForSession } from './bodyweight';
 import type { MuscleId, Workout } from './types';
 import { countedSetCount, sideFactors, stripPlanned } from './quality';
 import type { MuscleTarget } from './targets';
@@ -102,9 +103,12 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
   const progressed: WeeklyReport['progressed'] = [];
   const declined: WeeklyReport['declined'] = [];
   for (const p of a.progression) {
-    const weekSessions = p.sessions.filter((s) => inWeek(s.date));
-    if (!weekSessions.length) continue;
-    const before = p.sessions.filter((s) => s.date < bucket.range.start && s.index != null);
+    const all = p.sessions.filter((s) => inWeek(s.date));
+    if (!all.length) continue;
+    // Same index scale only (kg-based vs reps-based are never compared).
+    const kind = all.at(-1)!.indexKind ?? null;
+    const weekSessions = all.filter((s) => (s.indexKind ?? null) === kind);
+    const before = p.sessions.filter((s) => s.date < bucket.range.start && s.index != null && (s.indexKind ?? null) === kind);
     const prevBest = before.length ? Math.max(...before.slice(-4).map((s) => s.index as number)) : null;
     const wkBest = Math.max(...weekSessions.map((s) => s.index ?? 0));
     if (prevBest == null) continue;
@@ -177,7 +181,7 @@ export function weeklySummary(report: WeeklyReport, a: Analysis, progression: Pr
 /** Progression as it stood at the end of a given week (so an old week's report shows that week's calls). */
 export function progressionAsOf(data: AppData, a: Analysis, end: string): ProgressionSeries[] {
   const ws = stripPlanned(data.workouts.filter((w) => w.date <= end));
-  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false, data.locations);
+  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyWeightForSession(data.body, w).kg);
 }
 
 /** Frozen copy of a finished week, so later target or coefficient changes don't rewrite it. */
@@ -435,15 +439,20 @@ export function currentBlock(data: AppData, today: string) {
 
 // ---------------------------------------------------------------- Body tracking
 
+/** Mean body weight per calendar day (several weigh-ins on one day count as one day). */
+function dailyWeightMeans(data: AppData): Map<string, number> {
+  const byDay = new Map<string, number[]>();
+  for (const b of data.body) if (b.weightKg != null && b.weightKg > 0) byDay.set(b.date, [...(byDay.get(b.date) ?? []), b.weightKg]);
+  return new Map([...byDay].map(([d, xs]) => [d, mean(xs)]));
+}
+
+/** Weekly average = mean of DAILY means (a morning + an evening weigh-in don't count the day twice). */
 export function weeklyWeightAverages(data: AppData, weekStartsOn: number) {
   const map = new Map<string, number[]>();
-  for (const b of data.body) {
-    if (b.weightKg == null) continue;
-    const d = new Date(`${b.date}T00:00:00Z`).getUTCDay();
-    const start = addDays(b.date, -((d - weekStartsOn + 7) % 7));
-    const arr = map.get(start) ?? [];
-    arr.push(b.weightKg);
-    map.set(start, arr);
+  for (const [date, kg] of dailyWeightMeans(data)) {
+    const d = new Date(`${date}T00:00:00Z`).getUTCDay();
+    const start = addDays(date, -((d - weekStartsOn + 7) % 7));
+    map.set(start, [...(map.get(start) ?? []), kg]);
   }
   return [...map.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([week, arr]) => ({ week, avg: Math.round(mean(arr) * 10) / 10, n: arr.length }));
 }
@@ -453,9 +462,12 @@ export function monthlyBodyReport(data: AppData, today: string) {
   const last30 = sorted.filter((b) => diffDays(today, b.date) < 30);
   const prev30 = sorted.filter((b) => diffDays(today, b.date) >= 30 && diffDays(today, b.date) < 60);
   const fields = ['weightKg', 'waistCm', 'chestCm', 'shouldersCm', 'armsCm', 'forearmsCm', 'thighsCm', 'calvesCm'] as const;
+  const daily = dailyWeightMeans(data);
+  const days = (lo: number, hi: number) => [...daily].filter(([d]) => diffDays(today, d) >= lo && diffDays(today, d) < hi).map(([, kg]) => kg);
   const rows = fields.map((f) => {
-    const a = last30.map((b) => b[f]).filter((x): x is number => x != null);
-    const b = prev30.map((m) => m[f]).filter((x): x is number => x != null);
+    // Body weight: mean of daily means; circumferences: every measurement.
+    const a = f === 'weightKg' ? days(0, 30) : last30.map((b) => b[f]).filter((x): x is number => x != null);
+    const b = f === 'weightKg' ? days(30, 60) : prev30.map((m) => m[f]).filter((x): x is number => x != null);
     return { field: f, current: a.length ? Math.round(mean(a) * 10) / 10 : null, previous: b.length ? Math.round(mean(b) * 10) / 10 : null };
   });
   const notes: string[] = [
@@ -474,9 +486,14 @@ export function monthlyBodyReport(data: AppData, today: string) {
   return { rows, notes };
 }
 
-export function volumeTrend(weeks: WeekBucket[], n = 12) {
+/**
+ * Weekly trend rows. `total` = quality sets (each working set once, weighted by its quality credit)
+ * when `quality` is given; per-muscle effective sets are in the muscle columns. (Summing muscles
+ * would count one bench set three times.)
+ */
+export function volumeTrend(weeks: WeekBucket[], n = 12, quality?: (ws: WeekBucket['workouts']) => number) {
   return weeks.slice(-n).map((w) => {
-    const row: Record<string, number | string> = { week: w.range.start.slice(5), sessions: w.workouts.length, total: Math.round(TRACKED_MUSCLES.reduce((s, m) => s + w.volume.muscles[m].effective, 0) * 10) / 10 };
+    const row: Record<string, number | string> = { week: w.range.start.slice(5), sessions: w.workouts.length, total: quality ? Math.round(quality(w.workouts) * 10) / 10 : w.volume.totalWorkingSets };
     for (const m of TRACKED_MUSCLES) row[m] = w.volume.muscles[m].effective;
     return row;
   });

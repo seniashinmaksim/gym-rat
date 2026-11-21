@@ -8,6 +8,7 @@ import { store } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import type { MuscleId } from '../../domain/types';
 import { effortCoverage, effortDistribution } from '../../domain/effort';
+import { qualitySetTotal } from '../../domain/volume';
 import { latestWeighIn, rollingAverage, weeklyTrend } from '../../domain/bodyweight';
 import { AddBodyWeight } from '../components/AddBodyWeight';
 import { useData } from '../../lib/store';
@@ -74,7 +75,7 @@ export function DashboardPage() {
           <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Quality sets</h2>
           <span className="flex items-center gap-1.5">
             {a.learning.active && <Badge tone="warn">PROVISIONAL</Badge>}
-            <span className="text-xs tabular-nums text-ink-500">{fmt(a.muscles.reduce((t, m) => t + m.completed, 0))} done</span>
+            <span className="text-xs tabular-nums text-ink-500">{fmt(weekQualitySets(a, data))} sets done</span>
           </span>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:px-5">
@@ -259,6 +260,11 @@ function WeekStrip() {
 
 // ---------------------------------------------------------------- More details (on demand)
 
+/** This week's working sets, each counted once and weighted by quality (never summed across muscles). */
+function weekQualitySets(a: ReturnType<typeof useAnalysis>, data: ReturnType<typeof useData>): number {
+  return qualitySetTotal(data.workouts.filter((w) => w.date >= a.week.start && w.date <= a.today), a.registry, data.settings.quality);
+}
+
 function MoreDetails() {
   const a = useAnalysis();
   const data = useData();
@@ -266,8 +272,8 @@ function MoreDetails() {
   const [mapMode, setMapMode] = useState<BodyMapMode>('volume');
   const lastComplete = [...a.weeks].reverse().find((w) => w.complete);
   const lastReport = lastComplete ? weeklyReport(lastComplete, a, data) : null;
-  const totalEffective = a.muscles.reduce((s, m) => s + m.completed, 0);
-  const uncertain = a.muscles.reduce((s, m) => s + m.volume.uncertainEffective, 0);
+  const quality = weekQualitySets(a, data);
+  const unknownEffort = effortDistribution(data.workouts, { start: a.week.start, end: a.today }).unknown;
   return (
     <div className="mt-2 space-y-4">
       <Card>
@@ -277,9 +283,9 @@ function MoreDetails() {
       <Card>
         <dl className="grid grid-cols-2 gap-3 text-xs">
           <Fact k="Sessions this week" v={a.sessionsThisWeek} />
-          <Fact k="Quality sets (all muscles)" v={fmt(totalEffective)} />
+          <Fact k="Quality sets (each set once)" v={fmt(quality)} />
           <Fact k="Working sets" v={a.current.totalWorkingSets} />
-          <Fact k="Uncertain (estimated, unknown effort or pain)" v={fmt(uncertain)} />
+          <Fact k="Sets with unknown effort" v={unknownEffort} />
         </dl>
       </Card>
       {lastReport && (

@@ -251,9 +251,13 @@ export function generateSixMonths(seed = 20261121): { data: AppData; meta: SimMe
         const allTop = work.length > 0 && work.every((s) => (s.reps ?? 0) >= hi);
         if (!decline && !plateau && !chestDown) {
           st.topHits = allTop ? st.topHits + 1 : 0;
-          if (st.topHits >= 2 && !lift.bodyweight) { st.w += lift.step[gym]; st.base = Math.max(lo + 1, st.base - 2); st.topHits = 0; /* ~2 reps fewer at one step heavier */ }
+          if (st.topHits >= 2 && !lift.bodyweight) { const w1 = st.w + lift.step[gym];
+            // Same estimated strength at the heavier load (Epley): 12.5 kg × 22 → 15 kg × ~17, 80 kg × 12 → 82.5 kg × ~11.
+            st.base = Math.max(lo + 1, Math.round(((st.w * (1 + st.base / 30)) / w1 - 1) * 30));
+            st.w = w1; st.topHits = 0; }
           // Reps drop ~1 per set, so the first set has to reach hi + (sets − 1) before ALL sets reach hi.
-          else if (st.base < hi + lift.sets - 1 && rnd() < (POOR_RECOVERY_WEEKS.has(week) && lift.id !== 'back_squat' ? 0.1 : 0.55)) st.base++;
+          // A trained lifter: roughly one extra rep every 3–4 sessions (≈ +10–30 % estimated strength in 6 months).
+          else if (st.base < hi + lift.sets - 1 && rnd() < (POOR_RECOVERY_WEEKS.has(week) && lift.id !== 'back_squat' ? 0.08 : 0.28)) st.base++;
           if (lift.bodyweight && st.base > hi + 2) st.base = hi + 2;
         }
         if (decline) st.topHits = 0;

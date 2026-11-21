@@ -168,7 +168,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'index_scale', area: 'progression',
-    rule: 'A kg-based index (RIR-adjusted Epley) and a reps-based index (reps + RIR for bodyweight work) are never compared: trends and progress % use only sessions on the latest scale.',
+    rule: 'A kg-based index (RIR-adjusted Epley), a body + belt index (weighted pull-ups / dips, body weight known before the session — an estimate) and a reps-based index (reps + RIR) are never compared: trends and progress % use only sessions on the latest scale. Belt-only Epley (no body weight logged) never produces a %.',
     value: 'same scale only', basis: 'heuristic', confidence: 'high', configurable: null,
     rationale: 'The two indices have different units; a bodyweight set of 12 reps (index 13) followed by a +5 kg set (index 6.8) is not a 48 % loss.', refIds: [], implementedIn: 'src/domain/progression.ts, src/domain/baseline.ts',
   },

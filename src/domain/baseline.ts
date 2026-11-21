@@ -54,6 +54,9 @@ export function strengthProgress(series: ProgressionSeries, today: string): Stre
   out.status = 'baseline_only';
   // The latest sessions must be on the baseline's scale; otherwise there is nothing comparable yet.
   if ((all.at(-1)?.indexKind ?? null) !== kind) return out;
+  // Belt/vest work without any body weight: an Epley on the belt alone exaggerates every belt change
+  // (5 → 7.5 kg reads as +50 %), so no % is shown until body weight is logged.
+  if (kind === 'load' && series.loadMode === 'bodyweight_plus') return out;
   const recent = rep.filter((s) => s.date > baseEnd && diffDays(today, s.date) < BASELINE_DAYS).slice(-3);
   if (recent.length < 2) return out;
   out.current = { index: r1(median(recent.map(ix))), topWeight: weights(recent), sessions: recent.length, from: recent[0].date, to: recent[recent.length - 1].date };
@@ -128,9 +131,11 @@ export function hypertrophyAssessment(input: {
   const ok = progress.filter((p) => p.status === 'ok');
   const up = ok.filter((p) => (p.pct ?? 0) >= 2).length;
   const down = ok.filter((p) => (p.pct ?? 0) <= -2).length;
-  ind.push({ id: 'strength', value: ok.length ? `${up}/${ok.length} up` : '—', signal: !ok.length ? 'unknown' : up > ok.length / 2 && down === 0 ? 'positive' : down > up ? 'negative' : 'neutral' });
+  // Mostly up (more than half, and at least 3 ups per down): one or two declining exercises don't cancel a broad trend.
+  ind.push({ id: 'strength', value: ok.length ? `${up}/${ok.length} up${down ? `, ${down} down` : ''}` : '—', signal: !ok.length ? 'unknown' : up > ok.length / 2 && up >= 3 * down ? 'positive' : down > up ? 'negative' : 'neutral' });
+  // Volume vs the weekly targets (both summed over muscles, so the ratio is meaningful; the sum itself is not shown).
   const volRatio = targetPerWeek > 0 ? current.totalWeeklyEffective / targetPerWeek : null;
-  ind.push({ id: 'volume', value: `${current.totalWeeklyEffective}/wk`, signal: volRatio == null ? 'unknown' : volRatio >= 0.8 ? 'positive' : volRatio >= 0.5 ? 'neutral' : 'negative' });
+  ind.push({ id: 'volume', value: volRatio == null ? '—' : `${Math.round(volRatio * 100)}% of targets`, signal: volRatio == null ? 'unknown' : volRatio >= 0.8 ? 'positive' : volRatio >= 0.5 ? 'neutral' : 'negative' });
   ind.push({ id: 'consistency', value: `${current.sessionsPerWeek}/wk`, signal: current.sessionsPerWeek >= 2 ? 'positive' : current.sessionsPerWeek >= 1 ? 'neutral' : 'negative' });
   ind.push({ id: 'effort', value: effortKnownShare == null ? '—' : `${Math.round(effortKnownShare * 100)}% logged`, signal: effortKnownShare == null ? 'unknown' : effortKnownShare >= 0.6 ? 'positive' : 'neutral' });
   const bw = current.bodyWeight7d != null && previous?.bodyWeight7d != null ? Math.round((current.bodyWeight7d - previous.bodyWeight7d) * 10) / 10 : null;

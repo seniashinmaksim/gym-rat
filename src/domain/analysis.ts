@@ -4,6 +4,7 @@ import { mean, weeklyHistory, type WeekBucket } from './history';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import { failureProfile, type FailureProfile } from './failure';
 import { loadStep } from './increments';
+import { bodyWeightForSession } from './bodyweight';
 import { buildProgression, warmupFor, type NextLoad, type ProgressionSeries, type WarmupPlan } from './progression';
 import { round2, roundHalf, stripPlanned } from './quality';
 import { estimateRecovery, type RecoveryEstimate } from './recovery';
@@ -113,7 +114,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   const thisWeek = data.workouts.filter((w) => w.date >= week.start && w.date <= week.end && w.date <= today);
   const current = computeVolume(thisWeek, registry, quality);
   const learning = learningState(data, today, weeks);
-  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false, data.locations);
+  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyWeightForSession(data.body, w).kg);
   const recovery = estimateRecovery(data, registry, local.virtualMs, today);
   const planRecovery = estimateRecovery(data, registry, local.virtualMs, today, { before: today });
   const targets = computeTargets({ data, weeks, learning, progression, recovery, registry, today });

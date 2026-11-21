@@ -13,7 +13,7 @@ import { buildRegistry } from '../src/domain/registry';
 import { summarizeSession } from '../src/domain/sessionSummary';
 import { qualitySetTotal } from '../src/domain/volume';
 import { defaultSettings } from '../src/domain/defaults';
-import { data, ex, set, workout } from './fixtures';
+import { data, data as fx, ex, set, workout } from './fixtures';
 
 const reg = buildRegistry([], []);
 const model = defaultSettings().quality;
@@ -134,5 +134,51 @@ describe('trend classification guards', () => {
     const days = ['2026-10-01', '2026-10-05', '2026-10-09', '2026-10-13', '2026-10-17', '2026-10-22'];
     const s = [66, 66, 65, 65, 58, 57].map((v, i) => perf(days[i], v));
     expect(classifyTrend(s, '2026-10-23').cls).toBe('declining');
+  });
+});
+
+describe('rounding is half-up on the decimal value and independent of summation order', () => {
+  it('0.75 × 0.7 (unknown effort, compromised technique) = 0.53; 0.455 = 0.46 either way', async () => {
+    const { round2, assessSet } = await import('../src/domain/quality');
+    expect(round2(0.75 * 0.7)).toBe(0.53); // binary 0.5249999999999999 used to round to 0.52
+    expect(round2(0.455)).toBe(round2(0.2 + 0.255));
+    expect(assessSet(set(null, 10, null, { technique: 'compromised' }), model).credit).toBe(0.53);
+    const w1 = workout('2026-10-05', [ex('incline_dumbbell_press', [set(null, null, null, { side: 'left' }), set(null, null, null, { side: 'right', technique: 'compromised' })])]);
+    const w2 = workout('2026-10-05', [ex('incline_dumbbell_press', [set(20, 10, 6, { side: 'left' }), set(20, 10, 1, { side: 'right' }), set(20, 10, 4)])]);
+    const { computeVolume } = await import('../src/domain/volume');
+    expect(computeVolume([w1, w2], reg, model).muscles.chest.effective).toBe(computeVolume([w2, w1], reg, model).muscles.chest.effective);
+  });
+});
+
+describe('weighted pull-ups: strength index uses body + belt when body weight is known', () => {
+  it('5 kg × 8 → 7.5 kg × 6 at 80 kg body is ≈ −2.5 %, not "+42 %"', () => {
+    const pu = (d: string, kg: number, reps: number) => workout(d, [ex('pull_up', [set(kg, reps, 1, { loadMode: 'bodyweight_plus' }), set(kg, reps, 1, { loadMode: 'bodyweight_plus' })], null, { variation: { loading: 'weighted', gripWidth: 'wide' } })], { startTime: '18:00' });
+    const ws = [pu('2026-09-01', 5, 8), pu('2026-09-08', 5, 8), pu('2026-10-20', 7.5, 6), pu('2026-10-27', 7.5, 6)];
+    const body = ws.map((w, i) => ({ id: `b${i}`, date: w.date, time: '07:00', weightKg: 80, photoIds: [] }));
+    const a = analyze(fx(ws, { body }), at('2026-10-28'));
+    const p = a.progression.find((x) => x.exerciseId === 'pull_up')!;
+    expect(p.sessions.every((s) => s.indexKind === 'system')).toBe(true);
+    const s = strengthProgress(p, '2026-10-28');
+    // Independent: (87.5 × (1 + 7/30)) / (85 × (1 + 9/30)) − 1 = 107.917 / 110.5 − 1 = −2.34 %
+    expect(s.pct).toBeCloseTo(-2.3, 1);
+    // Without any body weight the belt-only index is used and kept on its own scale.
+    const b = analyze(fx(ws), at('2026-10-28')).progression.find((x) => x.exerciseId === 'pull_up')!;
+    expect(b.sessions.every((x) => x.indexKind === 'load')).toBe(true);
+    expect(strengthProgress(b, '2026-10-28')).toMatchObject({ status: 'baseline_only', pct: null }); // no misleading %
+  });
+});
+
+describe('growth signals: strength indicator reflects the broad trend', () => {
+  it('12 up / 2 down is positive; 3 up / 2 down is neutral; never a growth %', async () => {
+    const { hypertrophyAssessment } = await import('../src/domain/baseline');
+    const mk = (pcts: number[]) => pcts.map((pct, i) => ({ key: `k${i}`, exerciseId: 'x', status: 'ok' as const, baseline: null, current: null, pct }));
+    const ps = { from: '2026-10-26', to: '2026-11-22', sessions: 14, sessionsPerWeek: 3.5, weeklyEffective: {}, totalWeeklyEffective: 100, qualitySetsPerWeek: 60, bodyWeight7d: 79, waistCm: null };
+    const run = (pcts: number[]) => hypertrophyAssessment({ data: data([workout('2026-05-25', [ex('pec_deck', [set(40, 10, 1)])])]), today: '2026-11-22', startDate: '2026-05-25', progress: mk(pcts), current: ps, previous: { ...ps, bodyWeight7d: 78.4 }, targetPerWeek: 110, effortKnownShare: 0.95 });
+    const a = run([5, 8, 3, 12, 6, 9, 4, 7, 10, 3, 5, 6, -11, -5]);
+    expect(a.indicators[0]).toMatchObject({ value: '12/14 up, 2 down', signal: 'positive' });
+    expect(a.indicators[1].value).toBe('91% of targets');
+    expect(a.status).toBe('consistent_positive_signals');
+    expect(run([5, 8, 3, -11, -5]).indicators[0].signal).toBe('neutral');
+    expect(JSON.stringify(a)).not.toMatch(/"pct"|growth/);
   });
 });

@@ -1,5 +1,5 @@
 import { TRACKED_MUSCLES } from './muscles';
-import { assessSet, isCounted, sideFactors, taperBeyondCap } from './quality';
+import { assessSet, isCounted, round2, sideFactors, taperBeyondCap } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId, QualityModel, RegionId, Workout } from './types';
 import { involvement } from './muscles';
@@ -146,7 +146,7 @@ export function sessionMuscleEffective(w: Workout, registry: Registry, model: Qu
   return out;
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
+const r2 = round2; // order-independent rounding (see quality.ts)
 
 /**
  * Quality sets: each performed working set counted ONCE, weighted by its effort/quality credit

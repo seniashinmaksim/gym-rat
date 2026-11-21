@@ -205,16 +205,23 @@ export function taperBeyondCap(runningBefore: number, eff: number, cap: number, 
   return under + (eff - under) * beyond;
 }
 
+/**
+ * Half-up rounding that does not depend on floating-point noise or summation order: 0.75 × 0.7
+ * (= 0.5249999999999999 in binary) and 0.455 vs 0.45499999999999996 round the way the decimal value
+ * does. The nudge (1e-9 of a step) is far below any real difference between set credits.
+ */
+const stable = (n: number, steps: number) => Math.round(n * steps + Math.sign(n) * 1e-9) / steps;
+
 export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return stable(n, 100);
 }
 
 export function round1(n: number): number {
-  return Math.round(n * 10) / 10;
+  return stable(n, 10);
 }
 
 export function roundHalf(n: number): number {
-  return Math.round(n * 2) / 2;
+  return stable(n, 2);
 }
 
 /**

@@ -163,15 +163,21 @@ export function refBodyBefore(body: BodyMeasurement[], date: string, start: stri
 
 // ---------------------------------------------------------------- strength index & progress %
 
-/** §D: RIR-adjusted Epley on BENCHMARK sets (wrong weight, pain, compromised/failed technique, technical failure excluded). */
-export function refIndex(sets: WorkoutSet[]): number | null {
+/**
+ * §D: RIR-adjusted Epley on BENCHMARK sets (wrong weight, pain, compromised/failed technique, technical
+ * failure excluded). §I: belt/vest exercises (all sets bodyweight-plus) with added load use body + belt
+ * when the body weight before the session is known.
+ */
+export function refIndex(sets: WorkoutSet[], bodyKg: number | null = null): number | null {
   const bench = sets.filter((s) => s.type === 'working' && !s.planned && s.reps != null
     && s.weightAccuracy !== 'too_light' && s.weightAccuracy !== 'too_heavy' && !s.pain && s.feel !== 'pain'
     && s.technique !== 'compromised' && s.technique !== 'failed' && !(s.technicalFailure && s.technique !== 'good'));
   if (!bench.length) return null;
   const rirOf = (s: WorkoutSet) => s.rir ?? (s.toFailure || (s.failure === 'muscular' && !s.technicalFailure) ? 0 : 0);
   const loaded = bench.filter((s) => (s.weightKg ?? 0) > 0 && s.loadMode !== 'assisted');
-  if (loaded.length) return Math.max(...loaded.map((s) => (s.weightKg as number) * (1 + Math.min((s.reps as number) + rirOf(s), 30) / 30)));
+  const work = sets.filter((s) => s.type === 'working' && !s.planned);
+  const extra = bodyKg != null && work.every((s) => s.loadMode === 'bodyweight_plus') ? bodyKg : 0;
+  if (loaded.length) return Math.max(...loaded.map((s) => ((s.weightKg as number) + extra) * (1 + Math.min((s.reps as number) + rirOf(s), 30) / 30)));
   return Math.max(...bench.map((s) => (s.reps as number) + rirOf(s)));
 }
 

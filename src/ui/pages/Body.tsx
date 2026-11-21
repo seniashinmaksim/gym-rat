@@ -54,7 +54,8 @@ export function BodyPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Latest" value={last ? `${fmt(last.kg)} kg` : '—'} sub={last ? `${formatDate(last.date, { day: 'numeric', month: 'short' })}${last.time ? ` ${last.time}` : ''} · today ${todayN}` : 'No weigh-ins yet'} />
             <Stat label="7-day average" value={avg7 ? `${fmt(avg7.kg)} kg` : '—'} sub={avg7 ? `${avg7.days} day${avg7.days === 1 ? '' : 's'}` : '—'} />
-            <Stat label="Week trend" value={trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 2)} kg` : '—'} sub={monthlyRate != null ? `${monthlyRate > 0 ? '+' : ''}${fmt(monthlyRate, 2)} kg / month` : '7-day avg vs last week'} />
+            {/* 0.1 kg resolution: body weight swings far more than 0.01 kg a day. */}
+            <Stat label="Week trend" value={trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 1)} kg` : '—'} sub={monthlyRate != null ? `${monthlyRate > 0 ? '+' : ''}${fmt(monthlyRate, 1)} kg / month (5-wk trend)` : '7-day avg vs last week'} />
             <Stat label="Waist" value={latestWaist != null ? `${fmt(latestWaist)} cm` : '—'} sub="latest" />
           </div>
 

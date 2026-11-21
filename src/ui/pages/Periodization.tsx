@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { diffDays, formatDate } from '../../domain/dates';
 import { TRACKED_MUSCLES } from '../../domain/muscles';
+import { qualitySetTotal } from '../../domain/volume';
 import type { TrendClass } from '../../domain/progression';
 import { exerciseLabel } from '../../domain/registry';
 import { assessDeload, currentBlock, volumeTrend } from '../../domain/reports';
@@ -204,10 +205,11 @@ function ProgressionHealth() {
 
 function VolumeTrendCard() {
   const a = useAnalysis();
-  const rows = volumeTrend(a.weeks, 12);
+  const data = useData();
+  const rows = volumeTrend(a.weeks, 12, (ws) => qualitySetTotal(ws, a.registry, data.settings.quality));
   return (
     <Card>
-      <CardTitle hint="Total effective sets across all muscles (bars) and number of sessions (line) per week. Rising volume should come with stable or improving performance; if performance drops while volume rises, that is a warning sign.">Volume trend · last 12 weeks</CardTitle>
+      <CardTitle hint="Quality sets — every working set counted once, weighted by effort (bars) and number of sessions (line) per week. Rising volume should come with stable or improving performance; if performance drops while volume rises, that is a warning sign.">Volume trend · last 12 weeks</CardTitle>
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-ink-500">No weekly history yet.</p>
       ) : (
@@ -219,7 +221,7 @@ function VolumeTrendCard() {
               <YAxis yAxisId="v" tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis yAxisId="s" orientation="right" tickLine={false} axisLine={false} allowDecimals={false} width={24} />
               <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} />
-              <Bar yAxisId="v" dataKey="total" name="Effective sets" fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
+              <Bar yAxisId="v" dataKey="total" name="Quality sets" fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
               <Line yAxisId="s" dataKey="sessions" name="Sessions" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
               <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>

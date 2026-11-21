@@ -115,8 +115,12 @@ export interface SessionPerf {
   index: number | null;
   /** The same index unrounded — used for percentages so display rounding never shifts a result. */
   indexRaw: number | null;
-  /** 'load' = RIR-adjusted Epley (kg); 'reps' = reps + RIR (bodyweight / assisted). Never compared with each other. */
-  indexKind: 'load' | 'reps' | null;
+  /**
+   * 'load' = RIR-adjusted Epley on the logged load; 'system' = Epley on body weight + added load (weighted
+   * pull-ups / dips with a belt, body weight known before the session — an estimate); 'reps' = reps + RIR
+   * (bodyweight only / assisted). Different kinds are never compared with each other.
+   */
+  indexKind: 'load' | 'system' | 'reps' | null;
   /** At least one benchmark set — the session can be used to judge progress. */
   representative: boolean;
   totalReps: number;
@@ -171,13 +175,13 @@ export function epley(weight: number, reps: number, rir: number | null): number 
   return weight * (1 + r / 30);
 }
 
-function pickTop(sets: SetPoint[], assisted: boolean): { top: SetPoint | null; bestE: number | null } {
+function pickTop(sets: SetPoint[], assisted: boolean, extraKg = 0): { top: SetPoint | null; bestE: number | null } {
   let top: SetPoint | null = null;
   let bestE: number | null = null;
   for (const s of sets) {
     if (s.reps == null) continue;
     if (!assisted && s.weight != null && s.weight > 0) {
-      const e = epley(s.weight, s.reps, s.rir);
+      const e = epley(s.weight + extraKg, s.reps, s.rir);
       if (bestE == null || e > bestE) {
         bestE = e;
         top = s;
@@ -191,7 +195,11 @@ function pickTop(sets: SetPoint[], assisted: boolean): { top: SetPoint | null; b
   return { top, bestE };
 }
 
-export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): SessionPerf | null {
+/**
+ * @param bodyKg body weight before this session (bodyweight-plus exercises only). With a belt/vest the
+ * index then uses body + added load, so 5 kg × 8 → 7.5 kg × 6 reads as a small change, not "+42 %".
+ */
+export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true, bodyKg: number | null = null): SessionPerf | null {
   const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
   if (!working.length) return null;
   const sets: SetPoint[] = working.map((s) => {
@@ -213,7 +221,8 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): Se
   const assisted = working.some((s) => s.loadMode === 'assisted');
   const bench = sets.filter((s) => s.benchmark);
   const representative = bench.length > 0;
-  const { top, bestE } = pickTop(representative ? bench : sets, assisted);
+  const system = !assisted && bodyKg != null && bodyKg > 0 && working.every((s) => s.loadMode === 'bodyweight_plus');
+  const { top, bestE } = pickTop(representative ? bench : sets, assisted, system ? (bodyKg as number) : 0);
   const totalReps = sets.reduce((a, s) => a + (s.reps ?? 0), 0);
   const volumeLoad = sets.reduce((a, s) => a + (s.reps ?? 0) * (s.weight ?? 0), 0);
   const rirs = sets.map((s) => s.rir).filter((r): r is number => r != null);
@@ -230,7 +239,7 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): Se
     e1rm: representative && bestE != null ? Math.round(bestE * 10) / 10 : null,
     index: index != null ? Math.round(index * 10) / 10 : null,
     indexRaw: index,
-    indexKind: index == null ? null : bestE != null ? 'load' : 'reps',
+    indexKind: index == null ? null : bestE != null ? (system ? 'system' : 'load') : 'reps',
     representative,
     totalReps,
     volumeLoad,
@@ -576,6 +585,8 @@ export function buildProgression(
   useFeel = true,
   /** Gyms, so dumbbell / kettlebell jumps set per gym apply (Location.freeWeightIncrementsKg). */
   locations: Location[] = [],
+  /** Body weight before a session (latest weigh-in before it started), for belt/vest exercises. */
+  bodyKg: (w: Workout) => number | null = () => null,
 ): ProgressionSeries[] {
   const locById = new Map(locations.map((l) => [l.id, l]));
   const eqById = new Map(equipment.map((e) => [e.id, e]));
@@ -586,7 +597,7 @@ export function buildProgression(
     for (const ex of w.exercises) {
       const def = registry.get(ex.exerciseId);
       const key = progressionKey(ex, w, def);
-      const perf = sessionPerf(w, ex, useFeel);
+      const perf = sessionPerf(w, ex, useFeel, (def?.equipmentKind === 'bodyweight' || ex.sets.some((s) => s.loadMode === 'bodyweight_plus')) ? bodyKg(w) : null);
       if (!perf) continue;
       let g = groups.get(key);
       if (!g) {

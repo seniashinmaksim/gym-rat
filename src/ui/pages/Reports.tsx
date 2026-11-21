@@ -458,7 +458,7 @@ const STATUS_TEXT: Record<HypertrophyStatus, string> = {
   establishing_baseline: 'BASELINE — weeks 1–4', too_early: 'TOO EARLY — first check at week 8', consistent_positive_signals: 'CONSISTENT POSITIVE SIGNALS',
   mixed_signals: 'MIXED SIGNALS', no_clear_signals: 'NO CLEAR SIGNALS', insufficient_data: 'MORE DATA NEEDED',
 };
-const IND_LABEL: Record<HypertrophyIndicator['id'], string> = { strength: 'Strength', volume: 'Quality sets', consistency: 'Sessions', effort: 'Effort logged', body_weight: 'Body weight', circumference: 'Waist', photos: 'Photos' };
+const IND_LABEL: Record<HypertrophyIndicator['id'], string> = { strength: 'Strength', volume: 'Weekly volume', consistency: 'Sessions', effort: 'Effort logged', body_weight: 'Body weight', circumference: 'Waist', photos: 'Photos' };
 
 /** Last 4 weeks vs the 4 before vs the first 4 (baseline) — numbers only, plus the separate growth-signal status. */
 function FourWeekCheck() {

@@ -262,7 +262,7 @@ describe('weeks 9–12: first progress assessment', () => {
       const refSessions = p.sessions.map((s) => {
         const w = ws.get(s.workoutId)!;
         const sets = w.exercises.filter((e) => e.exerciseId === p.exerciseId && (e.equipmentId ?? null) === (p.equipmentId ?? null)).flatMap((e) => e.sets);
-        return { date: s.date, index: refIndex(sets) };
+        return { date: s.date, index: refIndex(sets, refBodyBefore(data.body, w.date, w.startTime ?? null)?.kg ?? null) };
       });
       const ref = refProgressPct(refSessions, today);
       if (ref && app.pct != null) {

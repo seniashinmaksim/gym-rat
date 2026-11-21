@@ -1414,7 +1414,7 @@ function SummaryModal({ s, onDone }: { s: SessionSummary; onDone: () => void }) 
         <div className="mt-4">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Effective sets</div>
           <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm tabular-nums">
-            {s.muscles.map((m) => <li key={m.muscle} className="flex justify-between gap-2"><span className="truncate">{names.muscle(m.muscle)}</span><b className="font-semibold">+{m.effective}</b></li>)}
+            {s.muscles.map((m) => <li key={m.muscle} className="flex justify-between gap-2"><span className="truncate">{names.muscle(m.muscle)}</span><b className="font-semibold">+{fmt(m.effective, 2)}</b></li>)}
           </ul>
         </div>
       )}

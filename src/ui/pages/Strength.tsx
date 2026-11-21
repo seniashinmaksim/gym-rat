@@ -86,6 +86,8 @@ export function StrengthPage() {
   );
 }
 
+const TREND_WORD: Record<ProgressionSeries['trend']['cls'], string> = { progressing: 'PROGRESSING', stable: 'STABLE', plateau: 'PLATEAU', declining: 'DECLINING', insufficient_data: 'MORE DATA' };
+
 const isBodyweight = (p: ProgressionSeries) => p.loadMode === 'bodyweight_plus' && (p.current?.topWeight ?? 0) === 0;
 
 function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: boolean; onClick: () => void }) {
@@ -103,7 +105,7 @@ function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: bool
           {cur && <span className="text-xs text-ink-400"> · {formatDate(cur.date, { day: 'numeric', month: 'short' })}</span>}
         </span>
       </span>
-      <Badge tone={ADVICE_TONE[adv.kind]}>{adv.label}{(adv.kind === 'increase' || adv.kind === 'reduce') && p.next.weight != null ? ` · ${fmt(p.next.weight, 2)} kg` : ''}</Badge>
+      <Badge tone={ADVICE_TONE[adv.kind]}>{adviceLabel(p, adv.kind)}</Badge>
     </button>
   );
 }
@@ -142,11 +144,14 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
           increase: 'border-emerald-500/40 bg-emerald-500/5', keep: 'border-sky-500/30 bg-sky-500/5', reduce: 'border-amber-500/40 bg-amber-500/5',
           plateau: 'border-violet-500/30 bg-violet-500/5', not_enough_data: 'border-ink-200 bg-ink-50 dark:border-ink-700 dark:bg-ink-950',
         }[adv.kind])}>
-          <div className="text-sm font-bold tracking-wide text-ink-900 dark:text-white">{adviceLabel(p, adv.kind)}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-bold tracking-wide text-ink-900 dark:text-white">{adviceLabel(p, adv.kind)}</div>
+            <Badge tone={p.trend.cls === 'progressing' ? 'good' : p.trend.cls === 'declining' ? 'warn' : 'neutral'}>{TREND_WORD[p.trend.cls]}</Badge>
+          </div>
           <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
             <Num k="Previous" v={p.previous?.topWeight != null && !bw ? `${fmt(p.previous.topWeight, 2)} kg` : p.previous ? `${p.previous.topReps ?? '—'} reps` : '—'} />
             <Num k="Current" v={p.current?.topWeight != null && !bw ? `${fmt(p.current.topWeight, 2)} kg` : p.current ? `${p.current.topReps ?? '—'} reps` : '—'} />
-            <Num k="Best reps" v={String(Math.max(0, ...p.sessions.flatMap((x) => x.sets.map((q) => q.reps ?? 0))) || '—')} />
+            <Num k="Best reps" v={String(Math.max(0, ...p.sessions.flatMap((x) => x.sets.filter((q) => q.benchmark).map((q) => q.reps ?? 0))) || '—')} />
             <Num k="Next" v={p.next.weight != null && !bw ? `${fmt(p.next.weight, 2)} kg` : bw ? 'BW' : '—'} />
             <Num k="Reps" v={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} />
             <Num k="Target RIR" v={String(p.next.rirTarget)} />
@@ -334,7 +339,8 @@ function BodyContext({ p, kind, repTop }: { p: ProgressionSeries; kind: 'system'
   return (
     <Card>
       <div className="mb-2 text-sm font-semibold">Body weight</div>
-      <Table dense head={['Date', 'Body', kind === 'system' ? 'Added' : 'Bar', 'Best reps', ...(kind === 'system' ? ['≈ Total (est.)'] : [])]}>
+      {/* Short headers so all columns (incl. the estimated total) fit on a 390 px phone. */}
+      <Table dense head={['Date', 'Body', kind === 'system' ? (p.loadMode === 'assisted' ? '− Assist' : '+ Belt') : 'Bar', 'Reps', ...(kind === 'system' ? ['≈ Total'] : [])]}>
         {rows.map((r) => (
           <tr key={r.workoutId}>
             <Td right={false}>{formatDate(r.date, { day: 'numeric', month: 'short' })}</Td>
@@ -347,7 +353,7 @@ function BodyContext({ p, kind, repTop }: { p: ProgressionSeries; kind: 'system'
       </Table>
       {note && <p className="mt-2 text-xs text-ink-600 dark:text-ink-300">{note}</p>}
       {advice && <p className="mt-1 text-xs font-medium text-accent-700 dark:text-accent-300">{advice}</p>}
-      <p className="mt-1 text-[11px] text-ink-400">Body weight = latest weigh-in before each session{kind === 'system' ? '; total = body + added weight, an estimate' : '; never added to the bar'}. * older than 7 days.</p>
+      <p className="mt-1 text-[11px] text-ink-400">kg. Body = latest weigh-in before each session{kind === 'system' ? (p.loadMode === 'assisted' ? '; ≈ total = body − assistance, an estimate' : '; ≈ total = body + belt, an estimate') : '; never added to the bar'}. Reps = best set. * weigh-in older than 7 days.</p>
     </Card>
   );
 }
@@ -359,22 +365,31 @@ function ProgressTable() {
   const rows = a.progression.map((p) => ({ p, s: strengthProgress(p, a.today) })).filter((r) => r.s.baseline)
     .sort((x, y) => (y.s.pct ?? -999) - (x.s.pct ?? -999));
   if (!rows.length) return null;
-  const kg = (r: { p: ProgressionSeries }, w: number | null | undefined, idx: number | undefined) =>
-    r.p.loadMode === 'bodyweight_plus' && !w ? (idx != null ? `${fmt(idx)} reps` : '—') : w != null ? `${fmt(w, 2)} kg` : '—';
+  const reps = (p: ProgressionSeries) => p.sessions.at(-1)?.indexKind === 'reps';
+  const val = (p: ProgressionSeries, w: number | null | undefined, idx: number | undefined) =>
+    reps(p) ? (idx != null ? `${fmt(idx)} reps` : '—') : w != null ? `${fmt(w, 2)} kg` : '—';
   return (
     <Card padded={false}>
-      <div className="flex items-baseline justify-between px-4 pt-3 sm:px-5"><span className="text-sm font-semibold">Progress vs baseline</span><span className="text-[10px] uppercase tracking-wider text-ink-400">first 4 weeks → last 4</span></div>
-      <Table dense head={['Exercise', 'Baseline', 'Current', 'Est. strength']}>
-        {rows.map((r) => (
-          <tr key={r.p.key}>
-            <Td right={false} className="max-w-[9rem] truncate">{names.ex(a.registry.get(r.p.exerciseId), r.p.exerciseId)}{r.p.variantLabel ? <span className="text-ink-400"> · {r.p.variantLabel}</span> : null}</Td>
-            <Td>{kg(r, r.s.baseline?.topWeight, r.s.baseline?.index)}</Td>
-            <Td>{r.s.current ? kg(r, r.s.current.topWeight, r.s.current.index) : '—'}</Td>
-            <Td className={cx('font-semibold', r.s.pct == null ? 'text-ink-400' : r.s.pct >= 2 ? 'text-emerald-600 dark:text-emerald-400' : r.s.pct <= -2 ? 'text-amber-600 dark:text-amber-400' : '')}>{r.s.pct == null ? 'MORE DATA' : `${r.s.pct > 0 ? '+' : ''}${fmt(r.s.pct)}%${r.p.sessions.at(-1)?.indexKind === 'reps' ? ' reps' : ''}`}</Td>
-          </tr>
-        ))}
-      </Table>
-      <div className="px-4 pb-3 sm:px-5"><Why label="How"><p>Estimated strength on that exact machine and setup: weight, reps and RIR of the best clean set (RIR-adjusted Epley). Baseline = first 4 weeks of that history (≥ 2 sessions); current = last ≤ 3 sessions in the last 4 weeks (≥ 2). Bodyweight work ("reps") uses reps + RIR instead. Baseline/Current columns show the median top weight. Wrong-weight, pain and technique-issue sets never count. An estimate of strength, not muscle growth.</p></Why></div>
+      <div className="flex items-baseline justify-between gap-2 px-4 pt-3 sm:px-5"><span className="text-sm font-semibold">Progress vs baseline</span><span className="text-[10px] uppercase tracking-wider text-ink-400">first 4 weeks → last 4</span></div>
+      <ul className="mt-1 divide-y divide-ink-100 dark:divide-ink-800">
+        {rows.map(({ p, s }) => {
+          // Which machine / configuration: two pec decks must never look like the same row.
+          const where = p.equipmentId ? p.scopeLabel : p.variantLabel; // scopeLabel already includes the configuration
+          return (
+            <li key={p.key} className="flex items-center justify-between gap-3 px-4 py-2 sm:px-5">
+              <div className="min-w-0">
+                <div className="truncate text-sm text-ink-900 dark:text-white">{names.ex(a.registry.get(p.exerciseId), p.exerciseId)}{where ? <span className="text-ink-400"> · {where}</span> : null}</div>
+                <div className="text-xs tabular-nums text-ink-500">{val(p, s.baseline?.topWeight, s.baseline?.index)} → {s.current ? val(p, s.current.topWeight, s.current.index) : '—'}</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className={cx('text-base font-semibold tabular-nums', s.pct == null ? 'text-ink-400' : s.pct >= 2 ? 'text-emerald-600 dark:text-emerald-400' : s.pct <= -2 ? 'text-amber-600 dark:text-amber-400' : 'text-ink-900 dark:text-white')}>{s.pct == null ? 'MORE DATA' : `${s.pct > 0 ? '+' : ''}${fmt(s.pct)}%`}</div>
+                <div className="text-[10px] uppercase tracking-wider text-ink-400">{s.pct == null ? '' : reps(p) ? 'reps' : 'est. strength'}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="px-4 pb-3 sm:px-5"><Why label="How"><p>% = estimated strength on that exact machine and setup: weight, reps and RIR of the best clean set (RIR-adjusted Epley), median of the last ≤ 3 sessions in the last 4 weeks vs the first 4 weeks of that history (≥ 2 sessions each). Bodyweight work ("reps") uses reps + RIR instead. The kg shown are the median top weights. Wrong-weight, pain and technique-issue sets never count. An estimate of strength, not muscle growth.</p></Why></div>
     </Card>
   );
 }
