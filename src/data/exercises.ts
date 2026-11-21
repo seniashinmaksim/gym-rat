@@ -344,7 +344,7 @@ const META: Record<string, { settings?: string[]; fields?: VariationField[]; def
   lat_pulldown: { settings: ['knee pad'], fields: ['attachment', 'grip', 'gripWidth'] },
   close_grip_pulldown: { settings: ['knee pad'], fields: ['attachment', 'grip'] },
   machine_pulldown: { settings: ['seat', 'knee pad'], fields: ['grip', 'gripWidth'] },
-  pull_up: { fields: ['grip', 'gripWidth'] },
+  pull_up: { fields: ['loading', 'gripWidth', 'grip'], def: { loading: 'bodyweight' } },
   assisted_pull_up: { settings: ['knee pad'], fields: ['grip', 'gripWidth'] },
   seated_cable_row: { settings: ['foot plate'], fields: ['attachment', 'grip', 'gripWidth'] },
   chest_supported_row: { settings: ['seat', 'chest pad'], fields: ['grip', 'gripWidth'] },

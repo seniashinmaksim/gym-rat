@@ -7,14 +7,14 @@ import type { RecoveryStatus } from '../../domain/recovery';
 import type { DailyLog, MuscleId } from '../../domain/types';
 import { store, useData } from '../../lib/store';
 import { BodyMap } from '../components/BodyMap';
-import { IconChevronDown, IconInfo } from '../components/icons';
-import { Badge, Button, Callout, Card, CardTitle, cx, Field, fmt, Input, NumInput, Page, Segmented, toast, Why } from '../components/ui';
+import { IconChevronDown } from '../components/icons';
+import { Badge, Button, Card, CardTitle, cx, Field, fmt, Input, NumInput, Page, Segmented, toast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
 const STATUS: Record<RecoveryStatus, { label: string; tone: 'good' | 'warn' | 'neutral'; bar: string }> = {
-  likely_recovered: { label: 'Likely recovered', tone: 'good', bar: 'bg-emerald-500' },
-  recovering: { label: 'Recovering', tone: 'warn', bar: 'bg-amber-500' },
-  insufficient_data: { label: 'Insufficient data', tone: 'neutral', bar: 'bg-ink-400' },
+  likely_recovered: { label: 'READY', tone: 'good', bar: 'bg-emerald-500' },
+  recovering: { label: 'RECOVERING', tone: 'warn', bar: 'bg-amber-500' },
+  insufficient_data: { label: 'UNKNOWN', tone: 'neutral', bar: 'bg-ink-400' },
 };
 const ORDER: Record<RecoveryStatus, number> = { recovering: 0, likely_recovered: 1, insufficient_data: 2 };
 
@@ -42,11 +42,7 @@ export function RecoveryPage() {
   };
 
   return (
-    <Page title="Recovery" subtitle="Probabilistic readiness estimates per muscle. Guidance only. The app cannot see the true biological state of a muscle.">
-      <Callout tone="info" icon={<IconInfo size={18} />} title="How to read this">
-        Estimates combine the <b>size of your last significant session</b> for each muscle (observed), a <b>heuristic recovery window</b> of ~24–72 h, longer after failure sets or new exercises (assumption), and your <b>soreness, sleep and fatigue</b> check-ins (self-reported).
-        A muscle below its weekly target is not pushed for more work while it is likely still recovering.
-      </Callout>
+    <Page title="Recovery" subtitle="Estimates per muscle — not a measurement. Counted from when each session ended.">
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
         <Card>
@@ -66,7 +62,7 @@ export function RecoveryPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Per muscle</h2>
             <Segmented<'all' | RecoveryStatus> size="sm" value={filter} onChange={setFilter} options={[
-              { value: 'all', label: 'All' }, { value: 'recovering', label: 'Recovering' }, { value: 'likely_recovered', label: 'Recovered' }, { value: 'insufficient_data', label: 'No data' },
+              { value: 'all', label: 'All' }, { value: 'recovering', label: 'Recovering' }, { value: 'likely_recovered', label: 'Ready' }, { value: 'insufficient_data', label: 'Unknown' },
             ]} />
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

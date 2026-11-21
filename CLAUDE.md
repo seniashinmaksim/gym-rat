@@ -26,7 +26,7 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 
 1. Read the whole message; split it into workouts (one per date/session) and exercises.
 2. For each exercise identify: exercise → `exercise_id`, equipment instance, variation (bench angle, grip, ROM), and every set.
-3. Produce JSON in the **`gymrat.workout` v1.3** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
+3. Produce JSON in the **`gymrat.workout` v1.4** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
 4. List every assumption and uncertainty in `uncertainties` **and** in your reply.
 5. Show the JSON to the owner for correction **before** they import it.
 
@@ -164,6 +164,7 @@ Note "Leg curl" (hamstrings) vs "curl" (biceps), and "французский ж�
 | Plate-loaded machine, owner reports total plates | total plates | `total` |
 | Assisted pull-up / dip machine | assistance weight (lower = harder) | `assisted` |
 | Bodyweight with added load (belt, vest) | added load only (bodyweight alone → `0`) | `bodyweight_plus` |
+| **Pull-ups** (v1.4) | belt/vest load only; bodyweight reps → `0`. Also set `variation.loading` (`bodyweight` / `weighted`) and `grip_width` (`narrow` / `shoulder` / `wide`) when stated | `bodyweight_plus` |
 
 Never "normalise" loads (e.g. adding the sled or bar weight) unless the owner says so.
 
@@ -211,13 +212,14 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 
 ## D. Training-history rules
 
-- **Compare like with like:** same `exercise_id` × same `equipment_id` × same configuration. Configuration = exact bench angle (angle-sensitive exercises), cable attachment, one side at a time (exercises that offer that choice), standing/seated, straight/bent legs — each recorded value starts its own history. Entries without the value share an "unspecified" history: older entries keep their history, except that an older entry which recorded a bench angle moves to that angle's history (angles were recordable before v1.1). Grip is not part of the key. Linking a free-weight exercise to an equipment entry (e.g. a specific EZ bar) also starts a new history for that bar. Free weights without an equipment id share one history; unidentified machines are kept separate per gym.
+- **Compare like with like:** same `exercise_id` × same `equipment_id` × same configuration. Configuration = exact bench angle (angle-sensitive exercises), cable attachment, one side at a time (exercises that offer that choice), standing/seated, straight/bent legs — each recorded value starts its own history. Entries without the value share an "unspecified" history: older entries keep their history, except that an older entry which recorded a bench angle moves to that angle's history (angles were recordable before v1.1). Grip is not part of the key — except pull-ups, where `loading` (bodyweight vs weighted) and grip width each start their own history (v1.4). Linking a free-weight exercise to an equipment entry (e.g. a specific EZ bar) also starts a new history for that bar. Free weights without an equipment id share one history; unidentified machines are kept separate per gym.
 - Performance index per session = RIR-adjusted Epley estimate of the best working set (or reps+RIR for bodyweight) — an index for *that* equipment, not a true 1RM.
 - **Trend classification** (`src/domain/progression.ts`, last ≤6 sessions within 8 weeks, ≥3 needed):
   - *progressing*: regression slope ≥ +1 %/session and last ≥ first;
   - *declining*: slope ≤ −1.5 %/session and last < first;
   - *possible plateau*: ≥4 sessions over ≥21 days, no new best in the last 2;
   - *stable*: otherwise; *insufficient data*: < 3 sessions.
+  - Guards (v1.4 audit): one bad latest session (≥ 5 % under the usual level) is set aside — it never creates a plateau, a decline or a reduction; a *sustained decline* is also flagged when, over ≥ 6 sessions in 8 weeks, the last 3 are ≥ 8 % below the first 3; kg-based and reps-based indices (e.g. bodyweight dips vs dips with a belt) are never compared.
 - **Double progression:** increase load only after **all** working sets at the working load reach the top of the rep range (with effort recorded — RIR or how the set felt) in **two consecutive** sessions; increment = smallest increment of that equipment. One good set or session is never enough — **except** when every set reached the top with ≥ target RIR + 2 in reserve (load clearly too light), where one session suffices. Lighter back-off sets are ignored; assistance never goes below 0.
 - **Rest periods:** compare rep retention between sets against rest duration; a drop in performance with shorter rest is not a strength loss. Mention rest changes when explaining a "decline".
 - **New variations** (different grip, angle, ROM, machine) start a new comparison context; do not report them as progress or regression.
@@ -237,7 +239,7 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 When the owner submits a workout:
 
 1. **Parse** the message (sections A–C).
-2. **Validate** against `gymrat.workout` v1.3 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
+2. **Validate** against `gymrat.workout` v1.4 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
 3. **Match** exercises (library ids), gym (`location_id` / `name_hint`) and equipment (`equipment_id` / hints). Mark anything unsure as `uncertain` and ask.
 4. **Generate** the JSON (envelope form preferred, with a unique `client_ref`, e.g. `"chat-2026-11-21-1"`).
 5. **Allow corrections**: show the JSON plus a short bullet list of assumptions; apply the owner's corrections.
@@ -292,6 +294,18 @@ Rules specific to these movements:
 
 ---
 
+## I. Live workout, body weight, baseline and the numbers-first UI (Part 4)
+
+- **Live logger:** a ticked set is saved immediately (and again when the tab hides); a second tap within 1.5 s is ignored. The rest timer starts from the set's completion time, survives reloads and the vault lock (+15/+30 s, pause, skip, optional sound/vibration). Rest between sets of the same exercise is MEASURED (time between completions minus an estimate of the set's own duration); between exercises the app shows "since last set". "Next exercise" / "Done" / "Skip" close an exercise card; Finish shows a summary (duration, exercises, sets, warm-ups, tonnage = weight × reps as logged, average rest, effective sets per muscle, records, failure sets).
+- **Pull-ups (v1.4):** `variation.loading` = `bodyweight` | `weighted` and `grip_width` = `narrow` | `shoulder` | `wide`. Each combination has its own history. `weight_kg` is the belt/vest load only; body weight is never stored on the set. "Body + belt" is shown only as a labelled estimate.
+- **Body weight any time:** each weigh-in stores the MEASUREMENT date + time (and optional condition: morning fasted, after breakfast, before/after workout, evening) separately from when it was entered. A workout uses the latest weigh-in taken before it started (same-day entries without a time count only if tagged morning fasted / before workout); older than 7 days → "outdated". Trend = 7-day average of daily means. Body weight is NOT part of the workout import: if the owner mentions it, tell them to log it in the app (Week → + Weight, or Body) with the time it was measured. Squats/lunges/deadlifts show body weight as context only — never added to the bar.
+- **Weekly volume resets, history and recovery do not:** Monday 00:00 (owner's timezone) starts new weekly counters; previous weeks are derived from raw sets (never deleted); recovery counts continuously from the real end of the last session, across the week boundary.
+- **Baseline and progress (`src/domain/baseline.ts`):** the first 28 days of an exercise × equipment × configuration history are its baseline (median index of ≥ 2 representative sessions). Progress % = (median of the last ≤ 3 representative sessions in the last 28 days ÷ baseline − 1) — STRENGTH on that setup only (RIR-adjusted Epley, an estimate). Hypertrophy is a SEPARATE "growth signals" status from indirect indicators (strength trend, quality sets, sessions, logged effort, 7-day body weight, waist, photos): baseline in weeks 1–4, "too early" until week 8, then every 4 weeks; never a growth percentage, never claimed from strength alone.
+- **Numbers-first UI:** the Week screen is one table: muscle · done / target · LEFT or DONE. Advice reads `INCREASE +2.5 KG` / `KEEP 25 KG` / `REDUCE TO 22.5 KG` / `PLATEAU — n SESSIONS` / `MORE DATA NEEDED`; explanations open on "Why".
+- **Mobile layout:** WebKit does not shrink flex children inside `<button>` and grid items default to `min-width: auto`; `src/index.css` sets `.grid > * { min-width: 0 }`, bounds inputs/selects, and normalises iOS date/time inputs. `e2e/responsive.spec.ts` audits 32 screens × 4 viewports (iPhone 13 390×844, 375, 430, desktop) on WebKit; `e2e/readiness.spec.ts` runs a first workout end to end.
+
+---
+
 ## Developer notes
 
 ### Architecture
@@ -312,6 +326,8 @@ src/
     failure.ts     failure status consistency + weekly failure profile
     prescription.ts today's prescription (warm-ups, sets, loads, reps, RIR, rest) + set-by-set adaptation
     equipmentMemory.ts machine picker grouping by gym   increments.ts real load steps
+    sessionSummary.ts finish summary, measured rest       bodyweight.ts weigh-ins, 7-day average, body weight per workout
+    baseline.ts    baseline, progress %, 4-week check, growth signals   effort.ts  effort distribution
   data/scientific-evidence/  verified references, per-muscle/exercise evidence, tempo model, rule registry
   data/exercises.ts  seed exercise library (EN/RU, aliases, coefficients)
   lib/
@@ -332,6 +348,7 @@ npm run dev        # local dev server
 npm test           # vitest
 npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + production build into dist/
+npx playwright test # WebKit e2e (needs `npm run dev` on :5173)
 ```
 
 ### Changing the import contract

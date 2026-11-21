@@ -142,6 +142,8 @@ export interface Variation {
   execution?: string | null;
   /** Hanging raises: straight / bent knees. */
   legs?: string | null;
+  /** Pull-ups (v1.4): bodyweight only, or weighted with a dip belt (weightKg = belt weight). Separate histories. */
+  loading?: 'bodyweight' | 'weighted' | null;
   /** Squats: above_parallel / parallel / below_parallel. Recorded, not used for coefficients. */
   depth?: string | null;
   /** Back squat: high_bar / low_bar. */
@@ -150,7 +152,7 @@ export interface Variation {
 }
 
 /** Variation controls the logger offers for an exercise (beyond grip, grip width and ROM, which are always available). */
-export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance' | 'grip' | 'gripWidth';
+export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance' | 'grip' | 'gripWidth' | 'loading';
 
 export interface WorkoutExercise {
   id: string;
@@ -340,7 +342,14 @@ export interface Photo {
 
 export interface BodyMeasurement {
   id: string;
+  /** Date the measurement was TAKEN (training timezone). */
   date: string;
+  /** Local time the measurement was taken (HH:mm). Older entries have none (date only). */
+  time?: string | null;
+  /** When it was typed into the app (ISO) — kept separate; analysis always uses date + time. */
+  enteredAt?: string;
+  /** Optional measuring condition. */
+  condition?: 'morning_fasted' | 'after_breakfast' | 'before_workout' | 'after_workout' | 'evening' | null;
   weightKg?: number | null;
   waistCm?: number | null;
   chestCm?: number | null;

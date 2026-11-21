@@ -9,3 +9,6 @@ coverage
 *.gymrat-backup.json
 private/
 exports/
+test-artifacts/
+playwright-report/
+test-results/

@@ -33,11 +33,11 @@ const v13 = {
   }],
 };
 
-describe('import schema v1.3', () => {
-  it('current version is 1.3 and the shipped example uses it', () => {
-    expect(IMPORT_SCHEMA_VERSION).toBe('1.3');
+describe('import schema v1.3 fields (current version 1.4)', () => {
+  it('current version is 1.4 and the shipped example uses it', () => {
+    expect(IMPORT_SCHEMA_VERSION).toBe('1.4');
     const text = readFileSync(new URL('../examples/synthetic-workout.json', import.meta.url), 'utf8');
-    expect(JSON.parse(text).schema_version).toBe('1.3');
+    expect(JSON.parse(text).schema_version).toBe('1.4');
     expect(parseImportJson(text).ok).toBe(true);
   });
 

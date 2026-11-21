@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { MuscleWeek } from '../../domain/analysis';
 import { formatDate, diffDays } from '../../domain/dates';
-import { adviceFor, type AdviceKind, type ProgressionSeries } from '../../domain/progression';
+import { adviceFor, adviceLabel, type AdviceKind, type ProgressionSeries } from '../../domain/progression';
 import { assessDeload, buildSnapshot, pendingSnapshot, weeklyReport } from '../../domain/reports';
 import { store } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import type { MuscleId } from '../../domain/types';
-import { effortCoverage } from '../../domain/effort';
+import { effortCoverage, effortDistribution } from '../../domain/effort';
+import { latestWeighIn, rollingAverage, weeklyTrend } from '../../domain/bodyweight';
+import { AddBodyWeight } from '../components/AddBodyWeight';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
@@ -24,7 +26,6 @@ import { useAnalysis, useNames } from '../hooks';
 export function DashboardPage() {
   const a = useAnalysis();
   const data = useData();
-  const names = useNames();
   const [open, setOpen] = useState<MuscleId | null>(null);
   const [more, setMore] = useState(false);
   const deload = useMemo(() => assessDeload(data, a), [data, a]);
@@ -40,9 +41,6 @@ export function DashboardPage() {
     const rank = (m: MuscleWeek) => (m.remainingToPreferred <= 0 ? -1 : m.todayLeft > 0 ? 1000 + m.remainingToPreferred : m.remainingToPreferred);
     return [...a.muscles].sort((x, y) => rank(y) - rank(x));
   }, [a.muscles]);
-  const openList = sorted.filter((m) => m.remainingToPreferred > 0);
-  const doneList = sorted.filter((m) => m.remainingToPreferred <= 0);
-  const todayOpen = openList.filter((m) => m.todayLeft > 0);
 
   const subtitle = (
     <span>{formatDate(a.week.start, { day: 'numeric', month: 'short' })} – {formatDate(a.week.end, { day: 'numeric', month: 'short' })} · {a.daysLeft} day{a.daysLeft === 1 ? '' : 's'} left</span>
@@ -61,8 +59,8 @@ export function DashboardPage() {
   return (
     <Page title="This week" subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? 'Resume' : 'Log workout'}</Button></Link>}>
       {effort.nudge && (
-        <Callout tone="info" title="Tap how your sets felt">
-          {effort.missing} of {effort.counted} sets this week have no RIR or feel, so they count as a provisional 0.75 each. One tap after ✓ makes the numbers more reliable — skip it whenever you like.
+        <Callout tone="info" title={`${effort.missing} / ${effort.counted} sets without RIR or feel`}>
+          Counted as provisional (0.75). One tap after ✓ fixes it.
         </Callout>
       )}
       {deload.recommend && (
@@ -72,32 +70,22 @@ export function DashboardPage() {
       )}
 
       <Card padded={false}>
-        <div className="border-b border-ink-100 px-4 py-3.5 dark:border-ink-800 sm:px-5">
-          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Quality sets left this week</h2>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
-            {!openList.length ? 'Every muscle has reached its target this week.'
-              : todayOpen.length ? <>Today: {todayOpen.slice(0, 4).map((m) => `${names.muscle(m.muscle)} ≈${fmt(m.todayLeft)}`).join(' · ')}{todayOpen.length > 4 ? ' …' : ''}</>
-                : 'Nothing more is due today.'}
-          </p>
-          {a.learning.active && (
-            <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Targets still calibrating (Learning Mode{a.learning.startDate ? `, day ${a.learning.dayNumber} of ${a.learning.lengthDays}` : ''}) — treat the numbers as provisional.</p>
-          )}
+        <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
+          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Quality sets</h2>
+          <span className="flex items-center gap-1.5">
+            {a.learning.active && <Badge tone="warn">PROVISIONAL</Badge>}
+            <span className="text-xs tabular-nums text-ink-500">{fmt(a.muscles.reduce((t, m) => t + m.completed, 0))} done</span>
+          </span>
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:px-5">
+          <span>Muscle</span><span className="w-[4.5rem] text-right">Done / target</span><span className="w-12 text-right">Left</span>
         </div>
         <ul className="divide-y divide-ink-100 dark:divide-ink-800/70">
-          {openList.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
+          {sorted.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
         </ul>
-        {doneList.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
-            <span className="mr-1 text-xs text-ink-500">✓ Done this week:</span>
-            {doneList.map((m) => (
-              <button key={m.muscle} type="button" onClick={() => setOpen(open === m.muscle ? null : m.muscle)} className="min-h-[36px]">
-                <Badge tone={m.status === 'over' ? 'violet' : 'good'}>{names.muscle(m.muscle)}</Badge>
-              </button>
-            ))}
-            {open && doneList.some((m) => m.muscle === open) && <div className="mt-2 w-full"><MuscleDetail m={doneList.find((m) => m.muscle === open)!} /></div>}
-          </div>
-        )}
       </Card>
+
+      <WeekStrip />
 
       <NextWeights />
 
@@ -115,29 +103,29 @@ export function DashboardPage() {
 
 function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onToggle: () => void }) {
   const names = useNames();
+  const done = m.remainingToPreferred <= 0;
   return (
     <li id={`row-${m.muscle}`} className={cx('transition-colors', open && 'bg-ink-50/70 dark:bg-ink-950/40')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full px-4 py-3 text-left sm:px-5">
-        <div className="flex items-center justify-between gap-3">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full px-4 py-2.5 text-left sm:px-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
-            <IconChevronDown size={14} className={cx('shrink-0 text-ink-400 transition', open && 'rotate-180')} />
+            <span className="truncate text-sm font-medium text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
+            {statusChip(m)}
           </span>
-          <span className="flex shrink-0 items-baseline gap-2">
-            {todayChip(m)}
-            <span className="text-2xl font-semibold leading-none tabular-nums tracking-tight text-ink-900 dark:text-white">{fmt(m.remainingToPreferred)}<span className="ml-1 text-[11px] font-normal tracking-normal text-ink-400">left</span></span>
-          </span>
+          <span className="w-[4.5rem] text-right text-sm tabular-nums text-ink-600 dark:text-ink-300">{fmt(m.completed)} / {fmt(m.target.preferred)}</span>
+          <span className={cx('w-12 text-right text-base font-semibold tabular-nums', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{done ? (m.status === 'over' ? 'OVER' : 'DONE') : fmt(m.remainingToPreferred)}</span>
         </div>
-        <div className="mt-2"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={6} /></div>
+        <div className="mt-1.5"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={4} /></div>
       </button>
       {open && <div className="px-4 pb-4 sm:px-5"><MuscleDetail m={m} /></div>}
     </li>
   );
 }
 
-function todayChip(m: MuscleWeek) {
-  if (m.todayShare > 0 && m.todayLeft <= 0) return <Badge tone="good">✓ today</Badge>;
-  if (m.todayBlocked) return <Badge tone="warn">recovering</Badge>;
+/** One small tag: today's share, or recovery (never both). */
+function statusChip(m: MuscleWeek) {
+  if (m.todayBlocked || m.recovery.status === 'recovering') return <Badge tone="warn">RECOVERING</Badge>;
+  if (m.remainingToPreferred <= 0) return null;
   if (m.todayLeft > 0) return <Badge tone="accent">today {fmt(m.todayLeft)}</Badge>;
   return null;
 }
@@ -191,15 +179,15 @@ function Fact({ k, v }: { k: string; v: React.ReactNode }) {
 // ---------------------------------------------------------------- Next weights
 
 const ADVICE_TONE: Record<AdviceKind, 'good' | 'info' | 'warn' | 'neutral' | 'violet'> = { increase: 'good', keep: 'info', reduce: 'warn', plateau: 'violet', not_enough_data: 'neutral' };
-const ADVICE_SHORT: Record<AdviceKind, string> = { increase: '↑ Increase', keep: '= Keep', reduce: '↓ Reduce', plateau: 'Plateau?', not_enough_data: 'More data' };
 const ADVICE_RANK: Record<AdviceKind, number> = { reduce: 0, increase: 1, plateau: 2, keep: 3, not_enough_data: 4 };
+
+
 
 function AdviceRow({ p }: { p: ProgressionSeries }) {
   const a = useAnalysis();
   const names = useNames();
   const adv = adviceFor(p);
   const def = a.registry.get(p.exerciseId);
-  const w = p.next.weight;
   return (
     <li>
       <Link to={`/strength?k=${encodeURIComponent(p.key)}`} className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-ink-200 bg-white px-3 py-2 dark:border-ink-800 dark:bg-ink-900">
@@ -208,8 +196,7 @@ function AdviceRow({ p }: { p: ProgressionSeries }) {
           <span className="block truncate text-[11px] text-ink-500">{p.scopeLabel}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          {w != null && adv.kind !== 'not_enough_data' && <span className="text-sm font-semibold tabular-nums">{w === 0 && p.loadMode === 'bodyweight_plus' ? 'BW' : `${fmt(w, 2)} kg`}</span>}
-          <Badge tone={ADVICE_TONE[adv.kind]}>{ADVICE_SHORT[adv.kind]}</Badge>
+          <Badge tone={ADVICE_TONE[adv.kind]}>{adviceLabel(p, adv.kind)}</Badge>
         </span>
       </Link>
     </li>
@@ -235,6 +222,37 @@ function NextWeights() {
       {recent.length > 6 && (
         <button type="button" onClick={() => setAll(!all)} className="mt-1 min-h-[40px] text-xs font-medium text-ink-500">{all ? 'Show fewer' : `Show all ${recent.length}`}</button>
       )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------- Effort + body weight (one line each)
+
+function WeekStrip() {
+  const a = useAnalysis();
+  const data = useData();
+  const [add, setAdd] = useState(false);
+  const eff = useMemo(() => effortDistribution(data.workouts, a.week), [data.workouts, a.week]);
+  const last = latestWeighIn(data.body);
+  const avg = rollingAverage(data.body, a.today);
+  const trend = weeklyTrend(data.body, a.today);
+  const cell = (k: string, v: string) => <span className="flex flex-col"><span className="text-[10px] uppercase tracking-wider text-ink-400">{k}</span><span className="text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</span></span>;
+  return (
+    <Card className="!py-3">
+      {eff.total > 0 && (
+        <div className="grid grid-cols-6 gap-1 text-center">
+          {cell('RIR 0', String(eff.rir0))}{cell('RIR 1', String(eff.rir1))}{cell('RIR 2', String(eff.rir2))}{cell('3+', String(eff.rir3plus))}{cell('?', String(eff.unknown))}{cell('Avg', eff.avgRir != null ? fmt(eff.avgRir) : '—')}
+        </div>
+      )}
+      <div className={cx('flex items-center justify-between gap-2', eff.total > 0 && 'mt-3 border-t border-ink-100 pt-3 dark:border-ink-800')}>
+        <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
+          {cell('Body', last ? `${fmt(last.kg)} kg` : '—')}
+          {cell('7-day', avg ? `${fmt(avg.kg)} kg` : '—')}
+          {cell('Week', trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 2)} kg` : '—')}
+        </div>
+        <Button size="sm" onClick={() => setAdd(true)}><IconPlus size={14} />Weight</Button>
+      </div>
+      <AddBodyWeight open={add} onClose={() => setAdd(false)} />
     </Card>
   );
 }

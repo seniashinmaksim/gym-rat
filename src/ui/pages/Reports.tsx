@@ -5,6 +5,11 @@ import { TRACKED_MUSCLES } from '../../domain/muscles';
 import { baselineReport, buildSnapshot, weeklyReport, weeklySummary, progressionAsOf, type WeeklyReport } from '../../domain/reports';
 import type { MuscleId } from '../../domain/types';
 import type { FailureProfile } from '../../domain/failure';
+import { hypertrophyAssessment, periodStats, strengthProgress, type HypertrophyIndicator, type HypertrophyStatus, type PeriodStats } from '../../domain/baseline';
+import { computeVolume, qualitySetTotal } from '../../domain/volume';
+import { effortDistribution, weekTotals } from '../../domain/effort';
+import { addDays } from '../../domain/dates';
+import type { Workout } from '../../domain/types';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconCheck, IconChevronDown, IconInfo } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
@@ -81,6 +86,7 @@ function WeeklyTab() {
       )}
 
       <WeekSummaryCard report={report} complete={bucket.complete} />
+      <FourWeekCheck />
 
       <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-ink-600 dark:text-ink-300">
         Full report <IconChevronDown size={14} className={cx('transition', details && 'rotate-180')} />
@@ -178,8 +184,20 @@ function WeekSummaryCard({ report, complete }: { report: WeeklyReport; complete:
     </div>
   );
   const list = (xs: string[], empty: string) => (xs.length ? xs.join(' · ') : <span className="text-ink-500">{empty}</span>);
+  // Each set once, weighted by quality — never more than the working sets (no cross-muscle double counting).
+  const effSum = (ws: Workout[]) => qualitySetTotal(ws, a.registry, data.settings.quality);
+  const cur = weekTotals(data.workouts, report.range, effSum);
+  const prev = weekTotals(data.workouts, { start: addDays(report.range.start, -7), end: addDays(report.range.end, -7) }, effSum);
+  const tr = (k: string, x: string, y: string) => <tr><Td right={false} className="font-medium">{k}</Td><Td className="font-semibold">{x}</Td><Td>{y}</Td></tr>;
   return (
     <Card>
+      <div className="mb-3"><Table dense head={['', 'This week', 'Last week']}>
+        {tr('Workouts', String(cur.workouts), String(prev.workouts))}
+        {tr('Working sets', String(cur.workingSets), String(prev.workingSets))}
+        {tr('Quality sets', fmt(cur.effective), fmt(prev.effective))}
+        {tr('Avg RIR', cur.avgRir != null ? fmt(cur.avgRir) : '—', prev.avgRir != null ? fmt(prev.avgRir) : '—')}
+        {tr('Tonnage', `${cur.tonnageKg.toLocaleString()} kg`, `${prev.tonnageKg.toLocaleString()} kg`)}
+      </Table></div>
       <Row q={complete ? 'Behind target (quality sets short)' : 'Still behind (quality sets left)'}>
         {s.behind.length ? s.behind.map((b) => `${names.muscle(b.muscle)} ${fmt(b.left)}`).join(' · ') : <span className="text-emerald-600 dark:text-emerald-400">All muscles at target.</span>}
       </Row>
@@ -225,9 +243,6 @@ function BaselineTab() {
       ) : (
         <Callout tone="good" icon={<IconCheck size={16} />} title="Calibration complete">{L.message}</Callout>
       )}
-      <Callout tone="info" icon={<IconInfo size={16} />}>
-        One month of data describes your training <b>behaviour</b> — frequency, loads, effort, volume distribution. It cannot show which muscles grow faster or slower; that needs months of measurements.
-      </Callout>
 
       <p className="text-xs text-ink-500">Period {formatDate(r.period.start, { day: 'numeric', month: 'short', year: 'numeric' })} – {formatDate(r.period.end, { day: 'numeric', month: 'short', year: 'numeric' })} ({r.period.days} days)</p>
 
@@ -435,6 +450,59 @@ function FailureCard({ f }: { f: FailureProfile }) {
         ))}
       </Table>
       <p className="mt-2 text-xs text-ink-500">By muscle: {f.muscles.filter((m) => m.recorded > 0).map((m) => `${names.muscle(m.muscle)} ${pct(m.shareAtFailure)}`).join(' · ') || '—'}</p>
+    </Card>
+  );
+}
+
+const STATUS_TEXT: Record<HypertrophyStatus, string> = {
+  establishing_baseline: 'BASELINE — weeks 1–4', too_early: 'TOO EARLY — first check at week 8', consistent_positive_signals: 'CONSISTENT POSITIVE SIGNALS',
+  mixed_signals: 'MIXED SIGNALS', no_clear_signals: 'NO CLEAR SIGNALS', insufficient_data: 'MORE DATA NEEDED',
+};
+const IND_LABEL: Record<HypertrophyIndicator['id'], string> = { strength: 'Strength', volume: 'Quality sets', consistency: 'Sessions', effort: 'Effort logged', body_weight: 'Body weight', circumference: 'Waist', photos: 'Photos' };
+
+/** Last 4 weeks vs the 4 before vs the first 4 (baseline) — numbers only, plus the separate growth-signal status. */
+function FourWeekCheck() {
+  const a = useAnalysis();
+  const data = useData();
+  const v = useMemo(() => {
+    const eff = (ws: Workout[]) => Object.fromEntries(Object.entries(computeVolume(ws, a.registry, data.settings.quality).muscles).map(([m, x]) => [m, x.effective]));
+    const start = a.learning.startDate;
+    if (!start || !data.workouts.length) return null;
+    const q = (ws: Workout[]) => qualitySetTotal(ws, a.registry, data.settings.quality);
+    const opts = { today: a.today, quality: q };
+    const cur = periodStats(data, addDays(a.today, -27), a.today, eff, opts);
+    const prev = periodStats(data, addDays(a.today, -55), addDays(a.today, -28), eff, opts);
+    const base = periodStats(data, start, addDays(start, 27), eff, opts);
+    const progress = a.progression.map((p) => strengthProgress(p, a.today));
+    const targetPerWeek = a.muscles.reduce((t, m) => t + m.target.preferred, 0);
+    // Effort logged over the same 4 weeks (not just this week, not summed across muscles).
+    const ed = effortDistribution(data.workouts, { start: addDays(a.today, -27), end: a.today });
+    const assess = hypertrophyAssessment({ data, today: a.today, startDate: start, progress, current: cur, previous: prev.sessions ? prev : null, targetPerWeek, effortKnownShare: ed.total ? 1 - ed.unknown / ed.total : null });
+    return { cur, prev, base, assess, ok: progress.filter((p) => p.status === 'ok') };
+  }, [a, data]);
+  if (!v) return null;
+  const row = (k: string, f: (p: PeriodStats) => string) => <tr><Td right={false} className="font-medium">{k}</Td><Td>{f(v.base)}</Td><Td>{f(v.prev)}</Td><Td className="font-semibold">{f(v.cur)}</Td></tr>;
+  const n = (x: number | null, u = '') => (x == null ? '—' : `${fmt(x)}${u}`);
+  return (
+    <Card padded={false}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3 sm:px-5">
+        <span className="text-sm font-semibold">4-week check</span>
+        <span className="text-[10px] uppercase tracking-wider text-ink-400">week {v.assess.week}{v.assess.nextCheck ? ` · next ${formatDate(v.assess.nextCheck, { day: 'numeric', month: 'short' })}` : ''}</span>
+      </div>
+      <Table dense head={['', 'Baseline', 'Prev 4 wk', 'Last 4 wk']}>
+        {row('Sessions / wk', (p) => n(p.sessionsPerWeek))}
+        {row('Quality sets / wk', (p) => n(p.qualitySetsPerWeek))}
+        {row('Body 7-day', (p) => n(p.bodyWeight7d, ' kg'))}
+        {row('Waist', (p) => n(p.waistCm, ' cm'))}
+      </Table>
+      <div className="px-4 pb-3 pt-2 sm:px-5">
+        <div className="text-[11px] uppercase tracking-wider text-ink-400">Growth signals (separate from strength)</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2"><b className="text-sm">{STATUS_TEXT[v.assess.status]}</b><Badge tone="neutral">{v.assess.confidence} confidence</Badge></div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {v.assess.indicators.map((i) => <Badge key={i.id} tone={i.signal === 'positive' ? 'good' : i.signal === 'negative' ? 'warn' : 'neutral'}>{IND_LABEL[i.id]} {i.value}</Badge>)}
+        </div>
+        <Why label="How"><p>Indirect indicators only — strength trend on each machine, quality sets, sessions, logged effort, 7-day body weight, waist and photos — never a measurement of muscle. Weeks 1–4 build the baseline; from week 8 the indicators are combined; then every 4 weeks. Nothing changes your targets automatically.</p></Why>
+      </div>
     </Card>
   );
 }

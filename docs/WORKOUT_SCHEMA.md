@@ -1,4 +1,4 @@
-# Workout import format — `gymrat.workout` v1.3
+# Workout import format — `gymrat.workout` v1.4
 
 The contract between Claude (or any tool) and the app's **Import from Claude** screen.
 
@@ -8,7 +8,7 @@ The contract between Claude (or any tool) and the app's **Import from Claude** s
 
 ## Accepted shapes
 
-1. **Envelope** (preferred): `{ "schema": "gymrat.workout", "schema_version": "1.3", "workouts": [ Workout, ... ] }`
+1. **Envelope** (preferred): `{ "schema": "gymrat.workout", "schema_version": "1.4", "workouts": [ Workout, ... ] }`
 2. A single bare **Workout** object.
 3. An **array** of Workout objects.
 
@@ -39,7 +39,7 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 | `exercise_confidence` | confidence | – | |
 | `equipment_id` | string \| null | – | Shorthand for `equipment.equipment_id`. |
 | `equipment` | object | – | `{ equipment_id?, name_hint?, manufacturer?, model?, kind?, confidence? }` — `kind` ∈ machine, plate_loaded, cable, smith, barbell, dumbbell, kettlebell, bodyweight, band, other. |
-| `variation` | object | – | `{ bench_angle_deg? (−45..90), grip?, grip_width?, stance?, rom?, unilateral?, attachment?, position?, execution?, legs?, depth?, bar_position?, notes? }` — the last six are new in v1.1 (strings; see below). A recorded bench angle (angle-sensitive exercises), attachment, position, legs and — for exercises that offer the choice — unilateral start a separate strength history; grip does not. |
+| `variation` | object | – | `{ bench_angle_deg? (−45..90), grip?, grip_width?, stance?, rom?, unilateral?, attachment?, position?, execution?, legs?, depth?, bar_position?, loading?, notes? }` — attachment…bar_position are v1.1 strings; `loading` (`bodyweight`\|`weighted`, pull-ups) is v1.4. A recorded bench angle (angle-sensitive exercises), attachment, position, legs, pull-up loading and pull-up grip width and — for exercises that offer the choice — unilateral start a separate strength history; grip (and grip width on other exercises) does not. |
 | `settings` | `{ key: string \| number }` | – | Session machine settings (seat, pads…). |
 | `rest_between_sets_sec` | number \| null | – | Fills `rest_before_sec` for sets 2…n when they have none. |
 | `rest_after_sec` | number \| null | – | Rest before the next exercise. |
@@ -82,6 +82,7 @@ Variation values (v1.1, free strings but use these): `attachment` ∈ `straight_
 
 ## Changelog
 
+- **1.4** (additive): variation `loading` (`bodyweight` | `weighted`) for pull-ups — bodyweight-only vs weighted with a dip belt (`weight_kg` = belt weight, `load_mode: "bodyweight_plus"`). Pull-up histories are kept apart by `loading` and `grip_width`. Files with `schema_version` 1.0–1.3 remain valid.
 - **1.3** (additive): set `failure_status`, `technical_failure`, `failure_notes`, `execution_feedback`, `prescribed`. Files with `schema_version` 1.0–1.2 remain valid. The duplicate hash appends the failure status / technical failure only when present, so workouts without them hash exactly as before (execution feedback, notes and prescriptions are not part of the hash).
   - **Migration (lazy):** nothing is rewritten. Existing records simply lack the new fields, which means "not recorded / unknown". An old `to_failure: true` is read as muscular failure *reported via the Fail chip* for analysis, but no `failure_status` is stored or back-filled, and RIR 0 alone is never turned into a failure status.
 

@@ -15,7 +15,7 @@ import { uid } from '../lib/id';
  * Keep CLAUDE.md in sync when this changes.
  */
 export const IMPORT_SCHEMA_ID = 'gymrat.workout';
-export const IMPORT_SCHEMA_VERSION = '1.3';
+export const IMPORT_SCHEMA_VERSION = '1.4';
 
 const confidence = z.enum(['confirmed', 'probable', 'uncertain', 'unknown']);
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm (24h)');
@@ -97,6 +97,8 @@ const ExerciseIn = z.object({
     legs: vtext,
     depth: vtext,
     bar_position: vtext,
+    // v1.4 (additive): pull-ups — bodyweight only, or weighted with a dip belt (weight_kg = belt weight)
+    loading: z.enum(['bodyweight', 'weighted']).nullable().optional(),
     notes: z.string().max(500).nullable().optional(),
   }).strict().optional(),
   settings: z.record(z.union([z.string(), z.number()])).optional(),
@@ -517,6 +519,7 @@ function variationFromInput(v: WorkoutInT['exercises'][number]['variation'], has
   if (v?.position) out.position = v.position;
   if (v?.execution) out.execution = v.execution;
   if (v?.legs) out.legs = v.legs;
+  if (v?.loading) out.loading = v.loading;
   if (v?.depth) out.depth = v.depth;
   if (v?.bar_position) out.barPosition = v.bar_position;
   return out;
@@ -565,6 +568,7 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
         ...(e.variation.position ? { position: e.variation.position } : {}),
         ...(e.variation.execution ? { execution: e.variation.execution } : {}),
         ...(e.variation.legs ? { legs: e.variation.legs } : {}),
+        ...(e.variation.loading ? { loading: e.variation.loading } : {}),
         ...(e.variation.depth ? { depth: e.variation.depth } : {}),
         ...(e.variation.barPosition ? { bar_position: e.variation.barPosition } : {}),
         notes: e.variation.notes ?? null,

@@ -6,6 +6,7 @@ import { slugId } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconEdit, IconMachine, IconMapPin, IconPlus, IconSearch, IconTrash, IconX } from '../components/icons';
 import { PhotoGrid } from '../components/PhotoGrid';
+import { PhotoPicker } from '../components/PhotoPicker';
 import {
   Badge, Button, Callout, Card, CardTitle, Empty, Field, Input, Modal, NumInput, Page, Select, Table, Td, TextArea, cx, fmt, toast,
 } from '../components/ui';
@@ -67,10 +68,7 @@ export function EquipmentPage() {
         <Button variant="primary" onClick={() => setEqForm({ eq: null, locationId: data.locations[0]?.id ?? null })}><IconPlus size={16} /> Add equipment</Button>
       </>}
     >
-      <Callout tone="info" icon={<IconMachine size={18} />} title="Every physical machine is tracked separately">
-        50 kg on one cable stack is not 50 kg on another — pulley ratios, cams and friction differ. Each machine keeps its own progression history, increments and settings.
-        If you don't know the make or model, save it anyway and identify it later.
-      </Callout>
+      <Callout tone="info" icon={<IconMachine size={18} />} title="Each machine has its own history">Loads are never compared between machines. Unknown make? Save it and identify it later.</Callout>
 
       {data.equipment.length > 0 && (
         <div className="relative max-w-md">
@@ -343,7 +341,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
           {settings.length === 0 && (
             <div className="flex flex-wrap gap-1.5">
               {['Seat', 'Back pad', 'Handle position', 'Foot plate', 'Range limiter'].map((k) => (
-                <button key={k} type="button" onClick={() => setSettings([...settings, [k, '']])} className="rounded-lg border border-dashed border-ink-300 px-2 py-1 text-xs text-ink-500 hover:border-accent-500 dark:border-ink-700">+ {k}</button>
+                <button key={k} type="button" onClick={() => setSettings([...settings, [k, '']])} className="h-10 rounded-lg border border-dashed border-ink-300 px-3 text-xs text-ink-500 hover:border-accent-500 dark:border-ink-700">+ {k}</button>
               ))}
             </div>
           )}
@@ -364,7 +362,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
             {exerciseIds.map((id) => (
               <span key={id} className="inline-flex items-center gap-1 rounded-lg bg-accent-500/15 px-2 py-1 text-xs font-medium text-accent-600 dark:text-accent-400">
                 {names.ex(a.registry.get(id), id)}
-                <button type="button" aria-label="Remove" onClick={() => setExerciseIds(exerciseIds.filter((x) => x !== id))}><IconX size={12} /></button>
+                <button type="button" aria-label="Remove" className="-my-2 -mr-2 flex h-9 w-9 items-center justify-center" onClick={() => setExerciseIds(exerciseIds.filter((x) => x !== id))}><IconX size={12} /></button>
               </span>
             ))}
             {exerciseIds.length === 0 && <span className="text-xs text-ink-500">None linked yet — linking improves automatic matching on import.</span>}
@@ -387,8 +385,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
 
         {!eq && (
           <Field label="Photos (encrypted)" hint="Optional. Helps identify the machine later.">
-            <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-ink-100 file:px-3 file:py-1.5 dark:file:bg-ink-800 dark:file:text-ink-200" />
+            <PhotoPicker files={files} onChange={setFiles} />
             {files.length > 0 && <span className="mt-1 block text-xs text-ink-500">{files.length} photo(s) will be encrypted on save.</span>}
           </Field>
         )}

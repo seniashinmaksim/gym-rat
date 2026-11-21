@@ -1,6 +1,6 @@
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "workouts": [
     {
       "client_ref": "example-2026-11-21-a",

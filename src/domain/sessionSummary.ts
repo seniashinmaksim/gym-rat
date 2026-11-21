@@ -2,7 +2,7 @@
  * Numbers for the end-of-workout summary. Uses the same engine as everything else (effective sets via
  * sessionMuscleEffective, comparable histories via progressionKey) — no separate maths.
  */
-import { isCompromised } from './feedback';
+import { benchmarkExclusion, isCompromised } from './feedback';
 import { effectiveFailure } from './failure';
 import { progressionKey } from './progression';
 import { countedSetCount } from './quality';
@@ -57,12 +57,14 @@ export function summarizeSession(w: Workout, all: Workout[], registry: Registry,
   for (const e of exs) {
     const def = registry.get(e.exerciseId);
     const key = progressionKey(e, w, def);
-    const mine = e.sets.filter((s) => performed(s) && s.type === 'working' && s.weightKg != null && s.reps != null && s.loadMode !== 'assisted');
+    // Records only from sets that can judge progress (never wrong weight, pain, compromised technique or technical failure).
+    const clean = (s: WorkoutSet) => performed(s) && s.type === 'working' && s.weightKg != null && s.reps != null && s.loadMode !== 'assisted' && !benchmarkExclusion(s) && !s.technicalFailure;
+    const mine = e.sets.filter(clean);
     if (!mine.length) continue;
     const prev = all
       .filter((o) => o.id !== w.id && (o.date < w.date || (o.date === w.date && (o.createdAt ?? '') < (w.createdAt ?? ''))))
       .flatMap((o) => o.exercises.filter((x) => x.exerciseId === e.exerciseId && progressionKey(x, o, def) === key).flatMap((x) => x.sets))
-      .filter((s) => performed(s) && s.type === 'working' && s.weightKg != null && s.reps != null && s.loadMode !== 'assisted');
+      .filter(clean);
     if (!prev.length) continue; // first time on this machine/configuration: nothing to beat
     const top = Math.max(...mine.map((s) => s.weightKg as number));
     const prevTop = Math.max(...prev.map((s) => s.weightKg as number));

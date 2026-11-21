@@ -66,10 +66,7 @@ export function ExercisesPage() {
       subtitle={`${a.registry.size} exercises · fractional set coefficients · English & Russian names`}
       actions={<Button variant="primary" onClick={() => setCreating(true)}><IconPlus size={16} /> Custom exercise</Button>}
     >
-      <Callout tone="info" icon={<IconInfo size={18} />} title="How coefficients work">
-        Each set credits muscles with a coefficient: <b>1.0</b> direct target, <b>0.5</b> significant secondary, <b>0.25</b> minor, <b>0</b> none.
-        These are practical volume-accounting estimates, not measurements of muscle activation. Editing them recalculates the volume of your entire history.
-      </Callout>
+      <Callout tone="info" icon={<IconInfo size={18} />} title="Coefficients: 1 direct · 0.5 secondary · 0.25 minor">Estimates, not activation measurements. Edits recalculate all history.</Callout>
 
       <Card>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
@@ -109,9 +106,9 @@ export function ExercisesPage() {
             const entries = Object.entries(d.contributions).filter(([, c]) => (c ?? 0) > 0).sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0)) as [MuscleId, number][];
             return (
               <button key={d.id} type="button" onClick={() => setOpen(d.id)}
-                className="group flex flex-col rounded-2xl border border-ink-200 bg-white p-4 text-left transition hover:border-accent-500/60 hover:shadow-md dark:border-ink-800 dark:bg-ink-900 dark:hover:border-accent-500/50">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                className="group flex w-full min-w-0 flex-col rounded-2xl border border-ink-200 bg-white p-4 text-left transition hover:border-accent-500/60 hover:shadow-md dark:border-ink-800 dark:bg-ink-900 dark:hover:border-accent-500/50">
+                <div className="flex w-full min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold text-ink-900 dark:text-white">{d.name.en}</div>
                     <div className="truncate text-xs text-ink-500 dark:text-ink-400">{d.name.ru}</div>
                   </div>
@@ -121,7 +118,7 @@ export function ExercisesPage() {
                     {overridden.has(d.id) && <Badge tone="warn">edited</Badge>}
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1">
+                <div className="mt-3 flex w-full min-w-0 flex-wrap gap-1">
                   {entries.map(([m, c]) => (
                     <span key={m} className={cx('inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium',
                       involvement(c) === 'direct' ? 'bg-accent-500/15 text-accent-600 dark:text-accent-400' : involvement(c) === 'indirect' ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400')}>
@@ -129,7 +126,7 @@ export function ExercisesPage() {
                     </span>
                   ))}
                 </div>
-                <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-[11px] text-ink-500 dark:text-ink-400">
+                <div className="mt-auto flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pt-3 text-[11px] text-ink-500 dark:text-ink-400">
                   <span>{pretty(d.equipmentKind)}</span>
                   <span>{d.repRange[0]}–{d.repRange[1]} reps</span>
                   <span>rest ~{Math.round(d.defaultRestSec / 15) * 15}s</span>

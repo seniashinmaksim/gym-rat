@@ -155,6 +155,24 @@ export const RULES: Rule[] = [
     rationale: 'Short-term noise is large; a plateau call needs several comparable sessions.', refIds: [], implementedIn: 'src/domain/progression.ts',
   },
   {
+    id: 'single_bad_session', area: 'progression',
+    rule: 'A lone latest session ≥ 5 % below the usual level (or ≥ 5 % below the previous session and under the usual level) is set aside: the trend is judged on the sessions before it. A decline by slope also needs the last two sessions below the first.',
+    value: '5 %', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Day-to-day performance varies with sleep, food and stress; one bad day must not create a plateau, a decline or a load reduction.', refIds: [], implementedIn: 'src/domain/progression.ts',
+  },
+  {
+    id: 'sustained_decline', area: 'progression',
+    rule: 'Declining also when, over ≥ 6 comparable sessions in 8 weeks, the median of the last 3 is ≥ 8 % below the median of the first 3 and all of the last 3 are below all of the first 3.',
+    value: '8 % over 8 weeks', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Slow declines of ~1 % per session never cross the per-session slope threshold within 6 sessions, yet add up to a clear loss over two months.', refIds: [], implementedIn: 'src/domain/progression.ts',
+  },
+  {
+    id: 'index_scale', area: 'progression',
+    rule: 'A kg-based index (RIR-adjusted Epley) and a reps-based index (reps + RIR for bodyweight work) are never compared: trends and progress % use only sessions on the latest scale.',
+    value: 'same scale only', basis: 'heuristic', confidence: 'high', configurable: null,
+    rationale: 'The two indices have different units; a bodyweight set of 12 reps (index 13) followed by a +5 kg set (index 6.8) is not a 48 % loss.', refIds: [], implementedIn: 'src/domain/progression.ts, src/domain/baseline.ts',
+  },
+  {
     id: 'rest_attribution', area: 'progression',
     rule: 'A rep drop after a clearly shorter rest (< 70 % of the usual) is attributed to rest, not strength loss.',
     value: '< 70 % of median', basis: 'research_informed_heuristic', confidence: 'moderate', configurable: null,

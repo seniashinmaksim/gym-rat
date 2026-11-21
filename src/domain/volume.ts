@@ -147,3 +147,20 @@ export function sessionMuscleEffective(w: Workout, registry: Registry, model: Qu
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Quality sets: each performed working set counted ONCE, weighted by its effort/quality credit
+ * (left + right = one set). Unlike Σ muscle effective sets, it can never exceed the working-set count.
+ */
+export function qualitySetTotal(workouts: Workout[], registry: Registry, model: QualityModel): number {
+  let t = 0;
+  for (const w of workouts) for (const ex of w.exercises) {
+    const def = registry.get(ex.exerciseId);
+    const factors = sideFactors(ex.sets);
+    for (const s of ex.sets) {
+      if (!isCounted(s) || s.type === 'warmup') continue;
+      t += assessSet(s, model, { rom: ex.variation?.rom, timed: def ? def.repRange[1] <= 1 : false }).credit * (factors.get(s.id) ?? 1);
+    }
+  }
+  return r2(t);
+}

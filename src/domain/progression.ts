@@ -22,7 +22,7 @@ function baseKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined):
 
 const VALUE_LABEL: Record<string, string> = {
   straight_bar: 'straight bar', rope: 'rope', v_bar: 'V-bar', single_handle: 'single handle', cuff: 'ankle/wrist cuff',
-  standing: 'standing', seated: 'seated', straight: 'straight legs', bent: 'bent knees',
+  standing: 'standing', seated: 'seated', straight: 'straight legs', bent: 'bent knees', shoulder: 'shoulder-width', wide: 'wide', narrow: 'narrow',
   pronated: 'pronated grip', supinated: 'supinated grip', neutral: 'neutral grip', mixed: 'mixed grip',
 };
 export const humanize = (v: string) => VALUE_LABEL[v] ?? v.replace(/_/g, ' ');
@@ -48,6 +48,10 @@ export function variationParts(v: Variation | undefined, def: ExerciseDef | unde
   if (v.unilateral && def?.variationFields?.includes('unilateral')) parts.push({ key: 'uni', label: 'one side at a time' });
   if (v.position) parts.push({ key: `pos=${v.position}`, label: humanize(v.position) });
   if (v.legs) parts.push({ key: `legs=${v.legs}`, label: humanize(v.legs) });
+  // Pull-ups (v1.4): bodyweight vs weighted and grip width each start their own history (owner's request).
+  // Only exercises that offer these choices; entries logged before keep the "not recorded" history.
+  if (v.loading && def?.variationFields?.includes('loading')) parts.push({ key: `load=${v.loading}`, label: v.loading === 'weighted' ? 'weighted' : 'bodyweight' });
+  if (v.gripWidth && def?.variationFields?.includes('loading') && def.variationFields.includes('gripWidth')) parts.push({ key: `gw=${v.gripWidth}`, label: `${humanize(v.gripWidth)} grip` });
   return parts;
 }
 
@@ -56,9 +60,23 @@ export function variationParts(v: Variation | undefined, def: ExerciseDef | unde
  * from two configurations of one exercise (e.g. 15° vs 45° incline), are never compared.
  */
 export function progressionKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined): string {
-  const parts = variationParts(ex.variation, def);
+  const parts = variationParts(effectiveVariation(ex, def), def);
   const base = baseKey(ex, w, def);
   return parts.length ? `${base}|${parts.map((p) => p.key).join('|')}` : base;
+}
+
+/**
+ * Variation used for the history key. Exercises that offer bodyweight vs weighted (pull-ups) but have
+ * no `loading` recorded (older entries, imports that did not state it) derive it from the logged
+ * working loads — any added load → weighted, otherwise bodyweight — so logged and imported sessions
+ * of the same thing share one history. Stored data is never changed.
+ */
+export function effectiveVariation(ex: WorkoutExercise, def: ExerciseDef | undefined): Variation | undefined {
+  if (!def?.variationFields?.includes('loading') || ex.variation?.loading) return ex.variation;
+  const work = ex.sets.filter((s) => s.type !== 'warmup' && !s.planned);
+  if (!work.length) return ex.variation;
+  const loading = work.some((s) => (s.weightKg ?? 0) > 0 && s.loadMode !== 'assisted') ? 'weighted' : 'bodyweight';
+  return { ...(ex.variation ?? {}), loading };
 }
 
 export interface SetPoint {
@@ -93,8 +111,12 @@ export interface SessionPerf {
   topRir: number | null;
   /** RIR-adjusted Epley estimate from benchmark sets. Index for THIS equipment only, not a true 1RM. */
   e1rm: number | null;
-  /** Generic performance index (e1rm for loaded sets; reps+RIR for bodyweight). null = not representative. */
+  /** Generic performance index (e1rm for loaded sets; reps+RIR for bodyweight), rounded to 0.1 for display. null = not representative. */
   index: number | null;
+  /** The same index unrounded — used for percentages so display rounding never shifts a result. */
+  indexRaw: number | null;
+  /** 'load' = RIR-adjusted Epley (kg); 'reps' = reps + RIR (bodyweight / assisted). Never compared with each other. */
+  indexKind: 'load' | 'reps' | null;
   /** At least one benchmark set — the session can be used to judge progress. */
   representative: boolean;
   totalReps: number;
@@ -207,6 +229,8 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): Se
     topRir: top?.rir ?? null,
     e1rm: representative && bestE != null ? Math.round(bestE * 10) / 10 : null,
     index: index != null ? Math.round(index * 10) / 10 : null,
+    indexRaw: index,
+    indexKind: index == null ? null : bestE != null ? 'load' : 'reps',
     representative,
     totalReps,
     volumeLoad,
@@ -223,8 +247,18 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): Se
  * needs ≥ 4 comparable sessions over ≥ 3 weeks with no new best in the last two — sessions logged
  * with high fatigue or short sleep are set aside for that decision, so one bad day never makes a plateau.
  */
+/** Median of the last 3 sessions this far below the median of the first 3 in the 8-week window → sustained decline (practical heuristic). */
+export const SUSTAINED_DECLINE = 0.08;
+/** A single latest session this far below the usual level is treated as a bad day, not a trend (practical heuristic). */
+export const SINGLE_DIP = 0.05;
+const medianOf = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
 export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
-  const recent = sessions.filter((s) => s.index != null && diffDays(today, s.date) <= 56).slice(-6);
+  // Only sessions measured on the same scale as the latest one (kg-based vs reps-based index).
+  const scored = sessions.filter((s) => s.index != null);
+  const kind = scored.at(-1)?.indexKind ?? null;
+  const window = scored.filter((s) => (s.indexKind ?? null) === kind && diffDays(today, s.date) <= 56);
+  const recent = window.slice(-6);
   if (recent.length < 3) {
     return {
       cls: 'insufficient_data',
@@ -235,6 +269,19 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   }
   const ys = recent.map((s) => s.index as number);
   const n = ys.length;
+  // One bad day is not a trend: a lone latest session clearly below the usual level (the one before it
+  // was normal) is set aside, and the trend is judged on the sessions before it.
+  if (n >= 4) {
+    const usual = medianOf(ys.slice(0, -1));
+    // Clearly below the usual level, or ≥ 5 % below the session just before it while under the usual level.
+    const dip = ys[n - 1] < usual * (1 - SINGLE_DIP) || (ys[n - 1] < ys[n - 2] * (1 - SINGLE_DIP) && ys[n - 1] < usual);
+    if (dip && ys[n - 2] >= usual * (1 - SINGLE_DIP)) {
+      const prior = classifyTrend(sessions.filter((s) => s !== recent[n - 1]), today);
+      const drop = Math.round((1 - ys[n - 1] / usual) * 1000) / 10;
+      const cls: TrendClass = prior.cls === 'progressing' || prior.cls === 'insufficient_data' ? 'stable' : prior.cls;
+      return { ...prior, cls, evidence: `Latest session ${drop}% below your usual level (${ys[n - 1]} vs ${usual}) — one session is not a trend; judged on the sessions before it. ${prior.evidence}` };
+    }
+  }
   const xm = (n - 1) / 2;
   const ym = ys.reduce((a, b) => a + b, 0) / n;
   let num = 0;
@@ -254,9 +301,23 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   if (rel >= 0.01 && last >= first) return { cls: 'progressing', evidence: `${base} Consistent upward trend.`, relSlopePerSession: rel, sessionsUsed: n };
   const clean = recent.filter((s) => !s.fatigued);
   const setAside = n - clean.length;
-  if (rel <= -0.015 && last < first) {
+  // A decline needs the last TWO sessions below the first one: one bad day is not a trend.
+  if (rel <= -0.015 && last < first && ys[n - 2] < first) {
     const tired = recent.slice(-2).some((s) => s.fatigued);
     return { cls: 'declining', evidence: `${base} Recent sessions are below earlier ones — ${tired ? 'the latest session(s) were logged with high fatigue or short sleep, so this may be temporary; ' : ''}check fatigue, sleep, rest periods or exercise order before changing the load.`, relSlopePerSession: rel, sessionsUsed: n };
+  }
+  // Sustained decline: across the 8-week window (≥ 6 sessions) the median of the last 3 sessions is
+  // ≥ 8 % below the median of the first 3, and every one of the last 3 is below all of the first 3.
+  // Catches slow declines that a 6-session slope reads as "stable".
+  if (window.length >= 6) {
+    const last3 = window.slice(-3).map((s) => s.index as number);
+    const first3 = window.slice(0, 3).map((s) => s.index as number);
+    const ref = medianOf(first3);
+    if (ref > 0 && medianOf(last3) <= ref * (1 - SUSTAINED_DECLINE) && Math.max(...last3) < Math.min(...first3)) {
+      const drop = Math.round((1 - medianOf(last3) / ref) * 1000) / 10;
+      const tired = window.slice(-3).some((s) => s.fatigued);
+      return { cls: 'declining', evidence: `Performance index ${ref} (first 3 of ${window.length} sessions in 8 weeks) → ${medianOf(last3)} (last 3): −${drop}%. ${tired ? 'Some of these sessions were logged with high fatigue or short sleep. ' : ''}Check fatigue, sleep, rest periods, technique and exercise order before changing the load.`, relSlopePerSession: rel, sessionsUsed: window.length };
+    }
   }
   if (clean.length >= 4) {
     const cy = clean.map((s) => s.index as number);
@@ -532,7 +593,7 @@ export function buildProgression(
         const eq = ex.equipmentId ? eqById.get(ex.equipmentId) : undefined;
         const base = baseKey(ex, w, def);
         const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? 'Bodyweight' : 'Free weights') : 'Unidentified equipment';
-        const parts = variationParts(ex.variation, def);
+        const parts = variationParts(effectiveVariation(ex, def), def);
         g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null, locationId: null };
         groups.set(key, g);
       }
@@ -611,4 +672,24 @@ export function loadMapNote(m: LoadFeel[]): string | null {
     by('too_heavy').length ? `too heavy: ${by('too_heavy').join(', ')}` : null,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
+}
+
+/** Short, numeric call for the UI: "INCREASE +2.5 KG", "KEEP 25 KG", "REDUCE TO 22.5 KG", "PLATEAU — 4 SESSIONS", "MORE DATA NEEDED". */
+export function adviceLabel(p: ProgressionSeries, kind: AdviceKind): string {
+  const n = (x: number) => String(Math.round(x * 100) / 100);
+  const w = p.next.weight;
+  const cur = p.current?.topWeight ?? null;
+  const bw = p.loadMode === 'bodyweight_plus' && (w ?? 0) === 0;
+  const kg = (x: number | null) => (x == null ? '' : bw ? 'BW' : `${n(x)} KG`);
+  if (p.loadMode === 'assisted') {
+    // Assistance: less assistance = harder. Say it in those words, never "increase 20 kg".
+    if (kind === 'increase') return w != null && cur != null && w < cur ? `LESS ASSIST −${n(cur - w)} → ${n(w)} KG` : `ASSIST ${kg(w)}`.trim();
+    if (kind === 'reduce') return `MORE ASSIST → ${kg(w)}`.trim();
+    if (kind === 'keep') return `KEEP ASSIST ${kg(w ?? cur)}`.trim();
+  }
+  if (kind === 'increase') return w != null && cur != null && w > cur && !bw ? `INCREASE +${n(w - cur)} KG` : `INCREASE ${kg(w)}`.trim();
+  if (kind === 'keep') return `KEEP ${kg(w ?? cur)}`.trim();
+  if (kind === 'reduce') return `REDUCE TO ${kg(w)}`.trim();
+  if (kind === 'plateau') return `PLATEAU — ${p.trend.sessionsUsed} SESSIONS`;
+  return 'MORE DATA NEEDED';
 }

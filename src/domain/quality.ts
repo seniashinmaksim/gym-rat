@@ -216,3 +216,15 @@ export function round1(n: number): number {
 export function roundHalf(n: number): number {
   return Math.round(n * 2) / 2;
 }
+
+/**
+ * Is the set at index `i` the second half of a left/right pair? True when more sets of the other side
+ * than of its own side came before it (same set type) — the same pairing rule as `sideFactors`.
+ * The gap before a second side is not rest between sets.
+ */
+export function isSecondSide(sets: WorkoutSet[], i: number): boolean {
+  const s = sets[i];
+  if (!s?.side) return false;
+  const earlier = sets.slice(0, i).filter((o) => o.type === s.type && o.side);
+  return earlier.filter((o) => o.side !== s.side).length > earlier.filter((o) => o.side === s.side).length;
+}

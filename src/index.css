@@ -14,6 +14,14 @@
   }
   html, body { overscroll-behavior: none; }
   button, a, [role='button'] { touch-action: manipulation; }
+  /* Layout root causes (iPhone/WebKit): a grid cell — including a <button> used as a card — may shrink
+     to its column instead of growing to its content; long names truncate instead of widening the page. */
+  .grid > * { min-width: 0; }
+  /* iOS Safari gives native date/time inputs and selects an intrinsic minimum width that ignores
+     width: 100%, so they spill out of narrow cards. Reset the native box (the native picker still opens). */
+  input, select, textarea { min-width: 0; max-width: 100%; }
+  input[type='date'], input[type='time'], input[type='datetime-local'] { -webkit-appearance: none; appearance: none; display: block; }
+  input::-webkit-date-and-time-value { text-align: left; min-height: 1.5em; }
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 

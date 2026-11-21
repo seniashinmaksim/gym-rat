@@ -42,6 +42,7 @@ export function PhotoGrid({
   size?: 'sm' | 'md';
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<string | null>(null);
   const dim = size === 'sm' ? 'h-16 w-16' : 'h-24 w-24';
@@ -79,15 +80,20 @@ export function PhotoGrid({
           </div>
         ))}
         {onAdd && (
-          <button type="button" disabled={busy} onClick={() => input.current?.click()}
-            className={cx(dim, 'flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 transition hover:border-accent-500 hover:text-accent-600 disabled:opacity-50 dark:border-ink-700 dark:hover:text-accent-400')}>
-            <IconCamera size={18} />
-            {busy ? 'Encrypting…' : 'Add photo'}
-          </button>
+          <div className={cx(dim, 'flex flex-col gap-1')}>
+            <button type="button" disabled={busy} onClick={() => input.current?.click()}
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 transition hover:border-accent-500 hover:text-accent-600 disabled:opacity-50 dark:border-ink-700 dark:hover:text-accent-400">
+              <IconCamera size={16} />
+              {busy ? 'Encrypting…' : 'Camera'}
+            </button>
+            <button type="button" disabled={busy} onClick={() => gallery.current?.click()}
+              className="flex h-8 items-center justify-center rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 disabled:opacity-50 dark:border-ink-700">Gallery</button>
+          </div>
         )}
         {!onAdd && photoIds.length === 0 && <span className="text-xs text-ink-500">{emptyLabel}</span>}
       </div>
-      <input ref={input} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => void pick(e.target.files)} />
+      <input ref={input} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { void pick(e.target.files); e.target.value = ''; }} />
+      <input ref={gallery} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { void pick(e.target.files); e.target.value = ''; }} />
       <PhotoViewer id={view} onClose={() => setView(null)} />
     </div>
   );

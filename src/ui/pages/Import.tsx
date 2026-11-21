@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../domain/dates';
-import { variationParts } from '../../domain/progression';
+import { effectiveVariation, variationParts } from '../../domain/progression';
 import { countedSetCount } from '../../domain/quality';
 import { loadUnitLabel } from '../../domain/registry';
 import { buildDraft, draftBlockers, IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION, parseImportJson, type ImportDraft } from '../../domain/importer';
@@ -265,18 +265,18 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
                 <p className="mt-1 text-[11px] text-ink-500">Claude's hint: {[res.equipmentHint.name, res.equipmentHint.manufacturer, res.equipmentHint.model].filter(Boolean).join(' · ')}</p>
               )}
               <div className="scroll-x mt-2">
-                {(() => { const parts = variationParts(ex.variation, def); return parts.length ? <p className="mb-1 text-[11px] text-ink-500">Variation: {parts.map((p) => p.label).join(' · ')}</p> : null; })()}
+                {(() => { const parts = variationParts(effectiveVariation(ex, def), def); return parts.length ? <p className="mb-1 text-[11px] text-ink-500">Variation: {parts.map((p) => p.label).join(' · ')}</p> : null; })()}
                 <table className="w-full min-w-[420px] text-xs tabular-nums">
                   <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="py-1">Type</th><th>{loadUnitLabel(def, ex.sets[0]?.loadMode)}</th><th>Reps</th><th>RIR</th><th>Rest</th><th /></tr></thead>
                   <tbody>
                     {ex.sets.map((s, k) => (
                       <tr key={s.id} className="border-t border-ink-100 dark:border-ink-800">
-                        <td className="py-1"><select className="bg-transparent" value={s.type} onChange={(e) => patchEx(i, { sets: ex.sets.map((x, j) => (j === k ? { ...x, type: e.target.value as typeof s.type } : x)) })}><option value="working">working</option><option value="warmup">warm-up</option><option value="drop">drop</option></select>{s.side ? <span className="ml-1 font-semibold text-ink-500">{s.side === 'left' ? 'L' : 'R'}</span> : null}</td>
+                        <td className="py-1"><select className="h-10 bg-transparent" value={s.type} onChange={(e) => patchEx(i, { sets: ex.sets.map((x, j) => (j === k ? { ...x, type: e.target.value as typeof s.type } : x)) })}><option value="working">working</option><option value="warmup">warm-up</option><option value="drop">drop</option></select>{s.side ? <span className="ml-1 font-semibold text-ink-500">{s.side === 'left' ? 'L' : 'R'}</span> : null}</td>
                         <td><CellNum v={s.weightKg} on={(v) => patchEx(i, { sets: ex.sets.map((x, j) => (j === k ? { ...x, weightKg: v } : x)) })} /></td>
                         <td><CellNum v={s.reps} on={(v) => patchEx(i, { sets: ex.sets.map((x, j) => (j === k ? { ...x, reps: v == null ? null : Math.round(v) } : x)) })} /></td>
                         <td><CellNum v={s.rir} on={(v) => patchEx(i, { sets: ex.sets.map((x, j) => (j === k ? { ...x, rir: v, rirSource: v == null ? 'unknown' : 'reported' } : x)) })} /></td>
                         <td className="text-ink-500">{s.restSecBefore != null ? `${s.restSecBefore}s` : '—'}</td>
-                        <td className="text-right"><button className="text-ink-400 hover:text-rose-500" onClick={() => patchEx(i, { sets: ex.sets.filter((_, j) => j !== k) })}>×</button></td>
+                        <td className="text-right"><button aria-label="Remove set" className="h-10 w-10 text-ink-400 hover:text-rose-500" onClick={() => patchEx(i, { sets: ex.sets.filter((_, j) => j !== k) })}>×</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -302,7 +302,7 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
 }
 
 function CellNum({ v, on }: { v: number | null; on: (v: number | null) => void }) {
-  return <input inputMode="decimal" className="w-14 rounded bg-transparent px-1 py-0.5 outline-none focus:bg-ink-100 dark:focus:bg-ink-800" value={v ?? ''} placeholder="—"
+  return <input inputMode="decimal" className="h-10 w-14 rounded bg-transparent px-1 outline-none focus:bg-ink-100 dark:focus:bg-ink-800" value={v ?? ''} placeholder="—"
     onChange={(e) => { const t = e.target.value.replace(',', '.'); on(t === '' ? null : Number.isFinite(Number(t)) ? Number(t) : v); }} />;
 }
 

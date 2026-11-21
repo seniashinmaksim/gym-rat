@@ -53,9 +53,7 @@ export function MusclesPage() {
       actions={<Segmented<SortKey> size="sm" value={sort} onChange={setSort} options={[{ value: 'remaining', label: 'Most remaining' }, { value: 'pct', label: 'Least done' }, { value: 'name', label: 'A–Z' }]} />}
     >
       {a.learning.active && (
-        <Callout tone="warn" icon={<IconInfo size={18} />} title="Targets are provisional">
-          {a.learning.message} Reference ranges come from the hypertrophy literature, not from your data yet — they are orientation, not quotas.
-        </Callout>
+        <Callout tone="warn" icon={<IconInfo size={18} />} title="PROVISIONAL targets">Literature reference ranges until your own baseline is ready.</Callout>
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

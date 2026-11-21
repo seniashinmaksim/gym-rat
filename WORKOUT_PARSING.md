@@ -4,7 +4,7 @@ Practical, **synthetic** examples of how Claude converts a natural-language work
 
 General reminders:
 
-- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.3", "workouts": [...] }` with a unique `client_ref`.
+- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.4", "workouts": [...] }` with a unique `client_ref`.
 - Set feedback (how a set felt, wrong weight, technique, pain) has its own section (§15); failure status (to failure, form broke, not sure) has §16. Only record what the owner actually said.
 - The owner's preferred exercises have their own section at the end (§14) — use exactly those ids and variation fields.
 - Every set needs `weight_kg` and `reps` keys (use `null` when unknown). RIR only on the sets it was stated for.
@@ -21,7 +21,7 @@ General reminders:
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-1",
@@ -68,7 +68,7 @@ Assumptions: "approximately 2 RIR" → `rir: 2`, only on set 3. No machine ids w
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-ru",
@@ -375,7 +375,7 @@ Soreness is 0–4 per muscle id; these feed the Recovery estimates (more recover
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "workouts": [
     {
       "client_ref": "chat-2026-11-16-a",
@@ -423,7 +423,7 @@ All numbers below are **synthetic**. Use these ids and fields every time; rules 
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-pref",
@@ -803,3 +803,49 @@ Failure status is recorded **separately from RIR**. Fill `failure_status` / `tec
 - If the owner gives both a status and an RIR that disagree (e.g. "to failure, RIR 2"), keep both as stated, add an uncertainty, and ask; the app also shows a gentle note.
 - `execution_feedback` (`followed`, `ecc_too_fast`, `ecc_too_slow`, `momentum`, `lost_concentric_control`, `short_rom`) only when the owner comments on how a recommended execution was followed. `prescribed` is written by the app's prescription engine, not by Claude.
 - Older records have none of these fields; they stay "not recorded" (nothing is back-filled).
+
+---
+
+## 17. Pull-ups: bodyweight vs weighted, grip width (v1.4)
+
+> Pull-ups shoulder-width grip, bodyweight: 10, 9, 7. Then wide grip with a 10 kg belt: 6, 5. Weighed 79.4 this morning.
+
+```json
+{
+  "schema": "gymrat.workout",
+  "schema_version": "1.4",
+  "workouts": [
+    {
+      "client_ref": "chat-2026-11-21-pullups",
+      "date": "2026-11-21",
+      "location": { "name_hint": null, "confidence": "unknown" },
+      "exercises": [
+        {
+          "exercise_id": "pull_up",
+          "exercise_name_raw": "Pull-ups shoulder-width grip, bodyweight",
+          "variation": { "loading": "bodyweight", "grip_width": "shoulder" },
+          "sets": [
+            { "weight_kg": 0, "load_mode": "bodyweight_plus", "reps": 10 },
+            { "weight_kg": 0, "load_mode": "bodyweight_plus", "reps": 9 },
+            { "weight_kg": 0, "load_mode": "bodyweight_plus", "reps": 7 }
+          ]
+        },
+        {
+          "exercise_id": "pull_up",
+          "exercise_name_raw": "wide grip with a 10 kg belt",
+          "variation": { "loading": "weighted", "grip_width": "wide" },
+          "sets": [
+            { "weight_kg": 10, "load_mode": "bodyweight_plus", "reps": 6 },
+            { "weight_kg": 10, "load_mode": "bodyweight_plus", "reps": 5 }
+          ]
+        }
+      ],
+      "uncertainties": ["No gym mentioned.", "RIR not stated for any set."]
+    }
+  ]
+}
+```
+
+- Two exercise entries, because bodyweight/shoulder and weighted/wide are separate histories. `weight_kg` is the **belt load only** — never add body weight to it.
+- **Body weight is not part of the workout JSON.** Reply: "Log 79.4 kg in the app (Week → + Weight) with the time you weighed yourself — the app links it to this workout if it was before the session." Never invent a time; "this morning" is the owner's wording, so suggest the *morning fasted* condition only if they confirm.
+- Grip width unknown → omit `grip_width` (it stays an "unspecified" history); don't assume shoulder width.

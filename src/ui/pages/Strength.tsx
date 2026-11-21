@@ -3,13 +3,15 @@ import { useSearchParams } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatDate, formatDuration } from '../../domain/dates';
 import { FEEL_BY_ID, formatRirRange, EFFORT_RIR_ESTIMATE } from '../../domain/feedback';
-import { adviceFor, progressionKey, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
+import { adviceFor, adviceLabel, progressionKey, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
 import { loadUnitLabel } from '../../domain/registry';
 import { store, useData } from '../../lib/store';
 import { assignBenchAngle } from '../../domain/bulkEdit';
+import { strengthProgress } from '../../domain/baseline';
+import { bodyLoadSessions, bodyWeightNote, bodyWeightRelevant, pullUpLoadingAdvice } from '../../domain/bodyweight';
 import { loadStep } from '../../domain/increments';
 import { IconChevronDown, IconSearch } from '../components/icons';
-import { Badge, Button, Card, confirmAction, Empty, Input, NumInput, Page, Segmented, Table, Td, cx, fmt, toast } from '../components/ui';
+import { Badge, Button, Card, confirmAction, Empty, Input, NumInput, Page, Segmented, Table, Td, Why, cx, fmt, toast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
 /**
@@ -56,6 +58,7 @@ export function StrengthPage() {
 
   return (
     <Page title="Strength" subtitle="One recommendation per exercise. Each machine and configuration has its own history.">
+      <ProgressTable />
       <div className="relative">
         <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
         <Input placeholder="Search exercise or machine" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
@@ -139,15 +142,20 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
           increase: 'border-emerald-500/40 bg-emerald-500/5', keep: 'border-sky-500/30 bg-sky-500/5', reduce: 'border-amber-500/40 bg-amber-500/5',
           plateau: 'border-violet-500/30 bg-violet-500/5', not_enough_data: 'border-ink-200 bg-ink-50 dark:border-ink-700 dark:bg-ink-950',
         }[adv.kind])}>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm font-semibold text-ink-900 dark:text-white">{adv.label}</span>
-            {p.next.weight != null && !bw && <span className="text-lg font-semibold tabular-nums">{fmt(p.next.weight, 2)} kg</span>}
-          </div>
-          <p className="mt-1 text-xs leading-relaxed text-ink-600 dark:text-ink-300">{adv.text}</p>
-          <p className="mt-1 text-[11px] text-ink-500">Next: {p.next.repTarget[0]}–{p.next.repTarget[1]} reps, ~{p.next.rirTarget} reps in reserve{!bw ? ` · smallest step ${fmt(inc, 2)} kg` : ''}.</p>
+          <div className="text-sm font-bold tracking-wide text-ink-900 dark:text-white">{adviceLabel(p, adv.kind)}</div>
+          <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
+            <Num k="Previous" v={p.previous?.topWeight != null && !bw ? `${fmt(p.previous.topWeight, 2)} kg` : p.previous ? `${p.previous.topReps ?? '—'} reps` : '—'} />
+            <Num k="Current" v={p.current?.topWeight != null && !bw ? `${fmt(p.current.topWeight, 2)} kg` : p.current ? `${p.current.topReps ?? '—'} reps` : '—'} />
+            <Num k="Best reps" v={String(Math.max(0, ...p.sessions.flatMap((x) => x.sets.map((q) => q.reps ?? 0))) || '—')} />
+            <Num k="Next" v={p.next.weight != null && !bw ? `${fmt(p.next.weight, 2)} kg` : bw ? 'BW' : '—'} />
+            <Num k="Reps" v={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} />
+            <Num k="Target RIR" v={String(p.next.rirTarget)} />
+          </dl>
+          <div className="mt-1"><Why label="Why"><p>{adv.text}</p>{!bw && <p>Smallest step {fmt(inc, 2)} kg.</p>}</Why></div>
         </div>
         {def?.variationFields?.includes('angle') && p.variantLabel == null && p.sessions.length > 0 && <AssignAngle p={p} name={names.ex(def, p.exerciseId)} />}
       </Card>
+      {bodyWeightRelevant(p.exerciseId, def?.equipmentKind) && <BodyContext p={p} kind={bodyWeightRelevant(p.exerciseId, def?.equipmentKind)!} repTop={def?.repRange[1] ?? 12} />}
 
       <Card>
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -310,5 +318,63 @@ function AssignAngle({ p, name }: { p: ProgressionSeries; name: string }) {
       <p className="mt-2 text-[11px] text-ink-500">Only entries without an angle change. Weights and reps stay as logged; each workout records the correction.</p>
       <div className="mt-2 flex gap-2"><Button size="sm" variant="primary" disabled={angle == null} onClick={apply}>Apply</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
     </div>
+  );
+}
+
+function Num({ k, v }: { k: string; v: string }) {
+  return <div><dt className="text-[10px] uppercase tracking-wider text-ink-500">{k}</dt><dd className="text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</dd></div>;
+}
+
+/** Body weight before each session next to the external load (belt / barbell), kept separate. */
+function BodyContext({ p, kind, repTop }: { p: ProgressionSeries; kind: 'system' | 'context'; repTop: number }) {
+  const data = useData();
+  const rows = bodyLoadSessions(p, data.workouts, data.body, kind).slice(-8).reverse();
+  const note = bodyWeightNote(bodyLoadSessions(p, data.workouts, data.body, kind), kind);
+  const advice = pullUpLoadingAdvice(p, repTop);
+  return (
+    <Card>
+      <div className="mb-2 text-sm font-semibold">Body weight</div>
+      <Table dense head={['Date', 'Body', kind === 'system' ? 'Added' : 'Bar', 'Best reps', ...(kind === 'system' ? ['≈ Total (est.)'] : [])]}>
+        {rows.map((r) => (
+          <tr key={r.workoutId}>
+            <Td right={false}>{formatDate(r.date, { day: 'numeric', month: 'short' })}</Td>
+            <Td>{r.body.kg != null ? `${fmt(r.body.kg)}${r.body.status === 'outdated' ? '*' : ''}` : '—'}</Td>
+            <Td>{r.externalKg != null ? fmt(r.externalKg, 2) : '—'}</Td>
+            <Td>{r.bestReps ?? '—'}</Td>
+            {kind === 'system' && <Td>{r.estSystemKg != null ? fmt(r.estSystemKg) : '—'}</Td>}
+          </tr>
+        ))}
+      </Table>
+      {note && <p className="mt-2 text-xs text-ink-600 dark:text-ink-300">{note}</p>}
+      {advice && <p className="mt-1 text-xs font-medium text-accent-700 dark:text-accent-300">{advice}</p>}
+      <p className="mt-1 text-[11px] text-ink-400">Body weight = latest weigh-in before each session{kind === 'system' ? '; total = body + added weight, an estimate' : '; never added to the bar'}. * older than 7 days.</p>
+    </Card>
+  );
+}
+
+/** Exercise · Baseline · Current · Progress — % only from comparable, representative sessions. */
+function ProgressTable() {
+  const a = useAnalysis();
+  const names = useNames();
+  const rows = a.progression.map((p) => ({ p, s: strengthProgress(p, a.today) })).filter((r) => r.s.baseline)
+    .sort((x, y) => (y.s.pct ?? -999) - (x.s.pct ?? -999));
+  if (!rows.length) return null;
+  const kg = (r: { p: ProgressionSeries }, w: number | null | undefined, idx: number | undefined) =>
+    r.p.loadMode === 'bodyweight_plus' && !w ? (idx != null ? `${fmt(idx)} reps` : '—') : w != null ? `${fmt(w, 2)} kg` : '—';
+  return (
+    <Card padded={false}>
+      <div className="flex items-baseline justify-between px-4 pt-3 sm:px-5"><span className="text-sm font-semibold">Progress vs baseline</span><span className="text-[10px] uppercase tracking-wider text-ink-400">first 4 weeks → last 4</span></div>
+      <Table dense head={['Exercise', 'Baseline', 'Current', 'Est. strength']}>
+        {rows.map((r) => (
+          <tr key={r.p.key}>
+            <Td right={false} className="max-w-[9rem] truncate">{names.ex(a.registry.get(r.p.exerciseId), r.p.exerciseId)}{r.p.variantLabel ? <span className="text-ink-400"> · {r.p.variantLabel}</span> : null}</Td>
+            <Td>{kg(r, r.s.baseline?.topWeight, r.s.baseline?.index)}</Td>
+            <Td>{r.s.current ? kg(r, r.s.current.topWeight, r.s.current.index) : '—'}</Td>
+            <Td className={cx('font-semibold', r.s.pct == null ? 'text-ink-400' : r.s.pct >= 2 ? 'text-emerald-600 dark:text-emerald-400' : r.s.pct <= -2 ? 'text-amber-600 dark:text-amber-400' : '')}>{r.s.pct == null ? 'MORE DATA' : `${r.s.pct > 0 ? '+' : ''}${fmt(r.s.pct)}%${r.p.sessions.at(-1)?.indexKind === 'reps' ? ' reps' : ''}`}</Td>
+          </tr>
+        ))}
+      </Table>
+      <div className="px-4 pb-3 sm:px-5"><Why label="How"><p>Estimated strength on that exact machine and setup: weight, reps and RIR of the best clean set (RIR-adjusted Epley). Baseline = first 4 weeks of that history (≥ 2 sessions); current = last ≤ 3 sessions in the last 4 weeks (≥ 2). Bodyweight work ("reps") uses reps + RIR instead. Baseline/Current columns show the median top weight. Wrong-weight, pain and technique-issue sets never count. An estimate of strength, not muscle growth.</p></Why></div>
+    </Card>
   );
 }

@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
-import { diffDays, formatDate } from '../../domain/dates';
+import { diffDays, formatDate, localNowParts } from '../../domain/dates';
+import { latestWeighIn, rollingAverage, weeklyTrend, weighInsOn, weightSeries } from '../../domain/bodyweight';
+import { AddBodyWeight } from '../components/AddBodyWeight';
 import { monthlyBodyReport, weeklyWeightAverages } from '../../domain/reports';
 import type { BodyMeasurement, Photo } from '../../domain/types';
 import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
-import { IconAlert, IconCamera, IconScale, IconTrash } from '../components/icons';
+import { IconCamera, IconPlus, IconScale, IconTrash } from '../components/icons';
 import { PhotoThumb, PhotoViewer } from '../components/PhotoGrid';
 import {
-  Badge, Button, Callout, Card, CardTitle, Empty, Field, Input, NumInput, Page, Segmented, Select, Stat, Table, Td, TextArea, fmt, toast,
+  Badge, Button, Card, CardTitle, Empty, Field, Input, NumInput, Page, Segmented, Select, Stat, Table, Td, TextArea, fmt, toast,
 } from '../components/ui';
 import { useAnalysis, usePhotoUrl } from '../hooks';
 
@@ -33,33 +35,32 @@ export function BodyPage() {
   const sorted = useMemo(() => [...data.body].sort((x, y) => x.date.localeCompare(y.date)), [data.body]);
   const weekly = useMemo(() => weeklyWeightAverages(data, data.settings.weekStartsOn), [data]);
   const report = useMemo(() => monthlyBodyReport(data, a.today), [data, a.today]);
-  const lastWeek = weekly[weekly.length - 1];
-  const prevWeek = weekly[weekly.length - 2];
-  const delta = lastWeek && prevWeek ? lastWeek.avg - prevWeek.avg : null;
   const last28 = weekly.filter((w) => diffDays(a.today, w.week) <= 35);
   const monthlyRate = last28.length >= 2 ? ((last28[last28.length - 1].avg - last28[0].avg) / Math.max(1, diffDays(last28[last28.length - 1].week, last28[0].week))) * 30 : null;
   const latestWaist = [...sorted].reverse().find((b) => b.waistCm != null)?.waistCm ?? null;
+  const [addOpen, setAddOpen] = useState(false);
+  const last = latestWeighIn(data.body);
+  const todayN = weighInsOn(data.body, a.today).length;
+  const avg7 = rollingAverage(data.body, a.today);
+  const trend = weeklyTrend(data.body, a.today);
 
   return (
-    <Page title="Body tracking" subtitle="Weight, circumferences and progress photos — all encrypted on this device"
-      actions={<Segmented value={tab} onChange={setTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'log', label: 'Log' }, { value: 'photos', label: 'Photos' }]} />}>
-      <Callout tone="warn" icon={<IconAlert size={18} />} title="What these numbers can and can't tell you">
-        Body weight and tape measurements cannot measure muscle mass. Day-to-day weight swings of 1–2 kg are mostly water, glycogen, salt and gut content.
-        Use weekly averages and month-to-month trends; a rising weight with a stable waist is <i>consistent with</i> lean gain, not proof of it.
-      </Callout>
+    <Page title="Body" subtitle="Encrypted on this device"
+      actions={<><Button variant="primary" onClick={() => setAddOpen(true)}><IconPlus size={16} />Body weight</Button><Segmented value={tab} onChange={setTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'log', label: 'Log' }, { value: 'photos', label: 'Photos' }]} /></>}>
+      <AddBodyWeight open={addOpen} onClose={() => setAddOpen(false)} />
 
       {tab === 'overview' && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="This week's avg" value={lastWeek ? `${fmt(lastWeek.avg)} kg` : '—'} sub={lastWeek ? `${lastWeek.n} weigh-in${lastWeek.n === 1 ? '' : 's'}` : 'No weigh-ins yet'} />
-            <Stat label="vs last week" value={delta != null ? `${delta > 0 ? '+' : ''}${fmt(delta, 2)} kg` : '—'} sub="Weekly average change" />
-            <Stat label="Monthly rate" value={monthlyRate != null ? `${monthlyRate > 0 ? '+' : ''}${fmt(monthlyRate, 2)} kg` : '—'} sub="Estimated from ~5 weeks" />
-            <Stat label="Latest waist" value={latestWaist != null ? `${fmt(latestWaist)} cm` : '—'} sub="Watch alongside weight" />
+            <Stat label="Latest" value={last ? `${fmt(last.kg)} kg` : '—'} sub={last ? `${formatDate(last.date, { day: 'numeric', month: 'short' })}${last.time ? ` ${last.time}` : ''} · today ${todayN}` : 'No weigh-ins yet'} />
+            <Stat label="7-day average" value={avg7 ? `${fmt(avg7.kg)} kg` : '—'} sub={avg7 ? `${avg7.days} day${avg7.days === 1 ? '' : 's'}` : '—'} />
+            <Stat label="Week trend" value={trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 2)} kg` : '—'} sub={monthlyRate != null ? `${monthlyRate > 0 ? '+' : ''}${fmt(monthlyRate, 2)} kg / month` : '7-day avg vs last week'} />
+            <Stat label="Waist" value={latestWaist != null ? `${fmt(latestWaist)} cm` : '—'} sub="latest" />
           </div>
 
           <Card>
-            <CardTitle hint="Dots: individual weigh-ins. Line: weekly average — the number worth watching.">Body weight</CardTitle>
-            <WeightChart body={sorted} weekly={weekly} />
+            <CardTitle hint="Dots: weigh-ins. Line: 7-day average. Daily swings are mostly water and food.">Body weight</CardTitle>
+            <WeightChart body={sorted} />
           </Card>
 
           <Card>
@@ -95,7 +96,7 @@ export function BodyPage() {
               <Table dense head={['Date', ...FIELDS.map((f) => `${f.label} (${f.unit})`), '']}>
                 {[...sorted].reverse().map((b) => (
                   <tr key={b.id}>
-                    <Td right={false}>{formatDate(b.date)}{b.notes ? <span title={b.notes} className="ml-1 text-ink-400">✎</span> : null}</Td>
+                    <Td right={false}>{formatDate(b.date)}{b.time ? <span className="ml-1 tabular-nums text-ink-500">{b.time}</span> : null}{b.notes ? <span title={b.notes} className="ml-1 text-ink-400">✎</span> : null}</Td>
                     {FIELDS.map((f) => <Td key={f.key}>{fmt(b[f.key])}</Td>)}
                     <Td>
                       <button type="button" aria-label="Delete measurement" className="rounded-lg p-1 text-ink-400 hover:bg-rose-500/10 hover:text-rose-600"
@@ -117,7 +118,9 @@ export function BodyPage() {
 }
 
 function MeasurementForm({ today }: { today: string }) {
+  const data = useData();
   const [date, setDate] = useState(today);
+  const [time, setTime] = useState(() => localNowParts(data.settings.timezone).time);
   const [vals, setVals] = useState<Partial<Record<FieldKey, number | null>>>({});
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -127,7 +130,7 @@ function MeasurementForm({ today }: { today: string }) {
     if (!any) return toast('Enter at least one measurement', 'bad');
     setBusy(true);
     try {
-      const rec: BodyMeasurement = { id: uid('bm'), date, photoIds: [], notes: notes.trim() || undefined };
+      const rec: BodyMeasurement = { id: uid('bm'), date, time: /^\d{2}:\d{2}$/.test(time) ? time : null, enteredAt: new Date().toISOString(), photoIds: [], notes: notes.trim() || undefined };
       for (const f of FIELDS) if (vals[f.key] != null) rec[f.key] = vals[f.key];
       await store.saveBody(rec);
       setVals({});
@@ -143,6 +146,7 @@ function MeasurementForm({ today }: { today: string }) {
       <CardTitle hint="Leave anything you didn't measure empty — nothing is filled in for you.">New measurement</CardTitle>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Field label="Date"><Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="Time"><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
         {FIELDS.map((f) => (
           <Field key={f.key} label={<>{f.label} <span className="text-ink-400">· {f.ru} ({f.unit})</span></>}>
             <NumInput value={vals[f.key] ?? null} step={f.step} onChange={(v) => setVals({ ...vals, [f.key]: v })} />
@@ -155,26 +159,26 @@ function MeasurementForm({ today }: { today: string }) {
   );
 }
 
-function WeightChart({ body, weekly }: { body: BodyMeasurement[]; weekly: { week: string; avg: number }[] }) {
-  const points = body.filter((b) => b.weightKg != null);
-  if (points.length === 0) return <Empty title="No weigh-ins yet">Log body weight a few times a week to see a reliable weekly average.</Empty>;
-  const toT = (d: string) => Date.parse(`${d}T00:00:00Z`);
-  const daily = points.map((b) => ({ t: toT(b.date), weight: b.weightKg as number }));
-  const avg = weekly.map((w) => ({ t: toT(w.week) + 3 * 86_400_000, avg: w.avg }));
-  const all = [...daily.map((d) => d.weight), ...avg.map((d) => d.avg)];
+function WeightChart({ body }: { body: BodyMeasurement[] }) {
+  const { points, avg } = weightSeries(body);
+  if (points.length === 0) return <Empty title="No weigh-ins yet">Tap “Body weight” to add one — any time of day.</Empty>;
+  const toT = (d: string, t: string | null = null) => Date.parse(`${d}T${t ?? '12:00'}:00Z`);
+  const daily = points.map((b) => ({ t: toT(b.date, b.time), weight: b.kg }));
+  const line = avg.map((x) => ({ t: toT(x.date), avg: x.kg }));
+  const all = [...daily.map((d) => d.weight), ...line.map((d) => d.avg)];
   const lo = Math.floor(Math.min(...all) - 1);
   const hi = Math.ceil(Math.max(...all) + 1);
   const fmtT = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   return (
-    <div className="h-64 w-full">
+    <div className="h-56 w-full">
       <ResponsiveContainer>
         <ComposedChart margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="t" type="number" domain={['dataMin - 86400000', 'dataMax + 86400000']} tickFormatter={fmtT} scale="time" allowDuplicatedCategory={false} />
           <YAxis domain={[lo, hi]} unit=" kg" width={58} />
-          <Tooltip labelFormatter={(t) => fmtT(Number(t))} formatter={(v: number, n: string) => [`${fmt(v)} kg`, n === 'avg' ? 'Weekly average' : 'Weigh-in']} />
+          <Tooltip labelFormatter={(t) => fmtT(Number(t))} formatter={(v: number, n: string) => [`${fmt(v)} kg`, n === 'avg' ? '7-day average' : 'Weigh-in']} />
           <Scatter data={daily} dataKey="weight" name="weight" fill="#8791a5" fillOpacity={0.55} />
-          <Line data={avg} dataKey="avg" name="avg" type="monotone" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3, fill: '#14b8a6' }} isAnimationActive={false} />
+          <Line data={line} dataKey="avg" name="avg" type="monotone" stroke="#14b8a6" strokeWidth={2.5} dot={false} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

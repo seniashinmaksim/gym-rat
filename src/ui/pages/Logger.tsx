@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { activeWorkout } from '../Layout';
-import { localNowParts, formatDate, formatDuration } from '../../domain/dates';
+import { localNowParts, formatDate } from '../../domain/dates';
 import { humanize, progressionKey, variationParts, warmupFor } from '../../domain/progression';
-import { assessSet, countedSetCount, mergeSides, sideFactors } from '../../domain/quality';
+import { assessSet, countedSetCount, isSecondSide, mergeSides, sideFactors } from '../../domain/quality';
 import { ACCURACY_LABEL, EFFORT_LABEL, estimatedRirRange, FEEL_BY_ID, FEEL_OPTIONS, feelPatch, formatRirRange, PAIN_AREAS, techniqueOf, TECHNIQUE_LABEL, withCorrections, isFinished } from '../../domain/feedback';
 import { loadUnitLabel, resolveCoefficients, searchExercises } from '../../domain/registry';
 import type { Effort, Equipment, ExecutionFeedback, FailureStatus, EquipmentKind, ExerciseDef, LoadMode, Location, MuscleId, SetFeel, SetType, Technique, Variation, VariationField, WeightAccuracy, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
@@ -15,7 +15,11 @@ import { EquipmentPicker } from '../components/EquipmentPicker';
 import { EquipmentForm } from './Equipment';
 import { loadStep } from '../../domain/increments';
 import { failureConsistency } from '../../domain/failure';
+import { bodyWeightForSession, bodyWeightRelevant, pullUpLoadingAdvice } from '../../domain/bodyweight';
+import type { ProgressionSeries } from '../../domain/progression';
+import { AddBodyWeight } from '../components/AddBodyWeight';
 import { EXECUTION_FEEDBACK, tempoFor } from '../../data/scientific-evidence/tempo';
+import { measuredRestSec, summarizeSession, type SessionSummary } from '../../domain/sessionSummary';
 import { adaptRemaining, prescribe, PRESCRIPTION_ENGINE, toSetPrescription, type Prescription } from '../../domain/prescription';
 import { Badge, Button, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
@@ -42,13 +46,14 @@ function StartSession() {
   const [time, setTime] = useState(now.time);
   const [loc, setLoc] = useState<string>(lastLoc);
   const [newGym, setNewGym] = useState('');
+  const [newGymAddr, setNewGymAddr] = useState('');
   const recent = [...data.workouts].reverse().slice(0, 4);
   const active = activeWorkout(data.workouts);
 
   const start = async () => {
     let locationId: string | null = loc || null;
     if (loc === '__new' && newGym.trim()) {
-      const l: Location = { id: slugId(newGym, 'gym'), name: newGym.trim(), photoIds: [], createdAt: new Date().toISOString() };
+      const l: Location = { id: slugId(newGym, 'gym'), name: newGym.trim(), ...(newGymAddr.trim() ? { address: newGymAddr.trim() } : {}), photoIds: [], createdAt: new Date().toISOString() };
       await store.saveLocation(l);
       locationId = l.id;
     } else if (loc === '__new') locationId = null;
@@ -63,7 +68,7 @@ function StartSession() {
   };
 
   return (
-    <Page title="Log workout" subtitle="Start a session. Every set is saved encrypted as you go, so the weekly numbers update live.">
+    <Page title="Start workout" subtitle="Pick your gym and go. Every set is saved as you log it.">
       {active && (
         <Link to={`/log/${active.id}`} className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-accent-500/40 bg-accent-500/10 px-4 py-3">
           <span className="min-w-0">
@@ -86,7 +91,10 @@ function StartSession() {
             </Field>
           </div>
           {(loc === '__new' || !data.locations.length) && (
-            <Field className="mt-4" label="New gym name" hint="Leave empty to log the session with an unknown location."><Input value={newGym} onChange={(e) => { setNewGym(e.target.value); setLoc('__new'); }} placeholder="e.g. Gym A" /></Field>
+            <>
+              <Field className="mt-4" label="New gym name" hint="Remembered for next time. Leave empty for an unknown gym."><Input value={newGym} onChange={(e) => { setNewGym(e.target.value); setLoc('__new'); }} placeholder="e.g. Gym A" /></Field>
+              {newGym.trim() && <Field className="mt-3" label="Address or note (optional)"><Input value={newGymAddr} onChange={(e) => setNewGymAddr(e.target.value)} placeholder="Optional" /></Field>}
+            </>
           )}
           <Button variant="primary" size="lg" className="mt-5 w-full sm:w-auto" onClick={start}>Start session</Button>
         </Card>
@@ -117,7 +125,9 @@ function SessionEditor({ initial }: { initial: Workout }) {
   const nav = useNavigate();
   const [w, setW] = useState<Workout>(initial);
   const [picker, setPicker] = useState(false);
-  const [lastDone, setLastDone] = useState<{ at: number; restTarget: number } | null>(null);
+  const tickGuard = useRef(new Map<string, number>()); // set id → when it was ticked (double-tap guard)
+  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const finishing = useRef(false);
   // After ✓, keep the just-finished set and its one-tap feedback on screen (top, below the sticky
   // header) — the next set follows right under it. Only scroll when the feedback would be hidden.
   const [focusSet, setFocusSet] = useState<{ done: string; tick: number } | null>(null);
@@ -139,21 +149,40 @@ function SessionEditor({ initial }: { initial: Workout }) {
   const latest = useRef(w);
   latest.current = w;
 
-  // Debounced autosave (encrypted write).
-  const update = useCallback((fn: (w: Workout) => Workout) => {
+  // Autosave (encrypted write): debounced while typing, IMMEDIATE for a completed set, and flushed
+  // whenever the page is hidden (phone locked, app switched, reload) so a performed set is never lost.
+  const update = useCallback((fn: (w: Workout) => Workout, opts?: { now?: boolean }) => {
     setW((prev) => {
       // Edits to a FINISHED workout are corrections: keep original → corrected values (audit trail).
       const next = withCorrections(initialRef.current, fn(prev), new Date().toISOString(), (id) => registryRef.current.get(id)?.name.en ?? id);
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => void store.saveWorkout(next), 350);
+      if (opts?.now) {
+        saveTimer.current = null;
+        void store.saveWorkout(next).catch(() => toast('Could not save — the set is kept on screen; it will be saved with the next change', 'bad'));
+      } else {
+        saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void store.saveWorkout(next); }, 350);
+      }
       return next;
     });
   }, []);
-  useEffect(() => () => {
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-      void store.saveWorkout(latest.current);
-    }
+  /** Drop a pending debounced save (before delete / finish): the unmount flush must not write it back. */
+  const cancelSave = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); saveTimer.current = null; };
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        void store.saveWorkout(latest.current);
+      }
+    };
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
   }, []);
 
   const location = data.locations.find((l) => l.id === w.locationId);
@@ -202,6 +231,8 @@ function SessionEditor({ initial }: { initial: Workout }) {
     const ex = w.exercises.find((e) => e.id === exId);
     const target = ex?.sets.find((s) => s.id === setId);
     if (!ex || !target) return;
+    // A quick second tap (fat finger / double tap) must not undo a set that was just completed.
+    if (target.completedAt && nowMs - (tickGuard.current.get(setId) ?? 0) < 1500) return;
     if (target.completedAt) {
       update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== exId ? e : {
         ...e, sets: e.sets.map((s) => {
@@ -237,25 +268,28 @@ function SessionEditor({ initial }: { initial: Workout }) {
         // Rest measured by the timer: time since the previous completed set minus an estimate of set duration (≈3 s/rep).
         // The second side of a left/right pair follows the first directly — that gap is not rest between sets.
         const i = e.sets.findIndex((o) => o.id === s.id);
-        const before = e.sets[i - 1];
-        const secondSide = !!(s.side && before?.side && before.side !== s.side && before.type === s.type);
-        if (lastDone && !secondSide && s.restSecBefore == null && e.sets.some((o) => o.completedAt)) {
-          const gap = Math.round((nowMs - lastDone.at) / 1000 - (s.reps ?? 8) * 3);
-          if (gap > 0 && gap < 1800) {
-            done.restSecBefore = gap;
-            done.restSource = 'timer';
-          }
+        const secondSide = isSecondSide(e.sets, i);
+        // Rest = since the previous completed set of THIS exercise (time between exercises is not rest).
+        const prevDone = e.sets.filter((o) => o.id !== s.id && o.completedAt).map((o) => o.completedAt as string).sort().pop();
+        const gap = !secondSide && s.restSecBefore == null ? measuredRestSec(prevDone, nowMs, s.reps) : null;
+        if (gap != null) {
+          done.restSecBefore = gap;
+          done.restSource = 'timer';
         }
         return done;
       });
       if (next && sets[sets.length - 1]?.id === setId) sets = [...sets, next];
       return { ...e, sets };
-    }) }));
-    const def = a.registry.get(ex.exerciseId);
-    setLastDone({ at: nowMs, restTarget: def?.defaultRestSec ?? 120 });
+    }) }), { now: true });
+    tickGuard.current.set(setId, nowMs);
   };
 
   const finish = async () => {
+    if (finishing.current) return; // double tap on Finish
+    finishing.current = true;
+    try { await finishInner(); } finally { finishing.current = false; }
+  };
+  const finishInner = async () => {
     // Sets that were pre-filled but never performed (not ticked, no RIR) are dropped, never saved as volume.
     const unticked = latest.current.exercises.reduce((n, e) => n + e.sets.filter((s) => s.planned).length, 0);
     const exercises = latest.current.exercises
@@ -263,6 +297,9 @@ function SessionEditor({ initial }: { initial: Workout }) {
       .filter((e) => e.sets.length > 0)
       .map((e, i) => ({ ...e, order: i }));
     const x = { ...latest.current, exercises };
+    // #9: skipped exercises counted BEFORE empty ones are dropped.
+    const skipped = latest.current.exercises.filter((e) => e.skipped).length;
+    cancelSave();
     if (!x.exercises.length) {
       await store.deleteWorkout(x.id);
       nav('/');
@@ -277,32 +314,36 @@ function SessionEditor({ initial }: { initial: Workout }) {
       if (d > 0 && d < 400) durationMin = d;
     }
     const final = { ...x, finishedAt: x.finishedAt ?? new Date().toISOString(), exercises: x.exercises.map(dropEmptySettings), endTime: x.endTime ?? (x.date === now.date ? now.time : null), durationMin };
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    cancelSave();
+    const wasLive = live;
     setW(final);
     await store.saveWorkout(final);
     toast(unticked ? `Workout saved · ${unticked} unticked set${unticked === 1 ? '' : 's'} left out` : 'Workout saved');
-    nav('/');
+    if (!wasLive) return nav('/history');
+    // Short numeric summary from the same engine as the dashboard (summary of what was saved).
+    setSummary({ ...summarizeSession(final, [...data.workouts.filter((o) => o.id !== final.id), final], a.registry, data.settings.quality, now), skippedExercises: skipped });
   };
 
   const remove = async () => {
     if (!confirmAction('Delete this workout permanently?')) return;
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    cancelSave();
     await store.deleteWorkout(w.id);
     nav('/history');
   };
 
   return (
     <Page
-      title={live ? 'Workout in progress' : 'Edit workout'}
+      title={summary ? 'Workout saved' : live ? 'Workout in progress' : 'Edit workout'}
       subtitle={<span>{formatDate(w.date, { weekday: 'long', day: 'numeric', month: 'long' })}{location ? ` · ${location.name}` : ' · gym unknown'}</span>}
       actions={<><Button variant="ghost" onClick={remove} aria-label="Delete workout" className="w-11 px-0"><IconTrash size={18} /></Button><Button variant="primary" onClick={finish}><IconCheck size={16} />{live ? 'Finish' : 'Save'}</Button></>}
     >
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
+          {live && <LiveBar w={w} />}
           <MobileRemainingStrip sessionEff={sessionEff} />
           <SessionMeta w={w} update={update} />
           {w.exercises.map((ex, i) => (
-            <ExerciseCard key={ex.id} index={i} w={w} ex={ex} live={live} update={update} onComplete={completeSet} />
+            <ExerciseCard key={ex.id} index={i} w={w} ex={ex} live={live} update={update} onComplete={completeSet} onNext={() => setPicker(true)} />
           ))}
           <button type="button" onClick={() => setPicker(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-ink-300 py-5 text-sm font-semibold text-ink-600 transition hover:border-accent-500 hover:text-accent-600 dark:border-ink-700 dark:text-ink-300 dark:hover:text-accent-400">
             <IconPlus size={18} /> Add exercise
@@ -314,7 +355,8 @@ function SessionEditor({ initial }: { initial: Workout }) {
         </div>
       </div>
       <ExercisePicker open={picker} onClose={() => setPicker(false)} onPick={addExercise} locationId={w.locationId} />
-      {lastDone && <RestTimer since={lastDone.at} target={lastDone.restTarget} onDismiss={() => setLastDone(null)} />}
+      {live && !summary && <RestTimer w={w} />}
+      {summary && <SummaryModal s={summary} onDone={() => nav('/')} />}
       <div className="h-6" aria-hidden />
     </Page>
   );
@@ -409,8 +451,8 @@ function ScalePick({ label, value, onChange }: { label: string; value: number | 
 
 // ---------------------------------------------------------------- Exercise card
 
-function ExerciseCard({ index, w, ex, live, update, onComplete }: {
-  index: number; w: Workout; ex: WorkoutExercise; live: boolean; update: (fn: (w: Workout) => Workout) => void; onComplete: (exId: string, setId: string) => void;
+function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
+  index: number; w: Workout; ex: WorkoutExercise; live: boolean; update: (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void; onComplete: (exId: string, setId: string) => void; onNext: () => void;
 }) {
   const data = useData();
   const a = useAnalysis();
@@ -534,6 +576,31 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
     toast('Remaining sets updated');
   };
 
+  const move = (d: -1 | 1) => update((x) => {
+    const xs = [...x.exercises];
+    const j = index + d;
+    if (j < 0 || j >= xs.length) return x;
+    [xs[index], xs[j]] = [xs[j], xs[index]];
+    return { ...x, exercises: xs.map((e, i) => ({ ...e, order: i })) };
+  }, { now: true });
+  const closed = live && (!!ex.doneAt || !!ex.skipped);
+  const [reopen, setReopen] = useState(false);
+  const finishEx = (skip = false) => { setReopen(false); setEx((e) => ({ ...e, ...(skip ? { skipped: true } : { doneAt: new Date().toISOString(), skipped: undefined }) })); };
+  if (closed && !reopen) {
+    const doneSets = ex.sets.filter((s) => !s.planned && s.type !== 'warmup');
+    return (
+      <Card padded={false}>
+        <button type="button" onClick={() => setReopen(true)} className="flex min-h-[56px] w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5">
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-ink-900 dark:text-white">{index + 1}. {names.ex(def, ex.exerciseNameRaw ?? ex.exerciseId)}</span>
+            <span className="block truncate text-xs tabular-nums text-ink-500">{ex.skipped && !doneSets.length ? 'Skipped' : doneSets.map((s) => `${s.side ? (s.side === 'left' ? 'L ' : 'R ') : ''}${s.weightKg ?? 'BW'}×${s.reps ?? '?'}${s.rir != null ? `@${s.rir}` : ''}`).join(' · ') || 'No sets'}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5"><Badge tone={ex.skipped ? 'neutral' : 'good'}>{ex.skipped ? 'skipped' : (() => { const n = countedSetCount(ex.sets.filter((s) => !s.planned)); return `${n} set${n === 1 ? '' : 's'}`; })()}</Badge><IconChevronDown size={16} className="text-ink-400" /></span>
+        </button>
+      </Card>
+    );
+  }
+
   return (
     <Card padded={false}>
       <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
@@ -558,6 +625,7 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
       </div>
 
       <ExecutionCue exerciseId={ex.exerciseId} />
+      <BodyLine w={w} ex={ex} kind={def?.equipmentKind} series={series ?? null} repTop={def?.repRange[1] ?? 12} />
       <div className="mt-3 grid grid-cols-1 gap-2 px-4 sm:grid-cols-[1fr_auto] sm:px-5">
         <button type="button" onClick={() => setPickEq(true)}
           className={cx('flex min-h-[44px] min-w-0 items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-sm dark:bg-ink-900', needsMachine && !ex.equipmentId ? 'border-amber-500/60' : 'border-ink-200 dark:border-ink-700')}>
@@ -627,6 +695,17 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
           <Button size="sm" variant="ghost" onClick={() => addSet('warmup')}>+ Warm-up</Button>
           <Button size="sm" variant="ghost" onClick={() => addSet('drop')}>+ Drop</Button>
         </div>
+        {live && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
+            <Button size="md" variant="primary" className="flex-1" onClick={() => { finishEx(); onNext(); }}>Next exercise</Button>
+            <Button size="md" onClick={() => finishEx()}>Done</Button>
+            <Button size="md" variant="ghost" onClick={() => finishEx(true)}>Skip</Button>
+            <span className="ml-auto flex gap-1">
+              <button type="button" aria-label="Move exercise up" disabled={index === 0} onClick={() => move(-1)} className="h-11 w-10 rounded-lg text-ink-500 disabled:opacity-30">↑</button>
+              <button type="button" aria-label="Move exercise down" disabled={index === w.exercises.length - 1} onClick={() => move(1)} className="h-11 w-10 rounded-lg text-ink-500 disabled:opacity-30">↓</button>
+            </span>
+          </div>
+        )}
       </div>
       <EquipmentPicker open={pickEq} onClose={() => setPickEq(false)} locationId={w.locationId} def={def} currentId={ex.equipmentId}
         onPick={(chosen) => { setPickEq(false); chooseEq(chosen); }}
@@ -651,6 +730,7 @@ const CHOICES: Partial<Record<VariationField, { key: keyof Variation; label: str
   stance: { key: 'stance', label: 'Stance', options: [['narrow', 'Narrow'], ['shoulder', 'Shoulder'], ['wide', 'Wide']] },
   grip: { key: 'grip', label: 'Grip', options: [['pronated', 'Overhand'], ['supinated', 'Underhand'], ['neutral', 'Neutral'], ['mixed', 'Mixed']] },
   gripWidth: { key: 'gripWidth', label: 'Grip width', options: [['narrow', 'Narrow'], ['shoulder', 'Shoulder'], ['wide', 'Wide']] },
+  loading: { key: 'loading', label: 'Load', options: [['bodyweight', 'Bodyweight'], ['weighted', 'Weighted (belt)']] },
 };
 /** Fields kept for the owner's records that do not change muscle credit (said so in the Setup panel). */
 const RECORD_ONLY: Partial<Record<VariationField, string>> = {
@@ -852,6 +932,41 @@ function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onCompl
           <div className="mt-1 text-ink-400">RIR = reps in reserve: how many more clean reps you could have done. 0–3 counts fully.</div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Body weight context (pull-ups, dips, squats…)
+
+/**
+ * The body weight that applies to this session (latest weigh-in BEFORE it started) next to the
+ * exercise. Bodyweight exercises: body + belt shown separately, the sum labelled an estimate.
+ * Squats etc.: context only — never added to the bar. Missing body weight never blocks logging.
+ */
+function BodyLine({ w, ex, kind, series, repTop }: { w: Workout; ex: WorkoutExercise; kind?: EquipmentKind; series: ProgressionSeries | null; repTop: number }) {
+  const data = useData();
+  const [add, setAdd] = useState(false);
+  const rel = bodyWeightRelevant(ex.exerciseId, kind);
+  if (!rel) return null;
+  const b = bodyWeightForSession(data.body, w);
+  const belt = ex.variation?.loading === 'weighted' ? Math.max(0, ...ex.sets.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number)) : 0;
+  const advice = series ? pullUpLoadingAdvice(series, repTop) : null;
+  return (
+    <div className="px-4 sm:px-5">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums text-ink-600 dark:text-ink-300">
+        <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500 dark:bg-ink-800">Body</span>
+        {b.kg == null ? <span className="text-ink-500">not logged</span> : (
+          <span>
+            {fmt(b.kg)} kg
+            <span className="text-ink-400"> · {b.date === w.date ? b.time ?? 'today' : formatDate(b.date!, { day: 'numeric', month: 'short' })}{b.status === 'outdated' ? ' · outdated' : ''}</span>
+            {rel === 'system' && belt > 0 && <> · belt {fmt(belt)} kg · <span title="Body + belt: an estimate of system mass, not the force through the movement">≈ {fmt(b.kg + belt)} kg est.</span></>}
+            {rel === 'context' && <span className="text-ink-400"> · context only</span>}
+          </span>
+        )}
+        <button type="button" onClick={() => setAdd(true)} className="min-h-[32px] rounded-lg px-1.5 font-semibold text-accent-600 dark:text-accent-400">+ weight</button>
+      </div>
+      {advice && <p className="mt-0.5 text-[11px] text-accent-700 dark:text-accent-300">{advice}</p>}
+      <AddBodyWeight open={add} onClose={() => setAdd(false)} />
     </div>
   );
 }
@@ -1189,28 +1304,156 @@ function MobileRemainingStrip({ sessionEff }: { sessionEff: Partial<Record<Muscl
 
 // ---------------------------------------------------------------- Rest timer
 
-function RestTimer({ since, target, onDismiss }: { since: number; target: number; onDismiss: () => void }) {
+/** Latest completed set in the workout (working, drop or warm-up) and its exercise. */
+function lastCompleted(w: Workout): { at: number; exIndex: number; setId: string } | null {
+  let best: { at: number; exIndex: number; setId: string } | null = null;
+  w.exercises.forEach((e, i) => e.sets.forEach((s) => {
+    if (!s.completedAt || s.planned) return;
+    const at = Date.parse(s.completedAt);
+    if (!best || at > best.at) best = { at, exIndex: i, setId: s.id };
+  }));
+  return best;
+}
+
+/** Rest target for an exercise: the prescription's personal rest (midpoint), else the exercise's default rest. */
+function useRestTarget(w: Workout, exIndex: number | null): number {
+  const data = useData();
+  const a = useAnalysis();
+  return useMemo(() => {
+    if (exIndex == null || !w.exercises[exIndex]) return 120;
+    const p = safePrescribe(data, a, w, exIndex);
+    if (p) return Math.round((p.rest.range[0] + p.rest.range[1]) / 2 / 15) * 15;
+    return a.registry.get(w.exercises[exIndex].exerciseId)?.defaultRestSec ?? 120;
+  }, [data, a, w.exercises.length, exIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+const mmss = (sec: number) => `${sec < 0 ? '-' : ''}${Math.floor(Math.abs(sec) / 60)}:${String(Math.abs(sec) % 60).padStart(2, '0')}`;
+
+/**
+ * Rest timer. Counts from the stored completion time of the last set, so it stays correct after the
+ * phone locks, the app is backgrounded, the vault auto-locks or the page reloads. +15 / +30 / pause /
+ * skip are per rest period (kept for this tab). At zero: vibration and an optional beep, once.
+ */
+function RestTimer({ w }: { w: Workout }) {
+  const last = lastCompleted(w);
+  const ex = last ? w.exercises[last.exIndex] : null;
+  const target = useRestTarget(w, last?.exIndex ?? null);
+  const key = last ? `gymrat.rest.${w.id}.${last.setId}` : '';
+  type T = { add: number; pausedAt: number | null; paused: number; skipped: boolean };
+  const read = (): T => { try { return { add: 0, pausedAt: null, paused: 0, skipped: false, ...JSON.parse(sessionStorage.getItem(key) || '{}') }; } catch { return { add: 0, pausedAt: null, paused: 0, skipped: false }; } };
+  const [t, setT] = useState<T>(read);
+  useEffect(() => setT(read()), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const save = (n: T) => { setT(n); try { sessionStorage.setItem(key, JSON.stringify(n)); } catch { /* private mode: keep in memory */ } };
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
+    const id = setInterval(() => setNow(Date.now()), 250);
+    const vis = () => setNow(Date.now());
+    document.addEventListener('visibilitychange', vis);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis); };
   }, []);
-  const el = Math.floor((now - since) / 1000);
-  const pct = Math.min(1, el / target);
-  const ready = el >= target;
+  const [sound, setSound] = useState(() => { try { return localStorage.getItem('gymrat.restSound') === '1'; } catch { return false; } });
+  const alerted = useRef('');
+  if (!last || !ex) return null;
+  const pausedNow = t.pausedAt ? now - t.pausedAt : 0;
+  const elapsed = Math.floor((now - last.at - t.paused - pausedNow) / 1000);
+  const goal = target + t.add;
+  const left = goal - elapsed;
+  // Between exercises: the last set's exercise has nothing planned left → show time since the last set.
+  const between = !!ex.doneAt || !!ex.skipped || !ex.sets.some((s) => s.planned && s.type !== 'warmup');
+  if (t.skipped || elapsed > 30 * 60) return null;
+  if (left <= 0 && !between && alerted.current !== key && left > -5) {
+    alerted.current = key;
+    try { navigator.vibrate?.([200, 100, 200]); } catch { /* no vibration */ }
+    if (sound) {
+      try {
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const c = new Ctx(); const o = c.createOscillator(); const g = c.createGain();
+        o.frequency.value = 880; g.gain.value = 0.15; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.35);
+      } catch { /* audio unavailable */ }
+    }
+  }
+  const ready = !between && left <= 0;
+  const btn = 'h-11 min-w-[44px] rounded-xl px-3 text-sm font-semibold active:scale-95';
   return (
-    <div className="fixed inset-x-0 bottom-20 z-40 flex justify-center px-4 lg:bottom-6 lg:left-64">
-      <div className={cx('flex items-center gap-3 rounded-2xl border px-4 py-2.5 shadow-xl backdrop-blur-md', ready ? 'border-emerald-500/40 bg-emerald-500/15' : 'border-ink-200 bg-white/90 dark:border-ink-700 dark:bg-ink-900/90')}>
-        <svg width="34" height="34" viewBox="0 0 36 36" className="-rotate-90">
-          <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3.5" className="stroke-ink-200 dark:stroke-ink-700" />
-          <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${pct * 94.2} 94.2`} className={ready ? 'stroke-emerald-500' : 'stroke-accent-500'} />
-        </svg>
-        <div>
-          <div className="text-lg font-semibold tabular-nums leading-none">{formatDuration(el)}</div>
-          <div className="text-[11px] text-ink-500">{ready ? 'Typical rest reached' : `typical ~${formatDuration(target)}`}</div>
+    <div className="fixed inset-x-0 bottom-[4.5rem] z-40 px-3 pb-[env(safe-area-inset-bottom)] lg:bottom-4 lg:left-64">
+      <div className={cx('mx-auto flex max-w-xl items-center gap-2 rounded-2xl border px-3 py-2 shadow-xl backdrop-blur-md', ready ? 'border-emerald-500/50 bg-emerald-500/20' : 'border-ink-200 bg-white/95 dark:border-ink-700 dark:bg-ink-900/95')}>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">{between ? 'Since last set' : ready ? 'Rest done — go' : t.pausedAt ? 'Rest · paused' : 'Rest'}</div>
+          <div className={cx('text-3xl font-bold leading-none tabular-nums', ready ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')} aria-live="polite">{between ? mmss(elapsed) : mmss(Math.max(left, -599))}</div>
         </div>
-        <button type="button" onClick={onDismiss} className="-mr-2 ml-1 h-11 rounded-xl px-3 text-sm text-ink-500 hover:bg-ink-100 active:bg-ink-200 dark:hover:bg-ink-800 dark:active:bg-ink-700">Hide</button>
+        {!between && <>
+          <button type="button" className={cx(btn, 'bg-ink-100 dark:bg-ink-800')} onClick={() => save({ ...t, add: t.add + 15 })}>+15</button>
+          <button type="button" className={cx(btn, 'bg-ink-100 dark:bg-ink-800')} onClick={() => save({ ...t, add: t.add + 30 })}>+30</button>
+          <button type="button" className={cx(btn, 'bg-ink-100 dark:bg-ink-800')} aria-label={t.pausedAt ? 'Resume rest timer' : 'Pause rest timer'}
+            onClick={() => save(t.pausedAt ? { ...t, paused: t.paused + (Date.now() - t.pausedAt), pausedAt: null } : { ...t, pausedAt: Date.now() })}>{t.pausedAt ? '▶' : '❚❚'}</button>
+          <button type="button" className={cx(btn, 'bg-ink-100 dark:bg-ink-800')} aria-label={sound ? 'Sound on' : 'Sound off'} aria-pressed={sound}
+            onClick={() => { const v = !sound; setSound(v); try { localStorage.setItem('gymrat.restSound', v ? '1' : '0'); } catch { /* ignore */ } }}>{sound ? '🔔' : '🔕'}</button>
+        </>}
+        <button type="button" className={cx(btn, 'text-ink-500')} onClick={() => save({ ...t, skipped: true })}>{between ? 'Hide' : 'Skip'}</button>
       </div>
+    </div>
+  );
+}
+
+/** End-of-workout numbers. One button. */
+function SummaryModal({ s, onDone }: { s: SessionSummary; onDone: () => void }) {
+  const a = useAnalysis();
+  const names = useNames();
+  const stat = (k: string, v: string) => <div className="rounded-xl bg-ink-50 px-3 py-2 dark:bg-ink-950"><div className="text-[10px] uppercase tracking-wider text-ink-500">{k}</div><div className="text-lg font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
+  return (
+    <Modal open onClose={onDone} title="Workout saved" footer={<Button variant="primary" className="w-full" onClick={onDone}>Done</Button>}>
+      <div className="grid grid-cols-3 gap-2">
+        {stat('Duration', s.durationMin != null ? `${s.durationMin} min` : '—')}
+        {stat('Exercises', String(s.exercises))}
+        {stat('Sets', String(s.workingSets))}
+        {stat('Warm-ups', String(s.warmupSets))}
+        {stat('Tonnage', `${s.tonnageKg.toLocaleString()} kg`)}
+        {stat('Avg rest', s.avgRestSec != null ? mmss(s.avgRestSec) : '—')}
+      </div>
+      {s.muscles.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Effective sets</div>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm tabular-nums">
+            {s.muscles.map((m) => <li key={m.muscle} className="flex justify-between gap-2"><span className="truncate">{names.muscle(m.muscle)}</span><b className="font-semibold">+{m.effective}</b></li>)}
+          </ul>
+        </div>
+      )}
+      {s.records.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Records</div>
+          <ul className="space-y-0.5 text-sm">{s.records.map((r) => <li key={r.exerciseId + r.kind}>{r.kind === 'weight' ? '↑' : '+'} {names.ex(a.registry.get(r.exerciseId), r.exerciseId)}: <b className="font-semibold tabular-nums">{r.text}</b></li>)}</ul>
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap gap-1.5 text-xs">
+        <Badge tone="neutral">Failure sets {s.muscularFailureSets}</Badge>
+        {s.technicalFailureSets > 0 && <Badge tone="warn">Form broke {s.technicalFailureSets}</Badge>}
+        {s.compromisedSets > 0 && <Badge tone="warn">Technique issues {s.compromisedSets}</Badge>}
+        {s.skippedExercises > 0 && <Badge tone="neutral">Skipped {s.skippedExercises}</Badge>}
+      </div>
+      <p className="mt-3 text-[11px] text-ink-500">Tonnage = weight × reps as logged (per dumbbell for dumbbells). Weekly numbers are already updated.</p>
+    </Modal>
+  );
+}
+
+/** Compact live line: duration · exercises · working sets · current exercise. */
+function LiveBar({ w }: { w: Workout }) {
+  const a = useAnalysis();
+  const names = useNames();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(id); }, []);
+  const started = Date.parse(w.createdAt);
+  const min = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 60_000)) : null;
+  const done = w.exercises.filter((e) => e.sets.some((s) => !s.planned && s.type !== 'warmup'));
+  const sets = w.exercises.reduce((n, e) => n + countedSetCount(e.sets.filter((s) => !s.planned)), 0);
+  const last = lastCompleted(w);
+  const cur = last ? w.exercises[last.exIndex] : w.exercises[w.exercises.length - 1];
+  const cell = (k: string, v: string) => <div className="min-w-0"><div className="text-[10px] uppercase tracking-wider text-ink-400">{k}</div><div className="truncate text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
+  return (
+    <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] gap-x-4 rounded-2xl border border-ink-200 bg-white px-4 py-2.5 dark:border-ink-800 dark:bg-ink-900">
+      {cell('Time', min == null ? '—' : `${Math.floor(min / 60) ? `${Math.floor(min / 60)}h ` : ''}${min % 60}m`)}
+      {cell('Exercises', String(done.length))}
+      {cell('Sets', String(Math.round(sets * 10) / 10))}
+      {cell('Now', cur ? names.ex(a.registry.get(cur.exerciseId), cur.exerciseId) : '—')}
     </div>
   );
 }
