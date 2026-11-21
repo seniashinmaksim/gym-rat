@@ -4,8 +4,9 @@ import { activeWorkout } from '../Layout';
 import { localNowParts, formatDate, formatDuration } from '../../domain/dates';
 import { defaultIncrement, humanize, progressionKey, variationParts, warmupFor } from '../../domain/progression';
 import { assessSet, countedSetCount, mergeSides, sideFactors } from '../../domain/quality';
+import { ACCURACY_LABEL, EFFORT_LABEL, estimatedRirRange, FEEL_BY_ID, FEEL_OPTIONS, feelPatch, formatRirRange, PAIN_AREAS, techniqueOf, TECHNIQUE_LABEL, withCorrections, isFinished } from '../../domain/feedback';
 import { loadUnitLabel, resolveCoefficients, searchExercises } from '../../domain/registry';
-import type { Equipment, EquipmentKind, ExerciseDef, LoadMode, Location, MuscleId, SetType, Variation, VariationField, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
+import type { Effort, Equipment, EquipmentKind, ExerciseDef, LoadMode, Location, MuscleId, SetFeel, SetType, Technique, Variation, VariationField, WeightAccuracy, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
 import { slugId, uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
@@ -120,13 +121,17 @@ function SessionEditor({ initial }: { initial: Workout }) {
     return () => window.clearTimeout(t);
   }, [focusSet]);
   const saveTimer = useRef<number | null>(null);
+  const initialRef = useRef(initial);
+  const registryRef = useRef(a.registry);
+  registryRef.current = a.registry;
   const latest = useRef(w);
   latest.current = w;
 
   // Debounced autosave (encrypted write).
   const update = useCallback((fn: (w: Workout) => Workout) => {
     setW((prev) => {
-      const next = fn(prev);
+      // Edits to a FINISHED workout are corrections: keep original → corrected values (audit trail).
+      const next = withCorrections(initialRef.current, fn(prev), new Date().toISOString(), (id) => registryRef.current.get(id)?.name.en ?? id);
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => void store.saveWorkout(next), 350);
       return next;
@@ -141,7 +146,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
 
   const location = data.locations.find((l) => l.id === w.locationId);
   // While a live session is open, new sets are "planned" (pre-filled, not counted) until ticked.
-  const live = !w.endTime;
+  const live = !isFinished(w);
   const sessionEff = useMemo(() => sessionMuscleEffective(w, a.registry, data.settings.quality), [w, a.registry, data.settings.quality]);
 
   const addExercise = (def: ExerciseDef) => {
@@ -247,7 +252,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
       const d = eh * 60 + em - (sh * 60 + sm);
       if (d > 0 && d < 400) durationMin = d;
     }
-    const final = { ...x, exercises: x.exercises.map(dropEmptySettings), endTime: x.endTime ?? (x.date === now.date ? now.time : null), durationMin };
+    const final = { ...x, finishedAt: x.finishedAt ?? new Date().toISOString(), exercises: x.exercises.map(dropEmptySettings), endTime: x.endTime ?? (x.date === now.date ? now.time : null), durationMin };
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     setW(final);
     await store.saveWorkout(final);
@@ -553,7 +558,7 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
         {perSide && <p className="px-4 pb-1 text-[11px] text-ink-500 sm:px-5">One side at a time: log a left and a right set — each pair counts as <b className="font-semibold">one</b> set.</p>}
         {index === 0 && <p className="px-4 pb-1 text-[11px] leading-snug text-ink-500 sm:px-5">Numbers below the reps are <b className="font-semibold">RIR</b> — reps you still had left. Tap one, then ✓ to count the set.</p>}
         {ex.sets.map((s, i) => (
-          <SetRow key={s.id} s={s} pair={pairs.get(s.id) ?? 1} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type && (x.side ?? null) === (s.side ?? null)).length} inc={inc} sideToggle={perSide} onChange={(p) => setSet(s.id, p)}
+          <SetRow key={s.id} s={s} live={live} pair={pairs.get(s.id) ?? 1} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type && (x.side ?? null) === (s.side ?? null)).length} inc={inc} sideToggle={perSide} onChange={(p) => setSet(s.id, p)}
             onRemove={() => setEx((e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) }))} onComplete={() => onComplete(ex.id, s.id)} />
         ))}
         <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-5">
@@ -680,7 +685,7 @@ const RIR_OPTIONS: { v: number | null; label: string }[] = [
  * Touch-first set row. Row 1: set type + large weight/reps steppers. Row 2: one-tap RIR chips + big ✓.
  * Every tap target is ≥ 40px; explanations open on tap (no hover-only information).
  */
-function SetRow({ s, n, inc, pair, sideToggle, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; pair: number; sideToggle: boolean; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
+function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; pair: number; live: boolean; sideToggle: boolean; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
   const data = useData();
   const [info, setInfo] = useState(false);
   const q = assessSet(s, data.settings.quality);
@@ -742,6 +747,7 @@ function SetRow({ s, n, inc, pair, sideToggle, onChange, onRemove, onComplete }:
         </div>
         <button type="button" onClick={onRemove} className="min-h-[44px] shrink-0 px-2 text-ink-400 active:text-rose-500">Remove</button>
       </div>
+      {!warm && !planned && (done || !live || s.rir != null || !!s.toFailure) && <SetFeedback s={s} onChange={onChange} startOpen={live} />}
       {info && !warm && (
         <div className="mt-1 rounded-lg bg-ink-50 p-2.5 text-xs leading-relaxed text-ink-600 dark:bg-ink-950 dark:text-ink-300">
           {s.side && <div className="mb-1">This is the {s.side} side. A left set and a right set together count as one set.</div>}
@@ -753,6 +759,118 @@ function SetRow({ s, n, inc, pair, sideToggle, onChange, onRemove, onComplete }:
     </div>
   );
 }
+
+// ---------------------------------------------------------------- Per-set feedback
+
+/**
+ * "How did this set feel?" — one tap. Stores the answer plus three separate dimensions
+ * (effort, weight accuracy, technique) that can be adjusted under Details. RIR is untouched.
+ */
+function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: Partial<WorkoutSet>) => void; startOpen: boolean }) {
+  // Live: the question opens right after the set. Editing a past workout: one small button per set.
+  const [open, setOpen] = useState(!s.feel && startOpen);
+  if (!open && !s.feel) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-[40px] text-[12px] font-medium text-accent-600 dark:text-accent-400">+ How did it feel?</button>
+    );
+  }
+  const [details, setDetails] = useState(false);
+  const sel = s.feel ? FEEL_BY_ID[s.feel] : null;
+  const est = estimatedRirRange(s);
+  const pick = (f: SetFeel) => {
+    const patch = feelPatch(s, f);
+    onChange(patch);
+    // Collapse after a plain answer; keep open where a follow-up is useful (pain area, intended weight).
+    if (patch.feel && f !== 'pain' && f !== 'wrong_light' && f !== 'wrong_heavy') setOpen(false);
+  };
+  if (!open && sel) {
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+        <button type="button" onClick={() => setOpen(true)} className={cx('flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 font-medium', FEEL_TONE[sel.id])}>
+          {sel.title}{s.pain?.area ? ` · ${s.pain.area}` : ''}{s.intendedWeightKg != null ? ` · meant ${fmt(s.intendedWeightKg, 2)} kg` : ''} <span className="text-[10px] opacity-70">change</span>
+        </button>
+        {est && <span className="text-ink-500">RIR ≈ {formatRirRange(est)} (estimate)</span>}
+        {s.notes && <span className="truncate text-ink-500">“{s.notes}”</span>}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1.5 rounded-xl bg-ink-50 p-2 dark:bg-ink-950/60">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-ink-500">
+        <span className="font-semibold uppercase tracking-wider">How did it feel?</span>
+        <span>optional</span>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="How did this set feel?">
+        {FEEL_OPTIONS.map((o) => (
+          <button key={o.id} type="button" aria-pressed={s.feel === o.id} onClick={() => pick(o.id)}
+            className={cx('min-h-[44px] rounded-lg px-1 text-[12px] font-medium leading-tight transition active:scale-95',
+              s.feel === o.id ? FEEL_TONE[o.id] + ' ring-2 ring-current/30' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{o.label}</button>
+        ))}
+      </div>
+      {sel && <p className="mt-1.5 text-[11px] leading-snug text-ink-500">{sel.description}{est ? ` No RIR logged: RIR ≈ ${formatRirRange(est)} (estimate, not measured).` : ''}</p>}
+      {s.feel === 'pain' && (
+        <div className="mt-2 space-y-2">
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] leading-snug text-rose-700 dark:text-rose-300">
+            Stop or change the movement if it hurts — don't push through pain. This app can't diagnose anything; if it persists or is sharp, get it checked. The set is kept but not counted as a normal quality set.
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PAIN_AREAS.map((a) => (
+              <button key={a} type="button" aria-pressed={s.pain?.area === a} onClick={() => onChange({ pain: { area: s.pain?.area === a ? '' : a, note: s.pain?.note } })}
+                className={cx('h-10 rounded-full px-3 text-[12px] font-medium', s.pain?.area === a ? 'bg-rose-500 text-white' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{a}</button>
+            ))}
+          </div>
+          <input className="h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="What did it feel like? (optional)"
+            value={s.pain?.note ?? ''} onChange={(e) => onChange({ pain: { area: s.pain?.area ?? '', note: e.target.value || undefined } })} />
+        </div>
+      )}
+      {(s.feel === 'wrong_light' || s.feel === 'wrong_heavy') && (
+        <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-600 dark:text-ink-300">
+          <span className="shrink-0">Meant to use</span>
+          <div className="w-28"><NumInput value={s.intendedWeightKg ?? null} onChange={(v) => onChange({ intendedWeightKg: v })} placeholder="kg (optional)" step={0.5} /></div>
+        </label>
+      )}
+      <div className="mt-1.5 flex items-center justify-between">
+        <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="min-h-[40px] text-[12px] font-medium text-accent-600 dark:text-accent-400">{details ? 'Hide details' : 'Details & note'}</button>
+        {sel && <button type="button" onClick={() => setOpen(false)} className="min-h-[40px] px-2 text-[12px] text-ink-500">Done</button>}
+      </div>
+      {details && (
+        <div className="mt-1 space-y-2">
+          <DimRow label="Effort" value={s.effort} options={Object.entries(EFFORT_LABEL) as [Effort, string][]} onPick={(v) => onChange({ effort: v })} />
+          <DimRow label="Weight" value={s.weightAccuracy} options={Object.entries(ACCURACY_LABEL) as [WeightAccuracy, string][]} onPick={(v) => onChange({ weightAccuracy: v })} />
+          <DimRow label="Technique" value={techniqueOf(s)} options={Object.entries(TECHNIQUE_LABEL) as [Technique, string][]} onPick={(v) => onChange({ technique: v, ...(s.techniqueOk === false ? { techniqueOk: undefined } : {}) })} />
+          <input className="h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="Note (e.g. lost balance on the last reps)"
+            value={s.notes ?? ''} onChange={(e) => onChange({ notes: e.target.value || undefined })} />
+          <p className="text-[11px] text-ink-400">RIR stays separate — log it with the numbers above if you know it.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DimRow<T extends string>({ label, value, options, onPick }: { label: string; value: T | undefined; options: [T, string][]; onPick: (v: T | undefined) => void }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-medium text-ink-500">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(([v, l]) => (
+          <button key={v} type="button" aria-pressed={value === v} onClick={() => onPick(value === v ? undefined : v)}
+            className={cx('min-h-[40px] rounded-full px-3 text-[12px] font-medium', value === v ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const FEEL_TONE: Record<SetFeel, string> = {
+  too_easy: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  bit_easy: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  just_right: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  hard_good: 'bg-emerald-600/20 text-emerald-800 dark:text-emerald-200',
+  too_heavy_form: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  wrong_light: 'bg-ink-200 text-ink-700 dark:bg-ink-700 dark:text-ink-200',
+  wrong_heavy: 'bg-ink-200 text-ink-700 dark:bg-ink-700 dark:text-ink-200',
+  pain: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+};
 
 // ---------------------------------------------------------------- Live remaining
 

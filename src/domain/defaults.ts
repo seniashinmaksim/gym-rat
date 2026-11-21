@@ -18,6 +18,9 @@ export const DEFAULT_QUALITY: QualityModel = {
   // per session. Sets past that still count, at half credit (tapered, not zeroed).
   sessionCreditCap: 11,
   beyondSessionCapCredit: 0.5,
+  // Practical assumption (not a study value): when no RIR was logged, the owner's "how did it feel"
+  // maps to an estimated RIR range, and its higher-RIR end (5 for "5+") goes through the RIR table above.
+  useFeelWhenNoRir: true,
 };
 
 export function defaultSettings(): Settings {

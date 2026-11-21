@@ -1,3 +1,4 @@
+import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, techniqueOf, type SetStatus } from './feedback';
 import type { QualityModel, Rom, Workout, WorkoutSet } from './types';
 
 export type EffortTier = 'warmup' | 'high_effort' | 'working' | 'low_effort' | 'unknown';
@@ -6,8 +7,12 @@ export interface SetQuality {
   /** 0..1 multiplier applied to the muscle coefficient. */
   credit: number;
   tier: EffortTier;
-  /** True when effort data is missing — the set is kept, but its stimulus is uncertain. */
+  /** True when effort data is missing or only estimated — the set is kept, but its stimulus is uncertain. */
   uncertain: boolean;
+  /** Effort came from the owner's feel (estimated RIR range), not from a logged RIR. */
+  estimated?: boolean;
+  /** Quality status for display and per-muscle counts (good / easy / compromised / pain / uncertain). */
+  status: SetStatus | 'warmup';
   reasons: string[];
 }
 
@@ -23,15 +28,27 @@ export interface SetContext {
  * this returns only the effort/quality multiplier; muscle coefficients are applied later.
  */
 export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}): SetQuality {
-  if (set.type === 'warmup') return { credit: 0, tier: 'warmup', uncertain: false, reasons: ['Warm-up set (not counted)'] };
+  if (set.type === 'warmup') return { credit: 0, tier: 'warmup', uncertain: false, status: 'warmup', reasons: ['Warm-up set (not counted)'] };
 
   const reasons: string[] = [];
   let credit: number;
   let tier: EffortTier;
   let uncertain = false;
+  let estimated = false;
 
   const rir = set.rir ?? (set.toFailure ? 0 : null);
-  if (rir == null) {
+  const est = m.useFeelWhenNoRir === false ? null : estimatedRirRange(set);
+  if (rir == null && est) {
+    // No RIR logged, but the owner said how it felt: use the CONSERVATIVE end of the estimated
+    // RIR range through the same evidence-based RIR table. Marked as an estimate.
+    const r = est[1] ?? est[0];
+    const idx = Math.max(0, Math.min(r, m.rirCredit.length - 1));
+    credit = m.rirCredit[idx];
+    tier = r <= 1 ? 'high_effort' : r <= 3 ? 'working' : 'low_effort';
+    uncertain = true;
+    estimated = true;
+    reasons.push(`No RIR logged. Felt "${EFFORT_LABEL[set.effort!]}" ≈ RIR ${formatRirRange(est)} (estimate, not measured) → credit ${credit}`);
+  } else if (rir == null) {
     credit = m.unknownRirCredit;
     tier = 'unknown';
     uncertain = true;
@@ -70,12 +87,30 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     credit *= m.lengthenedPartialCredit;
     reasons.push(`Lengthened partials ×${m.lengthenedPartialCredit}`);
   }
-  if (set.techniqueOk === false) {
+  if (rir != null && set.feel && FEEL_BY_ID[set.feel]?.effort) reasons.push(`Feel: ${FEEL_BY_ID[set.feel].title} (logged RIR is used for effort)`);
+  const technique = techniqueOf(set);
+  if (technique === 'compromised' || technique === 'failed') {
     credit *= m.compromisedTechniqueCredit;
-    reasons.push(`Compromised technique ×${m.compromisedTechniqueCredit}`);
+    reasons.push(`${technique === 'failed' ? 'Could not complete correctly' : 'Technique compromised'} — less certain the target muscle did the work ×${m.compromisedTechniqueCredit}`);
+    if (technique === 'failed') uncertain = true;
+  } else if (technique === 'slightly_degraded') {
+    reasons.push('Technique slightly degraded (no reduction)');
+  }
+  const pain = hasPain(set);
+  if (pain) {
+    uncertain = true;
+    reasons.push(`Pain / unusual discomfort${set.pain?.area ? ` (${set.pain.area})` : ''} — kept, but not counted as a high-confidence quality set`);
+  }
+  if (set.weightAccuracy === 'too_light' || set.weightAccuracy === 'too_heavy') {
+    reasons.push('Wrong weight picked by accident — counts for volume by its effort, but is not a progression benchmark');
   }
 
-  return { credit: round2(credit), tier, uncertain, reasons };
+  const status: SetStatus = pain ? 'pain'
+    : technique === 'compromised' || technique === 'failed' ? 'compromised'
+    : tier === 'low_effort' ? 'easy'
+    : tier === 'unknown' ? 'uncertain'
+    : 'good';
+  return { credit: round2(credit), tier, uncertain, estimated, status, reasons };
 }
 
 /** A set counts only once it has been performed (planned/pre-filled sets are ignored). */

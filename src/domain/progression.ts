@@ -1,6 +1,7 @@
 import { diffDays } from './dates';
 import type { Registry } from './registry';
-import type { Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, Side, Variation, Workout, WorkoutExercise } from './types';
+import { benchmarkExclusion, techniqueOf } from './feedback';
+import type { Effort, Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, SetFeel, Side, Technique, Variation, Workout, WorkoutExercise } from './types';
 
 /**
  * Progression is tracked per (exercise × equipment instance). Loads from two different
@@ -64,24 +65,39 @@ export interface SetPoint {
   rir: number | null;
   /** Unilateral sets logged per side. */
   side?: Side;
+  feel?: SetFeel;
+  effort?: Effort;
+  technique?: Technique;
+  /** Rest before this set (seconds), if known. */
+  restSec?: number | null;
+  /** Used to judge progression? (false for wrong weight, pain, compromised technique). */
+  benchmark: boolean;
+  /** Why it is not a benchmark. */
+  excluded?: string;
 }
 
 export interface SessionPerf {
   workoutId: string;
   date: string;
+  /** Every performed working set, as recorded (also the non-benchmark ones). */
   sets: SetPoint[];
+  /** Top set among BENCHMARK sets (falls back to all sets for display when none qualify). */
   topWeight: number | null;
   topReps: number | null;
   topRir: number | null;
-  /** RIR-adjusted Epley estimate. Index for THIS equipment only, not a true 1RM. */
+  /** RIR-adjusted Epley estimate from benchmark sets. Index for THIS equipment only, not a true 1RM. */
   e1rm: number | null;
-  /** Generic performance index (e1rm for loaded sets; reps+RIR for bodyweight). */
+  /** Generic performance index (e1rm for loaded sets; reps+RIR for bodyweight). null = not representative. */
   index: number | null;
+  /** At least one benchmark set — the session can be used to judge progress. */
+  representative: boolean;
   totalReps: number;
   volumeLoad: number;
   avgRir: number | null;
   rirKnownRatio: number;
   restAvgSec: number | null;
+  /** Session logged with high fatigue (≥ 4/5) or short sleep (< 6 h). */
+  fatigued: boolean;
 }
 
 export type TrendClass = 'progressing' | 'stable' | 'plateau' | 'declining' | 'insufficient_data';
@@ -123,11 +139,7 @@ export function epley(weight: number, reps: number, rir: number | null): number 
   return weight * (1 + r / 30);
 }
 
-export function sessionPerf(w: Workout, ex: WorkoutExercise): SessionPerf | null {
-  const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
-  if (!working.length) return null;
-  const sets: SetPoint[] = working.map((s) => ({ weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null), ...(s.side ? { side: s.side } : {}) }));
-  const assisted = working.some((s) => s.loadMode === 'assisted');
+function pickTop(sets: SetPoint[], assisted: boolean): { top: SetPoint | null; bestE: number | null } {
   let top: SetPoint | null = null;
   let bestE: number | null = null;
   for (const s of sets) {
@@ -144,11 +156,35 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise): SessionPerf | null
     // Bodyweight / assisted / unloaded: best reps (+RIR) is the performance index.
     for (const s of sets) if (s.reps != null && (!top || (s.reps + (s.rir ?? 0)) > ((top.reps ?? 0) + (top.rir ?? 0)))) top = s;
   }
+  return { top, bestE };
+}
+
+export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): SessionPerf | null {
+  const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
+  if (!working.length) return null;
+  const sets: SetPoint[] = working.map((s) => {
+    const excluded = benchmarkExclusion(s);
+    return {
+      weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null),
+      ...(s.side ? { side: s.side } : {}),
+      ...(s.feel ? { feel: s.feel } : {}),
+      ...(s.effort && useFeel ? { effort: s.effort } : {}),
+      ...(techniqueOf(s) ? { technique: techniqueOf(s) } : {}),
+      restSec: s.restSecBefore,
+      benchmark: !excluded,
+      ...(excluded ? { excluded } : {}),
+    };
+  });
+  const assisted = working.some((s) => s.loadMode === 'assisted');
+  const bench = sets.filter((s) => s.benchmark);
+  const representative = bench.length > 0;
+  const { top, bestE } = pickTop(representative ? bench : sets, assisted);
   const totalReps = sets.reduce((a, s) => a + (s.reps ?? 0), 0);
   const volumeLoad = sets.reduce((a, s) => a + (s.reps ?? 0) * (s.weight ?? 0), 0);
   const rirs = sets.map((s) => s.rir).filter((r): r is number => r != null);
   const rests = working.slice(1).map((s) => s.restSecBefore).filter((r): r is number => r != null && r > 0);
-  const index = bestE != null ? bestE : top?.reps != null ? top.reps + (top.rir ?? 0) : null;
+  const index = !representative ? null : bestE != null ? bestE : top?.reps != null ? top.reps + (top.rir ?? 0) : null;
+  const well = w.wellness;
   return {
     workoutId: w.id,
     date: w.date,
@@ -156,16 +192,24 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise): SessionPerf | null
     topWeight: top?.weight ?? null,
     topReps: top?.reps ?? null,
     topRir: top?.rir ?? null,
-    e1rm: bestE != null ? Math.round(bestE * 10) / 10 : null,
+    e1rm: representative && bestE != null ? Math.round(bestE * 10) / 10 : null,
     index: index != null ? Math.round(index * 10) / 10 : null,
+    representative,
     totalReps,
     volumeLoad,
     avgRir: rirs.length ? Math.round((rirs.reduce((a, b) => a + b, 0) / rirs.length) * 10) / 10 : null,
     rirKnownRatio: rirs.length / sets.length,
     restAvgSec: rests.length ? Math.round(rests.reduce((a, b) => a + b, 0) / rests.length) : null,
+    fatigued: (well?.fatigue ?? 0) >= 4 || (well?.sleepHours != null && well.sleepHours < 6),
   };
 }
 
+/**
+ * Trend over the last ≤ 6 REPRESENTATIVE sessions within 8 weeks (sessions whose sets were all
+ * wrong-weight / pain / broken-technique are not comparable and are skipped). A possible plateau
+ * needs ≥ 4 comparable sessions over ≥ 3 weeks with no new best in the last two — sessions logged
+ * with high fatigue or short sleep are set aside for that decision, so one bad day never makes a plateau.
+ */
 export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   const recent = sessions.filter((s) => s.index != null && diffDays(today, s.date) <= 56).slice(-6);
   if (recent.length < 3) {
@@ -190,18 +234,32 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   const rel = ym ? slope / ym : 0;
   const first = ys[0];
   const last = ys[n - 1];
-  const bestEarlier = Math.max(...ys.slice(0, n - 2));
-  const bestLate = Math.max(ys[n - 1], ys[n - 2]);
   const span = diffDays(recent[n - 1].date, recent[0].date);
   const pct = (rel * 100).toFixed(1);
   const base = `Performance index ${first} → ${last} over ${n} sessions (${span} days), trend ${rel >= 0 ? '+' : ''}${pct}% per session.`;
 
   if (rel >= 0.01 && last >= first) return { cls: 'progressing', evidence: `${base} Consistent upward trend.`, relSlopePerSession: rel, sessionsUsed: n };
-  if (rel <= -0.015 && last < first) return { cls: 'declining', evidence: `${base} Recent sessions are below earlier ones — check fatigue, sleep, rest periods or exercise order.`, relSlopePerSession: rel, sessionsUsed: n };
-  if (n >= 4 && span >= 21 && bestLate <= bestEarlier) {
-    return { cls: 'plateau', evidence: `${base} No new best in the last 2 sessions across ≥3 weeks — a possible plateau (not yet certain).`, relSlopePerSession: rel, sessionsUsed: n };
+  const clean = recent.filter((s) => !s.fatigued);
+  const setAside = n - clean.length;
+  if (rel <= -0.015 && last < first) {
+    const tired = recent.slice(-2).some((s) => s.fatigued);
+    return { cls: 'declining', evidence: `${base} Recent sessions are below earlier ones — ${tired ? 'the latest session(s) were logged with high fatigue or short sleep, so this may be temporary; ' : ''}check fatigue, sleep, rest periods or exercise order before changing the load.`, relSlopePerSession: rel, sessionsUsed: n };
   }
-  return { cls: 'stable', evidence: `${base} Performance is broadly stable.`, relSlopePerSession: rel, sessionsUsed: n };
+  if (clean.length >= 4) {
+    const cy = clean.map((s) => s.index as number);
+    const cspan = diffDays(clean[clean.length - 1].date, clean[0].date);
+    const bestEarlier = Math.max(...cy.slice(0, cy.length - 2));
+    const bestLate = Math.max(cy[cy.length - 1], cy[cy.length - 2]);
+    if (cspan >= 21 && bestLate <= bestEarlier) {
+      return {
+        cls: 'plateau',
+        evidence: `${base} No new best in the last 2 comparable sessions across ≥ 3 weeks${setAside ? ` (${setAside} session(s) with high fatigue or short sleep set aside)` : ''} — a possible plateau, not yet certain. Before adding volume or changing the exercise, check the working weight, rest periods, technique, effort (RIR) and recovery.`,
+        relSlopePerSession: rel,
+        sessionsUsed: clean.length,
+      };
+    }
+  }
+  return { cls: 'stable', evidence: `${base} Performance is broadly stable${setAside ? ` (${setAside} fatigued session(s) noted)` : ''}.`, relSlopePerSession: rel, sessionsUsed: n };
 }
 
 export function defaultIncrement(kind: EquipmentKind | undefined, loadMode?: string): number {
@@ -221,11 +279,54 @@ export function roundToIncrement(w: number, inc: number): number {
 }
 
 /**
- * Double progression: stay at a load until ALL working sets at that load reach the top of the
- * rep range (with RIR recorded) in TWO consecutive sessions, then add the smallest available
- * increment. Exception: if every set reached the top of the range while still ≥ target RIR + 2
- * (clearly too light — those sets earn reduced effort credit), one session is enough.
- * Lighter back-off sets are ignored. A single unusually good set never triggers an increase.
+ * One load step. Snaps to the increment grid only when the current load is already on it —
+ * 25 kg dumbbells + 2 kg must give 27 kg, not 28 (rounding 27 to the 2-kg grid).
+ */
+export function stepLoad(w: number, step: number, inc: number): number {
+  const onGrid = inc > 0 && Math.abs(w / inc - Math.round(w / inc)) < 1e-6;
+  const raw = w + step;
+  return Math.max(0, onGrid ? roundToIncrement(raw, inc) : Math.round(raw * 100) / 100);
+}
+
+const median = (xs: number[]) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Rest interpretation: when reps fell at the same weight within the last session AND the rest
+ * before the weaker set was clearly shorter than usual for this exercise (< 70 % of the median),
+ * the drop is attributed to rest — not to the weight being too heavy.
+ */
+export function restInsight(sessions: SessionPerf[]): string | null {
+  const last = sessions[sessions.length - 1];
+  if (!last) return null;
+  const typical = median(sessions.flatMap((s) => s.sets.slice(1).map((p) => p.restSec).filter((r): r is number => r != null && r > 0)));
+  if (typical == null) return null;
+  const first = last.sets.find((p) => p.benchmark && p.reps != null);
+  if (!first) return null;
+  for (const p of last.sets.slice(1)) {
+    if (!p.benchmark || p.weight !== first.weight || p.reps == null || p.restSec == null || p.restSec <= 0) continue;
+    if (first.reps! - p.reps >= 2 && p.restSec < typical * 0.7) {
+      return `Reps fell from ${first.reps} to ${p.reps} at ${p.weight} kg after a shorter rest (${p.restSec} s vs your usual ~${Math.round(typical)} s) — likely the short rest, not a weight that is too heavy.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Next-session suggestion (double progression with the owner's set feedback):
+ * - Representative (benchmark) sets only: accidental wrong weights, pain and broken technique are
+ *   kept in the history but never prove progress.
+ * - INCREASE when all working sets at the working load reach the top of the rep range with effort
+ *   recorded (RIR or feel) in TWO consecutive sessions — or in ONE session when every set was clearly
+ *   too light (RIR ≥ target + 2, or felt "too easy"/"a little too easy").
+ * - REDUCE when technique broke down on at least half of the last session's sets at the working load
+ *   (not because a set was merely hard: "very hard, good technique" is a good set), or when most sets
+ *   fell below the range while the trend is declining.
+ * - Otherwise KEEP and add reps. A single good set never triggers an increase.
  */
 export function suggestNextLoad(
   sessions: SessionPerf[],
@@ -237,52 +338,155 @@ export function suggestNextLoad(
 ): NextLoad {
   const [lo, hi] = repRange;
   const base = { repTarget: repRange, rirTarget, increment };
-  const last = sessions[sessions.length - 1];
-  if (!last) return { ...base, action: 'calibrate', weight: null, reason: 'No history on this equipment yet. Pick a load you can lift for the rep range with ~2–3 RIR and record RIR to calibrate.' };
-  const prev = sessions[sessions.length - 2];
+  const lastAny = sessions[sessions.length - 1];
+  if (!lastAny) return { ...base, action: 'calibrate', weight: null, reason: 'No history on this equipment yet. Pick a load you can lift for the rep range with ~2–3 RIR and record RIR (or how the set felt) to calibrate.' };
   const assisted = loadMode === 'assisted';
-  // Working load = heaviest load used (for assisted: the least assistance). Lighter back-off sets don't block progress.
-  const workLoad = (s: SessionPerf): number | null => {
-    const ws = s.sets.filter((p) => p.weight != null && p.reps != null).map((p) => p.weight as number);
-    if (!ws.length) return s.topWeight;
+  const step = assisted ? -increment : increment;
+  const loadOf = (pts: SetPoint[]): number | null => {
+    const ws = pts.filter((p) => p.weight != null && p.reps != null).map((p) => p.weight as number);
+    if (!ws.length) return null;
     return assisted ? Math.min(...ws) : Math.max(...ws);
   };
-  const w = workLoad(last);
-  if (w == null || loadMode === 'bodyweight_plus' && w === 0) {
-    return { ...base, action: 'hold', weight: w, reason: `Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.` };
+
+  // 1) Technique broke down on at least half of the session's intended sets → reduce (scenario "too heavy").
+  //    Target = one step down from the load that broke (or a clean load from that session if it is closer).
+  const intended = lastAny.sets.filter((p) => !(p.excluded ?? '').startsWith('wrong weight') && p.weight != null && p.reps != null);
+  const broken = intended.filter((p) => p.technique === 'compromised' || p.technique === 'failed');
+  let brokeNote: string | null = null;
+  if (broken.length) {
+    const brokeAt = loadOf(broken) as number;
+    const cleanLoad = loadOf(intended.filter((p) => p.benchmark));
+    if (broken.length >= Math.ceil(intended.length / 2)) {
+      // About ONE step down: back to a clean load from the same session if it is within ~one step, else one increment.
+      const oneStep = stepLoad(brokeAt, -step, increment);
+      // (A clean load within ~one step counts: 27.5 → 25 kg when dumbbells come in 2.5 kg pairs but the default step is 2.)
+      const reach = Math.abs(step) * 1.5;
+      const closerClean = cleanLoad != null && (assisted ? cleanLoad > brokeAt && cleanLoad - brokeAt <= reach : cleanLoad < brokeAt && brokeAt - cleanLoad <= reach);
+      const to = closerClean ? (cleanLoad as number) : oneStep;
+      return { ...base, action: 'reduce', weight: to, reason: `Technique broke down on ${broken.length} of ${intended.length} set${intended.length === 1 ? '' : 's'} last time (at ${brokeAt} kg). Those sets are kept but don't prove progress. ${assisted ? 'Use more assistance' : 'Go back'} to ${to} kg, keep full range and control, and rebuild reps from ~${lo}. (A set that is very hard but clean is fine — this is about technique, not difficulty.)` };
+    }
+    brokeNote = `${brokeAt} kg broke your technique on ${broken.length} set${broken.length === 1 ? '' : 's'} — not counted as progress yet.`;
   }
-  const atLoad = (s: SessionPerf) => s.sets.filter((p) => p.weight === workLoad(s));
+
+  // 2) Judge progress from representative sessions only.
+  const rep = sessions.filter((s) => s.representative);
+  const last = rep[rep.length - 1];
+  const notes: string[] = [];
+  if (lastAny !== last) {
+    const why = [...new Set(lastAny.sets.map((p) => p.excluded).filter(Boolean))].join(', ');
+    notes.push(`Last session (${lastAny.date}) is saved but not used as a benchmark (${why || 'not representative'}).`);
+  }
+  const painLast = lastAny.sets.some((p) => p.excluded === 'pain or unusual discomfort');
+  if (painLast) {
+    notes.push('Pain or unusual discomfort was flagged — do not push the load on a painful movement; if it repeats, stop that movement and consider getting it checked.');
+  }
+  if (brokeNote) notes.push(brokeNote);
+  const rest = restInsight(rep);
+  if (rest) notes.push(rest);
+  const tail = notes.length ? ` ${notes.join(' ')}` : '';
+  if (!last) {
+    return { ...base, action: 'calibrate', weight: null, reason: `No representative session yet on this equipment.${tail}` };
+  }
+  const prev = rep[rep.length - 2];
+  const benchPts = (s: SessionPerf) => s.sets.filter((p) => p.benchmark);
+  const workLoad = (s: SessionPerf): number | null => loadOf(benchPts(s)) ?? s.topWeight;
+  const w = workLoad(last);
+  if (w == null || (loadMode === 'bodyweight_plus' && w === 0)) {
+    return { ...base, action: 'hold', weight: w, reason: `Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.${tail}` };
+  }
+  const atLoad = (s: SessionPerf) => benchPts(s).filter((p) => p.weight === workLoad(s));
+  const effortKnown = (p: SetPoint) => p.rir != null || p.effort != null;
   const hitsTop = (s: SessionPerf) => {
     const at = atLoad(s);
-    return at.length > 0 && at.length >= Math.ceil(s.sets.length / 2) && at.every((p) => (p.reps ?? 0) >= hi && p.rir != null);
+    return at.length > 0 && at.length >= Math.ceil(benchPts(s).length / 2) && at.every((p) => (p.reps ?? 0) >= hi && effortKnown(p));
   };
-  const rirUnknown = last.sets.every((p) => p.rir == null);
+  // "A little too easy" (≈ 3–4 RIR) is not clearly light on its own — only "too easy" or a logged RIR ≥ target + 2.
+  const clearlyLight = (p: SetPoint) => (p.rir != null ? p.rir >= rirTarget + 2 : p.effort === 'very_easy');
   const lastTop = hitsTop(last);
   const prevTop = prev ? hitsTop(prev) && workLoad(prev) === w : false;
-  const tooEasy = lastTop && atLoad(last).every((p) => (p.rir as number) >= rirTarget + 2);
-  const step = assisted ? -increment : increment;
-  const nextLoad = Math.max(0, roundToIncrement(w + step, increment));
+  const tooEasy = lastTop && atLoad(last).every(clearlyLight);
+  const nextLoad = stepLoad(w, step, increment);
 
+  if (painLast) {
+    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg (no increase after a session with pain).${tail}` };
+  }
   if (assisted && w <= 0 && lastTop) {
-    return { ...base, action: 'hold', weight: 0, reason: `All sets reached ${hi} reps with no assistance. Switch to the unassisted (or weighted) version of the exercise.` };
+    return { ...base, action: 'hold', weight: 0, reason: `All sets reached ${hi} reps with no assistance. Switch to the unassisted (or weighted) version of the exercise.${tail}` };
   }
   if (tooEasy) {
-    return { ...base, action: 'increase', weight: nextLoad, reason: `Every set at ${w} kg reached ${hi} reps with ${rirTarget + 2}+ reps still in reserve — the load is clearly too light (those sets earn reduced effort credit). ${assisted ? 'Reduce assistance' : 'Add the smallest increment'} (${increment} kg) now and rebuild reps from ~${lo}.` };
+    return { ...base, action: 'increase', weight: nextLoad, reason: `Every set at ${w} kg reached ${hi} reps and was clearly too light (${rirTarget + 2}+ reps in reserve, or felt too easy) — those sets earn reduced effort credit. ${assisted ? 'Reduce assistance' : 'Add the smallest increment'} (${increment} kg) to ${nextLoad} kg now and rebuild reps from ~${lo}.${tail}` };
   }
   if (lastTop && prevTop) {
-    return { ...base, action: 'increase', weight: nextLoad, reason: `All working sets reached ${hi} reps in the last two sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) and rebuild reps from ~${lo}.` };
+    return { ...base, action: 'increase', weight: nextLoad, reason: `All working sets reached ${hi} reps in the last two comparable sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) to ${nextLoad} kg and rebuild reps from ~${lo}.${tail}` };
   }
   if (lastTop && !prevTop) {
-    return { ...base, action: 'hold', weight: w, reason: `Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.` };
+    return { ...base, action: 'hold', weight: w, reason: `Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.${tail}` };
   }
-  const belowLo = last.sets.filter((p) => (p.reps ?? 0) < lo).length;
-  if (belowLo > last.sets.length / 2 && trend.cls === 'declining') {
-    return { ...base, action: 'reduce', weight: Math.max(0, roundToIncrement(w - step, increment)), reason: `Most sets fell below ${lo} reps and the trend is declining. A one-step reduction (or checking recovery/rest) may restore quality reps.` };
+  const belowLo = benchPts(last).filter((p) => (p.reps ?? 0) < lo).length;
+  if (belowLo > benchPts(last).length / 2 && trend.cls === 'declining' && !rest) {
+    return { ...base, action: 'reduce', weight: stepLoad(w, -step, increment), reason: `Most sets fell below ${lo} reps and the trend is declining across comparable sessions. A one-step reduction (or checking recovery and rest) may restore quality reps.${tail}` };
   }
-  if (rirUnknown) {
-    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set. RIR was not recorded, so readiness for a load increase cannot be confirmed — log RIR on the last set.` };
+  if (benchPts(last).every((p) => !effortKnown(p))) {
+    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set. Effort was not recorded (no RIR or feel), so readiness for a load increase cannot be confirmed — tap how the set felt or log RIR.${tail}` };
   }
-  return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and add reps toward ${hi} on every working set (last top set: ${last.topReps ?? '?'} reps @ RIR ${last.topRir ?? '?'}).` };
+  return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and add reps toward ${hi} on every working set (last top set: ${last.topReps ?? '?'} reps${last.topRir != null ? ` @ RIR ${last.topRir}` : ''}).${tail}` };
+}
+
+/** The one recommendation shown per exercise. */
+export type AdviceKind = 'increase' | 'keep' | 'reduce' | 'plateau' | 'not_enough_data';
+export interface Advice {
+  kind: AdviceKind;
+  label: string;
+  text: string;
+}
+export const ADVICE_LABEL: Record<AdviceKind, string> = { increase: 'Increase weight', keep: 'Keep weight', reduce: 'Reduce weight', plateau: 'Possible plateau', not_enough_data: 'Not enough data' };
+
+export function adviceFor(p: Pick<ProgressionSeries, 'next' | 'trend' | 'sessions'>): Advice {
+  const n = p.next;
+  const from = p.sessions.filter((s) => s.representative).slice(-1)[0];
+  const fromW = from ? from.sets.filter((x) => x.benchmark && x.weight != null).reduce<number | null>((m, x) => (m == null || (x.weight as number) > m ? (x.weight as number) : m), null) : null;
+  if (n.action === 'increase') return { kind: 'increase', label: ADVICE_LABEL.increase, text: `${fromW != null && n.weight != null ? `${fromW} → ${n.weight} kg. ` : ''}${n.reason}` };
+  if (n.action === 'reduce') return { kind: 'reduce', label: ADVICE_LABEL.reduce, text: n.reason };
+  if (n.action === 'calibrate' || p.trend.cls === 'insufficient_data') {
+    return { kind: 'not_enough_data', label: ADVICE_LABEL.not_enough_data, text: `${p.trend.sessionsUsed} comparable session(s) so far — more are needed for a reliable trend. Meanwhile: ${n.reason}` };
+  }
+  if (p.trend.cls === 'plateau') return { kind: 'plateau', label: ADVICE_LABEL.plateau, text: `${p.trend.evidence} For now: ${n.reason}` };
+  return { kind: 'keep', label: ADVICE_LABEL.keep, text: n.reason };
+}
+
+/** Per-load calibration from the owner's feedback (this exercise × equipment × configuration only). */
+export interface LoadFeel {
+  weight: number;
+  sets: number;
+  counts: Partial<Record<SetFeel, number>>;
+  verdict: 'too_easy' | 'right' | 'too_heavy' | 'mixed' | 'no_feedback';
+  lastDate: string;
+}
+
+export function loadMap(p: Pick<ProgressionSeries, 'sessions'>): LoadFeel[] {
+  const m = new Map<number, LoadFeel>();
+  for (const s of p.sessions) for (const x of s.sets) {
+    // A weight picked by accident says nothing about how the intended load feels.
+    if (x.weight == null || (x.excluded ?? '').startsWith('wrong weight')) continue;
+    const e = m.get(x.weight) ?? { weight: x.weight, sets: 0, counts: {}, verdict: 'no_feedback' as const, lastDate: s.date };
+    e.sets++;
+    e.lastDate = s.date;
+    if (x.feel) e.counts[x.feel] = (e.counts[x.feel] ?? 0) + 1;
+    m.set(x.weight, e);
+  }
+  for (const e of m.values()) {
+    const c = e.counts;
+    const easy = (c.too_easy ?? 0) + (c.bit_easy ?? 0);
+    const right = (c.just_right ?? 0) + (c.hard_good ?? 0);
+    const heavy = c.too_heavy_form ?? 0;
+    const rated = easy + right + heavy; // wrong-weight and pain answers say nothing about the load itself
+    if (!rated) e.verdict = 'no_feedback';
+    else if (right / rated >= 0.6) e.verdict = 'right';
+    else if (easy / rated >= 0.6) e.verdict = 'too_easy';
+    else if (heavy / rated >= 0.6) e.verdict = 'too_heavy';
+    else e.verdict = 'mixed';
+  }
+  return [...m.values()].sort((a, b) => a.weight - b.weight);
 }
 
 export function buildProgression(
@@ -292,6 +496,8 @@ export function buildProgression(
   overrides: ExerciseOverride[],
   defaultRir: number,
   today: string,
+  /** Settings → "Use how the set felt when no RIR was logged". Off = effort from feel is ignored here too. */
+  useFeel = true,
 ): ProgressionSeries[] {
   const eqById = new Map(equipment.map((e) => [e.id, e]));
   const ovById = new Map(overrides.map((o) => [o.id, o]));
@@ -301,7 +507,7 @@ export function buildProgression(
     for (const ex of w.exercises) {
       const def = registry.get(ex.exerciseId);
       const key = progressionKey(ex, w, def);
-      const perf = sessionPerf(w, ex);
+      const perf = sessionPerf(w, ex, useFeel);
       if (!perf) continue;
       let g = groups.get(key);
       if (!g) {
@@ -375,3 +581,13 @@ export function warmupFor(
   return { sets: [{ weight: r(0.6), reps: 8 }], reason: 'Isolation exercise: one moderate set at ~60% to rehearse range of motion.' };
 }
 
+/** One-line summary of the load map, e.g. "Feels right: 25 kg · too easy: 22 kg · too heavy: 30 kg". */
+export function loadMapNote(m: LoadFeel[]): string | null {
+  const by = (v: LoadFeel['verdict']) => m.filter((x) => x.verdict === v).map((x) => `${x.weight} kg`);
+  const parts = [
+    by('right').length ? `Feels right: ${by('right').join(', ')}` : null,
+    by('too_easy').length ? `too easy: ${by('too_easy').join(', ')}` : null,
+    by('too_heavy').length ? `too heavy: ${by('too_heavy').join(', ')}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}

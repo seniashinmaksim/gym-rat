@@ -244,6 +244,10 @@ function QualityCard() {
         {row('Per-session ceiling', 'sessionCreditCap', 'Effective sets per muscle in one session before tapering')}
         {row('Credit above ceiling', 'beyondSessionCapCredit', 'Multiplier for sets past the ceiling')}
       </div>
+      <div className="mt-3">
+        <Toggle checked={q.useFeelWhenNoRir !== false} onChange={(v) => set({ useFeelWhenNoRir: v })}
+          label={<span>Use "how the set felt" when no RIR was logged <span className="block text-xs text-ink-500">Estimated RIR range (too easy ≈ 5+, a little easy ≈ 3–4, just right ≈ 1–3, very hard ≈ 0–1); off = such sets get the provisional unknown-RIR credit.</span></span>} />
+      </div>
       <Callout tone="info">Proximity-to-failure research shows similar hypertrophy across roughly 0–3 RIR, with less stimulus further from failure. These numbers are transparent assumptions, not measurements.</Callout>
     </Card>
   );

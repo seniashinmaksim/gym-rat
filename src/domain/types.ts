@@ -63,10 +63,35 @@ export interface WorkoutSet {
    * together count as ONE set for the muscle; an unpaired side counts as one set.
    */
   side?: Side;
+  // ---- Per-set feedback (all optional; never invented for older sets) ----
+  /** The one-tap answer to "How did this set feel?" (raw input, kept as entered). */
+  feel?: SetFeel;
+  /** Perceived effort — separate from RIR (RIR is never derived from it). */
+  effort?: Effort;
+  /** Was the load on the bar/stack the one intended? */
+  weightAccuracy?: WeightAccuracy;
+  /** Technique quality. `techniqueOk: false` (older field) means "compromised". */
+  technique?: Technique;
+  /** Pain or unusual discomfort (not ordinary muscular effort or burning). */
+  pain?: { area: string; note?: string } | null;
+  /** The load the owner meant to use, when a wrong weight was picked by accident. */
+  intendedWeightKg?: number | null;
+  /** Audit trail: corrections made after the workout was finished (original → corrected). */
+  corrections?: SetCorrection[];
   notes?: string;
 }
 
 export type Side = 'left' | 'right';
+export type SetFeel = 'too_easy' | 'bit_easy' | 'just_right' | 'hard_good' | 'too_heavy_form' | 'wrong_light' | 'wrong_heavy' | 'pain';
+export type Effort = 'very_easy' | 'easy' | 'appropriate' | 'hard' | 'near_max';
+export type WeightAccuracy = 'correct' | 'too_light' | 'too_heavy' | 'unknown';
+export type Technique = 'good' | 'slightly_degraded' | 'compromised' | 'failed' | 'not_assessed';
+export interface SetCorrection {
+  at: string; // ISO timestamp of the correction
+  field: 'weightKg' | 'reps' | 'rir' | 'type' | 'side';
+  from: number | string | null;
+  to: number | string | null;
+}
 
 export interface Variation {
   benchAngleDeg?: number | null;
@@ -139,6 +164,10 @@ export interface Workout {
   uncertainties?: string[];
   importHash?: string;
   clientRef?: string;
+  /** Set when a live session is finished (even if no end time could be filled in, e.g. a past date). */
+  finishedAt?: string | null;
+  /** Audit notes for corrections made after the workout was finished (e.g. a removed set). */
+  audit?: { at: string; note: string }[];
   blockId?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -330,6 +359,8 @@ export interface QualityModel {
   sessionCreditCap: number;
   /** Multiplier for effective volume above `sessionCreditCap` in one session. */
   beyondSessionCapCredit: number;
+  /** When no RIR is logged, estimate effort from the owner's set feedback (default on). */
+  useFeelWhenNoRir?: boolean;
 }
 
 export interface Settings {

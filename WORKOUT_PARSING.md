@@ -4,7 +4,8 @@ Practical, **synthetic** examples of how Claude converts a natural-language work
 
 General reminders:
 
-- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.1", "workouts": [...] }` with a unique `client_ref`.
+- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.2", "workouts": [...] }` with a unique `client_ref`.
+- Set feedback (how a set felt, wrong weight, technique, pain) has its own section (§15). Only record what the owner actually said.
 - The owner's preferred exercises have their own section at the end (§14) — use exactly those ids and variation fields.
 - Every set needs `weight_kg` and `reps` keys (use `null` when unknown). RIR only on the sets it was stated for.
 - Always include `exercise_name_raw` (owner's words) and `exercise_id` when confident.
@@ -20,7 +21,7 @@ General reminders:
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-1",
@@ -67,7 +68,7 @@ Assumptions: "approximately 2 RIR" → `rir: 2`, only on set 3. No machine ids w
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-ru",
@@ -374,7 +375,7 @@ Soreness is 0–4 per muscle id; these feed the Recovery estimates (more recover
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "workouts": [
     {
       "client_ref": "chat-2026-11-16-a",
@@ -422,7 +423,7 @@ All numbers below are **synthetic**. Use these ids and fields every time; rules 
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-pref",
@@ -701,3 +702,41 @@ Squat `weight_kg` = total as reported (bar weight never assumed). Depth is recor
 ```
 
 The owner always does the pelvic-curl version in arm straps → `hanging_knee_raise_pelvic_curl` (abs 1.0, no forearms). "Подъём коленей/ног в петлях" means the same. A leg raise hanging from a **bar** is `hanging_leg_raise`; a captain's chair is different equipment — ask.
+
+---
+
+## 15. How the set felt — feedback fields (v1.2)
+
+> Incline DB press: grabbed the 20s by mistake, did 12 easily — meant to use 25. Then 25s for 10, 10, felt just right, RIR 2 on the last. Third set 25 × 8 but my shoulder pinched at the bottom. Pec deck 50 × 10, way too heavy, I was swinging.
+
+```json
+{
+  "date": "2026-11-21",
+  "location": { "location_id": "gym_a", "confidence": "confirmed" },
+  "exercises": [
+    {
+      "exercise_id": "incline_dumbbell_press",
+      "exercise_name_raw": "Incline DB press",
+      "sets": [
+        { "weight_kg": 20, "reps": 12, "feel": "wrong_light", "intended_weight_kg": 25 },
+        { "weight_kg": 25, "reps": 10, "feel": "just_right" },
+        { "weight_kg": 25, "reps": 10, "rir": 2, "feel": "just_right" },
+        { "weight_kg": 25, "reps": 8, "feel": "pain", "pain_area": "Shoulder", "pain_note": "pinched at the bottom" }
+      ]
+    },
+    {
+      "exercise_id": "pec_deck",
+      "exercise_name_raw": "Pec deck",
+      "equipment": { "name_hint": "pec deck", "confidence": "uncertain" },
+      "sets": [{ "weight_kg": 50, "reps": 10, "feel": "too_heavy_form", "notes": "swinging" }]
+    }
+  ],
+  "uncertainties": ["\"just right\" stated for the first two 25 kg sets together — applied to both", "RIR only for the third set", "Pec deck: number of sets not stated — one set recorded"]
+}
+```
+
+- `feel` only when the owner describes the set; never infer it from RIR, and never turn it into an RIR number (the app shows an **estimated** RIR range instead when RIR is missing).
+- "Very hard but clean / good form" → `hard_good`; "too heavy, sloppy / swinging / cut the range" → `too_heavy_form`. These are different outcomes: the first is a good set.
+- Accidental wrong weight → `wrong_light` / `wrong_heavy` (+ `intended_weight_kg` if stated). The set is kept but not used to judge progress.
+- Pain or unusual discomfort (not normal burning or fatigue) → `feel: "pain"`, `pain_area`, the owner's words in `pain_note`. Never diagnose; suggest not pushing through pain.
+- The separate dimensions can be given directly when the owner is specific, e.g. `{ "effort": "hard", "technique": "slightly_degraded" }`.

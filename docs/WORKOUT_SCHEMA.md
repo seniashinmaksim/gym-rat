@@ -1,4 +1,4 @@
-# Workout import format — `gymrat.workout` v1.1
+# Workout import format — `gymrat.workout` v1.2
 
 The contract between Claude (or any tool) and the app's **Import from Claude** screen.
 
@@ -61,6 +61,13 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 | `rom` | `full` \| `lengthened_partial` \| `partial` | – | Falls back to `variation.rom`. |
 | `technique_ok` | boolean | – | `false` → quality ×0.7. |
 | `count` | integer 1–20 | – | Expands to N identical sets. |
+| `feel` | see below | – | v1.2. How the set felt — only if the owner said so. Fills `effort` / `weight_accuracy` / `technique` defaults. Never derived from RIR, never converted into RIR. |
+| `effort` | `very_easy` \| `easy` \| `appropriate` \| `hard` \| `near_max` | – | v1.2. Overrides the effort implied by `feel`. |
+| `weight_accuracy` | `correct` \| `too_light` \| `too_heavy` \| `unknown` | – | v1.2. `too_light`/`too_heavy` = wrong weight picked by accident: kept, not a progression benchmark. |
+| `technique` | `good` \| `slightly_degraded` \| `compromised` \| `failed` \| `not_assessed` | – | v1.2. `compromised`/`failed` → reduced credit and not a benchmark. |
+| `pain_area` | string | – | v1.2. Pain or unusual discomfort (with `feel: "pain"`). |
+| `pain_note` | string ≤500 | – | v1.2. The owner's description of the pain. |
+| `intended_weight_kg` | number \| null | – | v1.2. For wrong-weight sets. |
 | `side` | `left` \| `right` | – | v1.1. Unilateral set for one side. The i-th left + i-th right set count as **one** set; an unpaired side counts as one. Sets with a side imply `variation.unilateral: true`. |
 | `notes` | string | – | |
 
@@ -70,6 +77,7 @@ Variation values (v1.1, free strings but use these): `attachment` ∈ `straight_
 
 ## Changelog
 
+- **1.2** (additive): set `feel`, `effort`, `weight_accuracy`, `technique`, `pain_area`, `pain_note`, `intended_weight_kg`. `feel` ∈ `too_easy`, `bit_easy`, `just_right`, `hard_good` (very hard, good technique), `too_heavy_form` (too heavy, technique compromised), `wrong_light`, `wrong_heavy`, `pain`.
 - **1.1** (additive): set `side`; variation `attachment`, `position`, `execution`, `legs`, `depth`, `bar_position`. v1.0 files are still valid and hash identically (no duplicate re-imports).
 - **1.0**: initial contract.
 

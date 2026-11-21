@@ -4,6 +4,7 @@ import type { AppData } from './appdata';
 import { isIsoDate } from './dates';
 import { MUSCLE_IDS } from './types';
 import { normalizeName, searchExercises, type Registry } from './registry';
+import { FEEL_BY_ID } from './feedback';
 import type { Confidence, Equipment, Location, MuscleId, Workout, WorkoutExercise, WorkoutSet } from './types';
 import { uid } from '../lib/id';
 
@@ -13,7 +14,7 @@ import { uid } from '../lib/id';
  * Keep CLAUDE.md in sync when this changes.
  */
 export const IMPORT_SCHEMA_ID = 'gymrat.workout';
-export const IMPORT_SCHEMA_VERSION = '1.1';
+export const IMPORT_SCHEMA_VERSION = '1.2';
 
 const confidence = z.enum(['confirmed', 'probable', 'uncertain', 'unknown']);
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm (24h)');
@@ -33,6 +34,14 @@ const SetIn = z.object({
   count: z.number().int().min(1).max(20).optional(),
   /** v1.1: unilateral set logged for one side. A left + right pair counts as ONE set. */
   side: z.enum(['left', 'right']).optional(),
+  /** v1.2: how the set felt (one-tap answer) and the separate dimensions. Never derived from RIR. */
+  feel: z.enum(['too_easy', 'bit_easy', 'just_right', 'hard_good', 'too_heavy_form', 'wrong_light', 'wrong_heavy', 'pain']).optional(),
+  effort: z.enum(['very_easy', 'easy', 'appropriate', 'hard', 'near_max']).optional(),
+  weight_accuracy: z.enum(['correct', 'too_light', 'too_heavy', 'unknown']).optional(),
+  technique: z.enum(['good', 'slightly_degraded', 'compromised', 'failed', 'not_assessed']).optional(),
+  pain_area: z.string().max(60).optional(),
+  pain_note: z.string().max(500).optional(),
+  intended_weight_kg: nnum.nullable().optional(),
   notes: z.string().max(1000).optional(),
 }).strict();
 
@@ -324,6 +333,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
           restSecBefore: s.rest_before_sec ?? (sets.length > 0 && ex.rest_between_sets_sec != null ? ex.rest_between_sets_sec : null),
           restSource: s.rest_before_sec != null || ex.rest_between_sets_sec != null ? 'reported' : undefined,
           ...(s.side ? { side: s.side } : {}),
+          ...feedbackFromInput(s),
           notes: s.notes,
         });
       }
@@ -408,6 +418,27 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
   return { key: uid('draft'), input, workout, locationSuggestions: loc.suggestions, locationHint, exercises: resolutions, issues, hash, duplicateOf };
 }
 
+/**
+ * v1.2 feedback: `feel` fills the three dimensions the same way the one-tap logger does; explicit
+ * `effort` / `weight_accuracy` / `technique` override them. Nothing is filled in when absent.
+ */
+function feedbackFromInput(s: WorkoutInT['exercises'][number]['sets'][number]): Partial<WorkoutSet> {
+  const out: Partial<WorkoutSet> = {};
+  if (s.feel) {
+    const o = FEEL_BY_ID[s.feel];
+    out.feel = s.feel;
+    if (o.effort) out.effort = o.effort;
+    if (o.weightAccuracy) out.weightAccuracy = o.weightAccuracy;
+    if (o.technique) out.technique = o.technique;
+  }
+  if (s.effort) out.effort = s.effort;
+  if (s.weight_accuracy) out.weightAccuracy = s.weight_accuracy;
+  if (s.technique) out.technique = s.technique;
+  if (s.feel === 'pain' || s.pain_area || s.pain_note) out.pain = { area: s.pain_area ?? '', ...(s.pain_note ? { note: s.pain_note } : {}) };
+  if (s.intended_weight_kg != null) out.intendedWeightKg = s.intended_weight_kg;
+  return out;
+}
+
 /** Maps the import variation to the stored one. Sets logged per side imply a unilateral exercise. */
 function variationFromInput(v: WorkoutInT['exercises'][number]['variation'], hasSides: boolean): Workout['exercises'][number]['variation'] {
   if (!v && !hasSides) return undefined;
@@ -476,7 +507,11 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
       notes: e.notes,
       sets: e.sets.filter((s) => !s.planned).map((s) => ({
         type: s.type, weight_kg: s.weightKg, load_mode: s.loadMode, reps: s.reps, rir: s.rir, rir_source: s.rirSource,
-        to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, ...(s.side ? { side: s.side } : {}), notes: s.notes,
+        to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, ...(s.side ? { side: s.side } : {}),
+        ...(s.feel ? { feel: s.feel } : {}), ...(s.effort ? { effort: s.effort } : {}), ...(s.weightAccuracy ? { weight_accuracy: s.weightAccuracy } : {}),
+        ...(s.technique ? { technique: s.technique } : {}), ...(s.pain?.area ? { pain_area: s.pain.area } : {}), ...(s.pain?.note ? { pain_note: s.pain.note } : {}),
+        ...(s.intendedWeightKg != null ? { intended_weight_kg: s.intendedWeightKg } : {}),
+        notes: s.notes,
       })),
     })),
     notes: w.notes,

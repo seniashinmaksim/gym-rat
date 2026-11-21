@@ -21,6 +21,8 @@ export interface MuscleVolume {
   uncertainEffective: number;
   lowEffortSets: number;
   unknownEffortSets: number;
+  /** Raw working sets touching this muscle, by quality status (left/right pairs count once). */
+  status: { good: number; easy: number; compromised: number; pain: number; uncertain: number };
   sessions: number;
 }
 
@@ -41,7 +43,8 @@ export interface VolumeResult {
 function emptyMuscle(m: MuscleId): MuscleVolume {
   return {
     muscle: m, rawWorkingSets: 0, directSets: 0, indirectSets: 0, fractional: 0, effective: 0,
-    effectiveDirect: 0, effectiveIndirect: 0, uncertainEffective: 0, lowEffortSets: 0, unknownEffortSets: 0, sessions: 0,
+    effectiveDirect: 0, effectiveIndirect: 0, uncertainEffective: 0, lowEffortSets: 0, unknownEffortSets: 0,
+    status: { good: 0, easy: 0, compromised: 0, pain: 0, uncertain: 0 }, sessions: 0,
   };
 }
 
@@ -103,6 +106,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           if (q.uncertain) mv.uncertainEffective += eff;
           if (q.tier === 'low_effort') mv.lowEffortSets += k;
           if (q.tier === 'unknown') mv.unknownEffortSets += k;
+          if (q.status !== 'warmup') mv.status[q.status] += k;
           touched.add(mid);
         }
         const chestCoef = contributions.chest ?? 0;

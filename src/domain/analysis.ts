@@ -109,7 +109,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   const thisWeek = data.workouts.filter((w) => w.date >= week.start && w.date <= week.end && w.date <= today);
   const current = computeVolume(thisWeek, registry, quality);
   const learning = learningState(data, today, weeks);
-  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today);
+  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false);
   const recovery = estimateRecovery(data, registry, local.virtualMs, today);
   const planRecovery = estimateRecovery(data, registry, local.virtualMs, today, { before: today });
   const targets = computeTargets({ data, weeks, learning, progression, recovery, registry, today });

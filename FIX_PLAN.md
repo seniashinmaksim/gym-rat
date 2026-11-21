@@ -1,6 +1,6 @@
 # FIX PLAN — Preferred exercises as first-class citizens
 
-Status: **Part 1 implemented** (2026-11-21; reviewed and shipped in the same session). Part 2 at the end of this file is planned.
+Status: **Part 1 and Part 2 implemented** (2026-11-21; both independently reviewed and shipped).
 Owner's full request is reproduced at the end of this file (Appendix A). This plan adds a critical review of that request against the current code, the decisions to take, and the order of work.
 
 Rules that always apply: do not rebuild the app, never rename or delete an existing exercise id, never lose or rewrite stored workouts, never put personal data in the repo, keep the "remaining sets this week" dashboard as the centerpiece, touch-first UI at 375 px, explain every science-based choice.
@@ -191,7 +191,7 @@ Also: after implementing, critically check that there are no mistakes.
 
 # PART 2 — Per-set feedback + simple UI / smarter backend (requested 2026-11-21, after Part 1)
 
-Status: **planned, not started.** Part 1 (preferred exercises) must be committed first; Part 2 touches the same files (types, quality, volume, progression, Logger, Strength, Dashboard).
+Status: **implemented** (2026-11-21, after Part 1 shipped), independently reviewed, findings fixed. Deviations from B.3 found during review: "a little too easy" alone does not allow a one-session increase; no increase right after a pain session; a reduction is about one step (or back to a clean load within ~1.5 increments); live sessions get `finishedAt` so edits after a past-dated finish are audited; feedback in edit mode starts collapsed.
 The owner's two full requests are in the session transcript; their requirements are condensed faithfully below (B.1–B.2). Rules from the top of this file still apply.
 
 ## B.1 Request "Per-set difficulty, weight accuracy and technique feedback" (condensed)

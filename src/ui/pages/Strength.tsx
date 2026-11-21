@@ -1,147 +1,79 @@
-import { useMemo, useState } from 'react';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from 'recharts';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatDate, formatDuration } from '../../domain/dates';
-import { defaultIncrement, warmupFor, type ProgressionSeries, type SetPoint, type TrendClass } from '../../domain/progression';
+import { FEEL_BY_ID, formatRirRange, EFFORT_RIR_ESTIMATE } from '../../domain/feedback';
+import { adviceFor, defaultIncrement, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
 import { loadUnitLabel } from '../../domain/registry';
 import { useData } from '../../lib/store';
-import { IconAlert, IconSearch, IconTrend } from '../components/icons';
-import { Badge, Callout, Card, CardTitle, Empty, Input, Page, Segmented, Stat, Table, Td, Why, cx, fmt } from '../components/ui';
+import { IconChevronDown, IconSearch } from '../components/icons';
+import { Badge, Card, Empty, Input, Page, Segmented, Table, Td, cx, fmt } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
-const TREND_TONE: Record<TrendClass, 'good' | 'info' | 'warn' | 'bad' | 'neutral'> = {
-  progressing: 'good',
-  stable: 'info',
-  plateau: 'warn',
-  declining: 'bad',
-  insufficient_data: 'neutral',
-};
-const TREND_LABEL: Record<TrendClass, string> = {
-  progressing: 'Progressing',
-  stable: 'Stable',
-  plateau: 'Possible plateau',
-  declining: 'Declining',
-  insufficient_data: 'Not enough data',
-};
-const ACTION_LABEL = { increase: 'Increase load', hold: 'Keep load', reduce: 'Reduce load', calibrate: 'Calibrate' } as const;
-const ACTION_TONE = { increase: 'good', hold: 'info', reduce: 'warn', calibrate: 'neutral' } as const;
+/**
+ * Strength — simple on the surface: one recommendation per exercise history and one chart.
+ * The analysis behind it (benchmark sets, feedback, rest, plateau checks, load calibration) lives in
+ * src/domain/progression.ts; details open on demand.
+ */
 
-type Filter = 'all' | TrendClass;
+const ADVICE_TONE: Record<AdviceKind, 'good' | 'info' | 'warn' | 'neutral' | 'violet'> = { increase: 'good', keep: 'info', reduce: 'warn', plateau: 'violet', not_enough_data: 'neutral' };
 
 export function StrengthPage() {
-  const data = useData();
   const a = useAnalysis();
   const names = useNames();
+  const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
-  const [selected, setSelected] = useState<string | null>(null);
+  const selected = params.get('k');
+  const setSelected = (k: string | null) => setParams(k ? { k } : {}, { replace: true });
 
-  const eqById = useMemo(() => new Map(data.equipment.map((e) => [e.id, e])), [data.equipment]);
+  useEffect(() => {
+    if (selected) window.setTimeout(() => document.getElementById('series-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }, [selected]);
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const filtered = a.progression.filter((p) => {
-      if (filter !== 'all' && p.trend.cls !== filter) return false;
       if (!needle) return true;
       const def = a.registry.get(p.exerciseId);
-      const hay = [def?.name.en, def?.name.ru, p.exerciseId, p.scopeLabel].filter(Boolean).join(' ').toLowerCase();
-      return hay.includes(needle);
+      return [def?.name.en, def?.name.ru, p.exerciseId, p.scopeLabel].filter(Boolean).join(' ').toLowerCase().includes(needle);
     });
     const m = new Map<string, ProgressionSeries[]>();
-    for (const p of filtered) {
-      const arr = m.get(p.exerciseId) ?? [];
-      arr.push(p);
-      m.set(p.exerciseId, arr);
-    }
+    for (const p of filtered) m.set(p.exerciseId, [...(m.get(p.exerciseId) ?? []), p]);
     return [...m.entries()].sort((x, y) => (y[1][0].current?.date ?? '').localeCompare(x[1][0].current?.date ?? ''));
-  }, [a.progression, a.registry, q, filter]);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { progressing: 0, stable: 0, plateau: 0, declining: 0, insufficient_data: 0 };
-    a.progression.forEach((p) => c[p.trend.cls]++);
-    return c;
-  }, [a.progression]);
+  }, [a.progression, a.registry, q]);
 
   const sel = a.progression.find((p) => p.key === selected) ?? null;
 
   if (!a.progression.length) {
     return (
-      <Page title="Strength progression" subtitle="Per exercise and per machine.">
-        <Empty title="No strength history yet">Log working sets with weight, reps and RIR. After 3 sessions on the same exercise and machine, trends appear here.</Empty>
+      <Page title="Strength" subtitle="Per exercise and per machine.">
+        <Empty title="No strength history yet">Log working sets with weight and reps (and RIR or how the set felt). Recommendations get reliable after a few comparable sessions on the same exercise and machine.</Empty>
       </Page>
     );
   }
 
   return (
-    <Page title="Strength progression" subtitle="Each exercise × equipment instance × configuration (angle, attachment, one side at a time…) is its own history.">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Progressing" value={counts.progressing} tone="good" sub="exercise histories" />
-        <Stat label="Stable" value={counts.stable} sub="holding steady" />
-        <Stat label="Plateau / declining" value={counts.plateau + counts.declining} tone={counts.plateau + counts.declining ? 'warn' : undefined} sub={`${counts.plateau} plateau · ${counts.declining} declining`} />
-        <Stat label="Calibrating" value={counts.insufficient_data} sub="< 3 comparable sessions" />
-      </div>
-
-      <Callout tone="info" icon={<IconAlert size={16} />}>
-        Different machines are tracked separately; numbers are not comparable across machines. The performance index is an Epley-style estimate (weight × reps + RIR), useful only for comparing sessions on the same equipment — it is not a true 1RM and does not measure muscle growth.
-      </Callout>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <Input placeholder="Search exercise or machine" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
-        </div>
-        <div className="overflow-x-auto">
-          <Segmented<Filter>
-            size="sm"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'progressing', label: 'Progressing' },
-              { value: 'stable', label: 'Stable' },
-              { value: 'plateau', label: 'Plateau' },
-              { value: 'declining', label: 'Declining' },
-              { value: 'insufficient_data', label: 'New' },
-            ]}
-          />
-        </div>
+    <Page title="Strength" subtitle="One recommendation per exercise. Each machine and configuration has its own history.">
+      <div className="relative">
+        <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+        <Input placeholder="Search exercise or machine" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <div className="space-y-4">
-          {groups.length === 0 && <Empty title="No matches">Try another search or filter.</Empty>}
-          {groups.map(([exerciseId, series]) => {
-            const def = a.registry.get(exerciseId);
-            return (
-              <div key={exerciseId}>
-                <div className="mb-2 flex items-baseline gap-2 px-1">
-                  <h2 className="text-sm font-semibold text-ink-900 dark:text-white">{names.ex(def, exerciseId)}</h2>
-                  {names.exSub(def) && <span className="text-xs text-ink-500">{names.exSub(def)}</span>}
-                  {series.length > 1 && <Badge>{series.length} histories</Badge>}
-                </div>
-                <div className="space-y-2">
-                  {series.map((p) => (
-                    <SeriesCard key={p.key} p={p} active={p.key === selected} onClick={() => setSelected(p.key === selected ? null : p.key)} />
-                  ))}
-                </div>
+        <div className={cx('space-y-4', sel && 'hidden lg:block')}>
+          {groups.length === 0 && <Empty title="No matches">Try another search.</Empty>}
+          {groups.map(([exerciseId, series]) => (
+            <div key={exerciseId}>
+              <h2 className="mb-1.5 px-1 text-sm font-semibold text-ink-900 dark:text-white">{names.ex(a.registry.get(exerciseId), exerciseId)}</h2>
+              <div className="space-y-2">
+                {series.map((p) => <SeriesCard key={p.key} p={p} active={p.key === selected} onClick={() => setSelected(p.key === selected ? null : p.key)} />)}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
-
-        <div className="lg:sticky lg:top-4 lg:self-start">
-          {sel ? (
-            <SeriesDetail p={sel} incrementFor={(p) => {
-              const eq = p.equipmentId ? eqById.get(p.equipmentId) : undefined;
-              return eq?.incrementsKg?.length ? Math.min(...eq.incrementsKg) : defaultIncrement(a.registry.get(p.exerciseId)?.equipmentKind, p.loadMode);
-            }} />
-          ) : (
-            <Card>
-              <div className="flex flex-col items-center py-10 text-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-500/15 text-accent-600 dark:text-accent-400"><IconTrend size={22} /></span>
-                <div className="mt-3 text-sm font-semibold text-ink-900 dark:text-white">Select an exercise history</div>
-                <p className="mt-1 max-w-xs text-xs text-ink-500">Charts, session table, next-load suggestion and warm-up plan appear here.</p>
-              </div>
-            </Card>
+        <div id="series-detail" className="scroll-mt-20 lg:sticky lg:top-4 lg:self-start">
+          {sel ? <SeriesDetail p={sel} onBack={() => setSelected(null)} /> : (
+            <Card className="hidden lg:block"><p className="py-10 text-center text-sm text-ink-500">Select an exercise to see its chart and recommendation.</p></Card>
           )}
         </div>
       </div>
@@ -149,237 +81,195 @@ export function StrengthPage() {
   );
 }
 
+const isBodyweight = (p: ProgressionSeries) => p.loadMode === 'bodyweight_plus' && (p.current?.topWeight ?? 0) === 0;
+
 function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: boolean; onClick: () => void }) {
-  const cur = p.current;
-  const prev = p.previous;
+  const adv = adviceFor(p);
   const bw = isBodyweight(p);
-  const top = (s: typeof cur) => (s ? `${s.topWeight != null && !(bw && s.topWeight === 0) ? `${fmt(s.topWeight, 2)} kg × ` : ''}${s.topReps ?? '?'}${bw && !s.topWeight ? ' reps' : ''}${s.topRir != null ? ` @${s.topRir}` : ''}` : '—');
-  const delta = cur?.index != null && prev?.index != null ? cur.index - prev.index : null;
+  const cur = p.current;
   return (
-    <button
-      onClick={onClick}
-      className={cx(
-        'w-full rounded-2xl border bg-white p-3.5 text-left transition dark:bg-ink-900',
-        active ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-ink-200 hover:border-ink-300 dark:border-ink-800 dark:hover:border-ink-700',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-medium text-ink-500">{p.scopeLabel}</div>
-          <div className="mt-0.5 text-sm tabular-nums text-ink-900 dark:text-white">
-            <span className="font-semibold">{top(cur)}</span>
-            <span className="text-xs text-ink-400"> · prev {top(prev)}</span>
-          </div>
-        </div>
-        <Badge tone={TREND_TONE[p.trend.cls]}>{TREND_LABEL[p.trend.cls]}</Badge>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-500">
-        <span>{p.sessions.length} session{p.sessions.length === 1 ? '' : 's'}</span>
-        {cur && <span>last {formatDate(cur.date)}</span>}
-        {delta != null && (
-          <span className={cx('tabular-nums', delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : delta < 0 ? 'text-rose-600 dark:text-rose-400' : '')}>
-            index {delta > 0 ? '+' : ''}{fmt(delta)}
-          </span>
-        )}
-        <span className="ml-auto">
-          <Badge tone={ACTION_TONE[p.next.action]}>{bw && !p.next.weight && p.next.action === 'hold' ? 'Add reps' : `${ACTION_LABEL[p.next.action]}${p.next.weight != null && p.next.action !== 'calibrate' ? ` · ${fmt(p.next.weight, 2)} kg` : ''}`}</Badge>
+    <button type="button" onClick={onClick}
+      className={cx('flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl border bg-white px-3.5 py-2.5 text-left transition dark:bg-ink-900',
+        active ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-ink-200 dark:border-ink-800')}>
+      <span className="min-w-0">
+        <span className="block truncate text-xs text-ink-500">{p.scopeLabel}</span>
+        <span className="block text-sm tabular-nums text-ink-900 dark:text-white">
+          {cur ? <>{bw || cur.topWeight == null ? '' : `${fmt(cur.topWeight, 2)} kg × `}{cur.topReps ?? '?'}{bw ? ' reps' : ''}</> : '—'}
+          {cur && <span className="text-xs text-ink-400"> · {formatDate(cur.date, { day: 'numeric', month: 'short' })}</span>}
         </span>
-      </div>
+      </span>
+      <Badge tone={ADVICE_TONE[adv.kind]}>{adv.label}{(adv.kind === 'increase' || adv.kind === 'reduce') && p.next.weight != null ? ` · ${fmt(p.next.weight, 2)} kg` : ''}</Badge>
     </button>
   );
 }
 
-function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor: (p: ProgressionSeries) => number }) {
+type ChartMode = 'weight' | 'reps' | 'both';
+
+function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void }) {
   const a = useAnalysis();
+  const data = useData();
   const names = useNames();
+  const [mode, setMode] = useState<ChartMode>('both');
   const def = a.registry.get(p.exerciseId);
-  const inc = incrementFor(p);
-  const warm = warmupFor(def, p.next.weight, inc, 0);
+  const adv = adviceFor(p);
+  const bw = isBodyweight(p);
+  const unit = loadUnitLabel(def, p.loadMode);
+  const eq = p.equipmentId ? data.equipment.find((e) => e.id === p.equipmentId) : undefined;
+  const inc = eq?.incrementsKg?.length ? Math.min(...eq.incrementsKg) : defaultIncrement(def?.equipmentKind, p.loadMode);
   const chart = p.sessions.map((s) => ({
     date: s.date.slice(5),
-    index: s.index,
-    top: s.topWeight,
-    reps: s.totalReps,
-    rir: s.avgRir,
-    rest: s.restAvgSec,
+    weight: bw ? null : s.topWeight,
+    reps: s.topReps,
+    flagged: !s.representative,
   }));
-  const unit = loadUnitLabel(def, p.loadMode);
-  const bw = isBodyweight(p);
-  const prs = personalBests(p);
-  const loadLabel = p.loadMode === 'per_side' ? ' per side' : p.loadMode === 'assisted' ? ' assistance' : p.loadMode === 'bodyweight_plus' ? ' added' : '';
+  const loads = loadMap(p);
+  const loadNote = loadMapNote(loads);
+  const warm = warmupFor(def, p.next.weight, inc, 0);
 
   return (
     <div className="space-y-4">
+      <button type="button" onClick={onBack} className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-accent-600 lg:hidden dark:text-accent-400">← All exercises</button>
       <Card>
-        <CardTitle hint={`${p.scopeLabel}${def ? ` · rep range ${def.repRange[0]}–${def.repRange[1]}` : ''}`} right={<Badge tone={TREND_TONE[p.trend.cls]}>{TREND_LABEL[p.trend.cls]}</Badge>}>
-          {names.ex(def, p.exerciseId)}
-        </CardTitle>
-        <Why label="Trend evidence">
-          <p>{p.trend.evidence}</p>
-          <p className="text-ink-500">Classification uses up to 6 sessions from the last 8 weeks on this exact equipment. ≥ +1%/session = progressing; ≤ −1.5% with a lower latest session = declining; no new best for 2 sessions over ≥ 3 weeks = possible plateau. Strength trends describe performance, not muscle growth.</p>
-        </Why>
-
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <MiniStat label="Current top set" value={bw ? `${p.current?.topReps ?? '—'} reps` : p.current?.topWeight != null ? `${fmt(p.current.topWeight, 2)} kg` : '—'} sub={p.current ? `× ${p.current.topReps ?? '?'}${p.current.topRir != null ? ` @ RIR ${p.current.topRir}` : ''}` : ''} />
-          <MiniStat label="Previous" value={bw ? (p.previous ? `${p.previous.topReps ?? '?'} reps` : '—') : p.previous?.topWeight != null ? `${fmt(p.previous.topWeight, 2)} kg` : '—'} sub={p.previous ? `× ${p.previous.topReps ?? '?'}${p.previous.topRir != null ? ` @ RIR ${p.previous.topRir}` : ''}` : ''} />
-          <MiniStat label="Best" value={bw ? (p.best.reps != null ? `${p.best.reps} reps` : '—') : p.best.weight != null ? `${fmt(p.best.weight, 2)} kg` : p.best.reps != null ? `${p.best.reps} reps` : '—'} sub={p.best.date ? `${p.best.reps != null && p.best.weight != null ? `× ${p.best.reps} · ` : ''}${formatDate(p.best.date)}` : ''} />
-        </div>
-        <p className="mt-2 text-[11px] text-ink-500">Weights are {unit}{def?.equipmentKind === 'barbell' ? ' (bar weight not assumed)' : ''}.</p>
-      </Card>
-
-      <Card>
-        <CardTitle hint="Working sets on this equipment and configuration only.">Personal bests</CardTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <MiniStat label="Heaviest" value={prs.heaviest && !bw ? `${fmt(prs.heaviest.weight, 2)} kg` : '—'} sub={prs.heaviest && !bw ? `× ${prs.heaviest.reps} · ${formatDate(prs.heaviest.date)}` : ''} />
-          <MiniStat label="Most reps" value={prs.mostReps ? `${prs.mostReps.reps}` : '—'} sub={prs.mostReps ? `${prs.mostReps.weight != null ? `@ ${fmt(prs.mostReps.weight, 2)} kg · ` : ''}${formatDate(prs.mostReps.date)}` : ''} />
-          <MiniStat label="Best index" value={p.best.e1rm != null ? fmt(p.best.e1rm) : '—'} sub={p.best.date ? formatDate(p.best.date) : ''} />
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle hint="Suggestion for the next session on this machine (double progression)." right={<Badge tone={ACTION_TONE[p.next.action]}>{ACTION_LABEL[p.next.action]}</Badge>}>
-          Next session
-        </CardTitle>
-        <div className="grid grid-cols-3 gap-2">
-          <MiniStat label="Working weight" value={isBodyweight(p) && !p.next.weight ? 'Bodyweight' : p.next.weight != null ? `${fmt(p.next.weight, 2)} kg` : '—'} sub={isBodyweight(p) && !p.next.weight ? 'add reps' : loadLabel ? loadLabel.trim() : 'estimate'} />
-          <MiniStat label="Rep target" value={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} sub="per working set" />
-          <MiniStat label="Target RIR" value={`≤ ${p.next.rirTarget}`} sub={`step ${fmt(inc, 2)} kg`} />
-        </div>
-        <div className="mt-3"><Why><p>{p.next.reason}</p><p className="text-ink-500">Loads only increase after all working sets reach the top of the range at the intended effort in two consecutive sessions; a single good set never triggers an increase.</p></Why></div>
-
-        <div className="mt-4 border-t border-ink-100 pt-3 dark:border-ink-800">
-          <div className="mb-2 text-xs font-semibold text-ink-700 dark:text-ink-200">Suggested warm-up</div>
-          {warm.sets.length ? (
-            <div className="flex flex-wrap gap-2">
-              {warm.sets.map((s, i) => (
-                <span key={i} className="rounded-lg bg-ink-100 px-2.5 py-1 text-xs tabular-nums text-ink-700 dark:bg-ink-800 dark:text-ink-200">
-                  {s.weight != null ? `${fmt(s.weight, 2)} kg` : 'BW'} × {s.reps}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-xs text-ink-500">No warm-up sets needed.</span>
-          )}
-          <p className="mt-2 text-[11px] text-ink-500">{warm.reason} Assumes this is the first exercise for these muscles — skip ramp sets if they are already warm.</p>
-        </div>
-      </Card>
-
-      {p.sessions.length >= 2 ? (
-        <>
-          <Card>
-            <CardTitle hint="Epley-style estimate from your best set incl. RIR. Same equipment only.">Performance index (this machine only)</CardTitle>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="l" tickLine={false} axisLine={false} domain={['auto', 'auto']} />
-                  <YAxis yAxisId="r" orientation="right" hide domain={['auto', 'auto']} />
-                  <Tooltip />
-                  <Line yAxisId="l" type="monotone" dataKey="index" name="Performance index" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
-                  <Line yAxisId="r" type="monotone" dataKey="top" name="Top weight (kg)" stroke="#8791a5" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardTitle hint="Working sets only">Total reps</CardTitle>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chart} margin={{ top: 8, right: 4, bottom: 0, left: -24 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
-                    <Tooltip cursor={{ fill: 'rgba(135,145,165,0.1)' }} />
-                    <Bar dataKey="reps" name="Total reps" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-            <Card>
-              <CardTitle hint="Average rest before working sets (seconds)">Rest</CardTitle>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chart} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} domain={[0, 'auto']} allowDecimals={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="rest" name="Avg rest (s)" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-            <Card>
-              <CardTitle hint="Lower = closer to failure">Average RIR</CardTitle>
-              <div className="h-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chart} margin={{ top: 8, right: 4, bottom: 0, left: -24 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} reversed domain={[0, 'auto']} allowDecimals={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="rir" name="Avg RIR" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+        <h2 className="text-base font-semibold text-ink-900 dark:text-white">{names.ex(def, p.exerciseId)}</h2>
+        <p className="text-xs text-ink-500">{p.scopeLabel} · {unit}{def ? ` · ${def.repRange[0]}–${def.repRange[1]} reps` : ''}</p>
+        <div className={cx('mt-3 rounded-xl border p-3', {
+          increase: 'border-emerald-500/40 bg-emerald-500/5', keep: 'border-sky-500/30 bg-sky-500/5', reduce: 'border-amber-500/40 bg-amber-500/5',
+          plateau: 'border-violet-500/30 bg-violet-500/5', not_enough_data: 'border-ink-200 bg-ink-50 dark:border-ink-700 dark:bg-ink-950',
+        }[adv.kind])}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm font-semibold text-ink-900 dark:text-white">{adv.label}</span>
+            {p.next.weight != null && !bw && <span className="text-lg font-semibold tabular-nums">{fmt(p.next.weight, 2)} kg</span>}
           </div>
-        </>
-      ) : (
-        <Callout tone="info">One session recorded on this equipment — charts appear after the second session; trends after the third.</Callout>
-      )}
+          <p className="mt-1 text-xs leading-relaxed text-ink-600 dark:text-ink-300">{adv.text}</p>
+          <p className="mt-1 text-[11px] text-ink-500">Next: {p.next.repTarget[0]}–{p.next.repTarget[1]} reps, ~{p.next.rirTarget} reps in reserve{!bw ? ` · smallest step ${fmt(inc, 2)} kg` : ''}.</p>
+        </div>
+      </Card>
 
       <Card>
-        <CardTitle hint="Newest first">Sessions</CardTitle>
-        <Table head={['Date', 'Sets (kg × reps @RIR)', 'Index', 'Reps', 'Avg RIR', 'Avg rest']} dense>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold">History</span>
+          {!bw && <Segmented<ChartMode> size="sm" value={mode} onChange={setMode} options={[{ value: 'weight', label: 'Weight' }, { value: 'reps', label: 'Reps' }, { value: 'both', label: 'Both' }]} />}
+        </div>
+        {p.sessions.length >= 2 ? (
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chart} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                {(mode !== 'reps' && !bw) && <YAxis yAxisId="w" tickLine={false} axisLine={false} domain={['auto', 'auto']} />}
+                {(mode !== 'weight' || bw) && <YAxis yAxisId="r" orientation={mode === 'both' && !bw ? 'right' : 'left'} tickLine={false} axisLine={false} allowDecimals={false} domain={['auto', 'auto']} />}
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name="Top weight (kg)" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                {(mode !== 'weight' || bw) && <Line yAxisId="r" type="monotone" dataKey="reps" name="Reps (top set)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : <p className="text-xs text-ink-500">The chart appears after the second session.</p>}
+        {p.sessions.some((s) => !s.representative) && <p className="mt-1 text-[11px] text-ink-500">Sessions flagged as wrong weight, pain or broken technique are shown but not used to judge progress.</p>}
+      </Card>
+
+      <Section title="Set-by-set feedback" hint="Every working set, as recorded">
+        <FeedbackTable p={p} />
+      </Section>
+
+      <Section title="Your loads" hint={loadNote ?? 'Tap how sets felt to calibrate'}>
+        {loads.length ? (
+          <ul className="space-y-1 text-xs">
+            {loads.map((l) => (
+              <li key={l.weight} className="flex items-center justify-between gap-2">
+                <span className="tabular-nums font-medium">{fmt(l.weight, 2)} kg <span className="font-normal text-ink-500">· {l.sets} set{l.sets === 1 ? '' : 's'}</span></span>
+                <Badge tone={{ right: 'good', too_easy: 'info', too_heavy: 'warn', mixed: 'neutral', no_feedback: 'neutral' }[l.verdict] as 'good'}>{{ right: 'feels right', too_easy: 'too easy', too_heavy: 'too heavy', mixed: 'mixed', no_feedback: 'not rated' }[l.verdict]}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-xs text-ink-500">No loads yet.</p>}
+        <p className="mt-2 text-[11px] text-ink-500">Learned only for this exercise on this equipment and configuration — the same number on another machine can feel completely different.</p>
+      </Section>
+
+      <Section title="Personal bests">
+        <PersonalBests p={p} bw={bw} />
+      </Section>
+
+      <Section title="Effort & rest">
+        <Table head={['Date', 'Avg RIR', 'Avg rest', 'Trend note']} dense>
           {[...p.sessions].reverse().map((s) => (
             <tr key={s.workoutId + s.date}>
-              <Td right={false}>{formatDate(s.date)}</Td>
-              <Td className="max-w-[260px] whitespace-normal text-xs">
-                {s.sets.map(setText).join(', ')}
-              </Td>
-              <Td>{fmt(s.index)}</Td>
-              <Td>{s.totalReps}</Td>
+              <Td right={false}>{formatDate(s.date, { day: 'numeric', month: 'short' })}</Td>
               <Td>{fmt(s.avgRir)}</Td>
               <Td>{formatDuration(s.restAvgSec)}</Td>
+              <Td className="whitespace-normal text-[11px]">{!s.representative ? 'not a benchmark' : s.fatigued ? 'high fatigue / short sleep' : ''}</Td>
             </tr>
           ))}
         </Table>
-      </Card>
+        <p className="mt-2 text-[11px] text-ink-500">{p.trend.evidence}</p>
+      </Section>
+
+      <Section title="Warm-up" hint={warm.sets.length ? warm.sets.map((s) => `${s.weight != null ? `${fmt(s.weight, 2)} kg` : 'BW'} × ${s.reps}`).join(' → ') : 'none needed'}>
+        <p className="text-xs text-ink-500">{warm.reason} Assumes this is your first exercise for these muscles.</p>
+      </Section>
     </div>
   );
 }
 
-/** Unloaded bodyweight work (e.g. ab straps): progress is reps, not kg. */
-function isBodyweight(p: ProgressionSeries): boolean {
-  return p.loadMode === 'bodyweight_plus' && (p.current?.topWeight ?? 0) === 0;
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card padded={false}>
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left sm:px-5">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink-900 dark:text-white">{title}</span>
+          {hint && <span className="block truncate text-[11px] text-ink-500">{hint}</span>}
+        </span>
+        <IconChevronDown size={16} className={cx('shrink-0 text-ink-400 transition', open && 'rotate-180')} />
+      </button>
+      {open && <div className="border-t border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">{children}</div>}
+    </Card>
+  );
 }
 
-function setText(x: SetPoint): string {
-  return `${x.side ? (x.side === 'left' ? 'L ' : 'R ') : ''}${x.weight != null ? fmt(x.weight, 2) : 'BW'}×${x.reps ?? '?'}${x.rir != null ? `@${x.rir}` : ''}`;
+function feelText(x: SetPoint): string {
+  if (x.feel) return FEEL_BY_ID[x.feel].label;
+  return '—';
+}
+
+function FeedbackTable({ p }: { p: ProgressionSeries }) {
+  const rows = [...p.sessions].reverse().flatMap((s) => s.sets.map((x, i) => ({ s, x, i })));
+  return (
+    <div className="-mx-4 overflow-x-auto sm:mx-0">
+      <table className="w-full min-w-[340px] text-xs tabular-nums">
+        <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="px-4 py-1 sm:px-0">Date</th><th>kg</th><th>Reps</th><th>Felt</th><th className="pr-4 text-right sm:pr-0">RIR</th></tr></thead>
+        <tbody className="divide-y divide-ink-100 dark:divide-ink-800">
+          {rows.map(({ s, x, i }) => (
+            <tr key={`${s.workoutId}-${i}`} className={cx(!x.benchmark && 'text-ink-400')}>
+              <td className="px-4 py-1.5 sm:px-0">{i === 0 ? formatDate(s.date, { day: 'numeric', month: 'short' }) : ''}</td>
+              <td>{x.side ? `${x.side === 'left' ? 'L' : 'R'} ` : ''}{x.weight != null ? fmt(x.weight, 2) : 'BW'}</td>
+              <td>{x.reps ?? '?'}</td>
+              <td className="max-w-[120px] truncate" title={x.excluded ? `Not a benchmark: ${x.excluded}` : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
+              <td className="pr-4 text-right sm:pr-0">{x.rir != null ? x.rir : x.effort ? <span className="text-ink-400">≈{formatRirRange(EFFORT_RIR_ESTIMATE[x.effort])}</span> : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 px-4 text-[11px] text-ink-500 sm:px-0">⚑ = kept but not used to judge progress (wrong weight, pain or broken technique). ≈ = RIR estimated from how the set felt, not logged.</p>
+    </div>
+  );
 }
 
 /** Heaviest working set (any reps) and most reps in one set, from this history only. */
-function personalBests(p: ProgressionSeries) {
+function PersonalBests({ p, bw }: { p: ProgressionSeries; bw: boolean }) {
   let heaviest: { weight: number; reps: number; date: string } | null = null;
   let mostReps: { weight: number | null; reps: number; date: string } | null = null;
   const assisted = p.loadMode === 'assisted';
   for (const s of p.sessions) for (const x of s.sets) {
-    if (x.reps == null || x.reps <= 0) continue;
+    if (!x.benchmark || x.reps == null || x.reps <= 0) continue; // a wrong-weight or broken-technique set is not a PR
     if (x.weight != null && (!heaviest || (assisted ? x.weight < heaviest.weight : x.weight > heaviest.weight) || (x.weight === heaviest.weight && x.reps > heaviest.reps))) heaviest = { weight: x.weight, reps: x.reps, date: s.date };
     if (!mostReps || x.reps > mostReps.reps || (x.reps === mostReps.reps && (x.weight ?? 0) > (mostReps.weight ?? 0))) mostReps = { weight: x.weight, reps: x.reps, date: s.date };
   }
-  return { heaviest, mostReps };
-}
-
-function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-ink-500">{label}</div>
-      <div className="mt-0.5 text-base font-semibold tabular-nums text-ink-900 dark:text-white">{value}</div>
-      {sub && <div className="text-[11px] tabular-nums text-ink-500">{sub}</div>}
-    </div>
+    <dl className="grid grid-cols-2 gap-3 text-xs">
+      {!bw && <div><dt className="text-ink-500">Heaviest</dt><dd className="text-sm font-semibold tabular-nums">{heaviest ? `${fmt(heaviest.weight, 2)} kg × ${heaviest.reps}` : '—'}</dd><dd className="text-ink-400">{heaviest ? formatDate(heaviest.date) : ''}</dd></div>}
+      <div><dt className="text-ink-500">Most reps</dt><dd className="text-sm font-semibold tabular-nums">{mostReps ? `${mostReps.reps}${mostReps.weight != null && !bw ? ` @ ${fmt(mostReps.weight, 2)} kg` : ''}` : '—'}</dd><dd className="text-ink-400">{mostReps ? formatDate(mostReps.date) : ''}</dd></div>
+    </dl>
   );
 }

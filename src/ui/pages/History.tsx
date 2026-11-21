@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { addDays, dayOfWeek, formatDate, formatDuration } from '../../domain/dates';
 import { workoutToExport, IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION } from '../../domain/importer';
 import { humanize } from '../../domain/progression';
+import { FEEL_BY_ID } from '../../domain/feedback';
 import { assessSet, countedSetCount, sideFactors, type EffortTier } from '../../domain/quality';
 import type { MuscleId, Workout } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
@@ -189,6 +190,8 @@ function Calendar({ month, setMonth, weekStartsOn, today, byDate, selected, onSe
   );
 }
 
+const CORR_LABEL = { weightKg: 'weight', reps: 'reps', rir: 'RIR', type: 'type', side: 'side' } as const;
+
 function MonthSummary({ month, workouts }: { month: string; workouts: Workout[] }) {
   const ws = workouts.filter((w) => w.date.startsWith(month));
   const sets = ws.reduce((s, w) => s + w.exercises.reduce((a, e) => a + countedSetCount(e.sets), 0), 0);
@@ -323,7 +326,12 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
                         return (
                           <tr key={s.id} className={cx('tabular-nums', s.type === 'warmup' && 'text-ink-400')}>
                             <td className="px-2 py-1.5">{k + 1}</td>
-                            <td className="px-2 py-1.5 capitalize">{s.type}{s.side ? ` · ${s.side}` : ''}{s.toFailure ? ' · failure' : ''}{s.rom && s.rom !== 'full' ? ` · ${s.rom.replace('_', ' ')}` : ''}</td>
+                            <td className="px-2 py-1.5">
+                              <span className="capitalize">{s.type}{s.side ? ` · ${s.side}` : ''}{s.toFailure ? ' · failure' : ''}{s.rom && s.rom !== 'full' ? ` · ${s.rom.replace('_', ' ')}` : ''}</span>
+                              {s.feel && <span className="block text-[10px] text-ink-500">{FEEL_BY_ID[s.feel].title}{s.pain?.area ? ` · ${s.pain.area}` : ''}{s.intendedWeightKg != null ? ` · meant ${fmt(s.intendedWeightKg, 2)} kg` : ''}</span>}
+                              {s.notes && <span className="block text-[10px] italic text-ink-500">“{s.notes}”</span>}
+                              {s.corrections?.length ? <span className="block text-[10px] text-amber-700 dark:text-amber-300">corrected: {s.corrections.map((c) => `${CORR_LABEL[c.field]} ${c.from ?? '—'} → ${c.to ?? '—'}`).join(', ')}</span> : null}
+                            </td>
                             <td className="px-2 py-1.5 text-right">{load}</td>
                             <td className="px-2 py-1.5 text-right">{s.reps ?? '—'}</td>
                             <td className="px-2 py-1.5 text-right">{s.rir ?? '—'}{s.rir != null && s.rirSource === 'inferred' ? '*' : ''}</td>
@@ -361,6 +369,7 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
           )}
 
           {w.notes && <p className="whitespace-pre-wrap text-xs text-ink-600 dark:text-ink-300">{w.notes}</p>}
+          {w.audit?.length ? <div className="text-[11px] text-amber-700 dark:text-amber-300">{w.audit.map((x, i) => <div key={i}>Correction ({formatDate(x.at.slice(0, 10))}): {x.note}</div>)}</div> : null}
 
           {w.uncertainties && w.uncertainties.length > 0 && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-900 dark:text-amber-100">

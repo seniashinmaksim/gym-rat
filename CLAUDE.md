@@ -26,7 +26,7 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 
 1. Read the whole message; split it into workouts (one per date/session) and exercises.
 2. For each exercise identify: exercise → `exercise_id`, equipment instance, variation (bench angle, grip, ROM), and every set.
-3. Produce JSON in the **`gymrat.workout` v1.1** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
+3. Produce JSON in the **`gymrat.workout` v1.2** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
 4. List every assumption and uncertainty in `uncertainties` **and** in your reply.
 5. Show the JSON to the owner for correction **before** they import it.
 
@@ -215,7 +215,7 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
   - *declining*: slope ≤ −1.5 %/session and last < first;
   - *possible plateau*: ≥4 sessions over ≥21 days, no new best in the last 2;
   - *stable*: otherwise; *insufficient data*: < 3 sessions.
-- **Double progression:** increase load only after **all** working sets at the working load reach the top of the rep range (with RIR recorded) in **two consecutive** sessions; increment = smallest increment of that equipment. One good set or session is never enough — **except** when every set reached the top with ≥ target RIR + 2 in reserve (load clearly too light), where one session suffices. Lighter back-off sets are ignored; assistance never goes below 0.
+- **Double progression:** increase load only after **all** working sets at the working load reach the top of the rep range (with effort recorded — RIR or how the set felt) in **two consecutive** sessions; increment = smallest increment of that equipment. One good set or session is never enough — **except** when every set reached the top with ≥ target RIR + 2 in reserve (load clearly too light), where one session suffices. Lighter back-off sets are ignored; assistance never goes below 0.
 - **Rest periods:** compare rep retention between sets against rest duration; a drop in performance with shorter rest is not a strength loss. Mention rest changes when explaining a "decline".
 - **New variations** (different grip, angle, ROM, machine) start a new comparison context; do not report them as progress or regression.
 - **Equipment vs performance:** a sudden large load change (> +30 % or < −40 %) on what looks like the same exercise usually means a different machine, per-side vs total confusion, or a typo — ask before treating it as performance.
@@ -234,7 +234,7 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 When the owner submits a workout:
 
 1. **Parse** the message (sections A–C).
-2. **Validate** against `gymrat.workout` v1.1 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
+2. **Validate** against `gymrat.workout` v1.2 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
 3. **Match** exercises (library ids), gym (`location_id` / `name_hint`) and equipment (`equipment_id` / hints). Mark anything unsure as `uncertain` and ask.
 4. **Generate** the JSON (envelope form preferred, with a unique `client_ref`, e.g. `"chat-2026-11-21-1"`).
 5. **Allow corrections**: show the JSON plus a short bullet list of assumptions; apply the owner's corrections.
@@ -267,6 +267,17 @@ Rules specific to these movements:
 - **No separate "number of sets" field** — each set is its own record (`count` only expands identical sets).
 - **History:** variations add to the same muscle's weekly volume but keep separate strength records (incline vs flat DB press, bar vs rope pushdown, machine vs EZ curl, DB vs cable laterals, squat vs leg extension, RDL vs leg curls). Load increases follow double progression (section D); never suggest one without that evidence.
 
+## G. Set feedback, recommendations and the simple UI
+
+- **How the set felt** (logger, one tap after ✓; import `feel`): too easy · a little too easy · just right · very hard, good technique · too heavy, technique compromised · wrong weight too light · wrong weight too heavy · pain. Each answer also fills three SEPARATE dimensions the owner can change: perceived effort, weight-selection accuracy, technique. Never merge them into one score.
+- **RIR stays separate.** A logged RIR always decides the effort credit. Without RIR, the effort gives an ESTIMATED RIR range (very easy 5+, easy 3–4, appropriate 1–3, hard 1–2, near max 0–1) whose higher-RIR end goes through the normal RIR table (for the open "5+" range, 5 is used); it is labelled an estimate and RIR itself stays empty. These ranges are practical assumptions (Settings can switch them off).
+- **Volume:** the raw set count never changes. Compromised technique → existing ×0.7; pain → kept, effort credit kept, but flagged uncertain and never "good quality"; wrong weight → credited by its effort (the muscle still worked). Per muscle the app shows sets performed, good-quality, too easy, technique issues, pain, uncertain volume.
+- **Progression benchmark:** wrong-weight, pain and compromised/failed-technique sets are kept in history but never used to judge progress. Increase: two consecutive sessions with all sets at the top of the range (effort recorded as RIR or feel), or one session if every set was clearly too light (RIR ≥ target + 2 or felt "too easy" — "a little too easy" alone is not enough). Never increase right after a session with pain. Reduce: technique broke down on at least half of the session's sets — never merely because a set was hard — by about one step (one increment, or back to a clean load from that session within ~1.5 increments). Load steps use the equipment's smallest increment from the current load.
+- **Plateau:** ≥ 4 comparable (representative) sessions over ≥ 3 weeks with no new best in the last two; sessions with high fatigue or short sleep are set aside; a plateau means "check load, rest, technique, effort and recovery first", not "add volume".
+- **Rest:** a rep drop at the same weight after a clearly shorter rest (< 70 % of the usual) is attributed to rest, not to the load.
+- **Corrections:** editing a finished workout (ended, marked finished, or imported) records original → corrected values per set (and removed sets) — never overwrite silently.
+- **UI principle:** the main screen shows only quality sets left per muscle and one increase/keep/reduce call per recent exercise; details open on demand. All calculations live in `src/domain` (feedback.ts, quality.ts, volume.ts, progression.ts, reports.ts).
+
 ---
 
 ## Developer notes
@@ -279,6 +290,7 @@ src/
     types.ts       entity model          muscles.ts    muscle list, reference ranges
     registry.ts    exercise registry + bench-angle coefficient rules
     quality.ts     set-quality (effort) model     volume.ts   fractional/effective volume
+    feedback.ts    per-set feel → effort / weight accuracy / technique, benchmark rules, corrections audit
     dates.ts       week/timezone helpers          history.ts  weekly buckets
     progression.ts per-equipment progression, double progression, warm-ups
     recovery.ts    heuristic recovery estimates   targets.ts  learning mode + targets

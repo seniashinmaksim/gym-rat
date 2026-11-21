@@ -24,7 +24,7 @@
         "schema": { "const": "gymrat.workout" },
         "schema_version": {
           "type": ["string", "number"],
-          "description": "Must start with '1' (current: \"1.1\"; \"1.0\" is still accepted). Other major versions are rejected."
+          "description": "Must start with '1' (current: \"1.2\"; 1.0 and 1.1 are still accepted). Other major versions are rejected."
         },
         "workouts": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Workout" } }
       }
@@ -150,6 +150,13 @@
         "rom": { "$ref": "#/$defs/Rom" },
         "technique_ok": { "type": "boolean" },
         "count": { "type": "integer", "minimum": 1, "maximum": 20, "description": "Expands into N identical sets. Use only when the sets were truly identical (same load, reps and RIR)." },
+        "feel": { "type": "string", "enum": ["too_easy", "bit_easy", "just_right", "hard_good", "too_heavy_form", "wrong_light", "wrong_heavy", "pain"], "description": "v1.2. How the set felt, only if the owner said so. Never derived from RIR and never turned into RIR." },
+        "effort": { "type": "string", "enum": ["very_easy", "easy", "appropriate", "hard", "near_max"], "description": "v1.2. Perceived effort (overrides the one implied by feel)." },
+        "weight_accuracy": { "type": "string", "enum": ["correct", "too_light", "too_heavy", "unknown"], "description": "v1.2. too_light / too_heavy = the wrong weight was picked by accident." },
+        "technique": { "type": "string", "enum": ["good", "slightly_degraded", "compromised", "failed", "not_assessed"], "description": "v1.2. Technique quality." },
+        "pain_area": { "type": "string", "maxLength": 60, "description": "v1.2. Body area of pain or unusual discomfort (feel: pain)." },
+        "pain_note": { "type": "string", "maxLength": 500, "description": "v1.2. The owner's description of the pain." },
+        "intended_weight_kg": { "type": ["number", "null"], "minimum": 0, "description": "v1.2. The weight that was meant to be used (wrong-weight sets)." },
         "side": { "type": "string", "enum": ["left", "right"], "description": "v1.1. Unilateral set for one side. The i-th left and i-th right set of an exercise together count as ONE set; an unpaired side counts as one set." },
         "notes": { "type": "string", "maxLength": 1000 }
       }

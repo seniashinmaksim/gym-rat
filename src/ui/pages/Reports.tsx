@@ -2,10 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { formatDate, formatDuration } from '../../domain/dates';
 import type { WeekBucket } from '../../domain/history';
 import { TRACKED_MUSCLES } from '../../domain/muscles';
-import { baselineReport, buildSnapshot, weeklyReport, type WeeklyReport } from '../../domain/reports';
+import { baselineReport, buildSnapshot, weeklyReport, weeklySummary, progressionAsOf, type WeeklyReport } from '../../domain/reports';
 import type { MuscleId } from '../../domain/types';
 import { store, useData } from '../../lib/store';
-import { IconAlert, IconCheck, IconInfo } from '../components/icons';
+import { IconAlert, IconCheck, IconChevronDown, IconInfo } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
@@ -40,6 +40,7 @@ function WeeklyTab() {
   const weeks = useMemo(() => [...a.weeks].reverse(), [a.weeks]);
   const defaultWeek = (weeks.find((w) => w.complete) ?? weeks[0])?.range.start ?? null;
   const [weekStart, setWeekStart] = useState<string | null>(defaultWeek);
+  const [details, setDetails] = useState(false);
   const bucket: WeekBucket | undefined = weeks.find((w) => w.range.start === (weekStart ?? defaultWeek));
   const report = useMemo(() => (bucket ? weeklyReport(bucket, a, data) : null), [bucket, a, data]);
 
@@ -78,6 +79,12 @@ function WeeklyTab() {
         <p className="-mt-2 text-xs text-ink-500">Finished weeks are frozen automatically the next time you open the app. A snapshot freezes this week's targets so later target or coefficient changes don't rewrite how this week is judged. Raw sets are always kept; volume itself is recomputed from them.</p>
       )}
 
+      <WeekSummaryCard report={report} complete={bucket.complete} />
+
+      <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-ink-600 dark:text-ink-300">
+        Full report <IconChevronDown size={14} className={cx('transition', details && 'rotate-180')} />
+      </button>
+      {details && (<>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Sessions" value={report.sessions} />
         <Stat label="Working sets" value={report.totalWorkingSets} sub="raw, all muscles" />
@@ -150,7 +157,35 @@ function WeeklyTab() {
           </Why>
         </div>
       </Card>
+      </>)}
     </div>
+  );
+}
+
+/** The short, actionable answer for the week. */
+function WeekSummaryCard({ report, complete }: { report: WeeklyReport; complete: boolean }) {
+  const a = useAnalysis();
+  const names = useNames();
+  const data = useData();
+  const asOf = useMemo(() => (report.range.end >= a.today ? a.progression : progressionAsOf(data, a, report.range.end)), [report.range.end, a, data]);
+  const s = weeklySummary(report, a, asOf);
+  const Row = ({ q, children }: { q: string; children: ReactNode }) => (
+    <div className="border-t border-ink-100 py-2.5 first:border-t-0 first:pt-0 dark:border-ink-800">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{q}</div>
+      <div className="mt-0.5 text-sm text-ink-800 dark:text-ink-100">{children}</div>
+    </div>
+  );
+  const list = (xs: string[], empty: string) => (xs.length ? xs.join(' · ') : <span className="text-ink-500">{empty}</span>);
+  return (
+    <Card>
+      <Row q={complete ? 'Behind target (quality sets short)' : 'Still behind (quality sets left)'}>
+        {s.behind.length ? s.behind.map((b) => `${names.muscle(b.muscle)} ${fmt(b.left)}`).join(' · ') : <span className="text-emerald-600 dark:text-emerald-400">All muscles at target.</span>}
+      </Row>
+      <Row q="Progressing">{list(s.progressing, 'No clear new bests this week.')}</Row>
+      <Row q="Increase weight">{list(s.increase, 'None yet.')}</Row>
+      <Row q="Keep or reduce">{s.reduce.length ? <><b className="font-semibold text-amber-700 dark:text-amber-300">Reduce:</b> {s.reduce.join(' · ')}{s.keep.length ? ' · ' : ''}</> : null}{s.keep.length ? <>Keep: {s.keep.join(' · ')}</> : !s.reduce.length ? <span className="text-ink-500">—</span> : null}</Row>
+      <Row q="Possible plateaus">{list(s.plateaus, 'None detected.')}</Row>
+    </Card>
   );
 }
 
