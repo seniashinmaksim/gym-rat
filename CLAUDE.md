@@ -26,7 +26,7 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 
 1. Read the whole message; split it into workouts (one per date/session) and exercises.
 2. For each exercise identify: exercise → `exercise_id`, equipment instance, variation (bench angle, grip, ROM), and every set.
-3. Produce JSON in the **`gymrat.workout` v1.0** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
+3. Produce JSON in the **`gymrat.workout` v1.1** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
 4. List every assumption and uncertainty in `uncertainties` **and** in your reply.
 5. Show the JSON to the owner for correction **before** they import it.
 
@@ -79,13 +79,17 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 | reverse_pec_deck | Reverse pec deck | Обратная бабочка | rear delt fly machine |
 | rear_delt_fly | Bent-over rear delt fly | Разводка в наклоне | махи в наклоне |
 | front_raise | Front raise | Подъём перед собой | |
-| barbell_curl | Barbell curl | Подъём штанги на бицепс | EZ curl |
+| barbell_curl | Barbell curl | Подъём штанги на бицепс | straight bar curl |
+| ez_bar_curl | Standing EZ-bar curl | Подъём EZ-штанги на бицепс стоя | EZ curl, EZ bar curl |
 | dumbbell_curl | Dumbbell curl | Сгибания с гантелями | |
 | incline_dumbbell_curl | Incline dumbbell curl | Сгибания на наклонной скамье | |
-| preacher_curl | Preacher curl | Сгибания на скамье Скотта | scott curl, machine curl |
+| preacher_curl | Preacher curl | Сгибания на скамье Скотта | scott curl, preacher machine |
+| machine_biceps_curl | Machine biceps curl | Сгибания рук в тренажёре | machine curl, бицепс в тренажёре |
 | cable_curl | Cable curl | Сгибания на блоке | |
 | hammer_curl | Hammer curl | Молотки | |
-| triceps_pushdown | Triceps pushdown | Разгибания на блоке | rope pushdown |
+| triceps_pushdown | Triceps pushdown (attachment unspecified) | Разгибания на блоке | pushdown |
+| triceps_pushdown_bar | Triceps pushdown (straight bar) | Разгибания на блоке с прямой рукоятью | straight bar pushdown |
+| triceps_pushdown_rope | Triceps pushdown (rope) | Разгибания на блоке с канатом | rope pushdown |
 | overhead_triceps_extension | Overhead triceps extension | Разгибания из-за головы | french press (overhead) |
 | skull_crusher | Skull crusher | Французский жим лёжа | lying triceps extension |
 | close_grip_bench | Close-grip bench press | Жим узким хватом | CGBP |
@@ -101,10 +105,12 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 | bulgarian_split_squat | Bulgarian split squat | Болгарские выпады | split squat |
 | walking_lunge | Walking lunge | Выпады в ходьбе | lunges |
 | leg_extension | Leg extension | Разгибания ног | |
-| romanian_deadlift | Romanian deadlift | Румынская тяга | RDL, stiff-leg |
+| romanian_deadlift | Romanian deadlift (barbell) | Румынская тяга | RDL, stiff-leg |
+| dumbbell_romanian_deadlift | Dumbbell Romanian deadlift | Румынская тяга с гантелями | DB RDL |
 | deadlift | Deadlift | Становая тяга | |
 | lying_leg_curl | Lying leg curl | Сгибания ног лёжа | leg curl |
 | seated_leg_curl | Seated leg curl | Сгибания ног сидя | |
+| standing_leg_curl | Standing single-leg curl | Сгибание ноги стоя | standing leg curl |
 | hip_thrust | Hip thrust | Ягодичный мост | glute bridge |
 | glute_kickback | Cable glute kickback | Отведение ноги назад | |
 | back_extension | 45° back extension | Гиперэкстензия | hyperextension |
@@ -115,7 +121,8 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 | leg_press_calf_raise | Leg-press calf raise | Икры в жиме ногами | |
 | cable_crunch | Cable crunch | Скручивания на блоке | молитва |
 | crunch | Crunch | Скручивания | |
-| hanging_leg_raise | Hanging leg raise | Подъём ног в висе | |
+| hanging_leg_raise | Hanging leg raise (from a bar) | Подъём ног в висе | leg raise |
+| hanging_knee_raise_pelvic_curl | Hanging knee raise with pelvic curl (ab straps) | Подъём коленей в петлях со скручиванием таза | ab straps, hanging knee raise, подъём ног/коленей в петлях |
 | ab_machine | Ab crunch machine | Пресс в тренажёре | |
 | plank | Plank | Планка | |
 | farmer_carry | Farmer's carry | Прогулка фермера | |
@@ -194,14 +201,14 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 - **Bench-angle rules** (`resolveCoefficients` in `src/domain/registry.ts`) for angle-sensitive presses/flys: ≤ −5° decline → lower-chest emphasis, front delts capped at 0.25; < 10° flat → whole pec; 10–45° incline → upper-chest emphasis, front delts ≥ 0.5; > 45° → chest 0.75, front delts 0.75. Supinated vertical pulls → biceps ≥ 0.75. So record `bench_angle_deg` when the owner gives it.
 - **Upper/lower chest are regional emphasis of pectoralis major**, tracked as shares of chest work, with no independent target and **never added to the chest total**.
 - **No double counting:** each set credits each muscle exactly once (one coefficient per muscle per exercise). Supersets/giant sets are fine — log each exercise's sets under that exercise. Never log the same set twice (e.g. once as "chest press" and again as "pec work").
-- Unilateral exercises: one set = both sides done once (do not double).
+- Unilateral exercises: one set = both sides done once (do not double). When sides are logged separately (`side: "left"/"right"`), the i-th left and i-th right set pair into ONE set (each counts 0.5, so the pair's credit is the average of both sides); an unpaired side counts as one set. 3 L + 3 R = 3 sets.
 - Changing a coefficient in the app recalculates all historical volume (volume is always derived from raw sets).
 
 ---
 
 ## D. Training-history rules
 
-- **Compare like with like:** same `exercise_id` × same `equipment_id`. Free weights without an equipment id share one history; unidentified machines are kept separate per gym.
+- **Compare like with like:** same `exercise_id` × same `equipment_id` × same configuration. Configuration = exact bench angle (angle-sensitive exercises), cable attachment, one side at a time (exercises that offer that choice), standing/seated, straight/bent legs — each recorded value starts its own history. Entries without the value share an "unspecified" history: older entries keep their history, except that an older entry which recorded a bench angle moves to that angle's history (angles were recordable before v1.1). Grip is not part of the key. Linking a free-weight exercise to an equipment entry (e.g. a specific EZ bar) also starts a new history for that bar. Free weights without an equipment id share one history; unidentified machines are kept separate per gym.
 - Performance index per session = RIR-adjusted Epley estimate of the best working set (or reps+RIR for bodyweight) — an index for *that* equipment, not a true 1RM.
 - **Trend classification** (`src/domain/progression.ts`, last ≤6 sessions within 8 weeks, ≥3 needed):
   - *progressing*: regression slope ≥ +1 %/session and last ≥ first;
@@ -227,12 +234,38 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 When the owner submits a workout:
 
 1. **Parse** the message (sections A–C).
-2. **Validate** against `gymrat.workout` v1.0 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
+2. **Validate** against `gymrat.workout` v1.1 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
 3. **Match** exercises (library ids), gym (`location_id` / `name_hint`) and equipment (`equipment_id` / hints). Mark anything unsure as `uncertain` and ask.
 4. **Generate** the JSON (envelope form preferred, with a unique `client_ref`, e.g. `"chat-2026-11-21-1"`).
 5. **Allow corrections**: show the JSON plus a short bullet list of assumptions; apply the owner's corrections.
 6. **Import**: the owner pastes it into **Import from Claude** in the app, resolves highlighted items (gym, unknown machines, unmatched names) and saves. Duplicates (same content hash or `client_ref`) are blocked.
 7. **Use the app's data for analysis.** For any question about history, progression or remaining sets, rely on data the owner exports or pastes (Settings → export workouts JSON, or screenshots/text of app screens). **Never rely solely on conversational memory, and never invent historical records.** If you lack the data, say so and ask for an export.
+
+## F. Preferred exercises (the owner's regular movements)
+
+The owner trains these most often. Use exactly these ids; examples for each are in `WORKOUT_PARSING.md` §14. Coefficients are practical estimates (see section C), not measurements. Nothing here is personal data — loads in examples are synthetic.
+
+| # | Movement | exercise_id(s) | Coefficients | Separate history by | Log / ask for |
+|---|---|---|---|---|---|
+| 1 | Incline dumbbell press | `incline_dumbbell_press` (flat = `dumbbell_bench_press`) | chest 1, front delts 0.5, triceps 0.5; upper-chest emphasis (not added to chest) | exact bench angle (15°/30°/45°/custom) | **kg per dumbbell**, reps, RIR per set, rest, `bench_angle_deg`, gym, notes |
+| 2 | Cable triceps pushdown | `triceps_pushdown_bar` (straight bar), `triceps_pushdown_rope`; `triceps_pushdown` = attachment unknown (older entries) | triceps 1 | exercise id × cable machine | stack weight, reps, RIR, rest, machine, `settings."cable height"` |
+| 3 | Pec deck | `pec_deck` | chest 1, front delts 0.25, **no triceps** | machine instance | stack weight, machine (manufacturer/model if known), `seat`, `handle position`, reps, RIR, rest |
+| 4 | Biceps curl | `machine_biceps_curl`, `preacher_curl` (preacher-style machine/bench), `ez_bar_curl` | biceps 1, forearms 0.25 | exercise id × machine; EZ: standing/seated | machine: stack, `seat`, `arm pad`, grip. EZ: **total** weight as reported, grip width, notes |
+| 5 | Lateral raise | `lateral_raise` (dumbbell), `cable_lateral_raise` | side delts 1, traps 0.25 | dumbbell vs cable; cable machine; standing/seated; attachment; one side at a time | DB: **kg per dumbbell**, `position`, `execution` (simultaneous/alternating). Cable: machine, `attachment`, `settings."pulley height"`, `unilateral` + `side` per set |
+| 6 | Quads | `back_squat`, `leg_extension` | squat: quads 1, glutes 0.5, adductors 0.5, erectors 0.25; leg ext: quads 1 | exercise; leg-extension machine | squat: **total** weight, `depth`, `bar_position`, `stance`; leg ext: machine, `seat`, `backrest`, `shin pad` |
+| 7 | Hamstrings | `romanian_deadlift` (barbell), `dumbbell_romanian_deadlift`, `seated_leg_curl`, `lying_leg_curl`, `standing_leg_curl` | RDL: hamstrings 1, glutes 0.75, erectors 0.5, adductors 0.5, forearms 0.25, traps 0.25; curls: hamstrings 1, calves 0.25 | each id; each machine | RDL: total (barbell) or per dumbbell, ROM, notes. Curls: machine, manufacturer/model, `seat`, `backrest`, `ankle pad`, `thigh pad`; standing curl per side |
+| 8 | Hanging ab straps | `hanging_knee_raise_pelvic_curl` | abs 1 (no forearms: arms rest in straps) | strap equipment instance | reps, RIR/failure, rest, `settings."strap setup"`, notes |
+
+Rules specific to these movements:
+
+- **Hanging ab straps = always the pelvic-curl knee raise** (owner's stated practice): knees up AND pelvis curled toward the ribs (posterior pelvic tilt + spinal flexion) → full ab set. Any "ab straps", "hanging knee raise", "подъём ног/коленей в петлях" message maps to `hanging_knee_raise_pelvic_curl`. A pure hip-flexion leg lift would mainly train the hip flexors (not tracked, no target) and must not be logged as this exercise. A leg raise hanging from a bar is `hanging_leg_raise`; a captain's chair is a different piece of equipment — ask.
+- **Bench angle:** record the angle the owner states. Muscle credit uses coarse heuristic groups only (flat < 10°, incline 10–45°, steep > 45°) because the evidence (mostly EMG plus few hypertrophy trials) does not support per-degree coefficients; the exact angle only separates strength histories.
+- **Weights:** dumbbells = one dumbbell ("25 kg each hand" → 25). Barbell/EZ/squat = the total the owner reports; never add or assume a bar weight. A known bar weight belongs on that bar's equipment record (`barWeightKg`, set in the app), unknown is allowed.
+- **Machines:** pec deck, curl machines, leg extension, leg curls and cable stations are equipment instances per gym; loads never compare across instances. Unknown machine → `equipment.name_hint` (+ manufacturer/model if stated) and `confidence: "uncertain"`; the importer flags it and never assigns it silently.
+- **Settings:** the app offers the setting names above for each exercise and remembers values per machine ("Remember for this machine"). Put stated values in `settings`.
+- **Unilateral:** `variation.unilateral: true` keeps its v1.0 meaning (one limb at a time; one set = both sides done once). Logging sides is separate: per-side sets get `side`, and a left + right pair is ONE set (section C). Without per-side detail, log one set per both-sides round and no `side`.
+- **No separate "number of sets" field** — each set is its own record (`count` only expands identical sets).
+- **History:** variations add to the same muscle's weekly volume but keep separate strength records (incline vs flat DB press, bar vs rope pushdown, machine vs EZ curl, DB vs cable laterals, squat vs leg extension, RDL vs leg curls). Load increases follow double progression (section D); never suggest one without that evidence.
 
 ---
 
@@ -251,7 +284,7 @@ src/
     recovery.ts    heuristic recovery estimates   targets.ts  learning mode + targets
     analysis.ts    weekly status, remaining sets, today's share, priorities
     reports.ts     weekly/baseline reports, rest analysis, deload, body
-    importer.ts    gymrat.workout v1 zod schema, matching, dedupe, export
+    importer.ts    gymrat.workout v1.x zod schema, matching, dedupe, export
   data/exercises.ts  seed exercise library (EN/RU, aliases, coefficients)
   lib/
     crypto.ts      Web Crypto: PBKDF2-SHA-256 (600k) → KEK; AES-256-GCM DEK; AAD-bound records

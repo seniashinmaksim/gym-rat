@@ -1,6 +1,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays, workoutVirtualMs } from './dates';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
+import { sideFactors } from './quality';
 import type { Registry } from './registry';
 import type { MuscleId } from './types';
 import { computeVolume, sessionMuscleEffective } from './volume';
@@ -114,8 +115,11 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     // Sets taken to failure slow recovery by roughly a day (Morán-Navarro 2017); unfamiliar
     // exercises cause more damage than familiar ones (repeated-bout effect, Damas 2016/2018).
     const hitsM = (exId: string, min: number) => (registry.get(exId)?.contributions[m] ?? 0) >= min;
-    const failureSets = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.5))
-      .flatMap((e) => e.sets).filter((s) => s.type !== 'warmup' && (s.toFailure || s.rir === 0)).length;
+    // A left + right pair to failure is one set, not two.
+    const failureSets = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.5)).reduce((n, e) => {
+      const f = sideFactors(e.sets);
+      return n + e.sets.filter((s) => s.type !== 'warmup' && !s.planned && (s.toFailure || s.rir === 0)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
+    }, 0);
     if (failureSets >= 2) {
       window += 12;
       factors.push(`${failureSets} sets to failure in that session: +12 h.`);

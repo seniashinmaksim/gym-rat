@@ -50,16 +50,16 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
       regions.lower_chest = 1;
       delete regions.upper_chest;
       if (!isFly && (contributions.front_delts ?? 0) > 0.25) contributions.front_delts = 0.25;
-      notes.push(`Decline ${angle}°: lower-chest emphasis, reduced front-delt demand.`);
+      notes.push(`Decline ${angle}°: lower-chest emphasis, reduced front-delt demand (heuristic).`);
     } else if (angle < 10) {
       regions.lower_chest = 0.5;
       delete regions.upper_chest;
-      notes.push(`Flat (${angle}°): whole-pec loading.`);
+      notes.push(`Flat (${angle}°): whole-pec loading (heuristic).`);
     } else if (angle <= 45) {
       regions.upper_chest = 1;
       delete regions.lower_chest;
       if (!isFly) contributions.front_delts = Math.max(contributions.front_delts ?? 0, 0.5);
-      notes.push(`Incline ${angle}°: upper-chest (clavicular) emphasis.`);
+      notes.push(`Incline ${angle}°: upper-chest (clavicular) emphasis; front delts at least 0.5 (heuristic — 15°, 30° and 45° are treated alike).`);
     } else {
       regions.upper_chest = 0.5;
       delete regions.lower_chest;
@@ -67,7 +67,7 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
         contributions.front_delts = 0.75;
         contributions.chest = Math.min(contributions.chest ?? 1, 0.75);
       }
-      notes.push(`Steep incline ${angle}°: approaches an overhead press — chest credit reduced, front delts increased.`);
+      notes.push(`Steep incline ${angle}°: approaches an overhead press — chest credit reduced, front delts increased (heuristic).`);
     }
   }
   if (variation?.grip === 'supinated' && def.pattern === 'vertical_pull') {
@@ -75,6 +75,23 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
     notes.push('Supinated grip: higher biceps contribution.');
   }
   return { contributions, regions, notes };
+}
+
+/**
+ * What the weight number means for this exercise, shown next to every weight input.
+ * Dumbbells: ONE dumbbell. Barbells: the total you report (bar weight never assumed).
+ */
+export function loadUnitLabel(def: ExerciseDef | undefined, loadMode: string | undefined): string {
+  if (loadMode === 'assisted') return 'kg assistance';
+  if (loadMode === 'bodyweight_plus') return 'kg added';
+  if (loadMode === 'per_side') return 'kg per side';
+  switch (def?.equipmentKind) {
+    case 'dumbbell': case 'kettlebell': return 'kg per dumbbell';
+    case 'barbell': case 'smith': return 'kg total';
+    case 'machine': case 'cable': return 'kg on stack';
+    case 'plate_loaded': return 'kg plates';
+    default: return 'kg';
+  }
 }
 
 /** Best-effort alias search used by pickers and the JSON importer. */

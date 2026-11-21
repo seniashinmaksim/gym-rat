@@ -1,4 +1,4 @@
-import type { EquipmentKind, ExerciseDef, MovementPattern, MuscleId, RegionId } from '../domain/types';
+import type { EquipmentKind, ExerciseDef, MovementPattern, MuscleId, RegionId, Variation, VariationField } from '../domain/types';
 
 /**
  * Seed exercise library.
@@ -162,27 +162,39 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'Shoulder flexion — rarely needed if pressing volume is substantial.'),
 
   // ---------------- Arms ----------------
-  ex('barbell_curl', 'Barbell curl', 'Подъём штанги на бицепс', ['bb curl', 'ez bar curl', 'ez curl', 'подъем штанги на бицепс'],
+  ex('barbell_curl', 'Barbell curl', 'Подъём штанги на бицепс', ['bb curl', 'straight bar curl', 'подъем штанги на бицепс'],
     'elbow_flexion', 'isolation', 'barbell', { biceps: 1, forearms: 0.25 }, [8, 12], 90,
-    'Elbow flexion with supinated grip.'),
+    'Elbow flexion with supinated grip on a straight bar.'),
+  ex('ez_bar_curl', 'Standing EZ-bar curl', 'Подъём EZ-штанги на бицепс стоя', ['ez bar curl', 'ez curl', 'ez-bar curl', 'standing ez bar curl', 'подъем ez штанги', 'бицепс с изогнутым грифом', 'подъем изогнутого грифа'],
+    'elbow_flexion', 'isolation', 'barbell', { biceps: 1, forearms: 0.25 }, [8, 12], 90,
+    'Elbow flexion with the semi-supinated EZ grip (easier on the wrists). Log TOTAL weight (bar + plates); EZ bars weigh different amounts, so the bar weight is never assumed — record it on the bar\'s equipment entry if you know it.'),
   ex('dumbbell_curl', 'Dumbbell curl', 'Сгибания с гантелями', ['db curl', 'curls', 'бицепс гантели', 'сгибание рук с гантелями'],
     'elbow_flexion', 'isolation', 'dumbbell', { biceps: 1, forearms: 0.25 }, [8, 15], 75,
     'Log weight per dumbbell.'),
   ex('incline_dumbbell_curl', 'Incline dumbbell curl', 'Сгибания на наклонной скамье', ['incline curl', 'сгибания сидя на наклонной'],
     'elbow_flexion', 'isolation', 'dumbbell', { biceps: 1, forearms: 0.25 }, [8, 15], 75,
     'Shoulder extended position trains the biceps at longer muscle lengths.'),
-  ex('preacher_curl', 'Preacher curl', 'Сгибания на скамье Скотта', ['scott curl', 'machine curl', 'скотт', 'бицепс в тренажере'],
+  ex('preacher_curl', 'Preacher curl', 'Сгибания на скамье Скотта', ['scott curl', 'preacher machine', 'machine preacher curl', 'скотт', 'бицепс на скамье скотта'],
     'elbow_flexion', 'isolation', 'machine', { biceps: 1, forearms: 0.25 }, [8, 15], 75,
-    'Hardest near the stretched position on most preacher setups.'),
+    'Hardest near the stretched position on most preacher setups. Use this for preacher-style curl machines and benches; use "Machine biceps curl" for other curl machines.'),
+  ex('machine_biceps_curl', 'Machine biceps curl', 'Сгибания рук в тренажёре', ['machine curl', 'biceps machine', 'bicep curl machine', 'machine bicep curl', 'бицепс в тренажере', 'сгибания в тренажере на бицепс'],
+    'elbow_flexion', 'isolation', 'machine', { biceps: 1, forearms: 0.25 }, [8, 15], 75,
+    'Selectorised curl machine. Arm-pad angle and seat height change where the curve is hardest — keep them consistent and note them per machine.'),
   ex('cable_curl', 'Cable curl', 'Сгибания на блоке', ['cable bicep curl', 'бицепс на блоке'],
     'elbow_flexion', 'isolation', 'cable', { biceps: 1, forearms: 0.25 }, [10, 15], 75,
     'Constant cable tension elbow flexion.'),
   ex('hammer_curl', 'Hammer curl', 'Молотки', ['hammer curls', 'молотки', 'молоток'],
     'elbow_flexion', 'isolation', 'dumbbell', { biceps: 0.75, forearms: 0.5 }, [8, 15], 75,
     'Neutral grip increases brachialis/brachioradialis contribution.'),
-  ex('triceps_pushdown', 'Triceps pushdown', 'Разгибания на блоке', ['pushdown', 'rope pushdown', 'tricep pushdown', 'разгибание на блоке', 'французский на блоке стоя'],
+  ex('triceps_pushdown', 'Triceps pushdown', 'Разгибания на блоке', ['pushdown', 'tricep pushdown', 'cable pushdown', 'разгибание на блоке', 'французский на блоке стоя'],
     'elbow_extension', 'isolation', 'cable', { triceps: 1 }, [10, 15], 75,
-    'Elbow extension with arms at the sides — lateral/medial head emphasis.'),
+    'Elbow extension with arms at the sides — lateral/medial head emphasis. Attachment not specified: older entries and pushdowns where the handle is unknown. Prefer the straight-bar or rope version.'),
+  ex('triceps_pushdown_bar', 'Triceps pushdown (straight bar)', 'Разгибания на блоке с прямой рукоятью', ['straight bar pushdown', 'straight-bar pushdown', 'bar pushdown', 'cable triceps pushdown straight bar', 'straight bar triceps pushdown', 'разгибания с прямой рукоятью', 'разгибания на блоке прямая рукоять'],
+    'elbow_extension', 'isolation', 'cable', { triceps: 1 }, [10, 15], 75,
+    'Elbow extension with a straight bar (pronated grip), arms at the sides — lateral/medial head emphasis. Tracked separately from rope pushdowns because the loads are not comparable.'),
+  ex('triceps_pushdown_rope', 'Triceps pushdown (rope)', 'Разгибания на блоке с канатом', ['rope pushdown', 'rope triceps pushdown', 'cable rope pushdown', 'разгибания с канатом', 'канат на трицепс'],
+    'elbow_extension', 'isolation', 'cable', { triceps: 1 }, [10, 15], 75,
+    'Neutral-grip elbow extension; the rope allows spreading the hands at the bottom. Usually lighter than the straight bar for the same effort — separate history.'),
   ex('overhead_triceps_extension', 'Overhead triceps extension', 'Разгибания из-за головы', ['overhead extension', 'french press', 'французский жим', 'разгибание из-за головы'],
     'elbow_extension', 'isolation', 'cable', { triceps: 1 }, [8, 15], 75,
     'Shoulder-flexed position lengthens the long head; associated with greater long-head growth.'),
@@ -231,7 +243,10 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'Knee extension — trains rectus femoris, which squats train relatively less.'),
   ex('romanian_deadlift', 'Romanian deadlift', 'Румынская тяга', ['rdl', 'stiff leg deadlift', 'румынская тяга', 'становая на прямых'],
     'hinge', 'compound', 'barbell', { hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5, adductors: 0.5, forearms: 0.25, traps: 0.25 }, [6, 12], 150,
-    'Hip hinge loading hamstrings at long lengths.'),
+    'Hip hinge (barbell) loading hamstrings at long lengths; glutes work hard, spinal erectors and grip as stabilisers. Different from leg curls (knee flexion).'),
+  ex('dumbbell_romanian_deadlift', 'Dumbbell Romanian deadlift', 'Румынская тяга с гантелями', ['db rdl', 'dumbbell rdl', 'dumbbell romanian deadlift', 'румынская тяга с гантелями', 'румынская гантели'],
+    'hinge', 'compound', 'dumbbell', { hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5, adductors: 0.5, forearms: 0.25, traps: 0.25 }, [8, 12], 120,
+    'Same hip hinge as the barbell RDL. Log weight PER DUMBBELL. Separate history from the barbell version.'),
   ex('deadlift', 'Deadlift', 'Становая тяга', ['conventional deadlift', 'становая', 'становая тяга'],
     'hinge', 'compound', 'barbell', { glutes: 1, hamstrings: 0.5, spinal_erectors: 0.75, quads: 0.5, adductors: 0.5, traps: 0.5, upper_back: 0.25, forearms: 0.5 }, [3, 8], 210,
     'Whole posterior chain; high systemic fatigue per set.'),
@@ -241,6 +256,9 @@ export const SEED_EXERCISES: ExerciseDef[] = [
   ex('seated_leg_curl', 'Seated leg curl', 'Сгибания ног сидя', ['seated hamstring curl', 'сгибание ног сидя'],
     'knee_flexion', 'isolation', 'machine', { hamstrings: 1, calves: 0.25 }, [10, 15], 90,
     'Hip-flexed position lengthens the hamstrings; associated with greater growth than lying curls.'),
+  ex('standing_leg_curl', 'Standing single-leg curl', 'Сгибание ноги стоя', ['standing leg curl', 'single leg curl', 'standing hamstring curl', 'сгибание ноги стоя', 'сгибания ног стоя'],
+    'knee_flexion', 'isolation', 'machine', { hamstrings: 1, calves: 0.25 }, [10, 15], 75,
+    'One leg at a time, hip roughly extended. Log left and right sets; a left + right pair counts as one set.'),
   ex('hip_thrust', 'Hip thrust', 'Ягодичный мост', ['glute bridge', 'barbell hip thrust', 'ягодичный мост', 'хип траст'],
     'hip_extension', 'compound', 'barbell', { glutes: 1, hamstrings: 0.25, adductors: 0.25 }, [8, 12], 120,
     'Peak tension at full hip extension.'),
@@ -267,7 +285,10 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'core', 'isolation', 'bodyweight', { abs: 1 }, [12, 25], 60, 'Spinal flexion.'),
   ex('hanging_leg_raise', 'Hanging leg raise', 'Подъём ног в висе', ['leg raise', 'подъем ног в висе', 'подъем ног'],
     'core', 'isolation', 'bodyweight', { abs: 1, forearms: 0.25 }, [8, 15], 75,
-    'Posterior pelvic tilt is needed for meaningful ab (not just hip-flexor) work.'),
+    'Hanging from a bar (grip involved). Counted as ab work on the assumption that the pelvis curls up (posterior tilt); a pure hip-flexion leg lift trains mainly the hip flexors. For arm-strap (ab strap) work use "Hanging knee raise with pelvic curl".'),
+  ex('hanging_knee_raise_pelvic_curl', 'Hanging knee raise with pelvic curl (ab straps)', 'Подъём коленей в петлях со скручиванием таза', ['ab straps', 'hanging ab straps', 'ab strap knee raise', 'ab strap crunch', 'ab strap raise', 'hanging knee raise', 'knee raise', 'hanging crunch', 'hanging knee raise pelvic curl', 'vertical knee raise arm supports', 'reverse crunch hanging', 'подъем коленей в висе', 'подъем коленей в петлях', 'подъем ног в петлях', 'скручивания в петлях', 'скручивания в висе', 'петли для пресса'],
+    'core', 'isolation', 'bodyweight', { abs: 1 }, [8, 15], 75,
+    'Hanging in arm straps (no grip → no forearm credit). Knees rise AND the pelvis actively curls toward the ribs (posterior pelvic tilt + lumbar flexion), so the rectus abdominis shortens under load — counted as a full ab set. Hip flexors assist but are not tracked. A leg lift without the pelvic curl would mainly train the hip flexors and should not be logged as this exercise.'),
   ex('ab_machine', 'Ab crunch machine', 'Пресс в тренажёре', ['ab machine', 'тренажер для пресса'],
     'core', 'isolation', 'machine', { abs: 1 }, [10, 20], 60, 'Machine spinal flexion.'),
   ex('plank', 'Plank', 'Планка', ['планка'],
@@ -276,5 +297,63 @@ export const SEED_EXERCISES: ExerciseDef[] = [
   ex('farmer_carry', "Farmer's carry", 'Прогулка фермера', ['farmers walk', 'farmer walk', 'фермерская прогулка'],
     'carry', 'compound', 'dumbbell', { forearms: 1, traps: 0.5, abs: 0.25 }, [1, 1], 120, 'Loaded carry; grip and traps.'),
 ];
+
+/**
+ * Logger metadata: setting names to pre-offer (values are remembered per equipment instance),
+ * the variation controls to show, and defaults for a new entry. Applied on top of the
+ * definitions above so the coefficient table stays readable.
+ */
+const META: Record<string, { settings?: string[]; fields?: VariationField[]; def?: Partial<Variation> }> = {
+  incline_dumbbell_press: { fields: ['angle'] },
+  dumbbell_bench_press: { fields: ['angle'] },
+  incline_barbell_press: { fields: ['angle'] },
+  barbell_bench_press: { fields: ['angle'] },
+  smith_incline_press: { fields: ['angle'] },
+  dumbbell_fly: { fields: ['angle'] },
+  decline_press: { fields: ['angle'] },
+  machine_chest_press: { settings: ['seat', 'handle position'] },
+  incline_chest_press: { settings: ['seat', 'handle position'] },
+  pec_deck: { settings: ['seat', 'handle position'] },
+  reverse_pec_deck: { settings: ['seat', 'handle position'] },
+  cable_fly: { settings: ['pulley height'] },
+  low_to_high_cable_fly: { settings: ['pulley height'] },
+  triceps_pushdown: { settings: ['cable height'], fields: ['attachment'] },
+  triceps_pushdown_bar: { settings: ['cable height'] },
+  triceps_pushdown_rope: { settings: ['cable height'] },
+  overhead_triceps_extension: { settings: ['cable height'], fields: ['attachment'] },
+  machine_biceps_curl: { settings: ['seat', 'arm pad'] },
+  preacher_curl: { settings: ['seat', 'arm pad'] },
+  cable_curl: { settings: ['cable height'], fields: ['attachment', 'unilateral'] },
+  ez_bar_curl: { fields: ['position'] },
+  barbell_curl: { fields: ['position'] },
+  dumbbell_curl: { fields: ['position', 'execution'] },
+  lateral_raise: { fields: ['position', 'execution', 'unilateral'] },
+  cable_lateral_raise: { settings: ['pulley height'], fields: ['attachment', 'unilateral'] },
+  machine_lateral_raise: { settings: ['seat'] },
+  back_squat: { fields: ['depth', 'barPosition', 'stance'] },
+  front_squat: { fields: ['depth', 'stance'] },
+  smith_squat: { fields: ['depth', 'stance'] },
+  hack_squat: { settings: ['shoulder pad', 'foot position'], fields: ['depth'] },
+  leg_press: { settings: ['seat', 'foot position'] },
+  leg_extension: { settings: ['seat', 'backrest', 'shin pad'] },
+  romanian_deadlift: { fields: ['stance'] },
+  dumbbell_romanian_deadlift: { fields: ['stance'] },
+  lying_leg_curl: { settings: ['ankle pad', 'range limiter'] },
+  seated_leg_curl: { settings: ['seat', 'backrest', 'ankle pad', 'thigh pad'] },
+  standing_leg_curl: { settings: ['ankle pad', 'thigh pad'], fields: ['unilateral'], def: { unilateral: true } },
+  lat_pulldown: { settings: ['knee pad'] },
+  close_grip_pulldown: { settings: ['knee pad'] },
+  seated_cable_row: { settings: ['foot plate'], fields: ['attachment'] },
+  chest_supported_row: { settings: ['seat', 'chest pad'] },
+  hanging_leg_raise: { fields: ['legs'] },
+  hanging_knee_raise_pelvic_curl: { settings: ['strap setup'] },
+};
+for (const e of SEED_EXERCISES) {
+  const m = META[e.id];
+  if (!m) continue;
+  if (m.settings) e.settingTemplate = m.settings;
+  if (m.fields) e.variationFields = m.fields;
+  if (m.def) e.defaultVariation = m.def;
+}
 
 export const SEED_BY_ID: Record<string, ExerciseDef> = Object.fromEntries(SEED_EXERCISES.map((e) => [e.id, e]));

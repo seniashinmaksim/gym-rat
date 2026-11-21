@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from 'recharts';
 import { formatDate, formatDuration } from '../../domain/dates';
-import { defaultIncrement, warmupFor, type ProgressionSeries, type TrendClass } from '../../domain/progression';
+import { defaultIncrement, warmupFor, type ProgressionSeries, type SetPoint, type TrendClass } from '../../domain/progression';
+import { loadUnitLabel } from '../../domain/registry';
 import { useData } from '../../lib/store';
 import { IconAlert, IconSearch, IconTrend } from '../components/icons';
 import { Badge, Callout, Card, CardTitle, Empty, Input, Page, Segmented, Stat, Table, Td, Why, cx, fmt } from '../components/ui';
@@ -71,7 +72,7 @@ export function StrengthPage() {
   }
 
   return (
-    <Page title="Strength progression" subtitle="Each exercise × equipment instance is tracked as its own history.">
+    <Page title="Strength progression" subtitle="Each exercise × equipment instance × configuration (angle, attachment, one side at a time…) is its own history.">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Progressing" value={counts.progressing} tone="good" sub="exercise histories" />
         <Stat label="Stable" value={counts.stable} sub="holding steady" />
@@ -115,7 +116,7 @@ export function StrengthPage() {
                 <div className="mb-2 flex items-baseline gap-2 px-1">
                   <h2 className="text-sm font-semibold text-ink-900 dark:text-white">{names.ex(def, exerciseId)}</h2>
                   {names.exSub(def) && <span className="text-xs text-ink-500">{names.exSub(def)}</span>}
-                  {series.length > 1 && <Badge>{series.length} machines</Badge>}
+                  {series.length > 1 && <Badge>{series.length} histories</Badge>}
                 </div>
                 <div className="space-y-2">
                   {series.map((p) => (
@@ -151,7 +152,8 @@ export function StrengthPage() {
 function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: boolean; onClick: () => void }) {
   const cur = p.current;
   const prev = p.previous;
-  const top = (s: typeof cur) => (s ? `${s.topWeight != null ? `${fmt(s.topWeight, 2)} kg × ` : ''}${s.topReps ?? '?'}${s.topRir != null ? ` @${s.topRir}` : ''}` : '—');
+  const bw = isBodyweight(p);
+  const top = (s: typeof cur) => (s ? `${s.topWeight != null && !(bw && s.topWeight === 0) ? `${fmt(s.topWeight, 2)} kg × ` : ''}${s.topReps ?? '?'}${bw && !s.topWeight ? ' reps' : ''}${s.topRir != null ? ` @${s.topRir}` : ''}` : '—');
   const delta = cur?.index != null && prev?.index != null ? cur.index - prev.index : null;
   return (
     <button
@@ -180,7 +182,7 @@ function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: bool
           </span>
         )}
         <span className="ml-auto">
-          <Badge tone={ACTION_TONE[p.next.action]}>{ACTION_LABEL[p.next.action]}{p.next.weight != null && p.next.action !== 'calibrate' ? ` · ${fmt(p.next.weight, 2)} kg` : ''}</Badge>
+          <Badge tone={ACTION_TONE[p.next.action]}>{bw && !p.next.weight && p.next.action === 'hold' ? 'Add reps' : `${ACTION_LABEL[p.next.action]}${p.next.weight != null && p.next.action !== 'calibrate' ? ` · ${fmt(p.next.weight, 2)} kg` : ''}`}</Badge>
         </span>
       </div>
     </button>
@@ -199,7 +201,11 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
     top: s.topWeight,
     reps: s.totalReps,
     rir: s.avgRir,
+    rest: s.restAvgSec,
   }));
+  const unit = loadUnitLabel(def, p.loadMode);
+  const bw = isBodyweight(p);
+  const prs = personalBests(p);
   const loadLabel = p.loadMode === 'per_side' ? ' per side' : p.loadMode === 'assisted' ? ' assistance' : p.loadMode === 'bodyweight_plus' ? ' added' : '';
 
   return (
@@ -214,9 +220,19 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
         </Why>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <MiniStat label="Current top set" value={p.current?.topWeight != null ? `${fmt(p.current.topWeight, 2)} kg` : '—'} sub={p.current ? `× ${p.current.topReps ?? '?'}${p.current.topRir != null ? ` @ RIR ${p.current.topRir}` : ''}` : ''} />
-          <MiniStat label="Previous" value={p.previous?.topWeight != null ? `${fmt(p.previous.topWeight, 2)} kg` : '—'} sub={p.previous ? `× ${p.previous.topReps ?? '?'}${p.previous.topRir != null ? ` @ RIR ${p.previous.topRir}` : ''}` : ''} />
-          <MiniStat label="Best" value={p.best.weight != null ? `${fmt(p.best.weight, 2)} kg` : p.best.reps != null ? `${p.best.reps} reps` : '—'} sub={p.best.date ? `${p.best.reps != null && p.best.weight != null ? `× ${p.best.reps} · ` : ''}${formatDate(p.best.date)}` : ''} />
+          <MiniStat label="Current top set" value={bw ? `${p.current?.topReps ?? '—'} reps` : p.current?.topWeight != null ? `${fmt(p.current.topWeight, 2)} kg` : '—'} sub={p.current ? `× ${p.current.topReps ?? '?'}${p.current.topRir != null ? ` @ RIR ${p.current.topRir}` : ''}` : ''} />
+          <MiniStat label="Previous" value={bw ? (p.previous ? `${p.previous.topReps ?? '?'} reps` : '—') : p.previous?.topWeight != null ? `${fmt(p.previous.topWeight, 2)} kg` : '—'} sub={p.previous ? `× ${p.previous.topReps ?? '?'}${p.previous.topRir != null ? ` @ RIR ${p.previous.topRir}` : ''}` : ''} />
+          <MiniStat label="Best" value={bw ? (p.best.reps != null ? `${p.best.reps} reps` : '—') : p.best.weight != null ? `${fmt(p.best.weight, 2)} kg` : p.best.reps != null ? `${p.best.reps} reps` : '—'} sub={p.best.date ? `${p.best.reps != null && p.best.weight != null ? `× ${p.best.reps} · ` : ''}${formatDate(p.best.date)}` : ''} />
+        </div>
+        <p className="mt-2 text-[11px] text-ink-500">Weights are {unit}{def?.equipmentKind === 'barbell' ? ' (bar weight not assumed)' : ''}.</p>
+      </Card>
+
+      <Card>
+        <CardTitle hint="Working sets on this equipment and configuration only.">Personal bests</CardTitle>
+        <div className="grid grid-cols-3 gap-2">
+          <MiniStat label="Heaviest" value={prs.heaviest && !bw ? `${fmt(prs.heaviest.weight, 2)} kg` : '—'} sub={prs.heaviest && !bw ? `× ${prs.heaviest.reps} · ${formatDate(prs.heaviest.date)}` : ''} />
+          <MiniStat label="Most reps" value={prs.mostReps ? `${prs.mostReps.reps}` : '—'} sub={prs.mostReps ? `${prs.mostReps.weight != null ? `@ ${fmt(prs.mostReps.weight, 2)} kg · ` : ''}${formatDate(prs.mostReps.date)}` : ''} />
+          <MiniStat label="Best index" value={p.best.e1rm != null ? fmt(p.best.e1rm) : '—'} sub={p.best.date ? formatDate(p.best.date) : ''} />
         </div>
       </Card>
 
@@ -225,7 +241,7 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
           Next session
         </CardTitle>
         <div className="grid grid-cols-3 gap-2">
-          <MiniStat label="Working weight" value={p.next.weight != null ? `${fmt(p.next.weight, 2)} kg` : '—'} sub={loadLabel ? loadLabel.trim() : 'estimate'} />
+          <MiniStat label="Working weight" value={isBodyweight(p) && !p.next.weight ? 'Bodyweight' : p.next.weight != null ? `${fmt(p.next.weight, 2)} kg` : '—'} sub={isBodyweight(p) && !p.next.weight ? 'add reps' : loadLabel ? loadLabel.trim() : 'estimate'} />
           <MiniStat label="Rep target" value={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} sub="per working set" />
           <MiniStat label="Target RIR" value={`≤ ${p.next.rirTarget}`} sub={`step ${fmt(inc, 2)} kg`} />
         </div>
@@ -282,6 +298,20 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
               </div>
             </Card>
             <Card>
+              <CardTitle hint="Average rest before working sets (seconds)">Rest</CardTitle>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chart} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} domain={[0, 'auto']} allowDecimals={false} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="rest" name="Avg rest (s)" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card>
               <CardTitle hint="Lower = closer to failure">Average RIR</CardTitle>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%">
@@ -308,7 +338,7 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
             <tr key={s.workoutId + s.date}>
               <Td right={false}>{formatDate(s.date)}</Td>
               <Td className="max-w-[260px] whitespace-normal text-xs">
-                {s.sets.map((x) => `${x.weight != null ? fmt(x.weight, 2) : 'BW'}×${x.reps ?? '?'}${x.rir != null ? `@${x.rir}` : ''}`).join(', ')}
+                {s.sets.map(setText).join(', ')}
               </Td>
               <Td>{fmt(s.index)}</Td>
               <Td>{s.totalReps}</Td>
@@ -320,6 +350,28 @@ function SeriesDetail({ p, incrementFor }: { p: ProgressionSeries; incrementFor:
       </Card>
     </div>
   );
+}
+
+/** Unloaded bodyweight work (e.g. ab straps): progress is reps, not kg. */
+function isBodyweight(p: ProgressionSeries): boolean {
+  return p.loadMode === 'bodyweight_plus' && (p.current?.topWeight ?? 0) === 0;
+}
+
+function setText(x: SetPoint): string {
+  return `${x.side ? (x.side === 'left' ? 'L ' : 'R ') : ''}${x.weight != null ? fmt(x.weight, 2) : 'BW'}×${x.reps ?? '?'}${x.rir != null ? `@${x.rir}` : ''}`;
+}
+
+/** Heaviest working set (any reps) and most reps in one set, from this history only. */
+function personalBests(p: ProgressionSeries) {
+  let heaviest: { weight: number; reps: number; date: string } | null = null;
+  let mostReps: { weight: number | null; reps: number; date: string } | null = null;
+  const assisted = p.loadMode === 'assisted';
+  for (const s of p.sessions) for (const x of s.sets) {
+    if (x.reps == null || x.reps <= 0) continue;
+    if (x.weight != null && (!heaviest || (assisted ? x.weight < heaviest.weight : x.weight > heaviest.weight) || (x.weight === heaviest.weight && x.reps > heaviest.reps))) heaviest = { weight: x.weight, reps: x.reps, date: s.date };
+    if (!mostReps || x.reps > mostReps.reps || (x.reps === mostReps.reps && (x.weight ?? 0) > (mostReps.weight ?? 0))) mostReps = { weight: x.weight, reps: x.reps, date: s.date };
+  }
+  return { heaviest, mostReps };
 }
 
 function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {

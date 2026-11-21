@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { activeWorkout } from '../Layout';
 import { localNowParts, formatDate, formatDuration } from '../../domain/dates';
-import { defaultIncrement, progressionKey, warmupFor } from '../../domain/progression';
-import { assessSet } from '../../domain/quality';
-import { resolveCoefficients, searchExercises } from '../../domain/registry';
-import type { Equipment, EquipmentKind, ExerciseDef, LoadMode, Location, MuscleId, SetType, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
+import { defaultIncrement, humanize, progressionKey, variationParts, warmupFor } from '../../domain/progression';
+import { assessSet, countedSetCount, mergeSides, sideFactors } from '../../domain/quality';
+import { loadUnitLabel, resolveCoefficients, searchExercises } from '../../domain/registry';
+import type { Equipment, EquipmentKind, ExerciseDef, LoadMode, Location, MuscleId, SetType, Variation, VariationField, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
 import { slugId, uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
@@ -14,6 +14,7 @@ import { Badge, Button, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, I
 import { useAnalysis, useNames } from '../hooks';
 
 const MACHINE_KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith'];
+const NEW_EQ_KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith', 'barbell', 'dumbbell', 'bodyweight', 'other'];
 
 export function LoggerPage() {
   const { id } = useParams();
@@ -147,20 +148,24 @@ function SessionEditor({ initial }: { initial: Workout }) {
     setPicker(false);
     const eq = data.equipment.find((e) => e.exerciseIds.includes(def.id) && e.locationId === w.locationId) ?? null;
     const prev = lastSessionFor(data.workouts, def.id, eq?.id ?? null, w.id);
-    const series = a.progression.find((p) => p.exerciseId === def.id && (eq ? p.equipmentId === eq.id : true));
+    // Same configuration as last time (angle, attachment, one side at a time…), else the exercise's default.
+    const variation = prev?.variation ? { ...prev.variation } : def.defaultVariation ? { ...def.defaultVariation } : undefined;
+    const draft: WorkoutExercise = {
+      id: uid('we'), order: w.exercises.length, exerciseId: def.id, exerciseConfidence: 'confirmed',
+      equipmentId: eq?.id ?? null, equipmentConfidence: eq ? 'confirmed' : 'unknown',
+      settings: eq && Object.keys(eq.settings).length ? { ...eq.settings } : undefined,
+      variation, sets: [], startedAt: new Date().toISOString(),
+    };
+    const series = a.progression.find((p) => p.key === progressionKey(draft, w, def));
     // Prefill from what was actually done last time (suggested load if an increase is due); never invent reps.
     // The pre-filled set is only a plan: it counts once you tick it.
     const lastWorking = prev?.sets.find((s) => s.type === 'working' && !s.planned);
     const firstWeight = series?.next.weight ?? lastWorking?.weightKg ?? null;
     const firstReps = series?.next.action === 'increase' ? series.next.repTarget[0] : lastWorking?.reps ?? null;
-    const ex: WorkoutExercise = {
-      id: uid('we'), order: w.exercises.length, exerciseId: def.id, exerciseConfidence: 'confirmed',
-      equipmentId: eq?.id ?? null, equipmentConfidence: eq ? 'confirmed' : 'unknown',
-      settings: eq ? { ...eq.settings } : undefined,
-      variation: prev?.variation ? { ...prev.variation } : undefined,
-      sets: [newSet('working', firstWeight, firstReps, defaultLoadMode(def), live)],
-      startedAt: new Date().toISOString(),
-    };
+    const first = newSet('working', firstWeight, firstReps, defaultLoadMode(def), live);
+    // Left/right logging continues if it was used last time (or is the exercise's default, e.g. standing leg curl).
+    if (prev ? prev.sets.some((s) => s.side) : def.defaultVariation?.unilateral) first.side = 'left';
+    const ex: WorkoutExercise = { ...draft, sets: [first] };
     update((x) => ({ ...x, exercises: [...x.exercises, ex] }));
   };
 
@@ -186,9 +191,13 @@ function SessionEditor({ initial }: { initial: Workout }) {
     const idx = ex.sets.findIndex((s) => s.id === setId);
     let next: WorkoutSet | null = null;
     if (live && idx === ex.sets.length - 1 && target.type !== 'warmup') {
-      const n = ex.sets.filter((s) => s.type === 'working').length;
-      const prevReps = prevSession?.sets.filter((s) => s.type === 'working' && !s.planned)[n]?.reps;
+      // Per-side logging alternates: after the left side comes the right side (same load), and vice versa.
+      const side = target.side ? (target.side === 'left' ? 'right' : 'left') : undefined;
+      const same = (s: WorkoutSet) => s.type === 'working' && (s.side ?? null) === (side ?? null);
+      const n = ex.sets.filter(same).length;
+      const prevReps = prevSession?.sets.filter((s) => same(s) && !s.planned)[n]?.reps;
       next = newSet('working', target.weightKg, prevReps ?? target.reps, target.loadMode, true);
+      if (side) next.side = side;
     }
     setFocusSet(next?.id ?? ex.sets[idx + 1]?.id ?? null);
     update((x) => ({ ...x, exercises: x.exercises.map((e) => {
@@ -197,7 +206,11 @@ function SessionEditor({ initial }: { initial: Workout }) {
         if (s.id !== setId) return s;
         const done: WorkoutSet = { ...s, planned: undefined, completedAt: new Date(nowMs).toISOString() };
         // Rest measured by the timer: time since the previous completed set minus an estimate of set duration (≈3 s/rep).
-        if (lastDone && s.restSecBefore == null && e.sets.some((o) => o.completedAt)) {
+        // The second side of a left/right pair follows the first directly — that gap is not rest between sets.
+        const i = e.sets.findIndex((o) => o.id === s.id);
+        const before = e.sets[i - 1];
+        const secondSide = !!(s.side && before?.side && before.side !== s.side && before.type === s.type);
+        if (lastDone && !secondSide && s.restSecBefore == null && e.sets.some((o) => o.completedAt)) {
           const gap = Math.round((nowMs - lastDone.at) / 1000 - (s.reps ?? 8) * 3);
           if (gap > 0 && gap < 1800) {
             done.restSecBefore = gap;
@@ -234,7 +247,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
       const d = eh * 60 + em - (sh * 60 + sm);
       if (d > 0 && d < 400) durationMin = d;
     }
-    const final = { ...x, endTime: x.endTime ?? (x.date === now.date ? now.time : null), durationMin };
+    const final = { ...x, exercises: x.exercises.map(dropEmptySettings), endTime: x.endTime ?? (x.date === now.date ? now.time : null), durationMin };
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     setW(final);
     await store.saveWorkout(final);
@@ -280,6 +293,15 @@ function SessionEditor({ initial }: { initial: Workout }) {
 
 function newSet(type: SetType, weight: number | null, reps: number | null, loadMode: LoadMode = 'total', planned = false): WorkoutSet {
   return { id: uid('s'), type, weightKg: weight, loadMode, reps, rir: null, rirSource: 'unknown', restSecBefore: null, ...(planned ? { planned: true } : {}) };
+}
+
+type SidesMode = 'both' | 'one_lr' | 'one';
+
+/** Setting names offered by the template but left blank are not stored. */
+function dropEmptySettings(e: WorkoutExercise): WorkoutExercise {
+  if (!e.settings) return e;
+  const kept = Object.fromEntries(Object.entries(e.settings).filter(([, v]) => v.trim() !== ''));
+  return { ...e, settings: Object.keys(kept).length ? kept : undefined };
 }
 
 function defaultLoadMode(def: ExerciseDef): LoadMode {
@@ -383,7 +405,7 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
     let n = 0;
     for (const o of w.exercises.slice(0, index)) {
       const od = a.registry.get(o.exerciseId);
-      if (od && primary.some((m) => ((od.contributions as Record<string, number>)[m] ?? 0) >= 0.5)) n += o.sets.filter((s) => s.type !== 'warmup').length;
+      if (od && primary.some((m) => ((od.contributions as Record<string, number>)[m] ?? 0) >= 0.5)) n += countedSetCount(o.sets);
     }
     return n;
   }, [def, w.exercises, index, a.registry]);
@@ -392,10 +414,54 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
   const resolved = def ? resolveCoefficients(def, ex.variation) : null;
   const eqOptions = data.equipment.filter((e) => !w.locationId || e.locationId === w.locationId || e.locationId == null);
 
+  // Left/right logging is a property of the sets themselves (any set with a side), separate from
+  // `variation.unilateral`, which keeps its v1.0 meaning: one limb at a time, one set = both sides done.
+  const perSide = ex.sets.some((s) => s.side);
+  const pairs = sideFactors(ex.sets);
   const addSet = (type: SetType = 'working') => {
     const last = [...ex.sets].reverse().find((s) => s.type === type) ?? ex.sets[ex.sets.length - 1];
-    setEx((e) => ({ ...e, sets: [...e.sets, newSet(type, last?.weightKg ?? null, last?.reps ?? null, last?.loadMode, live)] }));
+    const s = newSet(type, last?.weightKg ?? null, last?.reps ?? null, last?.loadMode, live);
+    // Left/right logging: alternate left → right → left…
+    if (perSide && type !== 'warmup') s.side = last?.side === 'left' ? 'right' : 'left';
+    setEx((e) => ({ ...e, sets: [...e.sets, s] }));
   };
+  const setVar = (patch: Partial<NonNullable<WorkoutExercise['variation']>>) => setEx((e) => ({ ...e, variation: { ...(e.variation ?? {}), ...patch } }));
+  const sidesMode: SidesMode = perSide ? 'one_lr' : ex.variation?.unilateral ? 'one' : 'both';
+  const setSides = (mode: SidesMode) => {
+    if (mode === sidesMode) return;
+    if (mode === 'one_lr') {
+      // Sets not yet performed get alternating sides (left, right, left…). Sets already logged are only
+      // re-tagged after confirmation, because tagging them makes each L+R pair count as ONE set.
+      const logged = ex.sets.filter((s) => !s.planned && s.type !== 'warmup' && !s.side).length;
+      const tagLogged = logged > 0 && confirmAction(`Tag the ${logged} set${logged === 1 ? '' : 's'} already logged as left/right (L, R, L…)? Each L+R pair then counts as one set.`);
+      let k = 0;
+      setEx((e) => {
+        const sets = e.sets.map((s) => (s.type === 'warmup' || s.side || (!s.planned && !tagLogged) ? s : { ...s, side: k++ % 2 === 0 ? 'left' as const : 'right' as const }));
+        // Nothing left to tag (all sets logged, declined): add the next set as a left side so the mode sticks.
+        if (!sets.some((s) => s.side)) {
+          const last = [...sets].reverse().find((s) => s.type !== 'warmup');
+          sets.push({ ...newSet('working', last?.weightKg ?? null, last?.reps ?? null, last?.loadMode, true), side: 'left' });
+        }
+        return { ...e, variation: { ...(e.variation ?? {}), unilateral: true }, sets };
+      });
+      return;
+    }
+    // Leaving left/right logging: never silently turn a pair into two sets.
+    if (perSide) {
+      const n = countedSetCount(ex.sets.filter((s) => s.side));
+      if (!confirmAction(`Merge the left/right sets into ${n} set${n === 1 ? '' : 's'}? Each pair keeps the left side's weight, reps and RIR.`)) return;
+    }
+    setEx((e) => ({ ...e, variation: { ...(e.variation ?? {}), unilateral: mode === 'one' }, sets: mergeSides(e.sets) }));
+  };
+  const setupSummary = [
+    ...variationParts(ex.variation, def).map((p) => p.label),
+    ex.variation?.depth ? humanizeDepth(ex.variation.depth) : null,
+    ex.variation?.barPosition ? humanize(ex.variation.barPosition) : null,
+    ex.variation?.execution ? humanize(ex.variation.execution) : null,
+    ...Object.entries(ex.settings ?? {}).filter(([, v]) => v.trim()).map(([k, v]) => `${k} ${v}`),
+  ].filter(Boolean) as string[];
+  const unit = loadUnitLabel(def, ex.sets.find((s) => s.type !== 'warmup')?.loadMode ?? ex.sets[0]?.loadMode);
+  const barKind = def && (def.equipmentKind === 'barbell' || def.equipmentKind === 'smith');
   const addWarmups = () => {
     if (!wu.sets.length) return;
     setEx((e) => ({ ...e, sets: [...wu.sets.map((s) => newSet('warmup', s.weight, s.reps, e.sets[0]?.loadMode, live)), ...e.sets] }));
@@ -432,17 +498,21 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
         }} className={cx(needsMachine && !ex.equipmentId && 'border-amber-500/60')}>
           <option value="">{needsMachine ? 'Which machine? (not identified)' : 'Free weights / no specific equipment'}</option>
           {eqOptions.map((q) => <option key={q.id} value={q.id}>{q.name}{q.manufacturer ? ` · ${q.manufacturer}` : ''}{q.exerciseIds.includes(ex.exerciseId) ? ' ★' : ''}</option>)}
-          <option value="__new">+ New machine at this gym…</option>
+          <option value="__new">{needsMachine ? '+ New machine at this gym…' : '+ New bar / equipment at this gym…'}</option>
         </Select>
         <Button size="md" variant="ghost" onClick={() => setShowVar(!showVar)}>Setup {showVar ? '▴' : '▾'}</Button>
       </div>
       {needsMachine && !ex.equipmentId && <p className="px-4 pt-1.5 text-[11px] text-amber-700 dark:text-amber-300 sm:px-5">Different machines are tracked separately, and their loads are never compared. Pick or add this machine to keep its history clean.</p>}
+      {!showVar && (setupSummary.length > 0 || (def?.variationFields?.length ?? 0) > 0 || (def?.settingTemplate?.length ?? 0) > 0) && (
+        <button type="button" onClick={() => setShowVar(true)} className="mx-4 mt-1.5 flex min-h-[40px] max-w-full items-center gap-1.5 text-left text-xs text-ink-500 sm:mx-5">
+          {setupSummary.length ? <span className="truncate"><span className="font-medium text-ink-700 dark:text-ink-200">Setup:</span> {setupSummary.join(' · ')}</span>
+            : <span className="underline decoration-dotted underline-offset-2">Set {[def?.variationFields?.includes('angle') ? 'bench angle' : null, def?.variationFields?.includes('unilateral') ? 'one side / both' : null, def?.settingTemplate?.length ? def.settingTemplate.slice(0, 2).join(', ') : null].filter(Boolean).join(', ') || 'variation'}</span>}
+        </button>
+      )}
 
       {showVar && (
         <div className="mx-4 mt-3 grid gap-3 rounded-xl bg-ink-50 p-3 dark:bg-ink-950 sm:mx-5 sm:grid-cols-4">
-          {def?.angleSensitive && (
-            <Field label="Bench angle (°)" hint="0 flat, 30 incline, −15 decline"><NumInput value={ex.variation?.benchAngleDeg ?? null} onChange={(v) => setEx((e) => ({ ...e, variation: { ...(e.variation ?? {}), benchAngleDeg: v } }))} /></Field>
-          )}
+          {def && <VariationChips def={def} v={ex.variation} onChange={setVar} notes={resolved?.notes ?? []} sides={sidesMode} onSides={setSides} showSides={!!def.variationFields?.includes('unilateral') || perSide} />}
           <Field label="Grip"><Select value={ex.variation?.grip ?? ''} onChange={(e) => setEx((x) => ({ ...x, variation: { ...(x.variation ?? {}), grip: e.target.value || null } }))}>
             <option value="">—</option><option value="pronated">Pronated</option><option value="supinated">Supinated</option><option value="neutral">Neutral</option><option value="mixed">Mixed</option>
           </Select></Field>
@@ -452,13 +522,13 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
           <Field label="Range of motion"><Select value={ex.variation?.rom ?? ''} onChange={(e) => setEx((x) => ({ ...x, variation: { ...(x.variation ?? {}), rom: (e.target.value || null) as WorkoutExercise['variation'] extends infer V ? V extends { rom?: infer R } ? R : never : never } }))}>
             <option value="">Full (default)</option><option value="full">Full</option><option value="lengthened_partial">Lengthened partials</option><option value="partial">Partial</option>
           </Select></Field>
-          <SettingsEditor settings={ex.settings ?? {}} onChange={(s) => setEx((x) => ({ ...x, settings: s }))}
-            onSaveDefault={eq ? () => { void store.saveEquipment({ ...eq, settings: { ...(ex.settings ?? {}) } }); toast('Saved as this machine\'s default settings'); } : undefined} />
+          <SettingsEditor settings={ex.settings ?? {}} template={def?.settingTemplate ?? []} onChange={(s) => setEx((x) => ({ ...x, settings: s }))}
+            onSaveDefault={eq ? () => { void store.saveEquipment({ ...eq, settings: Object.fromEntries(Object.entries(ex.settings ?? {}).filter(([, v]) => v.trim())), updatedAt: new Date().toISOString() }); toast('Saved as this machine\'s default settings'); } : undefined} />
         </div>
       )}
 
       <div className="mx-4 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500 sm:mx-5">
-        {prev ? <span>Last time: <b className="font-medium text-ink-700 dark:text-ink-200">{prev.sets.filter((s) => s.type === 'working' && !s.planned).map((s) => `${s.weightKg ?? 'BW'}×${s.reps ?? '?'}${s.rir != null ? `@${s.rir}` : ''}`).join(', ')}</b></span> : <span>No history on this {ex.equipmentId ? 'machine' : 'exercise'} yet — calibration session.</span>}
+        {prev ? <span>Last time: <b className="font-medium text-ink-700 dark:text-ink-200">{prev.sets.filter((s) => s.type === 'working' && !s.planned).map((s) => `${s.side ? (s.side === 'left' ? 'L ' : 'R ') : ''}${s.weightKg ?? 'BW'}×${s.reps ?? '?'}${s.rir != null ? `@${s.rir}` : ''}`).join(', ')}</b></span> : <span>No history on this {ex.equipmentId ? 'machine' : 'exercise'} yet — calibration session.</span>}
         {target && <Badge tone={target.action === 'increase' ? 'good' : target.action === 'reduce' ? 'warn' : 'neutral'}>{target.action === 'increase' ? '↑' : target.action === 'reduce' ? '↓' : '='} {target.weight != null ? `${fmt(target.weight, 2)} kg` : 'BW'} · {target.repTarget[0]}–{target.repTarget[1]}</Badge>}
       </div>
       {(target || wu.sets.length > 0) && (
@@ -473,11 +543,17 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
 
       <div className="mt-3 border-t border-ink-100 dark:border-ink-800">
         <div className="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-4 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:px-5">
-          <span>Set</span><span className="text-center">Weight kg</span><span className="text-center">Reps</span>
+          <span>Set</span><span className="text-center normal-case tracking-normal">{unit}</span><span className="text-center">Reps</span>
         </div>
+        {barKind && (
+          <p className="px-4 pb-1 text-[11px] text-ink-500 sm:px-5">
+            {eq?.barWeightKg != null ? `Bar ${fmt(eq.barWeightKg, 2)} kg — plates = total − ${fmt(eq.barWeightKg, 2)} kg.` : 'Enter the total you lifted. Bar weight unknown — never assumed (set it on the bar\'s equipment entry if you know it).'}
+          </p>
+        )}
+        {perSide && <p className="px-4 pb-1 text-[11px] text-ink-500 sm:px-5">One side at a time: log a left and a right set — each pair counts as <b className="font-semibold">one</b> set.</p>}
         {index === 0 && <p className="px-4 pb-1 text-[11px] leading-snug text-ink-500 sm:px-5">Numbers below the reps are <b className="font-semibold">RIR</b> — reps you still had left. Tap one, then ✓ to count the set.</p>}
         {ex.sets.map((s, i) => (
-          <SetRow key={s.id} s={s} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type).length} inc={inc} onChange={(p) => setSet(s.id, p)}
+          <SetRow key={s.id} s={s} pair={pairs.get(s.id) ?? 1} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type && (x.side ?? null) === (s.side ?? null)).length} inc={inc} sideToggle={perSide} onChange={(p) => setSet(s.id, p)}
             onRemove={() => setEx((e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) }))} onComplete={() => onComplete(ex.id, s.id)} />
         ))}
         <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-5">
@@ -492,24 +568,105 @@ function ExerciseCard({ index, w, ex, live, update, onComplete }: {
   );
 }
 
-function SettingsEditor({ settings, onChange, onSaveDefault }: { settings: Record<string, string>; onChange: (s: Record<string, string>) => void; onSaveDefault?: () => void }) {
+const ANGLE_CHIPS = [0, 15, 30, 45];
+const CHOICES: Partial<Record<VariationField, { key: keyof Variation; label: string; options: [string, string][] }>> = {
+  attachment: { key: 'attachment', label: 'Attachment', options: [['straight_bar', 'Straight bar'], ['rope', 'Rope'], ['v_bar', 'V-bar'], ['single_handle', 'Handle'], ['cuff', 'Cuff']] },
+  position: { key: 'position', label: 'Position', options: [['standing', 'Standing'], ['seated', 'Seated']] },
+  execution: { key: 'execution', label: 'Execution', options: [['simultaneous', 'Both arms together'], ['alternating', 'Alternating']] },
+  legs: { key: 'legs', label: 'Legs', options: [['straight', 'Straight'], ['bent', 'Bent knees']] },
+  depth: { key: 'depth', label: 'Depth', options: [['above_parallel', 'Above parallel'], ['parallel', 'Parallel'], ['below_parallel', 'Below parallel']] },
+  barPosition: { key: 'barPosition', label: 'Bar position', options: [['high_bar', 'High bar'], ['low_bar', 'Low bar']] },
+  stance: { key: 'stance', label: 'Stance', options: [['narrow', 'Narrow'], ['shoulder', 'Shoulder'], ['wide', 'Wide']] },
+};
+
+function humanizeDepth(d: string): string {
+  return CHOICES.depth?.options.find(([v]) => v === d)?.[1].toLowerCase() ?? humanize(d);
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}
+      className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium transition active:scale-95', on ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{children}</button>
+  );
+}
+
+/** Touch chips for the variation fields this exercise uses (bench angle, attachment, one side at a time…). */
+function VariationChips({ def, v, onChange, notes, sides, onSides, showSides }: { def: ExerciseDef; v?: Variation; onChange: (p: Partial<Variation>) => void; notes: string[]; sides: SidesMode; onSides: (m: SidesMode) => void; showSides: boolean }) {
+  const fields = def.variationFields ?? [];
+  if (!fields.length && !showSides) return null;
+  const angle = v?.benchAngleDeg ?? null;
+  // An incline exercise done flat is a different exercise (e.g. dumbbell bench press), so no "Flat" chip there.
+  const chips = def.pattern === 'incline_push' ? ANGLE_CHIPS.filter((d) => d > 0) : ANGLE_CHIPS;
+  return (
+    <div className="space-y-3 sm:col-span-4">
+      {fields.includes('angle') && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Bench angle</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chips.map((d) => <Chip key={d} on={angle === d} onClick={() => onChange({ benchAngleDeg: angle === d ? null : d })}>{d === 0 ? 'Flat' : `${d}°`}</Chip>)}
+            <div className="w-24"><NumInput value={angle != null && !ANGLE_CHIPS.includes(angle) ? angle : null} onChange={(x) => onChange({ benchAngleDeg: x })} placeholder="other °" /></div>
+          </div>
+          {notes.length > 0 && <p className="mt-1 text-[11px] text-ink-500">{notes.join(' ')}</p>}
+          <p className="mt-0.5 text-[11px] text-ink-400">Each angle keeps its own strength history. Muscle credit uses coarse groups only (flat / incline / steep); evidence doesn't support finer steps.</p>
+        </div>
+      )}
+      {showSides && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Sides</div>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip on={sides === 'both'} onClick={() => onSides('both')}>Both together</Chip>
+            <Chip on={sides === 'one_lr'} onClick={() => onSides('one_lr')}>One side, log L and R</Chip>
+            <Chip on={sides === 'one'} onClick={() => onSides('one')}>One side, one row per round</Chip>
+          </div>
+        </div>
+      )}
+      {fields.map((f) => {
+        const c = CHOICES[f];
+        if (!c) return null;
+        const cur = (v?.[c.key] as string | null | undefined) ?? null;
+        return (
+          <div key={f}>
+            <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">{c.label}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {c.options.map(([val, label]) => <Chip key={val} on={cur === val} onClick={() => onChange({ [c.key]: cur === val ? null : val } as Partial<Variation>)}>{label}</Chip>)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SettingsEditor({ settings, template, onChange, onSaveDefault }: { settings: Record<string, string>; template: string[]; onChange: (s: Record<string, string>) => void; onSaveDefault?: () => void }) {
   const [k, setK] = useState('');
-  const entries = Object.entries(settings);
+  // Template names (seat, arm pad…) are always offered; blank ones are not stored.
+  const keys = [...template, ...Object.keys(settings).filter((x) => !template.includes(x))];
+  const filled = Object.values(settings).some((x) => x.trim());
   return (
     <div className="sm:col-span-4">
       <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Machine settings</div>
-      <div className="flex flex-wrap gap-2">
-        {entries.map(([key, val]) => (
-          <div key={key} className="flex items-center overflow-hidden rounded-lg border border-ink-200 dark:border-ink-700">
-            <span className="bg-ink-100 px-2 py-1 text-xs text-ink-600 dark:bg-ink-800 dark:text-ink-300">{key}</span>
-            <input className="w-16 bg-transparent px-2 py-1 text-xs outline-none" value={val} onChange={(e) => onChange({ ...settings, [key]: e.target.value })} />
-            <button type="button" className="px-1.5 text-ink-400 hover:text-rose-500" onClick={() => { const n = { ...settings }; delete n[key]; onChange(n); }} aria-label={`Remove ${key}`}>×</button>
-          </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {keys.map((key) => (
+          <label key={key} className="min-w-0">
+            <span className="flex items-center justify-between text-[11px] text-ink-500">
+              <span className="truncate">{key}</span>
+              {!template.includes(key) && <button type="button" className="h-6 px-1.5 text-ink-400 active:text-rose-500" onClick={() => { const n = { ...settings }; delete n[key]; onChange(n); }} aria-label={`Remove ${key}`}>×</button>}
+            </span>
+            <input className="mt-0.5 h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none focus:border-accent-500 dark:border-ink-700 dark:bg-ink-900" value={settings[key] ?? ''} placeholder="—"
+              onChange={(e) => {
+                // Template names left blank are not stored (they are always offered anyway).
+                const n = { ...settings, [key]: e.target.value };
+                if (template.includes(key) && !e.target.value.trim()) delete n[key];
+                onChange(n);
+              }} />
+          </label>
         ))}
-        <form className="flex" onSubmit={(e) => { e.preventDefault(); if (k.trim()) { onChange({ ...settings, [k.trim()]: '' }); setK(''); } }}>
-          <input className="w-28 rounded-lg border border-dashed border-ink-300 bg-transparent px-2 py-1 text-xs outline-none dark:border-ink-700" placeholder="+ seat, pad…" value={k} onChange={(e) => setK(e.target.value)} />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <form className="flex" onSubmit={(e) => { e.preventDefault(); if (k.trim()) { onChange({ ...settings, [k.trim()]: settings[k.trim()] ?? '' }); setK(''); } }}>
+          <input className="h-10 w-36 rounded-lg border border-dashed border-ink-300 bg-transparent px-2 text-sm outline-none dark:border-ink-700" placeholder="+ other setting" enterKeyHint="done" value={k} onChange={(e) => setK(e.target.value)} />
         </form>
-        {onSaveDefault && entries.length > 0 && <Button size="sm" variant="ghost" onClick={onSaveDefault}>Remember for this machine</Button>}
+        {onSaveDefault && filled && <Button size="sm" variant="ghost" onClick={onSaveDefault}>Remember for this machine</Button>}
       </div>
     </div>
   );
@@ -523,13 +680,14 @@ const RIR_OPTIONS: { v: number | null; label: string }[] = [
  * Touch-first set row. Row 1: set type + large weight/reps steppers. Row 2: one-tap RIR chips + big ✓.
  * Every tap target is ≥ 40px; explanations open on tap (no hover-only information).
  */
-function SetRow({ s, n, inc, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
+function SetRow({ s, n, inc, pair, sideToggle, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; pair: number; sideToggle: boolean; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
   const data = useData();
   const [info, setInfo] = useState(false);
   const q = assessSet(s, data.settings.quality);
   const done = !!s.completedAt;
   const warm = s.type === 'warmup';
-  const tag = warm ? 'W' : s.type === 'drop' ? 'D' : String(n);
+  const sideTag = s.side === 'left' ? 'L' : s.side === 'right' ? 'R' : '';
+  const tag = warm ? 'W' : s.type === 'drop' ? `D${sideTag}` : `${n}${sideTag}`;
   const planned = !!s.planned;
   // Choosing an RIR means the set was performed, so it starts counting (✓ additionally starts the rest timer).
   const setRir = (v: number | null, failure = false) => onChange({ rir: v, rirSource: v == null ? 'unknown' : 'reported', toFailure: failure, ...(v != null ? { planned: undefined } : {}) });
@@ -566,9 +724,13 @@ function SetRow({ s, n, inc, onChange, onRemove, onComplete }: { s: WorkoutSet; 
 
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-ink-500">
         <div className="flex min-w-0 items-center gap-2">
+          {sideToggle && !warm && (
+            <button type="button" aria-label="Side (left / right / both)" onClick={() => onChange({ side: s.side === 'left' ? 'right' : s.side === 'right' ? undefined : 'left' })}
+              className="flex h-9 min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ink-100 px-2 text-xs font-semibold text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200">{s.side === 'right' ? 'Right' : s.side === 'left' ? 'Left' : 'Both'}</button>
+          )}
           {!warm && (
             <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="min-h-[44px] truncate text-left underline decoration-dotted underline-offset-2">
-              {planned ? 'Not counted — tap ✓' : s.rir == null && !s.toFailure ? `counts ${q.credit} · RIR not set` : `counts ${q.credit}`}
+              {planned ? 'Not counted — tap ✓' : `counts ${Math.round(q.credit * pair * 100) / 100}${pair < 1 ? ' (L+R pair)' : ''}${s.rir == null && !s.toFailure ? ' · RIR not set' : ''}`}
             </button>
           )}
           <label className="flex min-h-[44px] shrink-0 items-center gap-1">
@@ -582,6 +744,7 @@ function SetRow({ s, n, inc, onChange, onRemove, onComplete }: { s: WorkoutSet; 
       </div>
       {info && !warm && (
         <div className="mt-1 rounded-lg bg-ink-50 p-2.5 text-xs leading-relaxed text-ink-600 dark:bg-ink-950 dark:text-ink-300">
+          {s.side && <div className="mb-1">This is the {s.side} side. A left set and a right set together count as one set.</div>}
           {planned && <div className="mb-1 font-medium">Pre-filled from last time. It is not counted until you tick ✓ (or pick an RIR). Unticked sets are left out when you finish.</div>}
           {q.reasons.map((r, i) => <div key={i}>• {r}</div>)}
           <div className="mt-1 text-ink-400">RIR = reps in reserve: how many more clean reps you could have done. 0–3 counts fully.</div>
@@ -760,15 +923,18 @@ function NewEquipmentModal({ open, onClose, def, locationId, onCreated }: { open
   const [model, setModel] = useState('');
   const [incs, setIncs] = useState('');
   const [kind, setKind] = useState<EquipmentKind>('machine');
+  const [bar, setBar] = useState<number | null>(null);
   useEffect(() => {
     if (open) {
       setName(def ? `${def.name.en}${gym ? ` — ${gym.name}` : ''}` : '');
-      setKind(def?.equipmentKind && MACHINE_KINDS.includes(def.equipmentKind) ? def.equipmentKind : 'machine');
+      setKind(def?.equipmentKind && NEW_EQ_KINDS.includes(def.equipmentKind) ? def.equipmentKind : 'machine');
       setIncs(String(defaultIncrement(def?.equipmentKind)));
       setManufacturer('');
       setModel('');
+      setBar(null);
     }
   }, [open, def, gym]);
+  const hasBar = kind === 'barbell' || kind === 'smith';
   const create = async () => {
     const ts = new Date().toISOString();
     const e: Equipment = {
@@ -776,21 +942,23 @@ function NewEquipmentModal({ open, onClose, def, locationId, onCreated }: { open
       manufacturer: manufacturer.trim() || null, model: model.trim() || null, identified: !!manufacturer.trim(),
       incrementsKg: incs.split(/[,; ]+/).map((x) => Number(x.replace(',', '.'))).filter((x) => x > 0),
       settings: {}, exerciseIds: def ? [def.id] : [], photoIds: [], createdAt: ts, updatedAt: ts,
+      ...(hasBar ? { barWeightKg: bar } : {}),
     };
     await store.saveEquipment(e);
-    toast('Machine added');
+    toast(hasBar || !MACHINE_KINDS.includes(kind) ? 'Equipment added' : 'Machine added');
     onCreated(e);
   };
   return (
-    <Modal open={open} onClose={onClose} title="New machine" footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={create}>Add machine</Button></>}>
+    <Modal open={open} onClose={onClose} title="New equipment" footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={create}>Add</Button></>}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Name" className="sm:col-span-2"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Manufacturer" hint="Leave empty if unknown — identify later."><Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="e.g. Technogym" /></Field>
         <Field label="Model"><Input value={model} onChange={(e) => setModel(e.target.value)} /></Field>
         <Field label="Type"><Select value={kind} onChange={(e) => setKind(e.target.value as EquipmentKind)}>
-          {(['machine', 'plate_loaded', 'cable', 'smith', 'other'] as EquipmentKind[]).map((k) => <option key={k} value={k}>{k.replace('_', ' ')}</option>)}
+          {NEW_EQ_KINDS.map((k) => <option key={k} value={k}>{k === 'bodyweight' ? 'bodyweight / straps' : k.replace('_', ' ')}</option>)}
         </Select></Field>
         <Field label="Weight increments (kg)" hint="e.g. 5 or 2.5, 5"><Input value={incs} onChange={(e) => setIncs(e.target.value)} /></Field>
+        {hasBar && <Field label="Empty bar weight (kg)" hint="Only if you know it — leave empty if unknown."><NumInput value={bar} onChange={setBar} step={0.5} placeholder="unknown" /></Field>}
       </div>
       <p className="mt-3 text-xs text-ink-500">Add photos, settings and details later under Equipment & gyms.</p>
     </Modal>

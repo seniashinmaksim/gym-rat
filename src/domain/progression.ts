@@ -1,6 +1,6 @@
 import { diffDays } from './dates';
 import type { Registry } from './registry';
-import type { Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, Workout, WorkoutExercise } from './types';
+import type { Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, Side, Variation, Workout, WorkoutExercise } from './types';
 
 /**
  * Progression is tracked per (exercise × equipment instance). Loads from two different
@@ -11,16 +11,59 @@ import type { Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, Workout, 
 
 const FREE_KINDS: EquipmentKind[] = ['barbell', 'dumbbell', 'kettlebell', 'bodyweight', 'band'];
 
-export function progressionKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined): string {
+function baseKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined): string {
   if (ex.equipmentId) return `${ex.exerciseId}::${ex.equipmentId}`;
   if (def && FREE_KINDS.includes(def.equipmentKind)) return `${ex.exerciseId}::free`;
   return `${ex.exerciseId}::unidentified@${w.locationId ?? 'unknown'}`;
+}
+
+const VALUE_LABEL: Record<string, string> = {
+  straight_bar: 'straight bar', rope: 'rope', v_bar: 'V-bar', single_handle: 'single handle', cuff: 'ankle/wrist cuff',
+  standing: 'standing', seated: 'seated', straight: 'straight legs', bent: 'bent knees',
+  pronated: 'pronated grip', supinated: 'supinated grip', neutral: 'neutral grip', mixed: 'mixed grip',
+};
+export const humanize = (v: string) => VALUE_LABEL[v] ?? v.replace(/_/g, ' ');
+
+/**
+ * Configuration parts that make loads NOT comparable, so they start their own history:
+ * exact bench angle (angle-sensitive exercises — the owner wants 15°/30°/45° kept apart),
+ * cable attachment, one side at a time (only for exercises offering that choice), standing vs
+ * seated, straight vs bent legs. Apart from the bench angle these fields did not exist before
+ * v1.1, so older entries keep their key; an older entry that DID record an angle moves to that
+ * angle's history, and entries without an angle form an "angle not recorded" history.
+ * Grip is deliberately not part of the key (it was optional on every exercise and recorded
+ * inconsistently, so keying on it would fragment existing histories).
+ */
+export function variationParts(v: Variation | undefined, def: ExerciseDef | undefined): { key: string; label: string }[] {
+  if (!v) return [];
+  const parts: { key: string; label: string }[] = [];
+  if (def?.angleSensitive && v.benchAngleDeg != null && Number.isFinite(v.benchAngleDeg)) {
+    const a = Math.round(v.benchAngleDeg);
+    parts.push({ key: `angle=${a}`, label: a === 0 ? 'flat' : `${a}°` });
+  }
+  if (v.attachment) parts.push({ key: `att=${v.attachment}`, label: humanize(v.attachment) });
+  if (v.unilateral && def?.variationFields?.includes('unilateral')) parts.push({ key: 'uni', label: 'one side at a time' });
+  if (v.position) parts.push({ key: `pos=${v.position}`, label: humanize(v.position) });
+  if (v.legs) parts.push({ key: `legs=${v.legs}`, label: humanize(v.legs) });
+  return parts;
+}
+
+/**
+ * History key: exercise × equipment instance (× configuration). Loads from two machines, or
+ * from two configurations of one exercise (e.g. 15° vs 45° incline), are never compared.
+ */
+export function progressionKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined): string {
+  const parts = variationParts(ex.variation, def);
+  const base = baseKey(ex, w, def);
+  return parts.length ? `${base}|${parts.map((p) => p.key).join('|')}` : base;
 }
 
 export interface SetPoint {
   weight: number | null;
   reps: number | null;
   rir: number | null;
+  /** Unilateral sets logged per side. */
+  side?: Side;
 }
 
 export interface SessionPerf {
@@ -64,6 +107,8 @@ export interface ProgressionSeries {
   exerciseId: string;
   equipmentId: string | null;
   scopeLabel: string;
+  /** Configuration this history is for (e.g. "30°", "rope"), or null when none was recorded. */
+  variantLabel: string | null;
   loadMode: string;
   sessions: SessionPerf[];
   trend: Trend;
@@ -81,7 +126,7 @@ export function epley(weight: number, reps: number, rir: number | null): number 
 export function sessionPerf(w: Workout, ex: WorkoutExercise): SessionPerf | null {
   const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
   if (!working.length) return null;
-  const sets: SetPoint[] = working.map((s) => ({ weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null) }));
+  const sets: SetPoint[] = working.map((s) => ({ weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null), ...(s.side ? { side: s.side } : {}) }));
   const assisted = working.some((s) => s.loadMode === 'assisted');
   let top: SetPoint | null = null;
   let bestE: number | null = null;
@@ -250,7 +295,7 @@ export function buildProgression(
 ): ProgressionSeries[] {
   const eqById = new Map(equipment.map((e) => [e.id, e]));
   const ovById = new Map(overrides.map((o) => [o.id, o]));
-  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; scope: string }>();
+  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; scope: string; variant: string | null }>();
   const sorted = [...workouts].sort((a, b) => (a.date + (a.startTime ?? '')).localeCompare(b.date + (b.startTime ?? '')));
   for (const w of sorted) {
     for (const ex of w.exercises) {
@@ -261,8 +306,10 @@ export function buildProgression(
       let g = groups.get(key);
       if (!g) {
         const eq = ex.equipmentId ? eqById.get(ex.equipmentId) : undefined;
-        const scope = eq ? eq.name : key.endsWith('::free') ? 'Free weights' : 'Unidentified equipment';
-        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope };
+        const base = baseKey(ex, w, def);
+        const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? 'Bodyweight' : 'Free weights') : 'Unidentified equipment';
+        const parts = variationParts(ex.variation, def);
+        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null };
         groups.set(key, g);
       }
       g.sessions.push(perf);
@@ -283,7 +330,8 @@ export function buildProgression(
       key,
       exerciseId: g.exerciseId,
       equipmentId: g.equipmentId,
-      scopeLabel: g.scope,
+      scopeLabel: g.variant ? `${g.scope} · ${g.variant}` : g.scope,
+      variantLabel: g.variant,
       loadMode: g.loadMode,
       sessions: g.sessions,
       trend,

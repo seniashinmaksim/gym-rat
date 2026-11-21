@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addDays, dayOfWeek, formatDate, formatDuration } from '../../domain/dates';
 import { workoutToExport, IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION } from '../../domain/importer';
-import { assessSet, type EffortTier } from '../../domain/quality';
+import { humanize } from '../../domain/progression';
+import { assessSet, countedSetCount, sideFactors, type EffortTier } from '../../domain/quality';
 import type { MuscleId, Workout } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
 import { store, useData } from '../../lib/store';
@@ -190,7 +191,7 @@ function Calendar({ month, setMonth, weekStartsOn, today, byDate, selected, onSe
 
 function MonthSummary({ month, workouts }: { month: string; workouts: Workout[] }) {
   const ws = workouts.filter((w) => w.date.startsWith(month));
-  const sets = ws.reduce((s, w) => s + w.exercises.reduce((a, e) => a + e.sets.filter((x) => x.type !== 'warmup').length, 0), 0);
+  const sets = ws.reduce((s, w) => s + w.exercises.reduce((a, e) => a + countedSetCount(e.sets), 0), 0);
   const durs = ws.map(durationOf).filter((x): x is number => x != null);
   const avgDur = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : null;
   return (
@@ -218,7 +219,7 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
   const eqById = useMemo(() => new Map(data.equipment.map((e) => [e.id, e])), [data.equipment]);
   const eff = useMemo(() => sessionMuscleEffective(w, a.registry, data.settings.quality), [w, a.registry, data.settings.quality]);
   const topMuscles = (Object.entries(eff) as [MuscleId, number][]).sort((x, y) => y[1] - x[1]).slice(0, 4);
-  const working = w.exercises.reduce((s, e) => s + e.sets.filter((x) => x.type !== 'warmup').length, 0);
+  const working = w.exercises.reduce((s, e) => s + countedSetCount(e.sets), 0);
   const dur = durationOf(w);
 
   const copyJson = async () => {
@@ -274,9 +275,16 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
               ex.variation?.gripWidth ? `${ex.variation.gripWidth} width` : null,
               ex.variation?.stance ?? null,
               ex.variation?.rom && ex.variation.rom !== 'full' ? ex.variation.rom.replace('_', ' ') : null,
-              ex.variation?.unilateral ? 'unilateral' : null,
+              ex.variation?.unilateral ? 'one side at a time' : null,
+              ex.variation?.attachment ? humanize(ex.variation.attachment) : null,
+              ex.variation?.position ? humanize(ex.variation.position) : null,
+              ex.variation?.execution ? humanize(ex.variation.execution) : null,
+              ex.variation?.legs ? humanize(ex.variation.legs) : null,
+              ex.variation?.depth ? `depth: ${humanize(ex.variation.depth)}` : null,
+              ex.variation?.barPosition ? humanize(ex.variation.barPosition) : null,
             ].filter(Boolean);
-            const settings = Object.entries(ex.settings ?? {});
+            const settings = Object.entries(ex.settings ?? {}).filter(([, v]) => String(v).trim() !== '');
+            const pair = sideFactors(ex.sets);
             return (
               <div key={ex.id}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -315,13 +323,13 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
                         return (
                           <tr key={s.id} className={cx('tabular-nums', s.type === 'warmup' && 'text-ink-400')}>
                             <td className="px-2 py-1.5">{k + 1}</td>
-                            <td className="px-2 py-1.5 capitalize">{s.type}{s.toFailure ? ' · failure' : ''}{s.rom && s.rom !== 'full' ? ` · ${s.rom.replace('_', ' ')}` : ''}</td>
+                            <td className="px-2 py-1.5 capitalize">{s.type}{s.side ? ` · ${s.side}` : ''}{s.toFailure ? ' · failure' : ''}{s.rom && s.rom !== 'full' ? ` · ${s.rom.replace('_', ' ')}` : ''}</td>
                             <td className="px-2 py-1.5 text-right">{load}</td>
                             <td className="px-2 py-1.5 text-right">{s.reps ?? '—'}</td>
                             <td className="px-2 py-1.5 text-right">{s.rir ?? '—'}{s.rir != null && s.rirSource === 'inferred' ? '*' : ''}</td>
                             <td className="px-2 py-1.5 text-right">{formatDuration(s.restSecBefore)}</td>
                             <td className="px-2 py-1.5 text-right" title={q.reasons.join('\n')}>
-                              <Badge tone={TIER_TONE[q.tier]}>{TIER_LABEL[q.tier]}{s.type !== 'warmup' ? ` ×${q.credit}` : ''}</Badge>
+                              <Badge tone={TIER_TONE[q.tier]}>{TIER_LABEL[q.tier]}{s.type !== 'warmup' ? ` ×${Math.round(q.credit * (pair.get(s.id) ?? 1) * 100) / 100}${(pair.get(s.id) ?? 1) < 1 ? ' (pair)' : ''}` : ''}</Badge>
                             </td>
                           </tr>
                         );

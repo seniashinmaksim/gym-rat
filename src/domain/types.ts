@@ -58,8 +58,15 @@ export interface WorkoutSet {
    * inflate the weekly numbers.
    */
   planned?: boolean;
+  /**
+   * Unilateral exercises logged per side. A left set and a right set (paired in order)
+   * together count as ONE set for the muscle; an unpaired side counts as one set.
+   */
+  side?: Side;
   notes?: string;
 }
+
+export type Side = 'left' | 'right';
 
 export interface Variation {
   benchAngleDeg?: number | null;
@@ -67,9 +74,25 @@ export interface Variation {
   gripWidth?: string | null; // narrow / shoulder / wide
   stance?: string | null;
   rom?: Rom | null;
+  /** One limb at a time. Sets may then carry `side`. */
   unilateral?: boolean | null;
+  /** Cable attachment: straight_bar / rope / v_bar / single_handle / cuff. */
+  attachment?: string | null;
+  /** Body position: standing / seated. */
+  position?: string | null;
+  /** Dumbbell work: simultaneous / alternating. */
+  execution?: string | null;
+  /** Hanging raises: straight / bent knees. */
+  legs?: string | null;
+  /** Squats: above_parallel / parallel / below_parallel. Recorded, not used for coefficients. */
+  depth?: string | null;
+  /** Back squat: high_bar / low_bar. */
+  barPosition?: string | null;
   notes?: string | null;
 }
+
+/** Variation controls the logger offers for an exercise (beyond grip, grip width and ROM, which are always available). */
+export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance';
 
 export interface WorkoutExercise {
   id: string;
@@ -176,6 +199,12 @@ export interface ExerciseDef {
   repRange: [number, number];
   defaultRestSec: number;
   biomechanics: string;
+  /** Machine/bench setting names the logger offers for this exercise (values are remembered per equipment instance). */
+  settingTemplate?: string[];
+  /** Variation controls shown in the logger's Setup panel. */
+  variationFields?: VariationField[];
+  /** Default variation for a NEW entry of this exercise (e.g. standing single-leg curl → unilateral). */
+  defaultVariation?: Partial<Variation>;
   custom?: boolean;
 }
 
@@ -213,6 +242,8 @@ export interface Equipment {
   minKg?: number | null;
   maxKg?: number | null;
   stackNotes?: string;
+  /** Empty bar / sled weight if KNOWN (barbells, EZ bars, Smith). Never assumed; null = unknown. */
+  barWeightKg?: number | null;
   /** Persistent personal settings, e.g. { seat: "4", backPad: "2" }. */
   settings: Record<string, string>;
   exerciseIds: string[];

@@ -5,7 +5,7 @@ import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { exerciseLabel, type Registry } from './registry';
 import type { MuscleId, Workout } from './types';
-import { stripPlanned } from './quality';
+import { countedSetCount, sideFactors, stripPlanned } from './quality';
 import type { MuscleTarget } from './targets';
 import type { WeeklySnapshot } from './types';
 import { computeVolume } from './volume';
@@ -216,16 +216,18 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
       const st = exStats.get(ex.exerciseId) ?? { sessions: 0, sets: 0, reps: [] };
       st.sessions++;
       const working = ex.sets.filter((s) => s.type === 'working');
-      st.sets += working.length;
+      const sf = sideFactors(ex.sets);
+      st.sets += countedSetCount(ex.sets, ['working']);
       for (const s of working) {
-        totalSets++;
+        const k = sf.get(s.id) ?? 1;
+        totalSets += k;
         if (s.reps != null) st.reps.push(s.reps);
         const rir = s.rir ?? (s.toFailure ? 0 : null);
         if (rir != null) {
-          rirKnown++;
-          rirSum += rir;
-          if (rir <= 2) nearFail++;
-          if (rir >= 4) lowEff++;
+          rirKnown += k;
+          rirSum += rir * k;
+          if (rir <= 2) nearFail += k;
+          if (rir >= 4) lowEff += k;
         }
       }
       exStats.set(ex.exerciseId, st);

@@ -310,7 +310,8 @@ export function Td({ children, className, right = true }: { children: ReactNode;
 export function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null || !Number.isFinite(n)) return '—';
   const r = Math.round(n * 10 ** digits) / 10 ** digits;
-  return Number.isInteger(r) ? String(r) : r.toFixed(digits);
+  // Trailing zeros dropped: 7.5 → "7.5" (not "7.50").
+  return String(Number(r.toFixed(digits)));
 }
 
 /** Tiny toast system. */

@@ -1,4 +1,4 @@
-# Workout import format — `gymrat.workout` v1.0
+# Workout import format — `gymrat.workout` v1.1
 
 The contract between Claude (or any tool) and the app's **Import from Claude** screen.
 
@@ -39,7 +39,7 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 | `exercise_confidence` | confidence | – | |
 | `equipment_id` | string \| null | – | Shorthand for `equipment.equipment_id`. |
 | `equipment` | object | – | `{ equipment_id?, name_hint?, manufacturer?, model?, kind?, confidence? }` — `kind` ∈ machine, plate_loaded, cable, smith, barbell, dumbbell, kettlebell, bodyweight, band, other. |
-| `variation` | object | – | `{ bench_angle_deg? (−45..90), grip?, grip_width?, stance?, rom?, unilateral?, notes? }` |
+| `variation` | object | – | `{ bench_angle_deg? (−45..90), grip?, grip_width?, stance?, rom?, unilateral?, attachment?, position?, execution?, legs?, depth?, bar_position?, notes? }` — the last six are new in v1.1 (strings; see below). A recorded bench angle (angle-sensitive exercises), attachment, position, legs and — for exercises that offer the choice — unilateral start a separate strength history; grip does not. |
 | `settings` | `{ key: string \| number }` | – | Session machine settings (seat, pads…). |
 | `rest_between_sets_sec` | number \| null | – | Fills `rest_before_sec` for sets 2…n when they have none. |
 | `rest_after_sec` | number \| null | – | Rest before the next exercise. |
@@ -61,16 +61,24 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 | `rom` | `full` \| `lengthened_partial` \| `partial` | – | Falls back to `variation.rom`. |
 | `technique_ok` | boolean | – | `false` → quality ×0.7. |
 | `count` | integer 1–20 | – | Expands to N identical sets. |
+| `side` | `left` \| `right` | – | v1.1. Unilateral set for one side. The i-th left + i-th right set count as **one** set; an unpaired side counts as one. Sets with a side imply `variation.unilateral: true`. |
 | `notes` | string | – | |
 
 `confidence` ∈ `confirmed`, `probable`, `uncertain`, `unknown`.
+
+Variation values (v1.1, free strings but use these): `attachment` ∈ `straight_bar`, `rope`, `v_bar`, `single_handle`, `cuff`; `position` ∈ `standing`, `seated`; `execution` ∈ `simultaneous`, `alternating`; `legs` ∈ `straight`, `bent`; `depth` ∈ `above_parallel`, `parallel`, `below_parallel`; `bar_position` ∈ `high_bar`, `low_bar`.
+
+## Changelog
+
+- **1.1** (additive): set `side`; variation `attachment`, `position`, `execution`, `legs`, `depth`, `bar_position`. v1.0 files are still valid and hash identically (no duplicate re-imports).
+- **1.0**: initial contract.
 
 ## What the importer does
 
 1. Validates the JSON (errors listed with paths).
 2. Resolves the gym (`location_id` exact → confirmed; id matching a name → probable; `name_hint` → suggestions only).
 3. Resolves exercises (`exercise_id` → direct; otherwise an exact English/Russian name or alias → probable; anything else → suggestions + blocking error until the owner picks).
-4. Proposes equipment instances only within the same gym (probable at best); warns when a machine exercise has no identified equipment, when equipment belongs to another gym, and when a load differs > +30 % / < −40 % from the last session on the same machine.
+4. Proposes equipment instances only within the same gym (probable at best, flagged for confirmation); warns when a machine exercise has no identified equipment, when equipment belongs to another gym, and when a load differs > +30 % / < −40 % from the last session on the same machine.
 5. Blocks duplicates (SHA-256 of date + gym + exercises + sets, or same `client_ref`); warns about other sessions on the same day/gym.
 6. Never fills unknown values; they stay `null` and are shown as uncertain.
 

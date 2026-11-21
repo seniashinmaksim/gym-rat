@@ -245,6 +245,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
   const [minKg, setMinKg] = useState<number | null>(eq?.minKg ?? null);
   const [maxKg, setMaxKg] = useState<number | null>(eq?.maxKg ?? null);
   const [stackNotes, setStackNotes] = useState(eq?.stackNotes ?? '');
+  const [barWeightKg, setBarWeightKg] = useState<number | null>(eq?.barWeightKg ?? null);
   const [settings, setSettings] = useState<[string, string][]>(Object.entries(eq?.settings ?? {}));
   const [exerciseIds, setExerciseIds] = useState<string[]>(eq?.exerciseIds ?? []);
   const [notes, setNotes] = useState(eq?.notes ?? '');
@@ -279,6 +280,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
         minKg,
         maxKg,
         stackNotes: stackNotes.trim() || undefined,
+        barWeightKg: kind === 'barbell' || kind === 'smith' ? barWeightKg : eq?.barWeightKg ?? null,
         settings: Object.fromEntries(settings.filter(([k]) => k.trim()).map(([k, v]) => [k.trim(), v.trim()])),
         exerciseIds,
         photoIds,
@@ -323,6 +325,9 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
             <Field label="Min load (kg)"><NumInput value={minKg} onChange={setMinKg} /></Field>
             <Field label="Max load (kg)"><NumInput value={maxKg} onChange={setMaxKg} /></Field>
           </div>
+          {(kind === 'barbell' || kind === 'smith') && (
+            <Field label="Empty bar weight (kg)" className="mt-3" hint="Only if you know it (e.g. weighed or labelled). Leave empty if unknown — it is never assumed."><NumInput value={barWeightKg} onChange={setBarWeightKg} step={0.5} placeholder="unknown" /></Field>
+          )}
           <Field label="Stack notes" className="mt-3"><Input value={stackNotes} onChange={(e) => setStackNotes(e.target.value)} placeholder="Numbers are pin positions, not kg; 2:1 pulley…" /></Field>
         </Card>
 
@@ -435,6 +440,7 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
             <dl className="space-y-1 text-sm">
               <Row k="Increments" v={eq.incrementsKg.length ? `${eq.incrementsKg.join(' / ')} kg` : 'Not set (default used)'} />
               <Row k="Range" v={eq.minKg != null || eq.maxKg != null ? `${fmt(eq.minKg)} – ${fmt(eq.maxKg)} kg` : '—'} />
+              {(eq.kind === 'barbell' || eq.kind === 'smith') && <Row k="Bar weight" v={eq.barWeightKg != null ? `${fmt(eq.barWeightKg, 2)} kg` : 'Unknown (not assumed)'} />}
               {eq.stackNotes && <Row k="Notes" v={eq.stackNotes} />}
             </dl>
           </div>

@@ -91,6 +91,48 @@ export function stripPlanned(workouts: Workout[]): Workout[] {
 }
 
 /**
+ * How much each set of ONE exercise entry counts as a "set" (1 normally).
+ * Unilateral sets logged per side are paired in order within the same set type: the i-th left
+ * and the i-th right set together make ONE set (0.5 each, so the pair's credit is the average
+ * of the two sides). A side without a partner counts as a full set. 3 L + 3 R = 3 sets, never 6.
+ */
+export function sideFactors(sets: WorkoutSet[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const byType = new Map<string, { left: string[]; right: string[] }>();
+  for (const s of sets) {
+    out.set(s.id, 1);
+    if (!s.side || !isCounted(s) || s.type === 'warmup') continue;
+    const g = byType.get(s.type) ?? { left: [], right: [] };
+    g[s.side].push(s.id);
+    byType.set(s.type, g);
+  }
+  for (const g of byType.values()) {
+    const pairs = Math.min(g.left.length, g.right.length);
+    for (let i = 0; i < pairs; i++) {
+      out.set(g.left[i], 0.5);
+      out.set(g.right[i], 0.5);
+    }
+  }
+  return out;
+}
+
+/**
+ * Ends left/right logging without changing the set count: the i-th left and i-th right set
+ * become ONE set (the left one is kept, its partner removed); unpaired sides just lose the tag.
+ */
+export function mergeSides(sets: WorkoutSet[]): WorkoutSet[] {
+  const f = sideFactors(sets);
+  return sets.filter((s) => !(s.side === 'right' && f.get(s.id) === 0.5))
+    .map((s) => { if (!s.side) return s; const { side: _s, ...rest } = s; void _s; return rest; });
+}
+
+/** Number of working-or-drop sets in an exercise entry after left/right pairing (warm-ups and planned sets excluded). */
+export function countedSetCount(sets: WorkoutSet[], types: WorkoutSet['type'][] = ['working', 'drop']): number {
+  const f = sideFactors(sets);
+  return sets.filter((s) => isCounted(s) && types.includes(s.type)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
+}
+
+/**
  * Applies the per-session ceiling: effective volume for one muscle above `cap` in a single
  * session is multiplied by `beyond`. Returns the credited amount for this set.
  */

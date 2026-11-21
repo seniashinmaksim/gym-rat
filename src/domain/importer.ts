@@ -13,7 +13,7 @@ import { uid } from '../lib/id';
  * Keep CLAUDE.md in sync when this changes.
  */
 export const IMPORT_SCHEMA_ID = 'gymrat.workout';
-export const IMPORT_SCHEMA_VERSION = '1.0';
+export const IMPORT_SCHEMA_VERSION = '1.1';
 
 const confidence = z.enum(['confirmed', 'probable', 'uncertain', 'unknown']);
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm (24h)');
@@ -31,8 +31,12 @@ const SetIn = z.object({
   rom: z.enum(['full', 'lengthened_partial', 'partial']).optional(),
   technique_ok: z.boolean().optional(),
   count: z.number().int().min(1).max(20).optional(),
+  /** v1.1: unilateral set logged for one side. A left + right pair counts as ONE set. */
+  side: z.enum(['left', 'right']).optional(),
   notes: z.string().max(1000).optional(),
 }).strict();
+
+const vtext = z.string().max(40).nullable().optional();
 
 const ExerciseIn = z.object({
   exercise_id: z.string().max(80).nullable().optional(),
@@ -54,6 +58,13 @@ const ExerciseIn = z.object({
     stance: z.string().max(60).nullable().optional(),
     rom: z.enum(['full', 'lengthened_partial', 'partial']).nullable().optional(),
     unilateral: z.boolean().nullable().optional(),
+    // v1.1 (additive)
+    attachment: vtext,
+    position: vtext,
+    execution: vtext,
+    legs: vtext,
+    depth: vtext,
+    bar_position: vtext,
     notes: z.string().max(500).nullable().optional(),
   }).strict().optional(),
   settings: z.record(z.union([z.string(), z.number()])).optional(),
@@ -234,7 +245,8 @@ export async function workoutHash(w: Pick<Workout, 'date' | 'locationId' | 'exer
   const canonical = JSON.stringify({
     d: w.date,
     l: w.locationId ?? null,
-    e: w.exercises.map((e) => [e.exerciseId, e.equipmentId ?? null, e.sets.map((s) => [s.type, s.weightKg, s.reps, s.rir])]),
+    // `side` is appended only when present, so hashes of v1.0 workouts are unchanged.
+    e: w.exercises.map((e) => [e.exerciseId, e.equipmentId ?? null, e.sets.map((s) => (s.side ? [s.type, s.weightKg, s.reps, s.rir, s.side] : [s.type, s.weightKg, s.reps, s.rir]))]),
   });
   return sha256Hex(canonical);
 }
@@ -284,6 +296,10 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
     if (!eq.id && needsMachine) {
       issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `${def!.name.en}: machine not identified. Loads on different machines are not comparable — select or create the equipment instance.` });
     }
+    if (eq.id && eq.conf === 'probable') {
+      const e = data.equipment.find((x) => x.id === eq.id);
+      issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `${def?.name.en ?? 'Exercise'}: assumed machine "${e?.name ?? eq.id}" (the only one at this gym linked to it). Confirm or change it before saving.` });
+    }
     if (eq.id && loc.id) {
       const e = data.equipment.find((x) => x.id === eq.id);
       if (e?.locationId && e.locationId !== loc.id) issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `Equipment "${e.name}" belongs to a different gym than this workout.` });
@@ -307,6 +323,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
           techniqueOk: s.technique_ok,
           restSecBefore: s.rest_before_sec ?? (sets.length > 0 && ex.rest_between_sets_sec != null ? ex.rest_between_sets_sec : null),
           restSource: s.rest_before_sec != null || ex.rest_between_sets_sec != null ? 'reported' : undefined,
+          ...(s.side ? { side: s.side } : {}),
           notes: s.notes,
         });
       }
@@ -336,10 +353,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
       exerciseConfidence: exConf,
       equipmentId: eq.id,
       equipmentConfidence: eq.id ? (ex.equipment?.confidence ?? eq.conf) : 'unknown',
-      variation: ex.variation ? {
-        benchAngleDeg: ex.variation.bench_angle_deg ?? null, grip: ex.variation.grip ?? null, gripWidth: ex.variation.grip_width ?? null,
-        stance: ex.variation.stance ?? null, rom: ex.variation.rom ?? null, unilateral: ex.variation.unilateral ?? null, notes: ex.variation.notes ?? null,
-      } : undefined,
+      variation: variationFromInput(ex.variation, sets.some((s) => s.side)),
       settings: ex.settings ? Object.fromEntries(Object.entries(ex.settings).map(([k, v]) => [k, String(v)])) : undefined,
       sets,
       restAfterSec: ex.rest_after_sec ?? null,
@@ -394,6 +408,22 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
   return { key: uid('draft'), input, workout, locationSuggestions: loc.suggestions, locationHint, exercises: resolutions, issues, hash, duplicateOf };
 }
 
+/** Maps the import variation to the stored one. Sets logged per side imply a unilateral exercise. */
+function variationFromInput(v: WorkoutInT['exercises'][number]['variation'], hasSides: boolean): Workout['exercises'][number]['variation'] {
+  if (!v && !hasSides) return undefined;
+  const out: NonNullable<Workout['exercises'][number]['variation']> = {
+    benchAngleDeg: v?.bench_angle_deg ?? null, grip: v?.grip ?? null, gripWidth: v?.grip_width ?? null,
+    stance: v?.stance ?? null, rom: v?.rom ?? null, unilateral: v?.unilateral ?? (hasSides ? true : null), notes: v?.notes ?? null,
+  };
+  if (v?.attachment) out.attachment = v.attachment;
+  if (v?.position) out.position = v.position;
+  if (v?.execution) out.execution = v.execution;
+  if (v?.legs) out.legs = v.legs;
+  if (v?.depth) out.depth = v.depth;
+  if (v?.bar_position) out.barPosition = v.bar_position;
+  return out;
+}
+
 function lastTopWeight(workouts: Workout[], exerciseId: string, equipmentId: string): number | null {
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date));
   for (const w of sorted) for (const e of w.exercises) {
@@ -432,14 +462,21 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
       equipment: { equipment_id: e.equipmentId, confidence: e.equipmentConfidence },
       variation: e.variation ? {
         bench_angle_deg: e.variation.benchAngleDeg ?? null, grip: e.variation.grip ?? null, grip_width: e.variation.gripWidth ?? null,
-        stance: e.variation.stance ?? null, rom: e.variation.rom ?? null, unilateral: e.variation.unilateral ?? null, notes: e.variation.notes ?? null,
+        stance: e.variation.stance ?? null, rom: e.variation.rom ?? null, unilateral: e.variation.unilateral ?? null,
+        ...(e.variation.attachment ? { attachment: e.variation.attachment } : {}),
+        ...(e.variation.position ? { position: e.variation.position } : {}),
+        ...(e.variation.execution ? { execution: e.variation.execution } : {}),
+        ...(e.variation.legs ? { legs: e.variation.legs } : {}),
+        ...(e.variation.depth ? { depth: e.variation.depth } : {}),
+        ...(e.variation.barPosition ? { bar_position: e.variation.barPosition } : {}),
+        notes: e.variation.notes ?? null,
       } : undefined,
       settings: e.settings,
       rest_after_sec: e.restAfterSec ?? null,
       notes: e.notes,
       sets: e.sets.filter((s) => !s.planned).map((s) => ({
         type: s.type, weight_kg: s.weightKg, load_mode: s.loadMode, reps: s.reps, rir: s.rir, rir_source: s.rirSource,
-        to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, notes: s.notes,
+        to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, ...(s.side ? { side: s.side } : {}), notes: s.notes,
       })),
     })),
     notes: w.notes,

@@ -1,5 +1,5 @@
 import { TRACKED_MUSCLES } from './muscles';
-import { assessSet, isCounted, taperBeyondCap } from './quality';
+import { assessSet, isCounted, sideFactors, taperBeyondCap } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId, QualityModel, RegionId, Workout } from './types';
 import { involvement } from './muscles';
@@ -70,15 +70,18 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
     const running: Partial<Record<MuscleId, number>> = {};
     for (const ex of w.exercises) {
       const def = registry.get(ex.exerciseId);
+      // Left/right sets of a unilateral exercise pair up into one set (0.5 + 0.5).
+      const factors = sideFactors(ex.sets);
       for (const s of ex.sets) {
         if (!isCounted(s)) continue;
         if (s.type === 'warmup') {
           totalWarmupSets++;
           continue;
         }
-        totalWorkingSets++;
+        const k = factors.get(s.id) ?? 1;
+        totalWorkingSets += k;
         if (!def) {
-          unknownExerciseSets++;
+          unknownExerciseSets += k;
           continue;
         }
         const { contributions, regions: reg } = resolveCoefficients(def, ex.variation);
@@ -87,26 +90,26 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           const mv = muscles[mid];
           if (!mv || !coef) continue;
           const inv = involvement(coef);
-          mv.rawWorkingSets++;
-          if (inv === 'direct') mv.directSets++;
-          else mv.indirectSets++;
-          mv.fractional += coef;
+          mv.rawWorkingSets += k;
+          if (inv === 'direct') mv.directSets += k;
+          else mv.indirectSets += k;
+          mv.fractional += coef * k;
           const before = running[mid] ?? 0;
-          const eff = taperBeyondCap(before, coef * q.credit, cap, beyond);
-          running[mid] = before + coef * q.credit;
+          const eff = taperBeyondCap(before, coef * q.credit * k, cap, beyond);
+          running[mid] = before + coef * q.credit * k;
           mv.effective += eff;
           if (inv === 'direct') mv.effectiveDirect += eff;
           else mv.effectiveIndirect += eff;
           if (q.uncertain) mv.uncertainEffective += eff;
-          if (q.tier === 'low_effort') mv.lowEffortSets++;
-          if (q.tier === 'unknown') mv.unknownEffortSets++;
+          if (q.tier === 'low_effort') mv.lowEffortSets += k;
+          if (q.tier === 'unknown') mv.unknownEffortSets += k;
           touched.add(mid);
         }
         const chestCoef = contributions.chest ?? 0;
         for (const [rid, emph] of Object.entries(reg) as [RegionId, number][]) {
           if (!emph || !chestCoef) continue;
-          regions[rid].effective += emph * chestCoef * q.credit;
-          regions[rid].sets++;
+          regions[rid].effective += emph * chestCoef * q.credit * k;
+          regions[rid].sets += k;
         }
       }
     }
