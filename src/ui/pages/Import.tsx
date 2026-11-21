@@ -96,7 +96,7 @@ export function ImportPage() {
   return (
     <Page title="Import from Claude" subtitle="Paste the JSON Claude generated from your workout description. You review and correct everything before it's saved.">
       {!drafts.length && (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <Card>
             <TextArea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste JSON here (```json fences are fine)…" className="min-h-[260px]" spellCheck={false} />
             {errors.length > 0 && (

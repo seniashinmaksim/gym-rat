@@ -137,6 +137,16 @@ Status key: **Supported**, **Partly supported**, **Uncertain** (a reasonable heu
 | **Deload** only when ≥3 fatigue indicators coincide | Supported in spirit; threshold uncertain | **Evidence:** Expert consensus favors responsive deloads (Bell 2023), and a one-week break did not change hypertrophy (Coleman 2024). No evidence validates "3 indicators".<br>**Change:** Implement deloads as reduced volume and RIR rather than full rest. |
 | **Recovery window** of 36–96 h scaled by session volume | Partly supported | **Evidence:** Failure sets and novel exercises extend recovery (Morán-Navarro 2017, Damas 2016/2018). Volume-equated frequency doesn't affect growth.<br>**Change:** Scale the window by proximity to failure and exercise novelty as well as volume. Treat 96 h as an upper bound mainly for new or eccentric-heavy work. Use the window as advisory, not blocking. |
 
+### 3.1 Applied in the app (review of 2026-11-21)
+
+- RIR 6–7 → 0.15; unspecified partial ROM ×0.8; lengthened partials ×1.0 (unchanged).
+- Per-session ceiling: effective sets for one muscle above ~11 in a session are credited ×0.5 (taper, not zero). "Today ≈ N" is capped at ~60 % of the weekly target and ≤ 10 per session; the rest carries over.
+- Lower end of the reference range for large muscles lowered from 8 to 6; upper bounds are labelled diminishing returns.
+- Recovery windows recalibrated to 24/36/48/60/72 h by session size, extended by failure sets, novelty, soreness, sleep and fatigue; advisory only, and a session never blocks itself.
+- Double progression: two consecutive top-of-range sessions, or one when every set reached the top with ≥ target RIR + 2 (clearly too light).
+- Deload blocks halve targets (reduced volume, not full rest).
+- **Not applied:** shifting reported RIR by +1 for sets above 12 reps (Halperin 2022). The average bias is ~1 rep but varies widely between people; a blanket shift would move every high-rep RIR-3 set from credit 1.0 to 0.6. Reported RIR is used as-is.
+
 **Overall:** The model is broadly consistent with current evidence. The best-supported changes are:
 1. Give the high-RIR tail a small non-zero credit.
 2. Raise the per-session cap to about 10–11 fractional sets, with tapering credit rather than a hard cutoff.

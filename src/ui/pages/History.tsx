@@ -72,7 +72,7 @@ export function HistoryPage() {
       subtitle={`${data.workouts.length} sessions recorded · ${monthSessions} in ${monthLabel(month)}`}
       actions={<Button variant="primary" onClick={() => (window.location.hash = '#/log')}>Log workout</Button>}
     >
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[360px_1fr]">
         <div className="space-y-4">
           <Card>
             <Calendar
@@ -141,11 +141,11 @@ function Calendar({ month, setMonth, weekStartsOn, today, byDate, selected, onSe
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
+        <button className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 active:bg-ink-200 dark:hover:bg-ink-800" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
           <IconChevron size={18} className="rotate-180" />
         </button>
         <div className="text-sm font-semibold text-ink-900 dark:text-white">{monthLabel(month)}</div>
-        <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
+        <button className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 active:bg-ink-200 dark:hover:bg-ink-800" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
           <IconChevron size={18} />
         </button>
       </div>

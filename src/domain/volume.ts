@@ -1,5 +1,5 @@
 import { TRACKED_MUSCLES } from './muscles';
-import { assessSet } from './quality';
+import { assessSet, isCounted, taperBeyondCap } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId, QualityModel, RegionId, Workout } from './types';
 import { involvement } from './muscles';
@@ -49,6 +49,8 @@ function emptyMuscle(m: MuscleId): MuscleVolume {
  * Fractional, quality-adjusted volume. Each set credits each muscle ONCE with the
  * exercise's coefficient for that muscle (no double counting); regional emphasis
  * (upper/lower chest) is tracked separately and never added to the chest total.
+ * Within one session, effective volume for a muscle above `sessionCreditCap` is
+ * tapered (×`beyondSessionCapCredit`). Planned (not yet performed) sets are ignored.
  */
 export function computeVolume(workouts: Workout[], registry: Registry, model: QualityModel): VolumeResult {
   const muscles = Object.fromEntries(TRACKED_MUSCLES.map((m) => [m, emptyMuscle(m)])) as Record<MuscleId, MuscleVolume>;
@@ -60,11 +62,16 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
   let totalWarmupSets = 0;
   let unknownExerciseSets = 0;
 
+  const cap = model.sessionCreditCap ?? Infinity;
+  const beyond = model.beyondSessionCapCredit ?? 1;
   for (const w of workouts) {
     const touched = new Set<MuscleId>();
+    // Running effective sets per muscle within THIS session (for the per-session taper).
+    const running: Partial<Record<MuscleId, number>> = {};
     for (const ex of w.exercises) {
       const def = registry.get(ex.exerciseId);
       for (const s of ex.sets) {
+        if (!isCounted(s)) continue;
         if (s.type === 'warmup') {
           totalWarmupSets++;
           continue;
@@ -75,7 +82,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           continue;
         }
         const { contributions, regions: reg } = resolveCoefficients(def, ex.variation);
-        const q = assessSet(s, model);
+        const q = assessSet(s, model, { rom: ex.variation?.rom, timed: def.repRange[1] <= 1 });
         for (const [mid, coef] of Object.entries(contributions) as [MuscleId, number][]) {
           const mv = muscles[mid];
           if (!mv || !coef) continue;
@@ -84,7 +91,9 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           if (inv === 'direct') mv.directSets++;
           else mv.indirectSets++;
           mv.fractional += coef;
-          const eff = coef * q.credit;
+          const before = running[mid] ?? 0;
+          const eff = taperBeyondCap(before, coef * q.credit, cap, beyond);
+          running[mid] = before + coef * q.credit;
           mv.effective += eff;
           if (inv === 'direct') mv.effectiveDirect += eff;
           else mv.effectiveIndirect += eff;

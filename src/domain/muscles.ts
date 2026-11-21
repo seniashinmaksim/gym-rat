@@ -21,7 +21,7 @@ export interface MuscleMeta {
 export const MUSCLES: MuscleMeta[] = [
   {
     id: 'chest', name: { en: 'Chest', ru: 'Грудные' }, group: 'push', size: 'large', isRegion: false,
-    reference: { min: 8, preferred: 12, max: 18 },
+    reference: { min: 6, preferred: 12, max: 18 },
     referenceNote: 'Large muscle, mostly trained directly by presses and flys.',
   },
   {
@@ -36,12 +36,12 @@ export const MUSCLES: MuscleMeta[] = [
   },
   {
     id: 'lats', name: { en: 'Lats', ru: 'Широчайшие' }, group: 'pull', size: 'large', isRegion: false,
-    reference: { min: 8, preferred: 12, max: 18 },
+    reference: { min: 6, preferred: 12, max: 18 },
     referenceNote: 'Trained by vertical pulls and many rows.',
   },
   {
     id: 'upper_back', name: { en: 'Upper back', ru: 'Верх спины' }, group: 'pull', size: 'large', isRegion: false,
-    reference: { min: 8, preferred: 10, max: 16 },
+    reference: { min: 6, preferred: 10, max: 16 },
     referenceNote: 'Rhomboids / mid traps / teres. Receives substantial work from rows and pulldowns.',
   },
   {
@@ -56,7 +56,7 @@ export const MUSCLES: MuscleMeta[] = [
   },
   {
     id: 'side_delts', name: { en: 'Side delts', ru: 'Средние дельты' }, group: 'push', size: 'small', isRegion: false,
-    reference: { min: 8, preferred: 10, max: 16 },
+    reference: { min: 6, preferred: 10, max: 16 },
     referenceNote: 'Gets little from pressing; relies on lateral raises and similar.',
   },
   {
@@ -81,7 +81,7 @@ export const MUSCLES: MuscleMeta[] = [
   },
   {
     id: 'quads', name: { en: 'Quadriceps', ru: 'Квадрицепсы' }, group: 'legs', size: 'large', isRegion: false,
-    reference: { min: 8, preferred: 12, max: 18 },
+    reference: { min: 6, preferred: 12, max: 18 },
     referenceNote: 'Squats, presses, lunges and extensions.',
   },
   {

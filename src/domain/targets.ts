@@ -47,7 +47,7 @@ export function learningState(data: AppData, today: string, weeks: WeekBucket[])
     active: true, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining, sessions, completeWeeks, extended, endedOn: null,
     message: extended
       ? `Learning extended: ${sessions}/${MIN_LEARNING_SESSIONS} sessions and ${completeWeeks}/3 complete training weeks recorded so far.`
-      : `Day ${dayNumber} of ${learning.lengthDays}. Observing your real training before individualizing targets.`,
+      : 'Observing your real training before individualizing targets.',
   };
 }
 
@@ -70,6 +70,8 @@ export interface TargetInputs {
   progression: ProgressionSeries[];
   recovery: Record<MuscleId, RecoveryEstimate>;
   registry: Registry;
+  /** Local date; enables block-aware targets (deload). */
+  today?: string;
 }
 
 /** Per-muscle direct-exercise trend summary. */
@@ -113,6 +115,9 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     if (s.rir != null || s.toFailure) setsWithRir++;
   }
   const rirRatio = workingSets ? setsWithRir / workingSets : 0;
+
+  const today = inp.today ?? null;
+  const deload = today ? data.blocks.find((b) => b.kind === 'deload' && b.startDate <= today && (!b.endDate || b.endDate >= today)) : undefined;
 
   for (const m of TRACKED_MUSCLES) {
     const ref = referenceFor(m, data);
@@ -186,6 +191,17 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     rationale.push(`Confidence ${confidence}: ${conf.join(', ')}.`);
     if (usable.length < 3) confidence = 'low';
     out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale };
+  }
+  if (deload) {
+    // Deload = reduced volume (≈ half the sets) with moderate effort, not full rest (Bell 2023 consensus;
+    // a full week off did not reduce hypertrophy in Coleman 2024).
+    for (const m of TRACKED_MUSCLES) {
+      const t = out[m];
+      out[m] = {
+        ...t, min: roundHalf(t.min * 0.5), preferred: roundHalf(t.preferred * 0.5), max: roundHalf(t.max * 0.5),
+        rationale: [...t.rationale, `Deload block "${deload.name}" is active: targets are halved. Keep loads moderate and stop sets ~3–4 reps short of failure.`],
+      };
+    }
   }
   return out;
 }

@@ -437,7 +437,7 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
       settings: e.settings,
       rest_after_sec: e.restAfterSec ?? null,
       notes: e.notes,
-      sets: e.sets.map((s) => ({
+      sets: e.sets.filter((s) => !s.planned).map((s) => ({
         type: s.type, weight_kg: s.weightKg, load_mode: s.loadMode, reps: s.reps, rir: s.rir, rir_source: s.rirSource,
         to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, notes: s.notes,
       })),

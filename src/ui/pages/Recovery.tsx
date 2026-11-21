@@ -44,11 +44,11 @@ export function RecoveryPage() {
   return (
     <Page title="Recovery" subtitle="Probabilistic readiness estimates per muscle. Guidance only. The app cannot see the true biological state of a muscle.">
       <Callout tone="info" icon={<IconInfo size={18} />} title="How to read this">
-        Estimates combine the <b>size of your last significant session</b> for each muscle (observed), a <b>heuristic recovery window</b> of ~36–96 h (assumption), and your <b>soreness, sleep and fatigue</b> check-ins (self-reported).
+        Estimates combine the <b>size of your last significant session</b> for each muscle (observed), a <b>heuristic recovery window</b> of ~24–72 h, longer after failure sets or new exercises (assumption), and your <b>soreness, sleep and fatigue</b> check-ins (self-reported).
         A muscle below its weekly target is not pushed for more work while it is likely still recovering.
       </Callout>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
         <Card>
           <CardTitle hint="Colour = estimated status, intensity = readiness.">Readiness map</CardTitle>
           <BodyMap muscles={a.muscles} mode="recovery" selected={selected} onSelect={select} />
@@ -223,7 +223,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
                 <div className="flex shrink-0 gap-1">
                   {[0, 1, 2, 3, 4].map((n) => (
                     <button key={n} type="button" onClick={() => setSore(m, n)} aria-label={`${names.muscle(m)} soreness ${n}`}
-                      className={cx('h-7 w-7 rounded-lg text-xs font-semibold tabular-nums transition',
+                      className={cx('h-10 w-10 rounded-lg text-sm font-semibold tabular-nums transition active:scale-95 sm:h-7 sm:w-7 sm:text-xs',
                         v === n ? SORE_CLS[n] : 'bg-ink-100 text-ink-400 hover:bg-ink-200 dark:bg-ink-850 dark:text-ink-500 dark:hover:bg-ink-800')}>
                       {n}
                     </button>

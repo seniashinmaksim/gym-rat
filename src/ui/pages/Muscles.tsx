@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, CartesianGrid, Legend, Line, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { statusLabel, type MuscleWeek, type WeekStatus } from '../../domain/analysis';
+import { formatDate } from '../../domain/dates';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from '../../domain/muscles';
 import type { MuscleId, MusclePriority } from '../../domain/types';
 import { store, useData } from '../../lib/store';
@@ -43,7 +44,7 @@ export function MusclesPage() {
     return { eff, remaining, met, uncertain };
   }, [a.muscles]);
 
-  const weekLabel = `${a.week.start} → ${a.week.end}`;
+  const weekLabel = `${formatDate(a.week.start, { day: 'numeric', month: 'short' })} – ${formatDate(a.week.end, { day: 'numeric', month: 'short' })}`;
 
   return (
     <Page
@@ -98,7 +99,7 @@ export function MusclesPage() {
               <Td>{Math.round(m.pctOfPreferred * 100)}%</Td>
               <Td><Badge tone={STATUS_TONE[m.status]}>{statusLabel(m.status)}</Badge></Td>
               <Td>
-                <button onClick={() => setEditing(m.muscle)} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:hover:bg-ink-800 dark:hover:text-white" aria-label={`Edit target for ${names.muscle(m.muscle)}`}>
+                <button onClick={() => setEditing(m.muscle)} className="flex h-10 w-10 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:hover:bg-ink-800 dark:hover:text-white" aria-label={`Edit target for ${names.muscle(m.muscle)}`}>
                   <IconEdit size={15} />
                 </button>
               </Td>
@@ -153,7 +154,7 @@ function MuscleCard({ m, onEdit }: { m: MuscleWeek; onEdit: () => void }) {
         </div>
         <div className="flex items-center gap-1.5">
           <Badge tone={STATUS_TONE[m.status]}>{statusLabel(m.status)}</Badge>
-          <button onClick={onEdit} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label="Edit target"><IconEdit size={15} /></button>
+          <button onClick={onEdit} className="-mr-2 -mt-2 flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label="Edit target"><IconEdit size={15} /></button>
         </div>
       </div>
       <div className="mt-3 flex items-baseline justify-between">

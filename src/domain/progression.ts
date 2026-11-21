@@ -79,7 +79,7 @@ export function epley(weight: number, reps: number, rir: number | null): number 
 }
 
 export function sessionPerf(w: Workout, ex: WorkoutExercise): SessionPerf | null {
-  const working = ex.sets.filter((s) => s.type === 'working');
+  const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
   if (!working.length) return null;
   const sets: SetPoint[] = working.map((s) => ({ weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null) }));
   const assisted = working.some((s) => s.loadMode === 'assisted');
@@ -176,9 +176,11 @@ export function roundToIncrement(w: number, inc: number): number {
 }
 
 /**
- * Double progression: stay at a load until ALL working sets reach the top of the rep range
- * at the intended effort in TWO consecutive sessions, then add the smallest available increment.
- * A single unusually good set never triggers an increase.
+ * Double progression: stay at a load until ALL working sets at that load reach the top of the
+ * rep range (with RIR recorded) in TWO consecutive sessions, then add the smallest available
+ * increment. Exception: if every set reached the top of the range while still ≥ target RIR + 2
+ * (clearly too light — those sets earn reduced effort credit), one session is enough.
+ * Lighter back-off sets are ignored. A single unusually good set never triggers an increase.
  */
 export function suggestNextLoad(
   sessions: SessionPerf[],
@@ -193,30 +195,44 @@ export function suggestNextLoad(
   const last = sessions[sessions.length - 1];
   if (!last) return { ...base, action: 'calibrate', weight: null, reason: 'No history on this equipment yet. Pick a load you can lift for the rep range with ~2–3 RIR and record RIR to calibrate.' };
   const prev = sessions[sessions.length - 2];
-  const w = last.topWeight;
+  const assisted = loadMode === 'assisted';
+  // Working load = heaviest load used (for assisted: the least assistance). Lighter back-off sets don't block progress.
+  const workLoad = (s: SessionPerf): number | null => {
+    const ws = s.sets.filter((p) => p.weight != null && p.reps != null).map((p) => p.weight as number);
+    if (!ws.length) return s.topWeight;
+    return assisted ? Math.min(...ws) : Math.max(...ws);
+  };
+  const w = workLoad(last);
   if (w == null || loadMode === 'bodyweight_plus' && w === 0) {
     return { ...base, action: 'hold', weight: w, reason: `Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.` };
   }
-  const assisted = loadMode === 'assisted';
-  const sameLoad = (s: SessionPerf) => s.sets.filter((p) => p.weight === w);
+  const atLoad = (s: SessionPerf) => s.sets.filter((p) => p.weight === workLoad(s));
   const hitsTop = (s: SessionPerf) => {
-    const at = sameLoad(s);
-    return at.length > 0 && at.length === s.sets.length && at.every((p) => (p.reps ?? 0) >= hi && (p.rir == null ? false : p.rir <= rirTarget + 1));
+    const at = atLoad(s);
+    return at.length > 0 && at.length >= Math.ceil(s.sets.length / 2) && at.every((p) => (p.reps ?? 0) >= hi && p.rir != null);
   };
   const rirUnknown = last.sets.every((p) => p.rir == null);
   const lastTop = hitsTop(last);
-  const prevTop = prev ? hitsTop(prev) && prev.topWeight === w : false;
+  const prevTop = prev ? hitsTop(prev) && workLoad(prev) === w : false;
+  const tooEasy = lastTop && atLoad(last).every((p) => (p.rir as number) >= rirTarget + 2);
   const step = assisted ? -increment : increment;
+  const nextLoad = Math.max(0, roundToIncrement(w + step, increment));
 
+  if (assisted && w <= 0 && lastTop) {
+    return { ...base, action: 'hold', weight: 0, reason: `All sets reached ${hi} reps with no assistance. Switch to the unassisted (or weighted) version of the exercise.` };
+  }
+  if (tooEasy) {
+    return { ...base, action: 'increase', weight: nextLoad, reason: `Every set at ${w} kg reached ${hi} reps with ${rirTarget + 2}+ reps still in reserve — the load is clearly too light (those sets earn reduced effort credit). ${assisted ? 'Reduce assistance' : 'Add the smallest increment'} (${increment} kg) now and rebuild reps from ~${lo}.` };
+  }
   if (lastTop && prevTop) {
-    return { ...base, action: 'increase', weight: roundToIncrement(w + step, increment), reason: `All working sets reached ${hi} reps at ≤${rirTarget + 1} RIR in the last two sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) and rebuild reps from ~${lo}.` };
+    return { ...base, action: 'increase', weight: nextLoad, reason: `All working sets reached ${hi} reps in the last two sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) and rebuild reps from ~${lo}.` };
   }
   if (lastTop && !prevTop) {
     return { ...base, action: 'hold', weight: w, reason: `Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.` };
   }
   const belowLo = last.sets.filter((p) => (p.reps ?? 0) < lo).length;
   if (belowLo > last.sets.length / 2 && trend.cls === 'declining') {
-    return { ...base, action: 'reduce', weight: roundToIncrement(w - step, increment), reason: `Most sets fell below ${lo} reps and the trend is declining. A one-step reduction (or checking recovery/rest) may restore quality reps.` };
+    return { ...base, action: 'reduce', weight: Math.max(0, roundToIncrement(w - step, increment)), reason: `Most sets fell below ${lo} reps and the trend is declining. A one-step reduction (or checking recovery/rest) may restore quality reps.` };
   }
   if (rirUnknown) {
     return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set. RIR was not recorded, so readiness for a load increase cannot be confirmed — log RIR on the last set.` };

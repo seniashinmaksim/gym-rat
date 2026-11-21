@@ -3,7 +3,7 @@ import { daysLeftInWeek, diffDays, localNowParts, weekOf, type WeekRange } from 
 import { mean, weeklyHistory, type WeekBucket } from './history';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import { buildProgression, defaultIncrement, warmupFor, type NextLoad, type ProgressionSeries, type WarmupPlan } from './progression';
-import { roundHalf } from './quality';
+import { round2, roundHalf, stripPlanned } from './quality';
 import { estimateRecovery, type RecoveryEstimate } from './recovery';
 import { buildRegistry, type Registry } from './registry';
 import { computeTargets, learningState, muscleTrendSummary, type LearningState, type MuscleTarget } from './targets';
@@ -25,8 +25,21 @@ export interface MuscleWeek {
   trend: ReturnType<typeof muscleTrendSummary>;
   moreVolumeJustified: 'yes' | 'no' | 'wait' | 'caution';
   justification: string;
-  /** Suggested effective sets for the session today = remaining ÷ sessions likely left (0 if recovering/done). */
+  /**
+   * Today's share, fixed for the whole day: (remaining at the START of today) ÷ (sessions likely
+   * left incl. today), capped per muscle. 0 if done or still recovering from an earlier session.
+   */
   todayShare: number;
+  /** Effective sets already logged for this muscle today. */
+  doneToday: number;
+  /** What is still open of today's share (todayShare − doneToday, never below 0). */
+  todayLeft: number;
+  /** Still recovering from a PREVIOUS session (today's own sets never block today's plan). */
+  todayBlocked: boolean;
+  /** Most effective sets suggested for this muscle in one session. */
+  sessionCap: number;
+  /** Remaining sets that will not fit in the sessions left — they simply carry over (don't cram). */
+  carryOver: number;
   todayNote: string;
   explanation: string;
 }
@@ -66,16 +79,27 @@ export interface Analysis {
   learning: LearningState;
   targets: Record<MuscleId, MuscleTarget>;
   recovery: Record<MuscleId, RecoveryEstimate>;
+  /** Recovery entering today's session (ignores sessions dated today). Used for planning. */
+  planRecovery: Record<MuscleId, RecoveryEstimate>;
   progression: ProgressionSeries[];
   muscles: MuscleWeek[];
   sessionsThisWeek: number;
+  trainedToday: boolean;
   sessionsLeftInclToday: number;
   avgSessionsPerWeek: number;
   expectedRemainingSessions: number;
   plan: NextWorkoutPlan;
 }
 
-export function analyze(data: AppData, now: Date = new Date()): Analysis {
+/** A muscle still recovering but within this many hours of the window's end is not held back today. */
+export const RECOVERY_TOLERANCE_H = 6;
+
+/** Share of the weekly preferred target suggested at most in one session (spreads it over ≥2 sessions). */
+export const MAX_SESSION_SHARE = 0.6;
+
+export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
+  // Planned (pre-filled, not yet performed) sets never count toward anything.
+  const data: AppData = { ...rawData, workouts: stripPlanned(rawData.workouts) };
   const { timezone, weekStartsOn, quality, perSessionSetCap, defaultTargetRir } = data.settings;
   const local = localNowParts(timezone, now);
   const today = local.date;
@@ -87,16 +111,19 @@ export function analyze(data: AppData, now: Date = new Date()): Analysis {
   const learning = learningState(data, today, weeks);
   const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today);
   const recovery = estimateRecovery(data, registry, local.virtualMs, today);
-  const targets = computeTargets({ data, weeks, learning, progression, recovery, registry });
+  const planRecovery = estimateRecovery(data, registry, local.virtualMs, today, { before: today });
+  const targets = computeTargets({ data, weeks, learning, progression, recovery, registry, today });
 
   const recentWeeks = weeks.filter((w) => w.complete && w.workouts.length).slice(-4);
   const avgSessionsPerWeek = recentWeeks.length ? mean(recentWeeks.map((w) => w.workouts.length)) : 3;
   const daysLeft = daysLeftInWeek(today, week);
-  const trainedToday = thisWeek.some((w) => w.date === today);
+  const todays = thisWeek.filter((w) => w.date === today);
+  const trainedToday = todays.length > 0;
+  const todayVol = computeVolume(todays, registry, quality);
   const effDays = trainedToday ? Math.max(0, daysLeft - 1) : daysLeft;
   const expectedRemainingSessions = Math.max(effDays > 0 ? 1 : 0, Math.round((avgSessionsPerWeek * effDays) / 7));
-  const achievable = expectedRemainingSessions * perSessionSetCap;
-  const elapsedFrac = Math.min(1, (7 - daysLeft + 1) / 7);
+  // Fraction of the week already behind us at the START of today (Monday morning = 0).
+  const elapsedFrac = Math.min(1, Math.max(0, (7 - daysLeft) / 7));
   // Sessions likely left INCLUDING today (today counts as a session if you are opening the app to train).
   const sessionsLeftInclToday = Math.max(daysLeft > 0 ? 1 : 0, Math.round((avgSessionsPerWeek * daysLeft) / 7));
 
@@ -108,7 +135,10 @@ export function analyze(data: AppData, now: Date = new Date()): Analysis {
     const remainingToPreferred = roundHalf(Math.max(0, target.preferred - completed));
     const pct = target.preferred > 0 ? Math.min(2, completed / target.preferred) : 1;
     const rec = recovery[m];
+    const planRec = planRecovery[m];
     const trend = muscleTrendSummary(m, progression, registry);
+    const sessionCap = Math.max(1, Math.min(perSessionSetCap, Math.max(3, Math.round(target.preferred * MAX_SESSION_SHARE))));
+    const achievable = expectedRemainingSessions * sessionCap;
     let status: WeekStatus;
     if (!data.workouts.length) status = 'no_data';
     else if (completed > target.max) status = 'over';
@@ -124,10 +154,9 @@ export function analyze(data: AppData, now: Date = new Date()): Analysis {
       justification = status === 'over'
         ? `Above the current upper bound (${target.max}). Extra sets are unlikely to add much (diminishing returns) and add fatigue.`
         : 'Target reached — no additional sets are required just to satisfy a number.';
-    } else if (rec.status === 'recovering') {
+    } else if (planRec.status === 'recovering' && planRec.hoursLeft > RECOVERY_TOLERANCE_H) {
       moreVolumeJustified = 'wait';
-      const hrs = rec.windowHours != null && rec.hoursSince != null ? Math.max(0, rec.windowHours - rec.hoursSince) : null;
-      justification = `Below target, but likely still recovering${hrs ? ` (~${hrs} h more by the heuristic)` : ''}. Train it next session rather than today if possible.`;
+      justification = `Below target, but likely still recovering from the last session (~${planRec.hoursLeft} h more by the heuristic). Train it next session rather than today if possible — this is advice, not a rule.`;
     } else if (trend.overall === 'declining') {
       moreVolumeJustified = 'caution';
       justification = 'Below target, but performance on its main exercises is declining — prioritize quality sets over adding volume.';
@@ -148,28 +177,42 @@ export function analyze(data: AppData, now: Date = new Date()): Analysis {
     } else explanation += ' No more sets are needed this week.';
     if (completed > 0 && indirectShare >= 60) explanation += ` ${indirectShare}% of this came from indirect work.`;
     if (volume.uncertainEffective > 0) explanation += ` ${volume.uncertainEffective.toFixed(1)} of the credited sets have unknown effort (no RIR).`;
-    if (status === 'at_risk') explanation += ` With ~${expectedRemainingSessions} session(s) likely left, reaching the target would need more than ~${perSessionSetCap} sets/session — don't cram; carry the focus into next week.`;
+    if (status === 'at_risk') explanation += ` With ~${expectedRemainingSessions} session(s) likely left, reaching the target would need more than ~${sessionCap} sets in a session — don't cram; the rest simply carries over.`;
 
+    // Today's plan is fixed for the whole day: it is based on what remained when the day started,
+    // so it does not shrink while you log, and today's own sets never mark the muscle "recovering".
+    const doneToday = round2(todayVol.muscles[m].effective);
+    const remainingAtDayStart = roundHalf(Math.max(0, target.preferred - (completed - doneToday)));
+    const todayBlocked = planRec.status === 'recovering' && planRec.hoursLeft > RECOVERY_TOLERANCE_H;
     let todayShare = 0;
+    let carryOver = 0;
     let todayNote: string;
-    if (remainingToPreferred <= 0) todayNote = 'Target met';
-    else if (rec.status === 'recovering') todayNote = 'Let it recover first';
+    if (remainingAtDayStart <= 0) todayNote = 'Target met';
+    else if (todayBlocked) todayNote = `Still recovering (~${planRec.hoursLeft} h) — better next session`;
     else if (sessionsLeftInclToday <= 0) todayNote = 'Week is over';
     else {
-      todayShare = Math.min(perSessionSetCap, Math.ceil(remainingToPreferred / sessionsLeftInclToday));
+      // Whole sets per session, but never more than what is actually left this week.
+      todayShare = Math.min(sessionCap, remainingAtDayStart, Math.ceil(remainingAtDayStart / sessionsLeftInclToday));
+      carryOver = roundHalf(Math.max(0, remainingAtDayStart - sessionCap * sessionsLeftInclToday));
       todayNote = sessionsLeftInclToday === 1
         ? 'Likely your last session this week'
-        : `${remainingToPreferred} left ÷ ~${sessionsLeftInclToday} sessions`;
+        : `${remainingAtDayStart} left ÷ ~${sessionsLeftInclToday} sessions`;
+      if (todayShare === sessionCap && carryOver > 0) todayNote += ` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`;
       if (mwTrendDeclining(trend.overall)) todayNote += ' · keep sets high-quality';
     }
+    const diff = todayShare - doneToday;
+    const todayLeft = diff < 0.5 ? 0 : roundHalf(diff);
 
-    return { muscle: m, target, volume, completed, remainingToMin, remainingToPreferred, pctOfPreferred: pct, status, recovery: rec, trend, moreVolumeJustified, justification, explanation, todayShare, todayNote };
+    return {
+      muscle: m, target, volume, completed, remainingToMin, remainingToPreferred, pctOfPreferred: pct, status, recovery: rec, trend,
+      moreVolumeJustified, justification, explanation, todayShare, doneToday, todayLeft, todayBlocked, sessionCap, carryOver, todayNote,
+    };
   });
 
   const plan = planNextWorkout(data, registry, muscles, progression, today, perSessionSetCap);
   return {
-    today, nowVirtualMs: local.virtualMs, week, daysLeft, registry, weeks, current, learning, targets, recovery, progression, muscles,
-    sessionsThisWeek: thisWeek.length, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, plan,
+    today, nowVirtualMs: local.virtualMs, week, daysLeft, registry, weeks, current, learning, targets, recovery, planRecovery, progression, muscles,
+    sessionsThisWeek: thisWeek.length, trainedToday, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, plan,
   };
 }
 
@@ -191,7 +234,7 @@ function planNextWorkout(
       satisfied.push(mw.muscle);
       continue;
     }
-    if (mw.recovery.status === 'recovering') {
+    if (mw.todayBlocked) {
       avoid.push({ muscle: mw.muscle, reason: mw.justification });
       continue;
     }

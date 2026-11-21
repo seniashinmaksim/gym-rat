@@ -99,14 +99,16 @@ describe('remaining sets', () => {
     expect(quads.moreVolumeJustified).toBe('no');
     expect(quads.todayShare).toBe(0);
   });
-  it('splits remaining sets across likely sessions left, and holds recovering muscles', () => {
+  it('splits remaining sets across likely sessions left, and holds muscles still recovering from an earlier session', () => {
     const now = new Date('2026-11-17T19:30:00Z'); // Tuesday evening
     const d = data([
-      workout('2026-11-17', [ex('preacher_curl', Array.from({ length: 6 }, () => set(20, 10, 1)))], { startTime: '18:00' }),
+      // Yesterday: a big biceps session (10 effective sets → ~60 h window), so biceps is held today.
+      workout('2026-11-16', [ex('preacher_curl', Array.from({ length: 10 }, () => set(20, 10, 1)))], { startTime: '18:00' }),
     ]);
     const a = analyze(d, now);
     const biceps = a.muscles.find((m) => m.muscle === 'biceps')!;
     expect(biceps.recovery.status).toBe('recovering');
+    expect(biceps.todayBlocked).toBe(true);
     expect(biceps.todayShare).toBe(0);
     const side = a.muscles.find((m) => m.muscle === 'side_delts')!;
     expect(side.todayShare).toBeGreaterThan(0);

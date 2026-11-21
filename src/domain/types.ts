@@ -52,6 +52,12 @@ export interface WorkoutSet {
   restSecBefore: number | null;
   restSource?: RestSource;
   completedAt?: string; // ISO timestamp, set by the live logger
+  /**
+   * Live logger only: a pre-filled set that has not been performed yet. Planned sets are
+   * ignored by every calculation until the owner ticks them (✓), so suggestions never
+   * inflate the weekly numbers.
+   */
+  planned?: boolean;
   notes?: string;
 }
 
@@ -289,6 +295,10 @@ export interface QualityModel {
   lowRepThreshold: number;
   lowRepCredit: number;
   minRepsForCredit: number;
+  /** Effective sets per muscle per SESSION above which extra sets get tapered credit. */
+  sessionCreditCap: number;
+  /** Multiplier for effective volume above `sessionCreditCap` in one session. */
+  beyondSessionCapCredit: number;
 }
 
 export interface Settings {

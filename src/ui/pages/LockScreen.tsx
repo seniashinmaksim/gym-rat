@@ -66,10 +66,14 @@ export function LockScreen() {
             </div>
             <Input type="password" autoComplete="new-password" placeholder="Repeat password" value={pw2} onChange={(e) => setPw2(e.target.value)} className="h-12 text-base" />
             <Callout tone="warn">There is no password recovery. If you forget it, the data cannot be decrypted by anyone, including you. Keep encrypted backups.</Callout>
-            <label className="block text-xs text-ink-500">
-              <span className="mb-1 block font-medium">Optional: restore an encrypted backup (must use the same password)</span>
-              <input type="file" accept=".json,application/json" onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} className="block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-ink-100 file:px-3 file:py-1.5 dark:file:bg-ink-800 dark:file:text-ink-200" />
-            </label>
+            <div className="text-xs text-ink-500">
+              <span className="mb-1.5 block font-medium">Optional: restore an encrypted backup (use the backup's password)</span>
+              <label className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-300 px-3 text-sm text-ink-600 active:bg-ink-50 dark:border-ink-700 dark:text-ink-300 dark:active:bg-ink-800">
+                <input type="file" accept=".json,application/json" onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} className="sr-only" />
+                <span className="truncate">{restoreFile ? restoreFile.name : 'Choose backup file…'}</span>
+                {restoreFile && <button type="button" onClick={(e) => { e.preventDefault(); setRestoreFile(null); }} className="ml-auto h-9 shrink-0 rounded-lg px-2 text-xs text-ink-500">Clear</button>}
+              </label>
+            </div>
           </>
         )}
         {err && <p className="text-sm text-rose-600 dark:text-rose-400">{err}</p>}

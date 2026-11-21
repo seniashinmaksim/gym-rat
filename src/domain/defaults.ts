@@ -14,6 +14,10 @@ export const DEFAULT_QUALITY: QualityModel = {
   lowRepThreshold: 5,
   lowRepCredit: 0.8,
   minRepsForCredit: 1,
+  // Remmert 2025 (preprint): no detectable extra hypertrophy beyond ~11 fractional sets per muscle
+  // per session. Sets past that still count, at half credit (tapered, not zeroed).
+  sessionCreditCap: 11,
+  beyondSessionCapCredit: 0.5,
 };
 
 export function defaultSettings(): Settings {
@@ -33,7 +37,8 @@ export function defaultSettings(): Settings {
     experience: 'intermediate',
     defaultTargetRir: 2,
     significantStimulusSets: 2,
-    // Remmert 2025 (preprint): no detectable extra hypertrophy beyond ~11 fractional sets/muscle/session.
+    // Planning cap: never suggest more than this many effective sets for one muscle in one session.
+    // (Remmert 2025, preprint: no detectable extra hypertrophy beyond ~11 fractional sets/muscle/session.)
     perSessionSetCap: 10,
     quality: { ...DEFAULT_QUALITY, rirCredit: [...DEFAULT_QUALITY.rirCredit] },
     targetOverrides: {},

@@ -32,7 +32,7 @@ export function PeriodizationPage() {
       subtitle="Flexible training blocks, volume trends and evidence-based deload signals."
       actions={<Button variant="primary" onClick={() => setEditing('new')}><IconPlus size={16} /> New block</Button>}
     >
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <CurrentBlockCard block={block} today={a.today} onEdit={(b) => setEditing(b)} onNew={() => setEditing('new')} />
         <DeloadCard deload={deload} />
       </div>

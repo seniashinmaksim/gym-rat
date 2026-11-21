@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { MuscleWeek } from '../../domain/analysis';
 import { formatDate } from '../../domain/dates';
 import { defaultIncrement, warmupFor } from '../../domain/progression';
-import { assessDeload, weeklyReport } from '../../domain/reports';
+import { assessDeload, buildSnapshot, pendingSnapshot, weeklyReport } from '../../domain/reports';
+import { store } from '../../lib/store';
+import { activeWorkout } from '../Layout';
 import type { MuscleId } from '../../domain/types';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
@@ -21,15 +23,22 @@ export function DashboardPage() {
   const [open, setOpen] = useState<MuscleId | null>(null);
   const [mapMode, setMapMode] = useState<BodyMapMode>('volume');
   const deload = useMemo(() => assessDeload(data, a), [data, a]);
+  const active = activeWorkout(data.workouts);
+  // Automatic weekly report: freeze the targets of the week that just finished (once).
+  const pending = pendingSnapshot(a, data);
+  useEffect(() => {
+    if (pending) void store.saveSnapshot(buildSnapshot(pending, a.targets, data));
+  }, [pending?.range.start]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = useMemo(() => {
-    const rank = (m: MuscleWeek) => (m.remainingToPreferred <= 0 ? -1 : m.todayShare > 0 ? 1000 + m.remainingToPreferred : m.remainingToPreferred);
+    const rank = (m: MuscleWeek) => (m.remainingToPreferred <= 0 ? -1 : m.todayLeft > 0 ? 1000 + m.remainingToPreferred : m.remainingToPreferred);
     return [...a.muscles].sort((x, y) => rank(y) - rank(x));
   }, [a.muscles]);
   const openList = sorted.filter((m) => m.remainingToPreferred > 0);
   const doneList = sorted.filter((m) => m.remainingToPreferred <= 0);
   const list = filter === 'open' ? openList : filter === 'done' ? doneList : sorted;
-  const todayTotal = openList.reduce((s, m) => s + m.todayShare, 0);
+  const todayList = openList.filter((m) => m.todayShare > 0);
+  const todayOpen = todayList.filter((m) => m.todayLeft > 0);
   const totalEffective = a.muscles.reduce((s, m) => s + m.completed, 0);
   const uncertain = a.muscles.reduce((s, m) => s + m.volume.uncertainEffective, 0);
   const lastComplete = [...a.weeks].reverse().find((w) => w.complete);
@@ -57,7 +66,7 @@ export function DashboardPage() {
   }
 
   return (
-    <Page title="This week" subtitle={subtitle} actions={<Link to="/log"><Button variant="primary"><IconPlus size={16} />Log workout</Button></Link>}>
+    <Page title="This week" subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? 'Resume workout' : 'Log workout'}</Button></Link>}>
       <LearningBanner />
       {deload.recommend && (
         <Callout tone="warn" icon={<IconAlert size={18} />} title="Possible accumulated fatigue">
@@ -65,13 +74,16 @@ export function DashboardPage() {
         </Callout>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card padded={false}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-4 py-3.5 dark:border-ink-800 sm:px-5">
             <div>
               <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Remaining quality sets</h2>
               <p className="text-xs text-ink-500 dark:text-ink-400">
-                {openList.length ? <>About <b className="text-ink-800 dark:text-ink-100">{todayTotal}</b> effective sets suggested for today across {openList.filter((m) => m.todayShare > 0).length} muscles.</> : 'Every muscle has reached its target this week.'}
+                {!openList.length ? 'Every muscle has reached its target this week.'
+                  : !todayList.length ? 'Nothing is due today — open muscles are still recovering.'
+                    : todayOpen.length === 0 ? <>Today's share is done for all <b className="text-ink-800 dark:text-ink-100">{todayList.length}</b> muscles. Rest well.</>
+                      : <><b className="text-ink-800 dark:text-ink-100">{todayOpen.length}</b> muscle{todayOpen.length === 1 ? '' : 's'} to train today · biggest gaps: {todayOpen.slice(0, 3).map((m) => names.muscle(m.muscle)).join(', ')}</>}
               </p>
             </div>
             <Segmented size="sm" value={filter} onChange={setFilter} options={[
@@ -106,7 +118,7 @@ export function DashboardPage() {
           </div>
           {lastReport && (
             <Card>
-              <CardTitle hint={`${formatDate(lastReport.range.start, { day: 'numeric', month: 'short' })} – ${formatDate(lastReport.range.end, { day: 'numeric', month: 'short' })}`} right={<Link to="/reports" className="text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"><IconReport size={14} className="mr-1 inline" />Full report</Link>}>Last week</CardTitle>
+              <CardTitle hint={`${formatDate(lastReport.range.start, { day: 'numeric', month: 'short' })} – ${formatDate(lastReport.range.end, { day: 'numeric', month: 'short' })}`} right={<Link to="/reports" className="-my-2 inline-flex min-h-[44px] items-center text-xs font-medium text-accent-600 hover:underline dark:text-accent-400"><IconReport size={14} className="mr-1" />Full report</Link>}>Last week</CardTitle>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-ink-500">Sessions</span><span className="font-medium tabular-nums">{lastReport.sessions}</span></div>
                 <div className="flex justify-between"><span className="text-ink-500">Muscles at target</span><span className="font-medium tabular-nums">{lastReport.reached.length} / {lastReport.rows.length}</span></div>
@@ -142,7 +154,7 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
       <button type="button" onClick={onToggle} aria-expanded={open} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 text-left sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_76px_84px] sm:px-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className={cx('h-2 w-2 shrink-0 rounded-full', REC_DOT[m.recovery.status])} title={REC_LABEL[m.recovery.status]} />
+            <span className={cx('h-2 w-2 shrink-0 rounded-full', REC_DOT[m.recovery.status])} aria-label={REC_LABEL[m.recovery.status]} />
             <span className="truncate font-medium text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
             <IconChevronDown size={14} className={cx('shrink-0 text-ink-400 transition', open && 'rotate-180')} />
           </div>
@@ -175,8 +187,9 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
 
 function todayChip(m: MuscleWeek) {
   if (m.remainingToPreferred <= 0) return <Badge tone={m.status === 'over' ? 'violet' : 'good'}>{m.status === 'over' ? 'Above range' : 'Done'}</Badge>;
-  if (m.recovery.status === 'recovering') return <Badge tone="warn">Recovering</Badge>;
-  if (m.todayShare > 0) return <Badge tone="accent">today ≈ {m.todayShare}</Badge>;
+  if (m.todayShare > 0 && m.todayLeft <= 0) return <Badge tone="good">✓ today</Badge>;
+  if (m.todayBlocked) return <Badge tone="warn">Recovering</Badge>;
+  if (m.todayLeft > 0) return <Badge tone="accent">{m.doneToday > 0 ? `${fmt(m.todayLeft)} more today` : `today ≈ ${fmt(m.todayLeft)}`}</Badge>;
   return <Badge>—</Badge>;
 }
 
@@ -197,7 +210,11 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
         m.moreVolumeJustified === 'yes' ? 'border-sky-500/30 bg-sky-500/5' : m.moreVolumeJustified === 'no' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5')}>
         <span className="font-semibold">{{ yes: 'More volume justified', no: 'No more needed', wait: 'Wait', caution: 'Caution' }[m.moreVolumeJustified]}: </span>
         <span className="text-ink-700 dark:text-ink-200">{m.justification}</span>
-        {m.todayShare > 0 && <div className="mt-1 text-xs text-ink-500">Today ≈ {m.todayShare} effective sets — {m.todayNote}.</div>}
+        <div className="mt-1 text-xs text-ink-500">
+          {m.todayShare > 0
+            ? <>Today ≈ {m.todayShare} effective set{m.todayShare === 1 ? '' : 's'}{m.doneToday > 0 ? ` (${fmt(m.doneToday)} done)` : ''} — {m.todayNote}.</>
+            : <>Today: {m.todayNote}.</>}
+        </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-4">
@@ -206,7 +223,7 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
         <Fact k="Effective direct / indirect" v={`${fmt(m.volume.effectiveDirect)} / ${fmt(m.volume.effectiveIndirect)}`} />
         <Fact k="Low-effort / unknown sets" v={`${m.volume.lowEffortSets} / ${m.volume.unknownEffortSets}`} />
         <Fact k="Last significant session" v={lastDate ? `${formatDate(lastDate)} · ${fmt(m.recovery.lastStimulusSets)} sets` : '—'} />
-        <Fact k="Recovery estimate" v={<span>{REC_LABEL[m.recovery.status]}{m.recovery.hoursSince != null ? ` · ${m.recovery.hoursSince} h` : ''}</span>} />
+        <Fact k="Recovery estimate" v={<span>{REC_LABEL[m.recovery.status]}{m.recovery.hoursSince != null ? ` · ${m.recovery.hoursSince} h ago` : ''}</span>} />
         <Fact k="Strength trend" v={m.trend.overall === 'unknown' ? 'Not enough data' : `${m.trend.overall} (${m.trend.exercises} exercise${m.trend.exercises === 1 ? '' : 's'})`} />
         <Fact k="Remaining to lower end" v={fmt(m.remainingToMin)} />
       </dl>

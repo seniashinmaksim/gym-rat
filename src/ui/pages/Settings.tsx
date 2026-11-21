@@ -19,7 +19,7 @@ export function SettingsPage() {
 
   return (
     <Page title="Settings & backup" subtitle="All settings are stored inside your encrypted vault.">
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <SecurityCard />
         <BackupCard />
 
@@ -168,7 +168,10 @@ function BackupCard() {
         </div>
         <div className="rounded-xl bg-ink-50 p-3 dark:bg-ink-950">
           <div className="mb-2 text-xs font-medium text-ink-600 dark:text-ink-300">Restore from backup</div>
-          <input type="file" accept=".json,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-ink-200 file:px-3 file:py-1.5 dark:file:bg-ink-800 dark:file:text-ink-200" />
+          <label className="flex min-h-[44px] cursor-pointer items-center rounded-xl border border-dashed border-ink-300 bg-white px-3 text-sm text-ink-600 active:bg-ink-100 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300">
+            <input type="file" accept=".json,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
+            <span className="truncate">{file ? file.name : 'Choose backup file…'}</span>
+          </label>
           <div className="mt-2 flex gap-2">
             <Input type="password" placeholder="Backup password" value={rpw} onChange={(e) => setRpw(e.target.value)} />
             <Button onClick={restore} disabled={!!busy || !file || !rpw}><IconImport size={16} />{busy === 'restore' ? 'Restoring…' : 'Restore'}</Button>
@@ -212,7 +215,7 @@ function QualityCard() {
   const set = (patch: Partial<QualityModel>) => store.saveSettings({ quality: { ...q, ...patch } });
   const row = (label: string, k: keyof QualityModel, hint?: string) => (
     <Field label={label} hint={hint}>
-      <NumInput value={q[k] as number} step={0.05} onChange={(v) => v != null && set({ [k]: Math.max(0, Math.min(k === 'lowRepThreshold' || k === 'minRepsForCredit' ? 50 : 1, v)) } as Partial<QualityModel>)} />
+      <NumInput value={q[k] as number} step={0.05} onChange={(v) => v != null && set({ [k]: Math.max(0, Math.min(k === 'lowRepThreshold' || k === 'minRepsForCredit' || k === 'sessionCreditCap' ? 50 : 1, v)) } as Partial<QualityModel>)} />
     </Field>
   );
   return (
@@ -231,13 +234,15 @@ function QualityCard() {
           ))}
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {row('Unknown RIR', 'unknownRirCredit', 'Provisional; flagged uncertain')}
         {row('Drop-set segment', 'dropSetCredit')}
         {row('Partial ROM', 'partialRomCredit')}
         {row('Lengthened partials', 'lengthenedPartialCredit')}
         {row('Compromised technique', 'compromisedTechniqueCredit')}
         {row('Low-rep credit', 'lowRepCredit', `Applies below ${q.lowRepThreshold} reps`)}
+        {row('Per-session ceiling', 'sessionCreditCap', 'Effective sets per muscle in one session before tapering')}
+        {row('Credit above ceiling', 'beyondSessionCapCredit', 'Multiplier for sets past the ceiling')}
       </div>
       <Callout tone="info">Proximity-to-failure research shows similar hypertrophy across roughly 0–3 RIR, with less stimulus further from failure. These numbers are transparent assumptions, not measurements.</Callout>
     </Card>

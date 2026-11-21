@@ -252,7 +252,7 @@ export const SEED_EXERCISES: ExerciseDef[] = [
   ex('hip_adduction', 'Hip adduction machine', 'Сведение ног в тренажёре', ['adductor machine', 'сведение ног'],
     'hip_adduction', 'isolation', 'machine', { adductors: 1 }, [10, 20], 75, 'Direct adductor work.'),
   ex('hip_abduction', 'Hip abduction machine', 'Разведение ног в тренажёре', ['abductor machine', 'разведение ног'],
-    'hip_abduction', 'isolation', 'machine', { glutes: 1 }, [12, 20], 75, 'Glute medius/minimus emphasis.'),
+    'hip_abduction', 'isolation', 'machine', { glutes: 0.5 }, [12, 20], 75, 'Glute medius/minimus emphasis — the upper glutes, not the gluteus maximus, so it counts as half a glute set.'),
   ex('standing_calf_raise', 'Standing calf raise', 'Подъём на носки стоя', ['calf raise', 'calf raises', 'икры стоя', 'подъем на носки'],
     'calf', 'isolation', 'machine', { calves: 1 }, [8, 15], 75, 'Straight knee — gastrocnemius and soleus.'),
   ex('seated_calf_raise', 'Seated calf raise', 'Подъём на носки сидя', ['seated calves', 'икры сидя'],

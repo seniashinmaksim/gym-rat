@@ -16,6 +16,8 @@ export interface RecoveryEstimate {
   lastStimulusDate: string | null;
   lastStimulusSets: number;
   windowHours: number | null;
+  /** Hours until the window ends (0 when recovered or no data). */
+  hoursLeft: number;
   recent7dEffective: number;
   recent7dDirect: number;
   recent7dIndirect: number;
@@ -24,14 +26,33 @@ export interface RecoveryEstimate {
   factors: string[];
 }
 
+/** Baseline window by the size of the last significant session (effective sets for the muscle). */
+export function baseWindowHours(sets: number): number {
+  return sets <= 3 ? 24 : sets <= 6 ? 36 : sets <= 9 ? 48 : sets <= 12 ? 60 : 72;
+}
+
+export interface RecoveryOptions {
+  /** Ignore sessions dated on/after this day (planning view: "entering today's session"). */
+  before?: string;
+}
+
 /**
- * Heuristic recovery model. Recovery time scales with the size of the last stimulus and
- * is extended by reported soreness, short sleep and high fatigue. Output is guidance,
- * not a claim about the true biological state of the muscle.
+ * Heuristic recovery model. Recovery time scales with the size of the last stimulus and is
+ * extended by failure training, exercise novelty, reported soreness, short sleep and high
+ * fatigue. Familiar, non-failure work largely recovers within 24–48 h; failure sets add
+ * roughly a day (Morán-Navarro 2017); new exercises cause more damage (Damas 2016/2018).
+ * Output is guidance, not a claim about the true biological state of the muscle.
  */
-export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs: number, today: string): Record<MuscleId, RecoveryEstimate> {
+export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs: number, today: string, opts: RecoveryOptions = {}): Record<MuscleId, RecoveryEstimate> {
   const { quality, significantStimulusSets } = data.settings;
-  const sorted = [...data.workouts].sort((a, b) => workoutVirtualMs(b.date, b.startTime) - workoutVirtualMs(a.date, a.startTime));
+  // A workout dated today (or earlier) without a start time defaults to 18:00; if that is still in
+  // the future it has obviously already happened (it was logged), so treat it as "now".
+  const at = (w: { date: string; startTime?: string | null }) => {
+    const v = workoutVirtualMs(w.date, w.startTime);
+    return w.date <= today && v > nowVirtualMs ? nowVirtualMs : v;
+  };
+  const pool = opts.before ? data.workouts.filter((w) => w.date < opts.before!) : data.workouts;
+  const sorted = [...pool].sort((a, b) => at(b) - at(a));
   const recent7 = data.workouts.filter((w) => diffDays(today, w.date) >= 0 && diffDays(today, w.date) < 7);
   const vol7 = computeVolume(recent7, registry, quality);
   const recent14 = sorted.filter((w) => diffDays(today, w.date) >= 0 && diffDays(today, w.date) < 14);
@@ -51,7 +72,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     const factors: string[] = [];
     let last: { date: string; startTime?: string | null; sets: number; workout: (typeof sorted)[number] } | null = null;
     for (const w of sorted) {
-      if (workoutVirtualMs(w.date, w.startTime) > nowVirtualMs) continue;
+      if (at(w) > nowVirtualMs) continue;
       const eff = sessionMuscleEffective(w, registry, quality)[m] ?? 0;
       if (eff >= significantStimulusSets) {
         last = { date: w.date, startTime: w.startTime, sets: eff, workout: w };
@@ -77,18 +98,18 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     if (!last) {
       out[m] = {
         ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusSets: 0,
-        windowHours: null,
+        windowHours: null, hoursLeft: 0,
         factors: [`No session with ≥${significantStimulusSets} effective sets for this muscle is recorded.`],
       };
       continue;
     }
 
-    const hoursSince = Math.max(0, (nowVirtualMs - workoutVirtualMs(last.date, last.startTime)) / 3_600_000);
-    let window = last.sets <= 3 ? 36 : last.sets <= 6 ? 48 : last.sets <= 9 ? 72 : 96;
+    const hoursSince = Math.max(0, (nowVirtualMs - at(last.workout)) / 3_600_000);
+    let window = baseWindowHours(last.sets);
     factors.push(`Last significant stimulus: ${last.sets.toFixed(1)} effective sets → baseline window ~${window} h.`);
-    if (MUSCLE_BY_ID[m].size === 'large' && last.sets > 3) {
+    if (MUSCLE_BY_ID[m].size === 'large' && last.sets > 9) {
       window += 12;
-      factors.push('Large muscle with a substantial session: +12 h.');
+      factors.push('Large muscle with a very high-volume session: +12 h.');
     }
     // Sets taken to failure slow recovery by roughly a day (Morán-Navarro 2017); unfamiliar
     // exercises cause more damage than familiar ones (repeated-bout effect, Damas 2016/2018).
@@ -131,7 +152,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     if (soreness == null && avgSleep == null) factors.push('No soreness/sleep data recently — estimate is based on training load only.');
     out[m] = {
       ...base, status, readiness: Math.round(readiness * 100) / 100, hoursSince: Math.round(hoursSince), lastStimulusDate: last.date,
-      lastStimulusSets: last.sets, windowHours: window, factors,
+      lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(0, Math.round(window - hoursSince)) : 0, factors,
     };
   }
   return out;

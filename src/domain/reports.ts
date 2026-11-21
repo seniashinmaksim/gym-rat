@@ -5,6 +5,9 @@ import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { exerciseLabel, type Registry } from './registry';
 import type { MuscleId, Workout } from './types';
+import { stripPlanned } from './quality';
+import type { MuscleTarget } from './targets';
+import type { WeeklySnapshot } from './types';
 import { computeVolume } from './volume';
 
 // ---------------------------------------------------------------- Rest analysis
@@ -118,8 +121,8 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
   const short = rows.filter((r) => r.result === 'short').map((r) => r.muscle);
   const excessive = rows.filter((r) => r.result === 'excess').map((r) => r.muscle);
   const recommendations: string[] = [];
-  if (short.length) recommendations.push(`Start next week with ${short.slice(0, 3).map((m) => muscleName(m)).join(', ')} — these finished below the lower end of their range.`);
-  if (excessive.length) recommendations.push(`${excessive.map((m) => muscleName(m)).join(', ')} exceeded the upper bound; consider moving some of those sets to lagging muscles.`);
+  if (short.length) recommendations.push(`${short.slice(0, 3).map((m) => muscleName(m)).join(', ')} finished below the lower end of their range — give them priority early in the following week (without cramming).`);
+  if (excessive.length) recommendations.push(`${excessive.map((m) => muscleName(m)).join(', ')} went past the diminishing-returns range. That isn't harmful, but some of those sets would likely do more for muscles that are short.`);
   if (declined.length >= 2 && fatigue.length && mean(fatigue) >= 3.5) recommendations.push('Several declines alongside high fatigue — keep volume steady rather than adding sets next week.');
   if (bucket.workouts.length === 0) recommendations.push('No sessions this week. Missing volume is not a failure — resume normally rather than compensating with extra sets.');
   if (!recommendations.length) recommendations.push('Volume distribution looked reasonable. Keep progressing loads/reps on your main exercises.');
@@ -127,6 +130,34 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
     range: bucket.range, sessions: bucket.workouts.length, totalWorkingSets: bucket.volume.totalWorkingSets, rows, reached, short, excessive,
     progressed, declined, recoveryNotes, recommendations,
   };
+}
+
+/** Frozen copy of a finished week, so later target or coefficient changes don't rewrite it. */
+export function buildSnapshot(bucket: WeekBucket, targets: Record<MuscleId, MuscleTarget>, data: AppData, createdAt = new Date().toISOString()): WeeklySnapshot {
+  const t: WeeklySnapshot['targets'] = {};
+  const effective: WeeklySnapshot['effective'] = {};
+  for (const m of TRACKED_MUSCLES) {
+    const x = targets[m];
+    t[m] = { min: x.min, preferred: x.preferred, max: x.max, confidence: x.confidence };
+    effective[m] = bucket.volume.muscles[m].effective;
+  }
+  return {
+    id: bucket.range.start,
+    weekStart: bucket.range.start,
+    weekEnd: bucket.range.end,
+    createdAt,
+    targets: t,
+    effective,
+    sessions: bucket.workouts.length,
+    coefficientNote: `Quality model RIR credits [${data.settings.quality.rirCredit.join(', ')}], unknown RIR ${data.settings.quality.unknownRirCredit}; ${data.exerciseOverrides.length} coefficient override(s).`,
+  };
+}
+
+/** The most recent finished week that has workouts but no frozen snapshot yet (auto-saved on the next open). */
+export function pendingSnapshot(a: Analysis, data: AppData): WeekBucket | null {
+  const last = [...a.weeks].reverse().find((w) => w.complete);
+  if (!last || !last.workouts.length) return null;
+  return data.snapshots.some((s) => s.weekStart === last.range.start) ? null : last;
 }
 
 // ---------------------------------------------------------------- Learning baseline report
@@ -161,7 +192,7 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
   const start = a.learning.startDate;
   if (!start) return null;
   const end = addDays(start, a.learning.lengthDays - 1) < a.today ? addDays(start, a.learning.lengthDays - 1) : a.today;
-  const ws = data.workouts.filter((w) => w.date >= start && w.date <= end).sort((x, y) => x.date.localeCompare(y.date));
+  const ws = stripPlanned(data.workouts).filter((w) => w.date >= start && w.date <= end).sort((x, y) => x.date.localeCompare(y.date));
   const days = diffDays(end, start) + 1;
   const reg = a.registry;
 

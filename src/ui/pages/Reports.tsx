@@ -2,8 +2,8 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { formatDate, formatDuration } from '../../domain/dates';
 import type { WeekBucket } from '../../domain/history';
 import { TRACKED_MUSCLES } from '../../domain/muscles';
-import { baselineReport, weeklyReport, type WeeklyReport } from '../../domain/reports';
-import type { MuscleId, WeeklySnapshot } from '../../domain/types';
+import { baselineReport, buildSnapshot, weeklyReport, type WeeklyReport } from '../../domain/reports';
+import type { MuscleId } from '../../domain/types';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconCheck, IconInfo } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
@@ -49,23 +49,7 @@ function WeeklyTab() {
 
   const snapshot = data.snapshots.find((s) => s.weekStart === bucket.range.start);
   const saveSnapshot = async () => {
-    const targets: WeeklySnapshot['targets'] = {};
-    const effective: WeeklySnapshot['effective'] = {};
-    for (const m of TRACKED_MUSCLES) {
-      const t = a.targets[m];
-      targets[m] = { min: t.min, preferred: t.preferred, max: t.max, confidence: t.confidence };
-      effective[m] = bucket.volume.muscles[m].effective;
-    }
-    await store.saveSnapshot({
-      id: bucket.range.start,
-      weekStart: bucket.range.start,
-      weekEnd: bucket.range.end,
-      createdAt: new Date().toISOString(),
-      targets,
-      effective,
-      sessions: bucket.workouts.length,
-      coefficientNote: `Quality model RIR credits [${data.settings.quality.rirCredit.join(', ')}], unknown RIR ${data.settings.quality.unknownRirCredit}; ${data.exerciseOverrides.length} coefficient override(s).`,
-    });
+    await store.saveSnapshot(buildSnapshot(bucket, a.targets, data));
     toast('Week snapshot saved');
   };
 
@@ -75,7 +59,7 @@ function WeeklyTab() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={bucket.range.start} onChange={(e) => setWeekStart(e.target.value)} className="w-auto min-w-[240px]">
+        <Select value={bucket.range.start} onChange={(e) => setWeekStart(e.target.value)} className="w-full sm:w-auto sm:min-w-[240px]">
           {weeks.map((w) => (
             <option key={w.range.start} value={w.range.start}>
               {formatDate(w.range.start, { day: 'numeric', month: 'short' })} – {formatDate(w.range.end, { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -85,13 +69,13 @@ function WeeklyTab() {
         </Select>
         {!bucket.complete && <Badge tone="info">Week in progress — numbers are partial</Badge>}
         {snapshot ? (
-          <Badge tone="good"><IconCheck size={12} /> Snapshot saved {formatDate(snapshot.createdAt.slice(0, 10), { day: 'numeric', month: 'short' })}</Badge>
+          <Badge tone="good"><IconCheck size={12} /> Targets frozen {formatDate(snapshot.createdAt.slice(0, 10), { day: 'numeric', month: 'short' })}</Badge>
         ) : (
           bucket.complete && <Button size="sm" onClick={saveSnapshot}>Save snapshot</Button>
         )}
       </div>
       {!snapshot && bucket.complete && (
-        <p className="-mt-2 text-xs text-ink-500">A snapshot freezes this week's targets so later target or coefficient changes don't rewrite how this week is judged. Raw sets are always kept; volume itself is recomputed from them.</p>
+        <p className="-mt-2 text-xs text-ink-500">Finished weeks are frozen automatically the next time you open the app. A snapshot freezes this week's targets so later target or coefficient changes don't rewrite how this week is judged. Raw sets are always kept; volume itself is recomputed from them.</p>
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

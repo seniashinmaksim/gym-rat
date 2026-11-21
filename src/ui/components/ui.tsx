@@ -58,9 +58,10 @@ export function Button({ variant = 'secondary', size = 'md', className, children
     ghost: 'text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800',
     danger: 'bg-rose-600 text-white hover:bg-rose-500',
   }[variant];
-  const s = { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-12 px-5 text-base' }[size];
+  // Phones get ≥ 40–44 px touch targets; desktop keeps the compact sizes.
+  const s = { sm: 'h-10 px-3.5 text-[13px] sm:h-8 sm:px-3 sm:text-xs', md: 'h-11 px-4 text-sm sm:h-10', lg: 'h-12 px-5 text-base' }[size];
   return (
-    <button type="button" className={cx('inline-flex select-none items-center justify-center gap-2 rounded-xl font-medium transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40', v, s, className)} {...rest}>
+    <button type="button" className={cx('inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40', v, s, className)} {...rest}>
       {children}
     </button>
   );
@@ -76,7 +77,7 @@ export function Field({ label, hint, children, className }: { label: ReactNode; 
   );
 }
 
-const inputCls = 'h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/25 dark:border-ink-700 dark:bg-ink-950 dark:text-ink-100 dark:placeholder:text-ink-500';
+const inputCls = 'h-11 sm:h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/25 dark:border-ink-700 dark:bg-ink-950 dark:text-ink-100 dark:placeholder:text-ink-500';
 
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(inputCls, className)} {...rest} />;
@@ -145,7 +146,7 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
     <div className="inline-flex rounded-xl bg-ink-100 p-1 dark:bg-ink-850" role="tablist">
       {options.map((o) => (
         <button key={o.value} type="button" role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
-          className={cx('rounded-lg font-medium transition', size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
+          className={cx('rounded-lg font-medium transition', size === 'sm' ? 'min-h-[36px] px-3 text-xs sm:min-h-0 sm:px-2.5 sm:py-1' : 'min-h-[40px] px-3.5 text-sm sm:min-h-0 sm:py-1.5',
             value === o.value ? 'bg-white text-ink-900 shadow-sm dark:bg-ink-700 dark:text-white' : 'text-ink-500 hover:text-ink-800 dark:text-ink-400 dark:hover:text-ink-200')}>
           {o.label}
         </button>
@@ -156,7 +157,7 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 py-1">
+    <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 py-1">
       <span className="text-sm text-ink-700 dark:text-ink-200">{label}</span>
       <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
         className={cx('relative h-6 w-11 shrink-0 rounded-full transition', checked ? 'bg-accent-500' : 'bg-ink-300 dark:bg-ink-700')}>
@@ -221,7 +222,7 @@ export function Why({ children, label = 'Why?' }: { children: ReactNode; label?:
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <button type="button" onClick={() => setOpen(!open)} className="inline-flex items-center gap-1 text-xs font-medium text-accent-600 hover:underline dark:text-accent-400">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="-my-2 inline-flex min-h-[40px] items-center gap-1 text-xs font-medium text-accent-600 hover:underline dark:text-accent-400">
         <IconInfo size={13} /> {label}
         <IconChevronDown size={12} className={cx('transition', open && 'rotate-180')} />
       </button>
@@ -276,12 +277,12 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-labelledby={id}>
       <div className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm" onClick={onClose} />
       <div className={cx('relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-ink-200 bg-white shadow-2xl dark:border-ink-800 dark:bg-ink-900 sm:rounded-3xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}>
-        <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-4 dark:border-ink-800">
+        <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-2.5 dark:border-ink-800">
           <h3 id={id} className="text-base font-semibold text-ink-900 dark:text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label="Close"><IconX size={18} /></button>
+          <button type="button" onClick={onClose} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label="Close"><IconX size={20} /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-ink-100 px-5 py-3 dark:border-ink-800">{footer}</div>}
+        {footer && <div className="flex justify-end gap-2 border-t border-ink-100 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-ink-800">{footer}</div>}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { QualityModel, WorkoutSet } from './types';
+import type { QualityModel, Rom, Workout, WorkoutSet } from './types';
 
 export type EffortTier = 'warmup' | 'high_effort' | 'working' | 'low_effort' | 'unknown';
 
@@ -11,11 +11,18 @@ export interface SetQuality {
   reasons: string[];
 }
 
+export interface SetContext {
+  /** Exercise-level ROM from the variation (used when the set itself has none). */
+  rom?: Rom | null;
+  /** Timed exercise (plank, carry) logged as a single "rep": the low-rep rule does not apply. */
+  timed?: boolean;
+}
+
 /**
  * Transparent set-quality model. Keeps EFFORT separate from MUSCLE PARTICIPATION:
  * this returns only the effort/quality multiplier; muscle coefficients are applied later.
  */
-export function assessSet(set: WorkoutSet, m: QualityModel): SetQuality {
+export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}): SetQuality {
   if (set.type === 'warmup') return { credit: 0, tier: 'warmup', uncertain: false, reasons: ['Warm-up set (not counted)'] };
 
   const reasons: string[] = [];
@@ -46,7 +53,7 @@ export function assessSet(set: WorkoutSet, m: QualityModel): SetQuality {
   } else if (set.reps < m.minRepsForCredit) {
     credit = 0;
     reasons.push('No completed reps');
-  } else if (set.reps < m.lowRepThreshold) {
+  } else if (set.reps < m.lowRepThreshold && !ctx.timed) {
     credit *= m.lowRepCredit;
     reasons.push(`Very low reps (<${m.lowRepThreshold}) ×${m.lowRepCredit}`);
   }
@@ -55,10 +62,11 @@ export function assessSet(set: WorkoutSet, m: QualityModel): SetQuality {
     credit *= m.dropSetCredit;
     reasons.push(`Drop-set segment ×${m.dropSetCredit}`);
   }
-  if (set.rom === 'partial') {
+  const rom = set.rom ?? ctx.rom ?? null;
+  if (rom === 'partial') {
     credit *= m.partialRomCredit;
     reasons.push(`Partial ROM ×${m.partialRomCredit}`);
-  } else if (set.rom === 'lengthened_partial') {
+  } else if (rom === 'lengthened_partial') {
     credit *= m.lengthenedPartialCredit;
     reasons.push(`Lengthened partials ×${m.lengthenedPartialCredit}`);
   }
@@ -68,6 +76,29 @@ export function assessSet(set: WorkoutSet, m: QualityModel): SetQuality {
   }
 
   return { credit: round2(credit), tier, uncertain, reasons };
+}
+
+/** A set counts only once it has been performed (planned/pre-filled sets are ignored). */
+export function isCounted(s: WorkoutSet): boolean {
+  return !s.planned;
+}
+
+/** Copy of the workouts with planned (not yet performed) sets removed. */
+export function stripPlanned(workouts: Workout[]): Workout[] {
+  return workouts.map((w) => (w.exercises.some((e) => e.sets.some((s) => s.planned))
+    ? { ...w, exercises: w.exercises.map((e) => ({ ...e, sets: e.sets.filter(isCounted) })) }
+    : w));
+}
+
+/**
+ * Applies the per-session ceiling: effective volume for one muscle above `cap` in a single
+ * session is multiplied by `beyond`. Returns the credited amount for this set.
+ */
+export function taperBeyondCap(runningBefore: number, eff: number, cap: number, beyond: number): number {
+  if (!(cap > 0) || runningBefore + eff <= cap) return eff;
+  if (runningBefore >= cap) return eff * beyond;
+  const under = cap - runningBefore;
+  return under + (eff - under) * beyond;
 }
 
 export function round2(n: number): number {

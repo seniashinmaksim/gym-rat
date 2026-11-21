@@ -1,35 +1,36 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import type { Workout } from '../domain/types';
 import { store, useData } from '../lib/store';
 import {
   IconBook, IconCalendar, IconDashboard, IconFlask, IconHeart, IconImport, IconLayers, IconLock, IconMachine, IconMoon,
-  IconMore, IconMuscle, IconPlus, IconReport, IconScale, IconSettings, IconSun, IconTrend, IconX,
+  IconMore, IconMuscle, IconPlus, IconReport, IconScale, IconSettings, IconSun, IconTimer, IconTrend, IconX,
 } from './components/icons';
 import { cx } from './components/ui';
 import { applyTheme, useAutoLock } from './hooks';
 
-type NavItem = { to: string; label: string; icon: (p: { size?: number }) => JSX.Element };
+type NavItem = { to: string; label: string; short?: string; icon: (p: { size?: number }) => JSX.Element };
 
 export const NAV: { section: string; items: NavItem[] }[] = [
   { section: 'Train', items: [
     { to: '/', label: 'Dashboard', icon: IconDashboard },
     { to: '/log', label: 'Log workout', icon: IconPlus },
-    { to: '/import', label: 'Import from Claude', icon: IconImport },
-    { to: '/history', label: 'Workout history', icon: IconCalendar },
+    { to: '/import', label: 'Import from Claude', short: 'Import', icon: IconImport },
+    { to: '/history', label: 'Workout history', short: 'History', icon: IconCalendar },
   ] },
   { section: 'Analyze', items: [
-    { to: '/muscles', label: 'Muscle analytics', icon: IconMuscle },
+    { to: '/muscles', label: 'Muscle analytics', short: 'Muscles', icon: IconMuscle },
     { to: '/recovery', label: 'Recovery', icon: IconHeart },
-    { to: '/strength', label: 'Strength progression', icon: IconTrend },
+    { to: '/strength', label: 'Strength progression', short: 'Strength', icon: IconTrend },
     { to: '/reports', label: 'Reports', icon: IconReport },
     { to: '/periodization', label: 'Periodization', icon: IconLayers },
   ] },
   { section: 'Library', items: [
-    { to: '/exercises', label: 'Exercise database', icon: IconBook },
-    { to: '/equipment', label: 'Equipment & gyms', icon: IconMachine },
-    { to: '/body', label: 'Body tracking', icon: IconScale },
-    { to: '/science', label: 'Scientific sources', icon: IconFlask },
-    { to: '/settings', label: 'Settings & backup', icon: IconSettings },
+    { to: '/exercises', label: 'Exercise database', short: 'Exercises', icon: IconBook },
+    { to: '/equipment', label: 'Equipment & gyms', short: 'Equipment', icon: IconMachine },
+    { to: '/body', label: 'Body tracking', short: 'Body', icon: IconScale },
+    { to: '/science', label: 'Scientific sources', short: 'Science', icon: IconFlask },
+    { to: '/settings', label: 'Settings & backup', short: 'Settings', icon: IconSettings },
   ] },
 ];
 
@@ -55,7 +56,13 @@ export function Layout({ children }: { children: ReactNode }) {
     const dark = document.documentElement.classList.contains('dark');
     void store.saveSettings({ theme: dark ? 'light' : 'dark' });
   };
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
+  // Derive from the saved setting (the <html> class is only updated after this render).
+  const t = data.settings.theme;
+  const isDark = t === 'dark' || (t === 'system' && typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  // The + button resumes a live workout started today that hasn't been finished yet.
+  const active = activeWorkout(data.workouts);
+  const logTo = active ? `/log/${active.id}` : '/log';
 
   return (
     <div className="min-h-screen lg:flex">
@@ -83,11 +90,11 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-ink-200 bg-ink-50/85 px-4 py-2.5 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 lg:hidden" style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}>
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-ink-200 bg-ink-50/85 px-3 py-1.5 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 lg:hidden" style={{ paddingTop: 'max(6px, env(safe-area-inset-top))' }}>
         <Brand small />
-        <div className="flex gap-1">
-          <button onClick={toggleTheme} className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-500" aria-label="Toggle theme">{isDark ? <IconSun size={18} /> : <IconMoon size={18} />}</button>
-          <button onClick={() => store.lock()} className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-500" aria-label="Lock now"><IconLock size={18} /></button>
+        <div className="flex">
+          <button onClick={toggleTheme} className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 active:bg-ink-200 dark:active:bg-ink-800" aria-label="Toggle theme">{isDark ? <IconSun size={20} /> : <IconMoon size={20} />}</button>
+          <button onClick={() => store.lock()} className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 active:bg-ink-200 dark:active:bg-ink-800" aria-label="Lock now"><IconLock size={20} /></button>
         </div>
       </header>
 
@@ -97,8 +104,9 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-200 bg-white/90 backdrop-blur-md dark:border-ink-800 dark:bg-ink-900/90 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="mx-auto grid max-w-md grid-cols-5">
           {BOTTOM.map((it) => it.to === '/log' ? (
-            <NavLink key={it.to} to={it.to} className="flex items-center justify-center py-2" aria-label="Log workout">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-500 text-ink-950 shadow-lg shadow-accent-500/30"><IconPlus size={22} /></span>
+            <NavLink key={it.to} to={logTo} className="relative flex items-center justify-center py-2" aria-label={active ? 'Resume workout in progress' : 'Log workout'}>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-500 text-ink-950 shadow-lg shadow-accent-500/30">{active ? <IconTimer size={22} /> : <IconPlus size={22} />}</span>
+              {active && <span className="absolute right-[calc(50%-26px)] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-rose-500 dark:border-ink-900" aria-hidden />}
             </NavLink>
           ) : (
             <NavLink key={it.to} to={it.to} end={it.to === '/'} className={({ isActive }) => cx('flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium', isActive ? 'text-accent-600 dark:text-accent-400' : 'text-ink-500')}>
@@ -112,18 +120,18 @@ export function Layout({ children }: { children: ReactNode }) {
       {more && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm" onClick={() => setMore(false)} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-ink-200 bg-white p-4 pb-8 dark:border-ink-800 dark:bg-ink-900">
+          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-ink-200 bg-white p-4 pb-[max(2rem,env(safe-area-inset-bottom))] dark:border-ink-800 dark:bg-ink-900">
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-semibold">All screens</span>
-              <button onClick={() => setMore(false)} className="rounded-lg p-1.5 text-ink-500" aria-label="Close"><IconX size={18} /></button>
+              <button onClick={() => setMore(false)} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-ink-500" aria-label="Close"><IconX size={20} /></button>
             </div>
             {NAV.map((g) => (
               <div key={g.section} className="mb-3">
                 <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">{g.section}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {g.items.map((it) => (
-                    <NavLink key={it.to} to={it.to} end={it.to === '/'} className={({ isActive }) => cx('flex items-center gap-2.5 rounded-xl border px-3 py-3 text-sm', isActive ? 'border-accent-500/50 bg-accent-500/10 text-accent-600 dark:text-accent-400' : 'border-ink-200 text-ink-700 dark:border-ink-800 dark:text-ink-200')}>
-                      <it.icon size={18} /> <span className="truncate">{it.label}</span>
+                    <NavLink key={it.to} to={it.to === '/log' ? logTo : it.to} end={it.to === '/'} className={({ isActive }) => cx('flex min-h-[48px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm', isActive ? 'border-accent-500/50 bg-accent-500/10 text-accent-600 dark:text-accent-400' : 'border-ink-200 text-ink-700 dark:border-ink-800 dark:text-ink-200')}>
+                      <it.icon size={18} /> <span className="truncate">{it.short ?? it.label}</span>
                     </NavLink>
                   ))}
                 </div>
@@ -134,6 +142,13 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
     </div>
   );
+}
+
+/** A live workout dated today (or yesterday, for late sessions) that has not been finished. */
+export function activeWorkout(workouts: Workout[]): Workout | null {
+  const now = Date.now();
+  const recent = workouts.filter((w) => w.source === 'live' && !w.endTime && now - Date.parse(w.createdAt) < 16 * 3_600_000);
+  return recent.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
 }
 
 function SideLink({ item }: { item: NavItem }) {

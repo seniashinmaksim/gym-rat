@@ -187,8 +187,10 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 
 ## C. Exercise biomechanics & fractional set accounting
 
-- Coefficients per exercise (central DB: `src/data/exercises.ts`, overridable in the app): **1.0** direct target, **0.5** significant secondary, **0.25** minor, **0** insignificant. These are practical estimates, not activation measurements. Examples: incline press → chest 1.0, front delts 0.5, triceps 0.5; pec deck → chest 1.0, front delts 0.25, **no triceps**; lat pulldown → lats 1.0, upper back 0.5, biceps 0.5.
-- **Effort is separate from muscle participation.** Effective sets = coefficient × set-quality credit (RIR 0–3 → 1.0, 4 → 0.6, 5 → 0.3, ≥6 → 0; unknown RIR → 0.75 provisional; drop segment ×0.5; partial ROM ×0.6; <5 reps ×0.8; compromised technique ×0.7 — all configurable in Settings).
+- Coefficients per exercise (central DB: `src/data/exercises.ts`, overridable in the app): **1.0** direct target, **0.5** significant secondary, **0.25** minor, **0** insignificant. These are practical estimates, not activation measurements. Examples: incline press → chest 1.0, front delts 0.5, triceps 0.5; pec deck → chest 1.0, front delts 0.25, **no triceps**; lat pulldown → lats 1.0, upper back 0.5, biceps 0.5; hip abduction → glutes 0.5 (glute medius/minimus, not gluteus maximus).
+- **Effort is separate from muscle participation.** Effective sets = coefficient × set-quality credit (RIR 0–3 → 1.0, 4 → 0.6, 5 → 0.3, 6–7 → 0.15, ≥8 → 0; unknown RIR → 0.75 provisional; drop segment ×0.5; partial ROM ×0.8; lengthened partials ×1.0; <5 reps ×0.8 except timed exercises such as planks; compromised technique ×0.7 — all configurable in Settings). Exercise-level ROM (`variation.rom`) applies to every set of that exercise unless a set has its own `rom`.
+- **Per-session ceiling:** within one session, a muscle's effective sets above ~11 are credited ×0.5 (tapered, not zeroed; Remmert 2025 preprint). Settings → Set-quality model.
+- **Planned sets:** the live logger pre-fills sets from last time; a pre-filled set has `planned: true` and is ignored by every calculation until the owner ticks it (✓) or picks an RIR. Unticked planned sets are dropped when the session is finished.
 - **Bench-angle rules** (`resolveCoefficients` in `src/domain/registry.ts`) for angle-sensitive presses/flys: ≤ −5° decline → lower-chest emphasis, front delts capped at 0.25; < 10° flat → whole pec; 10–45° incline → upper-chest emphasis, front delts ≥ 0.5; > 45° → chest 0.75, front delts 0.75. Supinated vertical pulls → biceps ≥ 0.75. So record `bench_angle_deg` when the owner gives it.
 - **Upper/lower chest are regional emphasis of pectoralis major**, tracked as shares of chest work, with no independent target and **never added to the chest total**.
 - **No double counting:** each set credits each muscle exactly once (one coefficient per muscle per exercise). Supersets/giant sets are fine — log each exercise's sets under that exercise. Never log the same set twice (e.g. once as "chest press" and again as "pec work").
@@ -206,13 +208,19 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
   - *declining*: slope ≤ −1.5 %/session and last < first;
   - *possible plateau*: ≥4 sessions over ≥21 days, no new best in the last 2;
   - *stable*: otherwise; *insufficient data*: < 3 sessions.
-- **Double progression:** increase load only after **all** working sets reach the top of the rep range at ≤ target RIR + 1 in **two consecutive** sessions; increment = smallest increment of that equipment. One good set or session is never enough.
+- **Double progression:** increase load only after **all** working sets at the working load reach the top of the rep range (with RIR recorded) in **two consecutive** sessions; increment = smallest increment of that equipment. One good set or session is never enough — **except** when every set reached the top with ≥ target RIR + 2 in reserve (load clearly too light), where one session suffices. Lighter back-off sets are ignored; assistance never goes below 0.
 - **Rest periods:** compare rep retention between sets against rest duration; a drop in performance with shorter rest is not a strength loss. Mention rest changes when explaining a "decline".
 - **New variations** (different grip, angle, ROM, machine) start a new comparison context; do not report them as progress or regression.
 - **Equipment vs performance:** a sudden large load change (> +30 % or < −40 %) on what looks like the same exercise usually means a different machine, per-side vs total confusion, or a typo — ask before treating it as performance.
 - Strength progression ≠ muscle growth. Do not claim hypertrophy from it.
 
 ---
+
+### Weekly targets, today's share and recovery (how the app answers "how many sets are left?")
+
+- Targets are effective sets/week. Provisional references (Learning Mode): preferred ≈ 10–12 for most muscles, lower end 6 for large muscles (Pelland 2026: ~4 sets already detectable, 5–10 most efficient). Upper bounds mark diminishing returns, not harm. An active **deload** block halves all targets.
+- **Today's share** = (remaining when the day started) ÷ (sessions likely left incl. today), at most ~60 % of the weekly target and ≤ 10 per muscle per session, and never more than what is left. It is fixed for the day; whatever doesn't fit carries over — never cram.
+- **Recovery** (heuristic): base window by the last significant session's effective sets — ≤3 → 24 h, ≤6 → 36 h, ≤9 → 48 h, ≤12 → 60 h, more → 72 h; +12 h for ≥2 failure sets, a new exercise, a large muscle after >9 sets, short sleep or high fatigue; +12/24 h for soreness. Only an EARLIER session can hold a muscle back today (today's own sets never do), and only when > 6 h of the window remain. Advice, not a rule.
 
 ## E. Data persistence workflow (source of truth = the app)
 

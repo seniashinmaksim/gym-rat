@@ -105,7 +105,7 @@ export function StrengthPage() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="space-y-4">
           {groups.length === 0 && <Empty title="No matches">Try another search or filter.</Empty>}
           {groups.map(([exerciseId, series]) => {
