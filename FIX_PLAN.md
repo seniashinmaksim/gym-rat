@@ -301,7 +301,12 @@ Status: **planned, not started.** Parts 1–2 and the recovery-timing fix are li
 4. Weakness fixes C.1 #2–#12 (each with a test where it is logic).
 5. Equipment memory & machine-first picker (C.2 #1).
 6. Exercise-specific fields (C.2 #2).
-7. Research library + SCIENTIFIC_METHOD.md — collect and VERIFY sources per muscle group (fetch every DOI/PMID); exclude anything unverified. This step is research-heavy; parallel agents per muscle group are suitable if the owner opts into a workflow.
+7. Research library + SCIENTIFIC_METHOD.md — collect and VERIFY sources per muscle group; exclude anything unverified. Owner's instruction on sourcing: no broad web search — use known good databases and well-known articles:
+   - Start from what the repo already has: grep `docs/RESEARCH.md`, `src/ui/pages/Science.tsx` and `CLAUDE.md` for existing, already-verified references.
+   - Seed with well-known reviews and landmark trials in the field (e.g. Schoenfeld volume/load meta-analyses, Pelland 2026, Refalo 2023, Robinson 2024, Wolf 2023 ROM meta-analysis, Pedrosa 2022, Maeo 2021/2023, Kassiano 2023, Plotkin 2022, Baz-Valle 2022) — each still verified, never cited from memory alone.
+   - Find additional sources only through PubMed's E-utilities API (`eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi` / `esummary.fcgi` / `efetch.fcgi` for abstracts), Europe PMC (`www.ebi.ac.uk/europepmc/webservices/rest/search`) and Crossref (`api.crossref.org/works/<doi>`) for DOI checks; prefer systematic reviews / meta-analyses (PubMed filter `systematic[sb]` or publication type Meta-Analysis).
+   - A reference is accepted only if its PMID resolves in PubMed AND its DOI resolves in Crossref with matching title/year/journal; findings are written in our own words from the abstract.
+   - Parallel agents: one per muscle group (chest, back, shoulders, arms, legs, abs/spine), plus a separate verifier agent that re-checks every DOI/PMID and every claim against its abstract, and flags EMG/acute findings presented as hypertrophy.
 8. Rule registry + any evidence-backed engine adjustments (C.2 #4).
 9. Prescription engine (C.2 #5) + adaptive set-by-set (C.2 #6) + schema v1.3 + docs.
 10. "Today's workout" UI (C.2 #7).
