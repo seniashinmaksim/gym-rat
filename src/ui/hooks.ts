@@ -5,7 +5,11 @@ import { muscleName } from '../domain/muscles';
 import type { ExerciseDef, MuscleId } from '../domain/types';
 import { store, useData } from '../lib/store';
 
-/** Memoized analysis of the whole dataset. Recomputed only when data changes. */
+/**
+ * Memoized analysis of the whole dataset. Recomputed when data changes, every minute (so recovery
+ * windows, "today" and the week roll forward with the clock), and immediately when the app comes
+ * back to the foreground — phones pause timers in the background.
+ */
 export function useAnalysis(): Analysis {
   const data = useData();
   const minute = useMinuteTick();
@@ -17,10 +21,20 @@ export function analyzeWith(data: AppData) {
 }
 
 function useMinuteTick() {
-  const [t, setT] = useState(() => Math.floor(Date.now() / 300_000));
+  const [t, setT] = useState(() => Math.floor(Date.now() / 60_000));
   useEffect(() => {
-    const id = setInterval(() => setT(Math.floor(Date.now() / 300_000)), 60_000);
-    return () => clearInterval(id);
+    const tick = () => setT(Math.floor(Date.now() / 60_000));
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    const id = setInterval(tick, 20_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tick);
+    window.addEventListener('pageshow', tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tick);
+      window.removeEventListener('pageshow', tick);
+    };
   }, []);
   return t;
 }

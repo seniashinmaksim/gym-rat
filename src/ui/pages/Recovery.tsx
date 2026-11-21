@@ -111,7 +111,7 @@ function RecoveryCard({ m, active, onClick }: { m: MuscleWeek; active: boolean; 
           <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
             <KV k="Since last" v={r.hoursSince != null ? `${r.hoursSince} h` : '—'} />
             <KV k="Window" v={r.windowHours != null ? `${r.windowHours} h` : '—'} />
-            <KV k="Last stimulus" v={r.lastStimulusDate ? formatDate(r.lastStimulusDate, { day: 'numeric', month: 'short' }) : '—'} />
+            <KV k="Last stimulus" v={r.lastStimulusDate ? `${formatDate(r.lastStimulusDate, { day: 'numeric', month: 'short' })}${r.lastStimulusTime ? `, ${r.lastStimulusTime}${r.lastStimulusTimeSource === 'assumed' ? '?' : ''}` : ''}` : '—'} />
             <KV k="Last sets" v={fmt(r.lastStimulusSets)} />
             <KV k="7-day eff." v={fmt(r.recent7dEffective)} />
             <KV k="7-day dir / ind" v={`${r.recent7dDirect} / ${r.recent7dIndirect}`} />

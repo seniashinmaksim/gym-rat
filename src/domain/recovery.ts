@@ -1,5 +1,5 @@
 import type { AppData } from './appdata';
-import { addDays, diffDays, workoutVirtualMs } from './dates';
+import { addDays, diffDays, sessionEndVirtualMs, type SessionTimeSource } from './dates';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
 import { sideFactors } from './quality';
 import type { Registry } from './registry';
@@ -15,6 +15,9 @@ export interface RecoveryEstimate {
   readiness: number | null;
   hoursSince: number | null;
   lastStimulusDate: string | null;
+  /** Local time (HH:mm) the last significant session ended, and how that time is known. */
+  lastStimulusTime: string | null;
+  lastStimulusTimeSource: SessionTimeSource | null;
   lastStimulusSets: number;
   windowHours: number | null;
   /** Hours until the window ends (0 when recovered or no data). */
@@ -26,6 +29,14 @@ export interface RecoveryEstimate {
   soreness: number | null;
   factors: string[];
 }
+
+export const TIME_SOURCE_LABEL: Record<SessionTimeSource, string> = {
+  last_set: 'when the last set was ticked',
+  end_time: 'session end time',
+  start_plus_duration: 'start time + duration',
+  start_time: 'start time — no end time recorded',
+  assumed: 'no time recorded — 18:00 assumed',
+};
 
 /** Baseline window by the size of the last significant session (effective sets for the muscle). */
 export function baseWindowHours(sets: number): number {
@@ -45,11 +56,21 @@ export interface RecoveryOptions {
  * Output is guidance, not a claim about the true biological state of the muscle.
  */
 export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs: number, today: string, opts: RecoveryOptions = {}): Record<MuscleId, RecoveryEstimate> {
-  const { quality, significantStimulusSets } = data.settings;
-  // A workout dated today (or earlier) without a start time defaults to 18:00; if that is still in
-  // the future it has obviously already happened (it was logged), so treat it as "now".
-  const at = (w: { date: string; startTime?: string | null }) => {
-    const v = workoutVirtualMs(w.date, w.startTime);
+  const { quality, significantStimulusSets, timezone } = data.settings;
+  // Recovery is counted from when the session ENDED (last ticked set, end time, start + duration,
+  // start time, else an assumed 18:00). A session dated today or earlier whose estimated time is
+  // still in the future has obviously already happened (it was logged), so it is treated as "now".
+  const endCache = new Map<string, { ms: number; source: SessionTimeSource }>();
+  const endOf = (w: (typeof data.workouts)[number]) => {
+    let e = endCache.get(w.id);
+    if (!e) {
+      e = sessionEndVirtualMs(w, timezone);
+      endCache.set(w.id, e);
+    }
+    return e;
+  };
+  const at = (w: (typeof data.workouts)[number]) => {
+    const v = endOf(w).ms;
     return w.date <= today && v > nowVirtualMs ? nowVirtualMs : v;
   };
   const pool = opts.before ? data.workouts.filter((w) => w.date < opts.before!) : data.workouts;
@@ -71,12 +92,12 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
   const out = {} as Record<MuscleId, RecoveryEstimate>;
   for (const m of TRACKED_MUSCLES) {
     const factors: string[] = [];
-    let last: { date: string; startTime?: string | null; sets: number; workout: (typeof sorted)[number] } | null = null;
+    let last: { date: string; sets: number; workout: (typeof sorted)[number] } | null = null;
     for (const w of sorted) {
       if (at(w) > nowVirtualMs) continue;
       const eff = sessionMuscleEffective(w, registry, quality)[m] ?? 0;
       if (eff >= significantStimulusSets) {
-        last = { date: w.date, startTime: w.startTime, sets: eff, workout: w };
+        last = { date: w.date, sets: eff, workout: w };
         break;
       }
     }
@@ -98,14 +119,18 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
 
     if (!last) {
       out[m] = {
-        ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusSets: 0,
+        ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusTime: null, lastStimulusTimeSource: null, lastStimulusSets: 0,
         windowHours: null, hoursLeft: 0,
         factors: [`No session with ≥${significantStimulusSets} effective sets for this muscle is recorded.`],
       };
       continue;
     }
 
-    const hoursSince = Math.max(0, (nowVirtualMs - at(last.workout)) / 3_600_000);
+    const endedAt = at(last.workout);
+    const src = endOf(last.workout).source;
+    const hoursSince = Math.max(0, (nowVirtualMs - endedAt) / 3_600_000);
+    const endedHHMM = new Date(endedAt).toISOString().slice(11, 16);
+    factors.push(`Counted from ${endedHHMM} on ${new Date(endedAt).toISOString().slice(0, 10)} (${TIME_SOURCE_LABEL[src]}) — ${Math.round(hoursSince)} h ago.`);
     let window = baseWindowHours(last.sets);
     factors.push(`Last significant stimulus: ${last.sets.toFixed(1)} effective sets → baseline window ~${window} h.`);
     if (MUSCLE_BY_ID[m].size === 'large' && last.sets > 9) {
@@ -156,6 +181,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     if (soreness == null && avgSleep == null) factors.push('No soreness/sleep data recently — estimate is based on training load only.');
     out[m] = {
       ...base, status, readiness: Math.round(readiness * 100) / 100, hoursSince: Math.round(hoursSince), lastStimulusDate: last.date,
+      lastStimulusTime: endedHHMM, lastStimulusTimeSource: src,
       lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(0, Math.round(window - hoursSince)) : 0, factors,
     };
   }

@@ -77,6 +77,36 @@ export function daysLeftInWeek(today: string, r: WeekRange): number {
   return Math.max(0, diffDays(r.end, today) + 1);
 }
 
+export type SessionTimeSource = 'last_set' | 'end_time' | 'start_plus_duration' | 'start_time' | 'assumed';
+
+/**
+ * When the training stimulus of a session ENDED, as a virtual local timestamp (same scale as
+ * `localNowParts().virtualMs`). Recovery is counted from here. Best evidence first:
+ * the moment the last set was ticked in the live logger → the recorded end time →
+ * start + duration → start time → 18:00 when no time was recorded (flagged as assumed).
+ */
+export function sessionEndVirtualMs(
+  w: { date: string; startTime?: string | null; endTime?: string | null; durationMin?: number | null; exercises?: { sets: { completedAt?: string; planned?: boolean }[] }[] },
+  timeZone: string,
+): { ms: number; source: SessionTimeSource } {
+  const day = dateMs(w.date);
+  // 1) Last ticked set (real instant → local wall time). Only trusted if it falls on the workout's day or the night after.
+  const ticks = (w.exercises ?? []).flatMap((e) => e.sets).filter((s) => s.completedAt && !s.planned).map((s) => Date.parse(s.completedAt as string)).filter((x) => Number.isFinite(x));
+  if (ticks.length) {
+    const v = localNowParts(timeZone, new Date(Math.max(...ticks))).virtualMs;
+    if (v >= day && v < day + 2 * DAY) return { ms: v, source: 'last_set' };
+  }
+  const hhmm = (t?: string | null) => (t && /^\d{2}:\d{2}$/.test(t) ? Number(t.slice(0, 2)) * 3_600_000 + Number(t.slice(3, 5)) * 60_000 : null);
+  const start = hhmm(w.startTime);
+  const end = hhmm(w.endTime);
+  // 2) End time (an end earlier than the start means the session ran past midnight).
+  if (end != null) return { ms: day + end + (start != null && end < start ? DAY : 0), source: 'end_time' };
+  // 3) Start + duration, 4) start only.
+  if (start != null && w.durationMin != null && w.durationMin > 0) return { ms: day + start + w.durationMin * 60_000, source: 'start_plus_duration' };
+  if (start != null) return { ms: day + start, source: 'start_time' };
+  return { ms: day + 18 * 3_600_000, source: 'assumed' };
+}
+
 /** Virtual local timestamp of a workout (date + start time; 18:00 if unknown). */
 export function workoutVirtualMs(date: string, startTime?: string | null): number {
   const t = startTime && /^\d{2}:\d{2}$/.test(startTime) ? startTime : '18:00';
