@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+*.local
+.env
+.env.*
+# Never commit personal training data or backups
+*.gymrat-backup
+*.gymrat-backup.json
+private/
+exports/

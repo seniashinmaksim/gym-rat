@@ -1,0 +1,48 @@
+{
+  "schema": "gymrat.workout",
+  "schema_version": "1.0",
+  "workouts": [
+    {
+      "client_ref": "example-2026-11-21-a",
+      "date": "2026-11-21",
+      "start_time": "18:10",
+      "end_time": "19:15",
+      "location": { "location_id": "gym_a", "name_hint": "Example Gym A", "confidence": "confirmed" },
+      "exercises": [
+        {
+          "exercise_id": "incline_chest_press",
+          "exercise_name_raw": "Incline chest press",
+          "equipment": { "equipment_id": "machine_001", "confidence": "confirmed" },
+          "settings": { "seat": 4 },
+          "rest_between_sets_sec": 120,
+          "sets": [
+            { "type": "warmup", "weight_kg": 25, "reps": 10 },
+            { "type": "working", "weight_kg": 45, "reps": 10, "count": 2 },
+            { "type": "working", "weight_kg": 45, "reps": 10, "rir": 2 }
+          ]
+        },
+        {
+          "exercise_id": "lat_pulldown",
+          "exercise_name_raw": "Lat pulldown",
+          "equipment": { "equipment_id": null, "name_hint": "pulldown station", "confidence": "unknown" },
+          "sets": [
+            { "weight_kg": 50, "reps": 12, "rir": 2 },
+            { "weight_kg": 50, "reps": 12, "rir": 1 },
+            { "weight_kg": 50, "reps": 11, "rir": 0 }
+          ]
+        },
+        {
+          "exercise_id": "lateral_raise",
+          "exercise_name_raw": "Lateral raises 10s",
+          "notes": "weight is per dumbbell",
+          "sets": [
+            { "weight_kg": 10, "reps": 15, "rir": 2, "count": 3 }
+          ]
+        }
+      ],
+      "session": { "fatigue_1_5": 2, "sleep_hours": 7.5, "soreness": { "chest": 1 } },
+      "raw_input": "Synthetic example message — not real training data.",
+      "uncertainties": ["Pulldown machine not identified"]
+    }
+  ]
+}

@@ -1,0 +1,392 @@
+import { useMemo, useState, type ReactNode } from 'react';
+import { formatDate, formatDuration } from '../../domain/dates';
+import type { WeekBucket } from '../../domain/history';
+import { TRACKED_MUSCLES } from '../../domain/muscles';
+import { baselineReport, weeklyReport, type WeeklyReport } from '../../domain/reports';
+import type { MuscleId, WeeklySnapshot } from '../../domain/types';
+import { store, useData } from '../../lib/store';
+import { IconAlert, IconCheck, IconInfo } from '../components/icons';
+import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
+import { useAnalysis, useNames } from '../hooks';
+
+type Tab = 'weekly' | 'baseline';
+
+export function ReportsPage() {
+  const [tab, setTab] = useState<Tab>('weekly');
+  return (
+    <Page
+      title="Reports"
+      subtitle="Automatic weekly summaries and the 30-day personal baseline."
+      actions={<Segmented<Tab> value={tab} onChange={setTab} options={[{ value: 'weekly', label: 'Weekly' }, { value: 'baseline', label: '30-day baseline' }]} />}
+    >
+      {tab === 'weekly' ? <WeeklyTab /> : <BaselineTab />}
+    </Page>
+  );
+}
+
+// ================================================================ Weekly
+
+const RESULT: Record<WeeklyReport['rows'][number]['result'], { label: string; tone: 'good' | 'info' | 'warn' | 'violet' }> = {
+  met: { label: 'Target met', tone: 'good' },
+  within: { label: 'Within range', tone: 'info' },
+  short: { label: 'Below range', tone: 'warn' },
+  excess: { label: 'Above range', tone: 'violet' },
+};
+
+function WeeklyTab() {
+  const data = useData();
+  const a = useAnalysis();
+  const names = useNames();
+  const weeks = useMemo(() => [...a.weeks].reverse(), [a.weeks]);
+  const defaultWeek = (weeks.find((w) => w.complete) ?? weeks[0])?.range.start ?? null;
+  const [weekStart, setWeekStart] = useState<string | null>(defaultWeek);
+  const bucket: WeekBucket | undefined = weeks.find((w) => w.range.start === (weekStart ?? defaultWeek));
+  const report = useMemo(() => (bucket ? weeklyReport(bucket, a, data) : null), [bucket, a, data]);
+
+  if (!bucket || !report) {
+    return <Empty title="No weeks recorded yet">Weekly reports are generated automatically once you log workouts.</Empty>;
+  }
+
+  const snapshot = data.snapshots.find((s) => s.weekStart === bucket.range.start);
+  const saveSnapshot = async () => {
+    const targets: WeeklySnapshot['targets'] = {};
+    const effective: WeeklySnapshot['effective'] = {};
+    for (const m of TRACKED_MUSCLES) {
+      const t = a.targets[m];
+      targets[m] = { min: t.min, preferred: t.preferred, max: t.max, confidence: t.confidence };
+      effective[m] = bucket.volume.muscles[m].effective;
+    }
+    await store.saveSnapshot({
+      id: bucket.range.start,
+      weekStart: bucket.range.start,
+      weekEnd: bucket.range.end,
+      createdAt: new Date().toISOString(),
+      targets,
+      effective,
+      sessions: bucket.workouts.length,
+      coefficientNote: `Quality model RIR credits [${data.settings.quality.rirCredit.join(', ')}], unknown RIR ${data.settings.quality.unknownRirCredit}; ${data.exerciseOverrides.length} coefficient override(s).`,
+    });
+    toast('Week snapshot saved');
+  };
+
+  const name = (m: MuscleId) => names.muscle(m);
+  const listOrDash = (ms: MuscleId[]) => (ms.length ? ms.map(name).join(', ') : '—');
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={bucket.range.start} onChange={(e) => setWeekStart(e.target.value)} className="w-auto min-w-[240px]">
+          {weeks.map((w) => (
+            <option key={w.range.start} value={w.range.start}>
+              {formatDate(w.range.start, { day: 'numeric', month: 'short' })} – {formatDate(w.range.end, { day: 'numeric', month: 'short', year: 'numeric' })}
+              {w.complete ? '' : ' (in progress)'} · {w.workouts.length} sessions
+            </option>
+          ))}
+        </Select>
+        {!bucket.complete && <Badge tone="info">Week in progress — numbers are partial</Badge>}
+        {snapshot ? (
+          <Badge tone="good"><IconCheck size={12} /> Snapshot saved {formatDate(snapshot.createdAt.slice(0, 10), { day: 'numeric', month: 'short' })}</Badge>
+        ) : (
+          bucket.complete && <Button size="sm" onClick={saveSnapshot}>Save snapshot</Button>
+        )}
+      </div>
+      {!snapshot && bucket.complete && (
+        <p className="-mt-2 text-xs text-ink-500">A snapshot freezes this week's targets so later target or coefficient changes don't rewrite how this week is judged. Raw sets are always kept; volume itself is recomputed from them.</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Sessions" value={report.sessions} />
+        <Stat label="Working sets" value={report.totalWorkingSets} sub="raw, all muscles" />
+        <Stat label="Targets reached" value={`${report.reached.length}/${TRACKED_MUSCLES.length}`} tone={report.reached.length >= TRACKED_MUSCLES.length / 2 ? 'good' : undefined} />
+        <Stat label="Below range" value={report.short.length} tone={report.short.length ? 'warn' : 'good'} sub={report.excessive.length ? `${report.excessive.length} above range` : undefined} />
+      </div>
+
+      {report.sessions === 0 && (
+        <Callout tone="info" icon={<IconInfo size={16} />}>No sessions this week. Missing volume is not a training failure — recovery, schedule and life take priority sometimes.</Callout>
+      )}
+
+      <Card>
+        <CardTitle hint={snapshot ? 'Judged against the targets frozen in the snapshot.' : 'Judged against current targets (no snapshot for this week).'}>Volume by muscle</CardTitle>
+        <Table head={['Muscle', 'Effective', 'Direct sets', 'Indirect sets', 'Range (min–pref–max)', 'Result']} dense>
+          {report.rows.map((r) => (
+            <tr key={r.muscle}>
+              <Td right={false} className="font-medium text-ink-800 dark:text-ink-100">{name(r.muscle)}</Td>
+              <Td className="font-semibold">{fmt(r.effective)}</Td>
+              <Td>{r.direct}</Td>
+              <Td>{r.indirect}</Td>
+              <Td className="text-ink-500">{fmt(r.min)}–{fmt(r.preferred)}–{fmt(r.max)}</Td>
+              <Td><Badge tone={RESULT[r.result].tone}>{RESULT[r.result].label}</Badge></Td>
+            </tr>
+          ))}
+        </Table>
+        <p className="mt-2 text-[11px] text-ink-500">Effective = Σ (muscle coefficient × set-quality credit). Direct/indirect columns are raw set counts, before any adjustment.</p>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <ListCard title="Reached target" tone="good" body={listOrDash(report.reached)} />
+        <ListCard title="Fell short (below lower end)" tone="warn" body={listOrDash(report.short)} />
+        <ListCard title="Above upper bound" tone="violet" body={listOrDash(report.excessive)} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardTitle hint="Week best vs best of the previous 4 sessions on the same equipment.">Strength changes</CardTitle>
+          {report.progressed.length === 0 && report.declined.length === 0 ? (
+            <p className="text-sm text-ink-500">No clear changes this week (or not enough prior sessions to compare).</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {report.progressed.map((p) => (
+                <li key={p.exerciseId + p.scope} className="flex gap-2"><Badge tone="good">↑</Badge><span><span className="text-ink-800 dark:text-ink-100">{p.evidence}</span> <span className="text-xs text-ink-500">· {p.scope}</span></span></li>
+              ))}
+              {report.declined.map((p) => (
+                <li key={p.exerciseId + p.scope} className="flex gap-2"><Badge tone="bad">↓</Badge><span><span className="text-ink-800 dark:text-ink-100">{p.evidence}</span> <span className="text-xs text-ink-500">· {p.scope}</span></span></li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <CardTitle hint="From daily check-ins and session wellness.">Recovery observations</CardTitle>
+          <ul className="list-disc space-y-1 pl-4 text-sm text-ink-700 dark:text-ink-200">
+            {report.recoveryNotes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </Card>
+      </div>
+
+      <Card>
+        <CardTitle hint="Suggestions, not obligations — consistent progress and recovery beat hitting numbers.">For the upcoming week</CardTitle>
+        <ul className="space-y-2 text-sm">
+          {report.recommendations.map((r, i) => (
+            <li key={i} className="flex gap-2.5"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" /><span className="text-ink-800 dark:text-ink-100">{r}</span></li>
+          ))}
+        </ul>
+        <div className="mt-3">
+          <Why>
+            <p>"Below range" means effective sets finished under the lower end of the target range; "above range" means over the upper bound, where returns diminish and fatigue grows.</p>
+            <p>Declines are flagged when the week's best performance index is more than 5% under the recent best on the same machine.</p>
+          </Why>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ListCard({ title, body, tone }: { title: string; body: string; tone: 'good' | 'warn' | 'violet' }) {
+  const dot = { good: 'bg-emerald-500', warn: 'bg-amber-500', violet: 'bg-violet-500' }[tone];
+  return (
+    <Card>
+      <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-500"><span className={cx('h-2 w-2 rounded-full', dot)} />{title}</div>
+      <div className="text-sm text-ink-800 dark:text-ink-100">{body}</div>
+    </Card>
+  );
+}
+
+// ================================================================ Baseline
+
+function BaselineTab() {
+  const data = useData();
+  const a = useAnalysis();
+  const names = useNames();
+  const r = useMemo(() => baselineReport(data, a), [data, a]);
+  const eqName = useMemo(() => new Map(data.equipment.map((e) => [e.id, e.name])), [data.equipment]);
+
+  if (!r) return <Empty title="Baseline not started">Learning Mode starts with your first logged workout. The baseline report fills in over ~30 days.</Empty>;
+
+  const ex = (id: string) => names.ex(a.registry.get(id), id);
+  const L = a.learning;
+
+  return (
+    <div className="space-y-5">
+      {L.active ? (
+        <Callout tone="warn" icon={<IconAlert size={16} />} title={`Preliminary — day ${Math.max(1, L.dayNumber)} of ${L.lengthDays}`}>
+          {L.message} Sections fill in as data accumulates; targets remain provisional until calibration completes.
+        </Callout>
+      ) : (
+        <Callout tone="good" icon={<IconCheck size={16} />} title="Calibration complete">{L.message}</Callout>
+      )}
+      <Callout tone="info" icon={<IconInfo size={16} />}>
+        One month of data describes your training <b>behaviour</b> — frequency, loads, effort, volume distribution. It cannot show which muscles grow faster or slower; that needs months of measurements.
+      </Callout>
+
+      <p className="text-xs text-ink-500">Period {formatDate(r.period.start, { day: 'numeric', month: 'short', year: 'numeric' })} – {formatDate(r.period.end, { day: 'numeric', month: 'short', year: 'numeric' })} ({r.period.days} days)</p>
+
+      <Section n={1} title="Training frequency">
+        <div className="grid grid-cols-3 gap-2">
+          <Mini label="Sessions" value={r.frequency.sessions} />
+          <Mini label="Per week" value={fmt(r.frequency.perWeek)} />
+          <Mini label="Usual days" value={r.frequency.commonDays.length ? r.frequency.commonDays.join(', ') : '—'} />
+        </div>
+        <p className="mt-2 text-xs text-ink-500">{r.exercisesPerSession} exercises and {r.setsPerSession} working sets per session on average. Muscles most often trained together: {r.coOccurrence.length ? r.coOccurrence.slice(0, 4).map((c) => `${c.pair} (${c.count}×)`).join('; ') : '—'}.</p>
+      </Section>
+
+      <Section n={2} title="Workout duration">
+        <p className="text-sm text-ink-800 dark:text-ink-100">{r.duration.avgMin != null ? <>Average <b>{r.duration.avgMin} min</b> across {r.duration.samples} session(s) with recorded times.</> : 'No durations recorded — add start/end times or use the live logger.'}</p>
+      </Section>
+
+      <Section n={3} title="Rest intervals">
+        <div className="grid grid-cols-3 gap-2">
+          <Mini label="Compound avg" value={formatDuration(r.rest.compoundAvg)} />
+          <Mini label="Isolation avg" value={formatDuration(r.rest.isolationAvg)} />
+          <Mini label="Between exercises" value={formatDuration(r.rest.betweenExercisesAvg)} />
+        </div>
+        {r.rest.perExercise.length > 0 && (
+          <div className="mt-3">
+            <Table head={['Exercise', 'Type', 'Avg rest', 'Samples']} dense>
+              {r.rest.perExercise.slice(0, 10).map((p) => (
+                <tr key={p.exerciseId}><Td right={false}>{ex(p.exerciseId)}</Td><Td className="capitalize">{p.category}</Td><Td>{formatDuration(p.avgRestSec)}</Td><Td>{p.samples}</Td></tr>
+              ))}
+            </Table>
+          </div>
+        )}
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs font-semibold text-ink-700 dark:text-ink-200">Rep retention vs rest (same weight, set n ÷ set 1)</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {r.rest.retention.map((b) => (
+              <div key={b.label} className="rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950">
+                <div className="text-[11px] text-ink-500">{b.label}</div>
+                <div className="text-base font-semibold tabular-nums text-ink-900 dark:text-white">{b.avgRepRetention != null ? `${Math.round(b.avgRepRetention * 100)}%` : '—'}</div>
+                <div className="text-[10px] text-ink-400">{b.samples} sample{b.samples === 1 ? '' : 's'}</div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-ink-500">Observational only — fatigue, exercise order and RIR also affect later sets.</p>
+        </div>
+      </Section>
+
+      <Section n={4} title="Most frequent exercises">
+        {r.topExercises.length ? (
+          <Table head={['Exercise', 'Sessions', 'Working sets']} dense>
+            {r.topExercises.map((t) => <tr key={t.exerciseId}><Td right={false}>{ex(t.exerciseId)}</Td><Td>{t.sessions}</Td><Td>{t.sets}</Td></tr>)}
+          </Table>
+        ) : <NoData />}
+        <p className="mt-2 text-xs text-ink-500">{r.exerciseVariety.distinct} distinct exercises; {r.exerciseVariety.newInLastHalf} first appeared in the second half of the period.</p>
+      </Section>
+
+      <Section n={5} title="Equipment & gym inventory">
+        <div className="grid grid-cols-3 gap-2">
+          <Mini label="Gyms" value={r.inventory.locations} />
+          <Mini label="Equipment" value={r.inventory.equipment} />
+          <Mini label="Unidentified" value={r.inventory.unidentified} />
+        </div>
+      </Section>
+
+      <Section n={6} title="Current working weights" hint="Latest top set per exercise × equipment. Not comparable across machines.">
+        {r.workingWeights.length ? (
+          <Table head={['Exercise', 'Equipment', 'Top set', 'Date']} dense>
+            {r.workingWeights.map((w) => (
+              <tr key={w.key}>
+                <Td right={false}>{ex(w.exerciseId)}</Td>
+                <Td className="text-ink-500">{w.key.split('::')[1] && eqName.get(w.key.split('::')[1]) ? eqName.get(w.key.split('::')[1]) : w.scope}</Td>
+                <Td>{w.weight != null ? `${fmt(w.weight, 2)} kg` : 'BW'} × {w.reps ?? '?'}{w.rir != null ? ` @${w.rir}` : ''}</Td>
+                <Td>{formatDate(w.date, { day: 'numeric', month: 'short' })}</Td>
+              </tr>
+            ))}
+          </Table>
+        ) : <NoData />}
+      </Section>
+
+      <Section n={7} title="Typical repetition ranges">
+        {r.repRanges.length ? (
+          <Table head={['Exercise', 'Min', 'Median', 'Max']} dense>
+            {r.repRanges.map((x) => <tr key={x.exerciseId}><Td right={false}>{ex(x.exerciseId)}</Td><Td>{x.min}</Td><Td>{fmt(x.median)}</Td><Td>{x.max}</Td></tr>)}
+          </Table>
+        ) : <NoData />}
+      </Section>
+
+      <Section n={8} title="Estimated effort">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Mini label="RIR recorded" value={`${r.effort.rirKnownPct}%`} />
+          <Mini label="Average RIR" value={fmt(r.effort.avgRir)} />
+          <Mini label="Sets at RIR ≤ 2" value={r.effort.nearFailurePct != null ? `${r.effort.nearFailurePct}%` : '—'} />
+          <Mini label="Sets at RIR ≥ 4" value={`${r.effort.lowEffortPct}%`} />
+        </div>
+        <p className="mt-2 text-xs text-ink-500">Within-session load changes: {r.loadChangesWithinSession.increase} ramped up, {r.loadChangesWithinSession.decrease} dropped, {r.loadChangesWithinSession.flat} straight sets.</p>
+      </Section>
+
+      <Section n={9} title="Weekly volume distribution" hint="Average effective sets per complete week; direct share = part from exercises where the muscle is the primary target.">
+        <Table head={['Muscle', 'Avg effective / week', 'Direct share']} dense>
+          {[...r.weeklyDistribution].sort((x, y) => y.avgEffective - x.avgEffective).map((d) => (
+            <tr key={d.muscle}>
+              <Td right={false}>{names.muscle(d.muscle)}</Td>
+              <Td className="font-semibold">{fmt(d.avgEffective)}</Td>
+              <Td>
+                <div className="ml-auto flex w-28 items-center gap-2">
+                  <div className="h-1.5 flex-1 rounded-full bg-ink-100 dark:bg-ink-800"><div className="h-full rounded-full bg-accent-500" style={{ width: `${Math.round(d.directShare * 100)}%` }} /></div>
+                  <span className="w-8 text-right">{Math.round(d.directShare * 100)}%</span>
+                </div>
+              </Td>
+            </tr>
+          ))}
+        </Table>
+      </Section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Section n={10} title="Little direct work">
+          <MuscleList ms={r.lowDirect} names={names} empty="Every muscle received some direct work." />
+        </Section>
+        <Section n={11} title="Mostly indirect work">
+          <MuscleList ms={r.highIndirect} names={names} empty="No muscle relies mainly on indirect work." />
+        </Section>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Section n={12} title="Early progression">
+          {r.earlyProgress.length ? <ul className="space-y-1.5 text-xs text-ink-700 dark:text-ink-200">{r.earlyProgress.map((e, i) => <li key={i}>{e}</li>)}</ul> : <NoData text="No exercise shows a clear upward trend yet." />}
+        </Section>
+        <Section n={13} title="Progress not yet clear">
+          {r.unclear.length ? <ul className="space-y-1 text-xs text-ink-700 dark:text-ink-200">{r.unclear.map((e, i) => <li key={i}>{e}</li>)}</ul> : <NoData text="—" />}
+        </Section>
+      </div>
+
+      <Section n={14} title="Training consistency">
+        <div className="grid grid-cols-3 gap-2">
+          <Mini label="Weeks trained" value={`${r.consistency.weeksWithTraining}/${r.consistency.totalWeeks}`} />
+          <Mini label="Sessions/week variability" value={r.consistency.cvSessions != null ? `${Math.round(r.consistency.cvSessions * 100)}%` : '—'} />
+          <Mini label="Complete weeks" value={L.completeWeeks} />
+        </div>
+        <p className="mt-2 text-[11px] text-ink-500">Variability is the coefficient of variation of sessions per week; lower = more consistent.</p>
+      </Section>
+
+      <Section n={15} title="Data quality & remaining uncertainties">
+        <ul className="space-y-1.5 text-sm">
+          {r.dataQuality.map((d, i) => (
+            <li key={i} className="flex gap-2"><IconAlert size={14} className="mt-0.5 shrink-0 text-amber-500" /><span className="text-ink-700 dark:text-ink-200">{d}</span></li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
+function Section({ n, title, hint, children }: { n: number; title: string; hint?: string; children: ReactNode }) {
+  return (
+    <Card>
+      <div className="mb-3 flex items-start gap-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent-500/15 text-xs font-semibold tabular-nums text-accent-600 dark:text-accent-400">{n}</span>
+        <div>
+          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{title}</h2>
+          {hint && <p className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">{hint}</p>}
+        </div>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-ink-500">{label}</div>
+      <div className="mt-0.5 truncate text-base font-semibold tabular-nums text-ink-900 dark:text-white">{value}</div>
+    </div>
+  );
+}
+
+function MuscleList({ ms, names, empty }: { ms: MuscleId[]; names: ReturnType<typeof useNames>; empty: string }) {
+  if (!ms.length) return <p className="text-sm text-ink-500">{empty}</p>;
+  return <div className="flex flex-wrap gap-1.5">{ms.map((m) => <Badge key={m} tone="warn">{names.muscle(m)}</Badge>)}</div>;
+}
+
+function NoData({ text = 'Not enough data yet.' }: { text?: string }) {
+  return <p className="text-sm text-ink-500">{text}</p>;
+}
+
