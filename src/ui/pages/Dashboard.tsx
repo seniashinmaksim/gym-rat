@@ -7,6 +7,7 @@ import { assessDeload, buildSnapshot, pendingSnapshot, weeklyReport } from '../.
 import { store } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import type { MuscleId } from '../../domain/types';
+import { effortCoverage } from '../../domain/effort';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
@@ -28,6 +29,7 @@ export function DashboardPage() {
   const [more, setMore] = useState(false);
   const deload = useMemo(() => assessDeload(data, a), [data, a]);
   const active = activeWorkout(data.workouts);
+  const effort = useMemo(() => effortCoverage(data.workouts, a.week), [data.workouts, a.week]);
   // Automatic weekly report: freeze the targets of the week that just finished (once).
   const pending = pendingSnapshot(a, data);
   useEffect(() => {
@@ -58,6 +60,11 @@ export function DashboardPage() {
 
   return (
     <Page title="This week" subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? 'Resume' : 'Log workout'}</Button></Link>}>
+      {effort.nudge && (
+        <Callout tone="info" title="Tap how your sets felt">
+          {effort.missing} of {effort.counted} sets this week have no RIR or feel, so they count as a provisional 0.75 each. One tap after ✓ makes the numbers more reliable — skip it whenever you like.
+        </Callout>
+      )}
       {deload.recommend && (
         <Callout tone="warn" icon={<IconAlert size={18} />} title="Possible accumulated fatigue">
           {deload.summary} <Link to="/periodization" className="font-semibold underline">See why</Link>
@@ -148,7 +155,8 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
       </p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl bg-ink-50 p-3 text-xs dark:bg-ink-950 sm:grid-cols-4">
         <Fact k="Sets performed" v={fmt(m.volume.rawWorkingSets)} />
-        <Fact k="Good quality" v={fmt(st.good)} />
+        <Fact k="Good quality" v={fmt(st.good - m.volume.goodEstimated)} />
+        {m.volume.goodEstimated > 0 && <Fact k="Good (estimated)" v={fmt(m.volume.goodEstimated)} />}
         <Fact k="Too easy" v={fmt(st.easy)} />
         <Fact k="Technique issues" v={fmt(st.compromised)} />
         {st.pain > 0 && <Fact k="Pain flagged" v={fmt(st.pain)} />}

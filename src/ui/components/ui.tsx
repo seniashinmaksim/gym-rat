@@ -131,19 +131,19 @@ export function Stepper({ value, onChange, step = 1, min = 0, label, suffix }: {
   const bump = (d: number) => onChange(Math.max(min, Math.round(((value ?? 0) + d) * 100) / 100));
   return (
     <div className="flex h-11 items-stretch overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700">
-      <button type="button" aria-label={`Decrease ${label ?? ''}`} className="w-10 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(-step)}>−</button>
+      <button type="button" aria-label={`Decrease ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl min-[360px]:w-10 text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(-step)}>−</button>
       <div className="relative min-w-0 flex-1">
         <NumInput value={value} onChange={onChange} className="h-full rounded-none border-0 px-1 text-base font-semibold focus:ring-0 dark:bg-ink-950" aria-label={label} />
         {suffix && <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-400">{suffix}</span>}
       </div>
-      <button type="button" aria-label={`Increase ${label ?? ''}`} className="w-10 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(step)}>+</button>
+      <button type="button" aria-label={`Increase ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl min-[360px]:w-10 text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(step)}>+</button>
     </div>
   );
 }
 
 export function Segmented<T extends string>({ value, onChange, options, size = 'md' }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; size?: 'sm' | 'md' }) {
   return (
-    <div className="inline-flex rounded-xl bg-ink-100 p-1 dark:bg-ink-850" role="tablist">
+    <div className="inline-flex max-w-full flex-wrap rounded-xl bg-ink-100 p-1 dark:bg-ink-850" role="tablist">
       {options.map((o) => (
         <button key={o.value} type="button" role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
           className={cx('rounded-lg font-medium transition', size === 'sm' ? 'min-h-[36px] px-3 text-xs sm:min-h-0 sm:px-2.5 sm:py-1' : 'min-h-[40px] px-3.5 text-sm sm:min-h-0 sm:py-1.5',
@@ -290,7 +290,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
 
 export function Table({ head, children, dense }: { head: ReactNode[]; children: ReactNode; dense?: boolean }) {
   return (
-    <div className="-mx-4 overflow-x-auto sm:mx-0">
+    <div className="scroll-x">
       <table className="w-full min-w-[560px] text-left text-sm">
         <thead>
           <tr className="border-b border-ink-200 text-[11px] uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">

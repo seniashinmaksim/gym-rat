@@ -5,6 +5,7 @@ import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { exerciseLabel, type Registry } from './registry';
 import { adviceFor, buildProgression, type ProgressionSeries } from './progression';
+import { failureProfile, type FailureProfile } from './failure';
 import type { MuscleId, Workout } from './types';
 import { countedSetCount, sideFactors, stripPlanned } from './quality';
 import type { MuscleTarget } from './targets';
@@ -84,6 +85,8 @@ export interface WeeklyReport {
   declined: { exerciseId: string; scope: string; evidence: string }[];
   recoveryNotes: string[];
   recommendations: string[];
+  /** Failure-status profile of the week (descriptive; never implies failure grows more muscle). */
+  failure: FailureProfile;
 }
 
 export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): WeeklyReport {
@@ -127,9 +130,10 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
   if (declined.length >= 2 && fatigue.length && mean(fatigue) >= 3.5) recommendations.push('Several declines alongside high fatigue — keep volume steady rather than adding sets next week.');
   if (bucket.workouts.length === 0) recommendations.push('No sessions this week. Missing volume is not a failure — resume normally rather than compensating with extra sets.');
   if (!recommendations.length) recommendations.push('Volume distribution looked reasonable. Keep progressing loads/reps on your main exercises.');
+  const failure = failureProfile({ workouts: stripPlanned(bucket.workouts) }, bucket.range, a.registry);
   return {
     range: bucket.range, sessions: bucket.workouts.length, totalWorkingSets: bucket.volume.totalWorkingSets, rows, reached, short, excessive,
-    progressed, declined, recoveryNotes, recommendations,
+    progressed, declined, recoveryNotes, recommendations, failure,
   };
 }
 
@@ -145,6 +149,8 @@ export interface WeeklySummary {
   keep: string[];
   reduce: string[];
   plateaus: string[];
+  /** One short line about failure training this week (null when nothing was trained). */
+  failureLine: string | null;
 }
 
 export function weeklySummary(report: WeeklyReport, a: Analysis, progression: ProgressionSeries[] = a.progression): WeeklySummary {
@@ -154,7 +160,7 @@ export function weeklySummary(report: WeeklyReport, a: Analysis, progression: Pr
     .filter((r) => r.left > 0)
     .sort((x, y) => y.left - x.left);
   const inWeek = (d: string) => d >= report.range.start && d <= report.range.end;
-  const out: WeeklySummary = { behind, progressing: report.progressed.map((p) => `${exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId)} (${p.scope})`), increase: [], keep: [], reduce: [], plateaus: [] };
+  const out: WeeklySummary = { behind, progressing: report.progressed.map((p) => `${exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId)} (${p.scope})`), increase: [], keep: [], reduce: [], plateaus: [], failureLine: report.failure?.line ?? null };
   for (const p of progression) {
     if (!p.sessions.some((s) => inWeek(s.date))) continue;
     const name = `${exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId)} (${p.scopeLabel})`;
@@ -171,7 +177,7 @@ export function weeklySummary(report: WeeklyReport, a: Analysis, progression: Pr
 /** Progression as it stood at the end of a given week (so an old week's report shows that week's calls). */
 export function progressionAsOf(data: AppData, a: Analysis, end: string): ProgressionSeries[] {
   const ws = stripPlanned(data.workouts.filter((w) => w.date <= end));
-  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false);
+  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false, data.locations);
 }
 
 /** Frozen copy of a finished week, so later target or coefficient changes don't rewrite it. */

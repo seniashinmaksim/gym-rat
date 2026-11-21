@@ -174,13 +174,15 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
   const [address, setAddress] = useState(loc?.address ?? '');
   const [notes, setNotes] = useState(loc?.notes ?? '');
   const [photoIds, setPhotoIds] = useState<string[]>(loc?.photoIds ?? []);
+  const [fwInc, setFwInc] = useState((loc?.freeWeightIncrementsKg ?? []).join(', '));
 
   const save = async (patch: Partial<Location> = {}) => {
     if (!name.trim()) {
       toast('Gym name is required', 'bad');
       return null;
     }
-    const rec: Location = { id: loc?.id ?? slugId(name, 'gym'), name: name.trim(), address: address.trim() || undefined, notes: notes.trim() || undefined, photoIds, createdAt: loc?.createdAt ?? new Date().toISOString(), ...patch };
+    const inc = [...new Set(fwInc.split(/[,;\s]+/).map((x) => Number(x.replace(',', '.'))).filter((x) => Number.isFinite(x) && x > 0))].sort((x, y) => x - y);
+    const rec: Location = { ...(loc ?? {}), id: loc?.id ?? slugId(name, 'gym'), name: name.trim(), address: address.trim() || undefined, notes: notes.trim() || undefined, freeWeightIncrementsKg: inc.length ? inc : undefined, photoIds, createdAt: loc?.createdAt ?? new Date().toISOString(), ...patch };
     await store.saveLocation(rec);
     return rec;
   };
@@ -207,6 +209,7 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
       <div className="space-y-3">
         <Field label="Name" hint="Use a name you'll say to Claude, e.g. “Gym A” or “Downtown gym”."><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
         <Field label="Address or area (optional)" hint="Stored encrypted. Keep it vague if you prefer."><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
+        <Field label="Dumbbell steps here (kg)" hint="The jumps between dumbbells at this gym, e.g. “2.5” or “1, 2”. Used for suggested weights. Empty = 2 kg default."><Input value={fwInc} onChange={(e) => setFwInc(e.target.value)} inputMode="decimal" placeholder="2.5" /></Field>
         <Field label="Notes"><TextArea value={notes} onChange={(e) => setNotes(e.target.value)} className="font-sans text-sm" placeholder="Opening hours, busy times, what's missing…" /></Field>
         <div>
           <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Photos</div>
@@ -232,12 +235,12 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
   );
 }
 
-function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipment | null; defaultLocation: string | null; onClose: () => void; onSaved: (id: string) => void }) {
+export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultExerciseId, defaultName, defaultKind }: { eq: Equipment | null; defaultLocation: string | null; onClose: () => void; onSaved: (id: string) => void; defaultExerciseId?: string; defaultName?: string; defaultKind?: EquipmentKind }) {
   const data = useData();
   const a = useAnalysis();
   const names = useNames();
-  const [name, setName] = useState(eq?.name ?? '');
-  const [kind, setKind] = useState<EquipmentKind>(eq?.kind ?? 'machine');
+  const [name, setName] = useState(eq?.name ?? defaultName ?? '');
+  const [kind, setKind] = useState<EquipmentKind>(eq?.kind ?? defaultKind ?? 'machine');
   const [manufacturer, setManufacturer] = useState(eq?.manufacturer ?? '');
   const [model, setModel] = useState(eq?.model ?? '');
   const [locationId, setLocationId] = useState<string>(eq ? eq.locationId ?? '' : defaultLocation ?? '');
@@ -247,7 +250,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
   const [stackNotes, setStackNotes] = useState(eq?.stackNotes ?? '');
   const [barWeightKg, setBarWeightKg] = useState<number | null>(eq?.barWeightKg ?? null);
   const [settings, setSettings] = useState<[string, string][]>(Object.entries(eq?.settings ?? {}));
-  const [exerciseIds, setExerciseIds] = useState<string[]>(eq?.exerciseIds ?? []);
+  const [exerciseIds, setExerciseIds] = useState<string[]>(eq?.exerciseIds ?? (defaultExerciseId ? [defaultExerciseId] : []));
   const [notes, setNotes] = useState(eq?.notes ?? '');
   const [exQ, setExQ] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -269,6 +272,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
         photoIds = [...photoIds, p.id];
       }
       const rec: Equipment = {
+        ...(eq ?? {}), // keep fields this form does not edit (e.g. favourite)
         id,
         locationId: locationId || null,
         name: name.trim(),
@@ -302,7 +306,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
     <Modal open onClose={onClose} wide title={eq ? `Edit ${eq.name}` : 'Add equipment'}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></>}>
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name" hint="How you'd describe it: “Lat pulldown”, “Hack squat (Gym B)”."><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
           <Field label="Gym">
             <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
@@ -311,7 +315,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
             </Select>
           </Field>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Type"><Select value={kind} onChange={(e) => setKind(e.target.value as EquipmentKind)}>{KINDS.map((k) => <option key={k} value={k}>{pretty(k)}</option>)}</Select></Field>
           <Field label="Manufacturer" hint="Leave blank if unknown"><Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="Technogym, Matrix, Hammer…" /></Field>
           <Field label="Model"><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Selection 900" /></Field>
@@ -320,7 +324,7 @@ function EquipmentForm({ eq, defaultLocation, onClose, onSaved }: { eq: Equipmen
 
         <Card className="!p-3">
           <CardTitle hint="Determines suggested load jumps. A 5 kg stack with a 2.5 kg add-on plate → “2.5, 5”. Plate-loaded → smallest plate pair.">Weight stack</CardTitle>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Available increments (kg)"><Input value={increments} onChange={(e) => setIncrements(e.target.value)} placeholder="5 or 2.5, 5" /></Field>
             <Field label="Min load (kg)"><NumInput value={minKg} onChange={setMinKg} /></Field>
             <Field label="Max load (kg)"><NumInput value={maxKg} onChange={setMaxKg} /></Field>
@@ -434,7 +438,7 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
             }} />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-2xl bg-ink-50 p-3 dark:bg-ink-950">
             <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500">Weight stack</div>
             <dl className="space-y-1 text-sm">

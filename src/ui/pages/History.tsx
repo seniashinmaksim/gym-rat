@@ -190,7 +190,7 @@ function Calendar({ month, setMonth, weekStartsOn, today, byDate, selected, onSe
   );
 }
 
-const CORR_LABEL = { weightKg: 'weight', reps: 'reps', rir: 'RIR', type: 'type', side: 'side' } as const;
+const CORR_LABEL = { weightKg: 'weight', reps: 'reps', rir: 'RIR', type: 'type', side: 'side', failure: 'failure', technicalFailure: 'form broke', toFailure: 'to failure' } as const;
 
 function MonthSummary({ month, workouts }: { month: string; workouts: Workout[] }) {
   const ws = workouts.filter((w) => w.date.startsWith(month));
@@ -306,7 +306,7 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
                     </div>
                   </div>
                 </div>
-                <div className="-mx-4 mt-2 overflow-x-auto sm:mx-0">
+                <div className="scroll-x mt-2">
                   <table className="w-full min-w-[480px] text-xs">
                     <thead>
                       <tr className="text-[10px] uppercase tracking-wide text-ink-400">

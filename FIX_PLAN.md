@@ -245,7 +245,7 @@ The owner's two full requests are in the session transcript; their requirements 
 
 # PART 3 — Known weaknesses, mobile layout audit, smart equipment memory, research library and workout prescriptions (requested 2026-11-21, after commit 5c5bec2)
 
-Status: **planned, not started.** Parts 1–2 and the recovery-timing fix are live (commits 8f472b5, 0a948b5, 5c5bec2). The owner's full request is in the session transcript; it is condensed faithfully in C.3 (every acceptance test is listed in C.6). Rules at the top of this file still apply, plus: never invent research findings, DOIs or PMIDs; never claim to measure muscle growth.
+Status: **implemented 2026-11-21** (see the final report in the session). Parts 1–2 and the recovery-timing fix are live (commits 8f472b5, 0a948b5, 5c5bec2). The owner's full request is in the session transcript; it is condensed faithfully in C.3 (every acceptance test is listed in C.6). Rules at the top of this file still apply, plus: never invent research findings, DOIs or PMIDs; never claim to measure muscle growth.
 
 ## C.1 Known weaknesses to fix (from the Part 1/2 reports and both independent reviews)
 
@@ -328,3 +328,50 @@ Exercise fields: 10 no grip where irrelevant · 11 grip/attachment where relevan
 Research: 13 every tracked muscle has a review or an explicit evidence limitation · 14 all DOIs and PMIDs verified · 15 nothing fabricated · 16 EMG never presented as proven hypertrophy · 17 every calculation adjustment has a documented rationale.
 Hypertrophy engine: 18 direct/indirect volume correct · 19 exercise-specific contributions correct · 20 poor-quality sets not equal to sound sets · 21 no double counting · 22 recalculation preserves original data.
 Prescriptions: 23 select known gym/exercise/machine · 24 that machine's history loads · 25 warm-ups generated correctly · 26 working weights respect machine increments · 27 individual rep and RIR targets · 28 number of sets reflects remaining weekly volume · 29 completed sets adjust the remaining prescription · 30 insufficient data gives an honest warning, not invented precision.
+
+---
+
+# PART 4 — First-workout readiness audit + "less text, more numbers" (requested 2026-11-21, during Part 3; do AFTER Part 3 ships)
+
+Status: **planned.** Owner's two pasted requests (full text in the session transcript), condensed. Don't rebuild; audit, fix, test the real workflows. Preserve all data, encryption, backups.
+
+## D.1 First-workout readiness (owner's 14 sections)
+1. **First visit:** Start Workout → pick or create gym (name, optional address/description) → train. No big setup form; equipment added gradually while training; gym remembered; next visit the gym is in a dropdown and its equipment appears.
+2. **New equipment mid-workout:** exercise → existing equipment or "Add new" → optional photo (camera capture via `<input type=file accept=image/* capture=environment>` + gallery fallback, preview, retake/replace, encrypted storage) → name or suggested type → saved to current gym → log immediately. Make/model optional ("identify later"); never block. Optional: name, manufacturer, model, photo, stack increments, gym, notes. Dumbbells = per dumbbell; machines = displayed stack value; never convert between machines.
+3. **Fast logging:** compact table per exercise (set · weight · reps · RIR); Complete set / Add set / Finish exercise / Next exercise; actual weight, reps, RIR, failure, difficulty/technique, warm-up vs working, notes; remember previous values per exercise × equipment; edit a set; autosave every set; only relevant fields.
+4. **Rest timer:** auto-start after a working set; large countdown; +15 s, +30 s, Pause, Skip; visual + optional sound/vibration at the end; configurable default rest, per-exercise rest, remembers previous; records ACTUAL rest; manual adjust; never forced; stored when the next set starts; distinguish rest between sets / time between exercises / total duration; timestamp-based so it stays correct after backgrounding/locking the phone.
+5. **Next exercise:** finish exercise → review its sets → pick next from preferred library → existing machine or new → previous weights load → continue; one session screen; add / reorder / remove / mark skipped / go back; never lose data.
+6. **Live info bar:** duration, exercises done, working sets done, current exercise, current rest timer — nothing more.
+7. **Finish summary (short, numeric):** duration, exercises, working sets, warm-up sets, tonnage, average rest; effective sets per muscle (+x.x, from the central engine); new PRs, weight increases, rep improvements, failure sets, compromised-technique sets; one Finish & save button.
+8. **Integration:** one central engine updates weekly volume, remaining sets, direct/indirect, progression, equipment history, rest history, RIR/failure stats, recovery, weekly tonnage — no separate summary maths.
+9. **Learning month:** learn exercises, machines, gyms, weights, reps, rest, proximity to failure, feedback, preferences from use; first set on a new machine works without a recommendation.
+10. **Reliability:** autosave per set; duplicate-tap protection; resume interrupted workout; survives refresh/lock (completed sets never lost); offline OK; encrypted IndexedDB; clear "saved"; unfinished vs finished distinguishable; never silently discard partial sessions; corrections possible.
+11. **Mobile-first:** big targets, numeric keypads, minimal scrolling, readable numbers, high contrast, easy camera, clear timer, no needless animation/pop-ups; desktop works too.
+12. **Readiness test (synthetic localhost vault):** Gym A → incline DB press with dumbbells (+photo), 3 sets varying reps/RIR/failure/rest, timer + actual rest saved → Pec Deck new machine with photo at Gym A → more sets → another exercise → refresh/offline → resume, no duplicates/missing → finish summary (sets, duration, rest, effective volume, weekly remaining) → new workout at Gym A: Pec Deck in dropdown with history + settings.
+13. **Final review** — PASS / FAIL / NOT TESTED for each: ready for first session; create gym + equipment immediately; photo from phone; new machine findable in dropdown; fast weight/reps; background-proof timer; switch exercises without loss; autosave; interrupt/resume; summary correct; weekly volume updated immediately; mobile genuinely convenient. Don't claim readiness from UI elements alone.
+14. **Deliverable:** A readiness status · B improvements · C test results · D limitations · E first-session guide (start, create gym, photograph machine, log sets, rest timer, next exercise, finish, weekly analytics).
+
+## D.2 "Less text, more numbers, simple visuals, deep backend"
+- Four core metrics: weekly effective sets, progressive overload, intensity/proximity to failure, recovery.
+- **Dashboard:** compact table per muscle: completed / target, remaining (DONE at 0; over-target shows actual volume without encouraging more), thin progress bars, PROVISIONAL marker when data is thin; no paragraphs; readable in ~5 s.
+- **Workout screen:** prescription as a numeric table (Type · Weight/DB · Reps · RIR for warm-ups and sets), rest, next-session hint; no paragraphs (reasons only behind an optional expander).
+- **Progress:** per exercise one clean chart (weight, reps) + small table (previous, current, best reps, next suggested, target RIR) + label INCREASE +2.5 KG / KEEP 25 KG / REDUCE TO 22.5 KG / PLATEAU / MORE DATA NEEDED.
+- **Intensity:** weekly effort counts — RIR 0 / 1 / 2 / 3+, technically compromised, unknown effort, average RIR; muscular vs technical failure; no scoring system.
+- **Recovery:** soreness, fatigue, sleep, readiness inputs; per-muscle READY / RECOVERING / UNKNOWN; no fake precision.
+- **Weekly report:** table this week vs last week (workouts, working sets, effective sets, average RIR, tonnage) + behind-target muscles, progression lines, "next week" priorities. Short.
+- **Tonnage:** weight × reps summed, secondary only; never compared across unrelated exercises.
+- **Body:** body weight + 7-day average, waist, monthly photos; simple graphs; no composition estimates.
+- **Text audit on every page:** "8 / 12 — 4 REMAINING", "25 → 27.5 KG", "QUADS — 12 / 12 — DONE", "PLATEAU — 4 SESSIONS"; short labels, units, tables/charts, no duplicates, details behind expanders; keep necessary context (per dumbbell vs total; estimates not shown as exact).
+- **Backend:** keep all advanced logic in one engine (src/domain); every screen uses it; corrections recalc everywhere; raw data preserved; all calculations tested.
+- **Science:** keep the library; show PROVISIONAL / LOW CONFIDENCE / MORE DATA NEEDED in the UI; details only on demand.
+- **Navigation:** prefer four main sections — Dashboard, Workout, Progress (exercise graphs, plateaus, body weight), Settings (gyms, equipment, targets, backups, config). Critically review before changing; keep other pages reachable.
+- Acceptance: dashboard shows completed/target/remaining for every tracked muscle; numbers first everywhere; each exercise has a graph; next-weight calls concise; workout shows exact prescriptions; RIR/failure/technique integrated; backend depth kept; text reduced; data preserved; calculations tested; mobile + desktop tested.
+
+## D.3 Pull-ups (requested 2026-11-21, during Part 4)
+- Check existing support (`pull_up`, `assisted_pull_up`, `bodyweight_plus` load mode, grip fields); implement only what is missing.
+- Two variations × two grips, each with its OWN progression history: bodyweight vs weighted (dip belt), shoulder-width vs wide grip (grip width becomes part of the pull-up history key — pull-ups only; other exercises keep grip out of the key).
+- Per set: body weight at the time (from Body log or entered), added belt weight (0 = bodyweight), reps, RIR, failure status, technique, rest, grip width, gym and pull-up station (optional equipment).
+- Progression: max reps, working reps across sets, added-weight progression, body-weight change, trend, plateau. Weighted: show body weight and belt weight separately; any combined load (body + belt) labelled an ESTIMATE. A lower body weight is not lost strength; added weight is not the only progression (reps count too).
+- Volume: lats 1.0, biceps ≥ 0.5 (≥ 0.75 supinated), upper back 0.5 via the existing coefficients; no double counting.
+- Recommendation on selecting Pull-ups: bodyweight or weighted, suggested belt weight, target reps, sets, RIR, rest — from the owner's history.
+- UI: Pull-ups → Bodyweight / Weighted · Shoulder-width / Wide → log sets fast; simple graph of reps and added weight; histories never mixed.

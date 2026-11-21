@@ -43,3 +43,4 @@ export const IconReport = (p: P) => <Icon {...p}><path d="M14 3H6a2 2 0 0 0-2 2v
 export const IconMapPin = (p: P) => <Icon {...p}><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z" /><circle cx="12" cy="10" r="2.5" /></Icon>;
 export const IconCopy = (p: P) => <Icon {...p}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></Icon>;
 export const IconPlay = (p: P) => <Icon {...p}><path d="M6 4l14 8-14 8Z" /></Icon>;
+export const IconStar = (p: P & { filled?: boolean }) => { const { filled, ...rest } = p; return <Icon {...rest} fill={filled ? 'currentColor' : 'none'}><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" /></Icon>; };

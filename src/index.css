@@ -25,3 +25,22 @@
   background: rgba(23, 26, 33, 0.94) !important; color: #eceef2; font-size: 12px;
 }
 .recharts-default-tooltip .recharts-tooltip-label { color: #b1b8c6; }
+
+/* Horizontal scrollers stay inside their card and show a soft edge shadow while more content is
+   hidden on that side, so it is visible that the table can be swiped. */
+.scroll-x {
+  --sx-bg: 255, 255, 255;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  background:
+    linear-gradient(to right, rgb(var(--sx-bg)) 30%, rgba(var(--sx-bg), 0)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, rgb(var(--sx-bg)) 30%, rgba(var(--sx-bg), 0)) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.16), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.16), transparent) right center / 10px 100% no-repeat scroll;
+}
+.dark .scroll-x { --sx-bg: 23, 26, 33; }
+.dark .scroll-x { background:
+    linear-gradient(to right, rgb(var(--sx-bg)) 30%, rgba(var(--sx-bg), 0)) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, rgb(var(--sx-bg)) 30%, rgba(var(--sx-bg), 0)) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.6), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.6), transparent) right center / 10px 100% no-repeat scroll; }

@@ -1,4 +1,4 @@
-# Workout import format — `gymrat.workout` v1.2
+# Workout import format — `gymrat.workout` v1.3
 
 The contract between Claude (or any tool) and the app's **Import from Claude** screen.
 
@@ -8,7 +8,7 @@ The contract between Claude (or any tool) and the app's **Import from Claude** s
 
 ## Accepted shapes
 
-1. **Envelope** (preferred): `{ "schema": "gymrat.workout", "schema_version": "1.0", "workouts": [ Workout, ... ] }`
+1. **Envelope** (preferred): `{ "schema": "gymrat.workout", "schema_version": "1.3", "workouts": [ Workout, ... ] }`
 2. A single bare **Workout** object.
 3. An **array** of Workout objects.
 
@@ -68,6 +68,11 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 | `pain_area` | string | – | v1.2. Pain or unusual discomfort (with `feel: "pain"`). |
 | `pain_note` | string ≤500 | – | v1.2. The owner's description of the pain. |
 | `intended_weight_kg` | number \| null | – | v1.2. For wrong-weight sets. |
+| `failure_status` | `muscular_failure` \| `no_failure` \| `uncertain` | – | v1.3. "Did you reach muscular failure?" — kept **separate from RIR** (never overwrites it). `muscular_failure` = no further full rep with proper technique (≈ RIR 0); `no_failure` = stopped with ≥ 1 rep left; `uncertain` = not sure. Omit when not stated. |
+| `technical_failure` | boolean \| null | – | v1.3. The set ended because technique broke down. Counts as compromised technique (×0.7) unless `technique: "good"`, is never a progression benchmark, and does not by itself mean RIR 0. |
+| `failure_notes` | string ≤500 | – | v1.3. The owner's words about failure / form breakdown. |
+| `execution_feedback` | `followed` \| `ecc_too_fast` \| `ecc_too_slow` \| `momentum` \| `lost_concentric_control` \| `short_rom` | – | v1.3. Did the set follow the recommended execution? Technique guidance only — never changes volume credit. |
+| `prescribed` | object | – | v1.3. What the app's prescription engine suggested for this set: `{ weight_kg (number\|null), reps_min, reps_max, rir_min, rir_max, rest_sec? (number\|null), kind ("warmup"\|"working"), engine? }`. Stored apart from the performed values; calculations always use what was performed. Written by the app, not by Claude. |
 | `side` | `left` \| `right` | – | v1.1. Unilateral set for one side. The i-th left + i-th right set count as **one** set; an unpaired side counts as one. Sets with a side imply `variation.unilateral: true`. |
 | `notes` | string | – | |
 
@@ -76,6 +81,9 @@ JSON wrapped in a Markdown code fence (```` ```json ````) is accepted. `schema_v
 Variation values (v1.1, free strings but use these): `attachment` ∈ `straight_bar`, `rope`, `v_bar`, `single_handle`, `cuff`; `position` ∈ `standing`, `seated`; `execution` ∈ `simultaneous`, `alternating`; `legs` ∈ `straight`, `bent`; `depth` ∈ `above_parallel`, `parallel`, `below_parallel`; `bar_position` ∈ `high_bar`, `low_bar`.
 
 ## Changelog
+
+- **1.3** (additive): set `failure_status`, `technical_failure`, `failure_notes`, `execution_feedback`, `prescribed`. Files with `schema_version` 1.0–1.2 remain valid. The duplicate hash appends the failure status / technical failure only when present, so workouts without them hash exactly as before (execution feedback, notes and prescriptions are not part of the hash).
+  - **Migration (lazy):** nothing is rewritten. Existing records simply lack the new fields, which means "not recorded / unknown". An old `to_failure: true` is read as muscular failure *reported via the Fail chip* for analysis, but no `failure_status` is stored or back-filled, and RIR 0 alone is never turned into a failure status.
 
 - **1.2** (additive): set `feel`, `effort`, `weight_accuracy`, `technique`, `pain_area`, `pain_note`, `intended_weight_kg`. `feel` ∈ `too_easy`, `bit_easy`, `just_right`, `hard_good` (very hard, good technique), `too_heavy_form` (too heavy, technique compromised), `wrong_light`, `wrong_heavy`, `pain`.
 - **1.1** (additive): set `side`; variation `attachment`, `position`, `execution`, `legs`, `depth`, `bar_position`. v1.0 files are still valid and hash identically (no duplicate re-imports).
@@ -87,8 +95,9 @@ Variation values (v1.1, free strings but use these): `attachment` ∈ `straight_
 2. Resolves the gym (`location_id` exact → confirmed; id matching a name → probable; `name_hint` → suggestions only).
 3. Resolves exercises (`exercise_id` → direct; otherwise an exact English/Russian name or alias → probable; anything else → suggestions + blocking error until the owner picks).
 4. Proposes equipment instances only within the same gym (probable at best, flagged for confirmation); warns when a machine exercise has no identified equipment, when equipment belongs to another gym, and when a load differs > +30 % / < −40 % from the last session on the same machine.
-5. Blocks duplicates (SHA-256 of date + gym + exercises + sets, or same `client_ref`); warns about other sessions on the same day/gym.
-6. Never fills unknown values; they stay `null` and are shown as uncertain.
+5. Blocks duplicates (SHA-256 of date + gym + exercises + sets, or same `client_ref`). Warns (does not block) when a saved workout has the same date, gym and multiset of working-set (weight, reps, RIR) even though exercise ids differ — "looks like a workout you already have" (e.g. a name-only re-import resolved to different ids); otherwise warns about other sessions on the same day/gym.
+6. Adds gentle info notes when a failure status and the RIR disagree (e.g. `muscular_failure` with RIR ≥ 2, `no_failure` with RIR 0). Both values are kept as given.
+7. Never fills unknown values; they stay `null` and are shown as uncertain.
 
 ## Versioning
 

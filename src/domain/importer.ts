@@ -5,7 +5,8 @@ import { isIsoDate } from './dates';
 import { MUSCLE_IDS } from './types';
 import { normalizeName, searchExercises, type Registry } from './registry';
 import { FEEL_BY_ID } from './feedback';
-import type { Confidence, Equipment, Location, MuscleId, Workout, WorkoutExercise, WorkoutSet } from './types';
+import { failureConsistency } from './failure';
+import type { Confidence, Equipment, FailureStatus, Location, MuscleId, Workout, WorkoutExercise, WorkoutSet } from './types';
 import { uid } from '../lib/id';
 
 /**
@@ -14,11 +15,27 @@ import { uid } from '../lib/id';
  * Keep CLAUDE.md in sync when this changes.
  */
 export const IMPORT_SCHEMA_ID = 'gymrat.workout';
-export const IMPORT_SCHEMA_VERSION = '1.2';
+export const IMPORT_SCHEMA_VERSION = '1.3';
 
 const confidence = z.enum(['confirmed', 'probable', 'uncertain', 'unknown']);
 const time = z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:mm (24h)');
 const nnum = z.number().finite().nonnegative();
+
+/** v1.3: what the prescription engine suggested for a set (stored apart from what was performed). */
+const PrescribedIn = z.object({
+  weight_kg: nnum.nullable(),
+  reps_min: z.number().int().nonnegative().max(200),
+  reps_max: z.number().int().nonnegative().max(200),
+  rir_min: z.number().min(0).max(10),
+  rir_max: z.number().min(0).max(10),
+  rest_sec: nnum.max(3600).nullable().optional(),
+  kind: z.enum(['warmup', 'working']),
+  engine: z.string().max(40).optional(),
+}).strict();
+
+/** v1.3 import values → stored failure status. */
+export const FAILURE_STATUS_IN: Record<'muscular_failure' | 'no_failure' | 'uncertain', FailureStatus> = { muscular_failure: 'muscular', no_failure: 'none', uncertain: 'uncertain' };
+const FAILURE_STATUS_OUT: Record<FailureStatus, keyof typeof FAILURE_STATUS_IN> = { muscular: 'muscular_failure', none: 'no_failure', uncertain: 'uncertain' };
 
 const SetIn = z.object({
   type: z.enum(['warmup', 'working', 'drop']).default('working'),
@@ -42,6 +59,12 @@ const SetIn = z.object({
   pain_area: z.string().max(60).optional(),
   pain_note: z.string().max(500).optional(),
   intended_weight_kg: nnum.nullable().optional(),
+  /** v1.3: failure status, kept separate from RIR. Absent = not recorded (never inferred). */
+  failure_status: z.enum(['muscular_failure', 'no_failure', 'uncertain']).optional(),
+  technical_failure: z.boolean().nullable().optional(),
+  failure_notes: z.string().max(500).optional(),
+  execution_feedback: z.enum(['followed', 'ecc_too_fast', 'ecc_too_slow', 'momentum', 'lost_concentric_control', 'short_rom']).optional(),
+  prescribed: PrescribedIn.optional(),
   notes: z.string().max(1000).optional(),
 }).strict();
 
@@ -194,6 +217,8 @@ export interface ImportDraft {
   issues: ImportIssue[];
   hash: string;
   duplicateOf: string | null;
+  /** Existing workout with the same date, gym and working sets (exercise ids ignored). Warning only, never blocks. */
+  likelyDuplicateOf: string | null;
 }
 
 function matchLocation(locations: Location[], id?: string | null, hint?: string | null): { id: string | null; suggestions: string[]; conf: Confidence } {
@@ -254,10 +279,35 @@ export async function workoutHash(w: Pick<Workout, 'date' | 'locationId' | 'exer
   const canonical = JSON.stringify({
     d: w.date,
     l: w.locationId ?? null,
-    // `side` is appended only when present, so hashes of v1.0 workouts are unchanged.
-    e: w.exercises.map((e) => [e.exerciseId, e.equipmentId ?? null, e.sets.map((s) => (s.side ? [s.type, s.weightKg, s.reps, s.rir, s.side] : [s.type, s.weightKg, s.reps, s.rir]))]),
+    // `side` (v1.1) and the failure status (v1.3) are appended only when present, so hashes of
+    // workouts that don't use them are unchanged.
+    e: w.exercises.map((e) => [e.exerciseId, e.equipmentId ?? null, e.sets.map(setHashParts)]),
   });
   return sha256Hex(canonical);
+}
+
+function setHashParts(s: WorkoutSet): unknown[] {
+  const parts: unknown[] = s.side ? [s.type, s.weightKg, s.reps, s.rir, s.side] : [s.type, s.weightKg, s.reps, s.rir];
+  if (s.failure || s.technicalFailure != null) parts.push({ f: s.failure ?? null, t: s.technicalFailure ?? null });
+  return parts;
+}
+
+/**
+ * Content fingerprint that ignores exercise ids and equipment: date, gym and the multiset of
+ * (weight, reps, RIR) of the working sets. Used to WARN (never block) when a workout looks like
+ * one already saved, e.g. the same session re-imported with exercise names resolved differently.
+ */
+export function workoutFingerprint(w: Pick<Workout, 'date' | 'locationId' | 'exercises'>): string | null {
+  const sets = w.exercises.flatMap((e) => e.sets.filter((s) => s.type === 'working' && !s.planned).map((s) => `${s.weightKg ?? '-'}x${s.reps ?? '-'}@${s.rir ?? '-'}`));
+  if (!sets.length) return null;
+  return JSON.stringify([w.date, w.locationId ?? null, sets.sort()]);
+}
+
+/** Id of an existing workout with the same fingerprint (same date, gym and working sets), else null. */
+export function findLikelyDuplicate(w: Pick<Workout, 'date' | 'locationId' | 'exercises'>, existing: Workout[]): string | null {
+  const fp = workoutFingerprint(w);
+  if (!fp) return null;
+  return existing.find((o) => o.date === w.date && workoutFingerprint(o) === fp)?.id ?? null;
 }
 
 /** Convert a validated input into an editable draft. Never invents values: unknowns stay null. */
@@ -339,6 +389,8 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
       }
     }
     sets.forEach((s, k) => {
+      const fc = failureConsistency(s);
+      if (fc) issues.push({ level: 'info', path: `exercises[${i}].sets[${k}]`, message: fc });
       if (s.type !== 'warmup' && s.reps == null) issues.push({ level: 'warning', path: `exercises[${i}].sets[${k}]`, message: 'Reps missing — set kept, but its stimulus is uncertain.' });
       if (s.rir != null && s.rir > 5 && s.type === 'working') issues.push({ level: 'info', path: `exercises[${i}].sets[${k}]`, message: `RIR ${s.rir} is far from failure — counts as little or no effective volume. Was it a warm-up?` });
     });
@@ -409,13 +461,16 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
   const dupByHash = data.imports.find((i) => i.hash === hash)?.workoutId ?? data.workouts.find((w) => w.importHash === hash)?.id ?? null;
   const dupByRef = input.client_ref ? data.workouts.find((w) => w.clientRef === input.client_ref)?.id ?? null : null;
   const duplicateOf = dupByHash ?? dupByRef;
+  const likelyDuplicateOf = duplicateOf ? null : findLikelyDuplicate(workout, data.workouts);
   if (duplicateOf) issues.unshift({ level: 'error', path: '(root)', message: 'This workout has already been imported (identical content or client_ref). Import blocked to prevent duplicates.' });
-  else {
+  else if (likelyDuplicateOf) {
+    issues.unshift({ level: 'warning', path: '(root)', message: 'Looks like a workout you already have: same date, gym and working sets (weight × reps × RIR) as a saved session, even if the exercise names differ. Check it is not the same session before saving.' });
+  } else {
     const sameDay = data.workouts.filter((w) => w.date === input.date && (w.locationId ?? null) === (loc.id ?? null));
     if (sameDay.length) issues.push({ level: 'warning', path: 'date', message: `You already have ${sameDay.length} workout(s) on ${input.date} at this location. Make sure this is not the same session.` });
   }
   workout.importHash = hash;
-  return { key: uid('draft'), input, workout, locationSuggestions: loc.suggestions, locationHint, exercises: resolutions, issues, hash, duplicateOf };
+  return { key: uid('draft'), input, workout, locationSuggestions: loc.suggestions, locationHint, exercises: resolutions, issues, hash, duplicateOf, likelyDuplicateOf };
 }
 
 /**
@@ -436,6 +491,18 @@ function feedbackFromInput(s: WorkoutInT['exercises'][number]['sets'][number]): 
   if (s.technique) out.technique = s.technique;
   if (s.feel === 'pain' || s.pain_area || s.pain_note) out.pain = { area: s.pain_area ?? '', ...(s.pain_note ? { note: s.pain_note } : {}) };
   if (s.intended_weight_kg != null) out.intendedWeightKg = s.intended_weight_kg;
+  // v1.3 failure status / execution / prescription: copied only when present, never inferred.
+  if (s.failure_status) out.failure = FAILURE_STATUS_IN[s.failure_status];
+  if (s.technical_failure != null) out.technicalFailure = s.technical_failure;
+  if (s.failure_notes) out.failureNote = s.failure_notes;
+  if (s.execution_feedback) out.execution = s.execution_feedback;
+  if (s.prescribed) {
+    const p = s.prescribed;
+    out.prescribed = {
+      weightKg: p.weight_kg, repsMin: p.reps_min, repsMax: p.reps_max, rirMin: p.rir_min, rirMax: p.rir_max,
+      ...(p.rest_sec !== undefined ? { restSec: p.rest_sec } : {}), kind: p.kind, engine: p.engine ?? 'import',
+    };
+  }
   return out;
 }
 
@@ -511,6 +578,18 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
         ...(s.feel ? { feel: s.feel } : {}), ...(s.effort ? { effort: s.effort } : {}), ...(s.weightAccuracy ? { weight_accuracy: s.weightAccuracy } : {}),
         ...(s.technique ? { technique: s.technique } : {}), ...(s.pain?.area ? { pain_area: s.pain.area } : {}), ...(s.pain?.note ? { pain_note: s.pain.note } : {}),
         ...(s.intendedWeightKg != null ? { intended_weight_kg: s.intendedWeightKg } : {}),
+        ...(s.failure ? { failure_status: FAILURE_STATUS_OUT[s.failure] } : {}),
+        ...(s.technicalFailure != null ? { technical_failure: s.technicalFailure } : {}),
+        ...(s.failureNote ? { failure_notes: s.failureNote } : {}),
+        ...(s.execution ? { execution_feedback: s.execution } : {}),
+        ...(s.prescribed ? {
+          prescribed: {
+            weight_kg: s.prescribed.weightKg, reps_min: s.prescribed.repsMin, reps_max: s.prescribed.repsMax,
+            rir_min: s.prescribed.rirMin, rir_max: s.prescribed.rirMax,
+            ...(s.prescribed.restSec !== undefined ? { rest_sec: s.prescribed.restSec } : {}),
+            kind: s.prescribed.kind, engine: s.prescribed.engine,
+          },
+        } : {}),
         notes: s.notes,
       })),
     })),

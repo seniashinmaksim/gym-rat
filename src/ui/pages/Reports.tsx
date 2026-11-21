@@ -4,6 +4,7 @@ import type { WeekBucket } from '../../domain/history';
 import { TRACKED_MUSCLES } from '../../domain/muscles';
 import { baselineReport, buildSnapshot, weeklyReport, weeklySummary, progressionAsOf, type WeeklyReport } from '../../domain/reports';
 import type { MuscleId } from '../../domain/types';
+import type { FailureProfile } from '../../domain/failure';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconCheck, IconChevronDown, IconInfo } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
@@ -113,13 +114,13 @@ function WeeklyTab() {
         <p className="mt-2 text-[11px] text-ink-500">Effective = Σ (muscle coefficient × set-quality credit). Direct/indirect columns are raw set counts, before any adjustment.</p>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <ListCard title="Reached target" tone="good" body={listOrDash(report.reached)} />
         <ListCard title="Fell short (below lower end)" tone="warn" body={listOrDash(report.short)} />
         <ListCard title="Above upper bound" tone="violet" body={listOrDash(report.excessive)} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardTitle hint="Week best vs best of the previous 4 sessions on the same equipment.">Strength changes</CardTitle>
           {report.progressed.length === 0 && report.declined.length === 0 ? (
@@ -157,6 +158,7 @@ function WeeklyTab() {
           </Why>
         </div>
       </Card>
+      {report.failure && report.failure.totals.recorded > 0 && <FailureCard f={report.failure} />}
       </>)}
     </div>
   );
@@ -185,6 +187,7 @@ function WeekSummaryCard({ report, complete }: { report: WeeklyReport; complete:
       <Row q="Increase weight">{list(s.increase, 'None yet.')}</Row>
       <Row q="Keep or reduce">{s.reduce.length ? <><b className="font-semibold text-amber-700 dark:text-amber-300">Reduce:</b> {s.reduce.join(' · ')}{s.keep.length ? ' · ' : ''}</> : null}{s.keep.length ? <>Keep: {s.keep.join(' · ')}</> : !s.reduce.length ? <span className="text-ink-500">—</span> : null}</Row>
       <Row q="Possible plateaus">{list(s.plateaus, 'None detected.')}</Row>
+      {s.failureLine && <Row q="Failure">{s.failureLine}</Row>}
     </Card>
   );
 }
@@ -338,7 +341,7 @@ function BaselineTab() {
         </Table>
       </Section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Section n={10} title="Little direct work">
           <MuscleList ms={r.lowDirect} names={names} empty="Every muscle received some direct work." />
         </Section>
@@ -347,7 +350,7 @@ function BaselineTab() {
         </Section>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Section n={12} title="Early progression">
           {r.earlyProgress.length ? <ul className="space-y-1.5 text-xs text-ink-700 dark:text-ink-200">{r.earlyProgress.map((e, i) => <li key={i}>{e}</li>)}</ul> : <NoData text="No exercise shows a clear upward trend yet." />}
         </Section>
@@ -409,3 +412,29 @@ function NoData({ text = 'Not enough data yet.' }: { text?: string }) {
   return <p className="text-sm text-ink-500">{text}</p>;
 }
 
+/** How often sets reached failure, per exercise and muscle — descriptive only (failure is not required for growth). */
+function FailureCard({ f }: { f: FailureProfile }) {
+  const a = useAnalysis();
+  const names = useNames();
+  const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
+  return (
+    <Card>
+      <CardTitle hint="Only sets with a failure answer (or an older “to failure” note) are counted. Training to failure is not required — stopping 1–3 reps short grows muscle similarly.">Failure &amp; effort</CardTitle>
+      <ul className="mb-3 space-y-1.5 text-sm">
+        {f.flags.map((x) => <li key={x.id}><b className="font-medium text-ink-800 dark:text-ink-100">{x.text}</b> <span className="text-xs text-ink-500">{x.why}</span></li>)}
+      </ul>
+      <Table head={['Exercise', 'Recorded', 'Failure', 'Stopped before', 'Form broke']} dense>
+        {f.exercises.filter((r) => r.recorded > 0).map((r) => (
+          <tr key={r.exerciseId}>
+            <Td right={false}>{names.ex(a.registry.get(r.exerciseId), r.exerciseId)}</Td>
+            <Td>{r.recorded}/{r.workingSets}</Td>
+            <Td>{r.muscular} ({pct(r.shareAtFailure)})</Td>
+            <Td>{r.none}</Td>
+            <Td>{r.technical}</Td>
+          </tr>
+        ))}
+      </Table>
+      <p className="mt-2 text-xs text-ink-500">By muscle: {f.muscles.filter((m) => m.recorded > 0).map((m) => `${names.muscle(m.muscle)} ${pct(m.shareAtFailure)}`).join(' · ') || '—'}</p>
+    </Card>
+  );
+}

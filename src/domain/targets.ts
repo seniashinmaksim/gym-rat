@@ -26,7 +26,9 @@ export const MIN_LEARNING_SESSIONS = 6;
 export function learningState(data: AppData, today: string, weeks: WeekBucket[]): LearningState {
   const { learning } = data.settings;
   const firstWorkout = data.workouts.length ? data.workouts.reduce((m, w) => (w.date < m ? w.date : m), data.workouts[0].date) : null;
-  const startDate = learning.startDate ?? firstWorkout;
+  // Learning starts with the earliest workout on record — imported earlier sessions count too — and
+  // never later than the stored start date.
+  const startDate = learning.startDate && firstWorkout ? (firstWorkout < learning.startDate ? firstWorkout : learning.startDate) : learning.startDate ?? firstWorkout;
   const sessions = startDate ? data.workouts.filter((w) => w.date >= startDate).length : 0;
   const completeWeeks = weeks.filter((w) => w.complete && w.workouts.length > 0).length;
   if (!startDate) {

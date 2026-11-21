@@ -1,7 +1,9 @@
 import { diffDays } from './dates';
 import type { Registry } from './registry';
 import { benchmarkExclusion, techniqueOf } from './feedback';
-import type { Effort, Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, SetFeel, Side, Technique, Variation, Workout, WorkoutExercise } from './types';
+import { failureImpliedRir } from './failure';
+import { loadStep, type IncrementSource } from './increments';
+import type { Effort, Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, FailureStatus, Location, SetFeel, Side, Technique, Variation, Workout, WorkoutExercise } from './types';
 
 /**
  * Progression is tracked per (exercise × equipment instance). Loads from two different
@@ -70,6 +72,10 @@ export interface SetPoint {
   technique?: Technique;
   /** Rest before this set (seconds), if known. */
   restSec?: number | null;
+  /** Failure status as recorded (v1.3). Absent = not recorded. */
+  failure?: FailureStatus;
+  /** The set ended because technique gave out (never a benchmark). */
+  technicalFailure?: boolean;
   /** Used to judge progression? (false for wrong weight, pain, compromised technique). */
   benchmark: boolean;
   /** Why it is not a benchmark. */
@@ -126,6 +132,10 @@ export interface ProgressionSeries {
   /** Configuration this history is for (e.g. "30°", "rope"), or null when none was recorded. */
   variantLabel: string | null;
   loadMode: string;
+  /** Gym of the most recent session in this history (used for per-gym dumbbell jumps). */
+  locationId: string | null;
+  /** Where the load step (`next.increment`) came from. */
+  incrementSource: IncrementSource;
   sessions: SessionPerf[];
   trend: Trend;
   best: { e1rm: number | null; weight: number | null; reps: number | null; date: string | null };
@@ -165,11 +175,14 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true): Se
   const sets: SetPoint[] = working.map((s) => {
     const excluded = benchmarkExclusion(s);
     return {
-      weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : null),
+      // Clean muscular failure without a logged RIR is valid performance at ≈ RIR 0 (index only; RIR is not stored).
+      weight: s.weightKg, reps: s.reps, rir: s.rir ?? (s.toFailure ? 0 : failureImpliedRir(s)),
       ...(s.side ? { side: s.side } : {}),
       ...(s.feel ? { feel: s.feel } : {}),
       ...(s.effort && useFeel ? { effort: s.effort } : {}),
       ...(techniqueOf(s) ? { technique: techniqueOf(s) } : {}),
+      ...(s.failure ? { failure: s.failure } : {}),
+      ...(s.technicalFailure ? { technicalFailure: true } : {}),
       restSec: s.restSecBefore,
       benchmark: !excluded,
       ...(excluded ? { excluded } : {}),
@@ -395,7 +408,9 @@ export function suggestNextLoad(
     return { ...base, action: 'hold', weight: w, reason: `Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.${tail}` };
   }
   const atLoad = (s: SessionPerf) => benchPts(s).filter((p) => p.weight === workLoad(s));
-  const effortKnown = (p: SetPoint) => p.rir != null || p.effort != null;
+  // Effort is "recorded" with a RIR, a feel, or a definite failure answer (muscular / stopped before failure).
+  // "Stopped before failure" alone does not say how close the set was, so it is not recorded effort.
+  const effortKnown = (p: SetPoint) => p.rir != null || p.effort != null || (p.failure === 'muscular' && !p.technicalFailure);
   const hitsTop = (s: SessionPerf) => {
     const at = atLoad(s);
     return at.length > 0 && at.length >= Math.ceil(benchPts(s).length / 2) && at.every((p) => (p.reps ?? 0) >= hi && effortKnown(p));
@@ -498,10 +513,13 @@ export function buildProgression(
   today: string,
   /** Settings → "Use how the set felt when no RIR was logged". Off = effort from feel is ignored here too. */
   useFeel = true,
+  /** Gyms, so dumbbell / kettlebell jumps set per gym apply (Location.freeWeightIncrementsKg). */
+  locations: Location[] = [],
 ): ProgressionSeries[] {
+  const locById = new Map(locations.map((l) => [l.id, l]));
   const eqById = new Map(equipment.map((e) => [e.id, e]));
   const ovById = new Map(overrides.map((o) => [o.id, o]));
-  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; scope: string; variant: string | null }>();
+  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; scope: string; variant: string | null; locationId: string | null }>();
   const sorted = [...workouts].sort((a, b) => (a.date + (a.startTime ?? '')).localeCompare(b.date + (b.startTime ?? '')));
   for (const w of sorted) {
     for (const ex of w.exercises) {
@@ -515,10 +533,11 @@ export function buildProgression(
         const base = baseKey(ex, w, def);
         const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? 'Bodyweight' : 'Free weights') : 'Unidentified equipment';
         const parts = variationParts(ex.variation, def);
-        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null };
+        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null, locationId: null };
         groups.set(key, g);
       }
       g.sessions.push(perf);
+      g.locationId = w.locationId ?? null;
     }
   }
   const out: ProgressionSeries[] = [];
@@ -527,7 +546,7 @@ export function buildProgression(
     const ov = ovById.get(g.exerciseId);
     const trend = classifyTrend(g.sessions, today);
     const eq = g.equipmentId ? eqById.get(g.equipmentId) : undefined;
-    const inc = eq?.incrementsKg?.length ? Math.min(...eq.incrementsKg) : defaultIncrement(def?.equipmentKind, g.loadMode);
+    const { step: inc, source: incrementSource } = loadStep(eq, g.locationId ? locById.get(g.locationId) : undefined, def?.equipmentKind, g.loadMode);
     let best: ProgressionSeries['best'] = { e1rm: null, weight: null, reps: null, date: null };
     for (const s of g.sessions) {
       if (s.index != null && (best.e1rm == null || s.index > best.e1rm)) best = { e1rm: s.index, weight: s.topWeight, reps: s.topReps, date: s.date };
@@ -539,6 +558,8 @@ export function buildProgression(
       scopeLabel: g.variant ? `${g.scope} · ${g.variant}` : g.scope,
       variantLabel: g.variant,
       loadMode: g.loadMode,
+      locationId: g.locationId,
+      incrementSource,
       sessions: g.sessions,
       trend,
       best,

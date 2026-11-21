@@ -1,6 +1,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays, sessionEndVirtualMs, type SessionTimeSource } from './dates';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
+import { isFailureSetForFatigue } from './failure';
 import { sideFactors } from './quality';
 import type { Registry } from './registry';
 import type { MuscleId } from './types';
@@ -37,6 +38,30 @@ export const TIME_SOURCE_LABEL: Record<SessionTimeSource, string> = {
   start_time: 'start time — no end time recorded',
   assumed: 'no time recorded — 18:00 assumed',
 };
+
+/**
+ * Exercise ids that are the SAME movement for the "new exercise" (+12 h) rule. Some exercises were
+ * split into more specific ids later (e.g. pushdown → bar / rope); switching between members of one
+ * family is not a novel stimulus. Deliberately NOT paired: hanging_leg_raise vs
+ * hanging_knee_raise_pelvic_curl (different exercises).
+ */
+export const MOVEMENT_FAMILIES: readonly (readonly string[])[] = [
+  ['triceps_pushdown', 'triceps_pushdown_bar', 'triceps_pushdown_rope'],
+  ['barbell_curl', 'ez_bar_curl'],
+  ['preacher_curl', 'machine_biceps_curl'],
+  ['romanian_deadlift', 'dumbbell_romanian_deadlift'],
+];
+
+const FAMILY_OF = new Map<string, string>(MOVEMENT_FAMILIES.flatMap((f) => f.map((id) => [id, f[0]] as const)));
+
+/** Canonical movement id for novelty checks (the exercise id itself when it has no family). */
+export function movementFamily(exerciseId: string): string {
+  return FAMILY_OF.get(exerciseId) ?? exerciseId;
+}
+
+export function sameMovement(a: string, b: string): boolean {
+  return movementFamily(a) === movementFamily(b);
+}
 
 /** Baseline window by the size of the last significant session (effective sets for the muscle). */
 export function baseWindowHours(sets: number): number {
@@ -143,7 +168,8 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     // A left + right pair to failure is one set, not two.
     const failureSets = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.5)).reduce((n, e) => {
       const f = sideFactors(e.sets);
-      return n + e.sets.filter((s) => s.type !== 'warmup' && !s.planned && (s.toFailure || s.rir === 0)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
+      // Fail chip / RIR 0 / muscular failure / technical failure all count as a failure set here.
+      return n + e.sets.filter((s) => s.type !== 'warmup' && !s.planned && isFailureSetForFatigue(s)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
     }, 0);
     if (failureSets >= 2) {
       window += 12;
@@ -151,7 +177,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     }
     const lastDate = last.date;
     const novel = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.75)).filter((e) =>
-      !data.workouts.some((o) => o.date < lastDate && diffDays(lastDate, o.date) <= 21 && o.exercises.some((x) => x.exerciseId === e.exerciseId)));
+      !data.workouts.some((o) => o.date < lastDate && diffDays(lastDate, o.date) <= 21 && o.exercises.some((x) => sameMovement(x.exerciseId, e.exerciseId))));
     if (novel.length && data.workouts.some((o) => o.date < lastDate)) {
       window += 12;
       factors.push('Exercise new to you in the last 3 weeks (more muscle damage expected): +12 h.');

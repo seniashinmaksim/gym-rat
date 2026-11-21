@@ -222,7 +222,7 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
         </div>
       )}
 
-      <div className="grid gap-3 rounded-xl bg-ink-50 p-3 dark:bg-ink-950 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 rounded-xl bg-ink-50 p-3 dark:bg-ink-950 sm:grid-cols-3">
         <Field label="Date"><Input type="date" value={w.date} onChange={(e) => patchW({ date: e.target.value })} /></Field>
         <Field label={<span>Gym {w.locationId ? <Badge tone={w.locationConfidence === 'confirmed' ? 'good' : 'warn'}>{w.locationConfidence}</Badge> : <Badge tone="warn">unknown</Badge>}</span>}>
           <Select value={w.locationId ?? ''} onChange={(e) => patchW({ locationId: e.target.value || null, locationConfidence: e.target.value ? 'confirmed' : 'unknown' })}>
@@ -243,7 +243,7 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
           const eqChoices = data.equipment.filter((q) => !w.locationId || q.locationId === w.locationId || q.locationId == null);
           return (
             <div key={ex.id} className={cx('rounded-xl border p-3', unresolved ? 'border-rose-500/50' : 'border-ink-200 dark:border-ink-800')}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Field label={<span>Exercise {draft.input.exercises[i]?.exercise_name_raw && <span className="font-normal text-ink-400">· “{res.rawName}”</span>}</span>}>
                   <Select value={unresolved ? '' : ex.exerciseId} onChange={(e) => patchEx(i, { exerciseId: e.target.value, exerciseConfidence: 'confirmed' })} className={cx(unresolved && 'border-rose-500')}>
                     <option value="">{unresolved ? 'Choose the matching exercise…' : '—'}</option>
@@ -264,7 +264,7 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
               {res?.equipmentHint && (res.equipmentHint.name || res.equipmentHint.manufacturer) && (
                 <p className="mt-1 text-[11px] text-ink-500">Claude's hint: {[res.equipmentHint.name, res.equipmentHint.manufacturer, res.equipmentHint.model].filter(Boolean).join(' · ')}</p>
               )}
-              <div className="mt-2 overflow-x-auto">
+              <div className="scroll-x mt-2">
                 {(() => { const parts = variationParts(ex.variation, def); return parts.length ? <p className="mb-1 text-[11px] text-ink-500">Variation: {parts.map((p) => p.label).join(' · ')}</p> : null; })()}
                 <table className="w-full min-w-[420px] text-xs tabular-nums">
                   <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="py-1">Type</th><th>{loadUnitLabel(def, ex.sets[0]?.loadMode)}</th><th>Reps</th><th>RIR</th><th>Rest</th><th /></tr></thead>

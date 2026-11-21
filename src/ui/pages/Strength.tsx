@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatDate, formatDuration } from '../../domain/dates';
 import { FEEL_BY_ID, formatRirRange, EFFORT_RIR_ESTIMATE } from '../../domain/feedback';
-import { adviceFor, defaultIncrement, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
+import { adviceFor, progressionKey, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
 import { loadUnitLabel } from '../../domain/registry';
-import { useData } from '../../lib/store';
+import { store, useData } from '../../lib/store';
+import { assignBenchAngle } from '../../domain/bulkEdit';
+import { loadStep } from '../../domain/increments';
 import { IconChevronDown, IconSearch } from '../components/icons';
-import { Badge, Card, Empty, Input, Page, Segmented, Table, Td, cx, fmt } from '../components/ui';
+import { Badge, Button, Card, confirmAction, Empty, Input, NumInput, Page, Segmented, Table, Td, cx, fmt, toast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
 /**
@@ -115,7 +117,8 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
   const bw = isBodyweight(p);
   const unit = loadUnitLabel(def, p.loadMode);
   const eq = p.equipmentId ? data.equipment.find((e) => e.id === p.equipmentId) : undefined;
-  const inc = eq?.incrementsKg?.length ? Math.min(...eq.incrementsKg) : defaultIncrement(def?.equipmentKind, p.loadMode);
+  const lastGym = data.locations.find((l) => l.id === data.workouts.find((w) => w.id === p.current?.workoutId)?.locationId) ?? null;
+  const inc = loadStep(eq, lastGym, def?.equipmentKind, p.loadMode).step;
   const chart = p.sessions.map((s) => ({
     date: s.date.slice(5),
     weight: bw ? null : s.topWeight,
@@ -143,6 +146,7 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
           <p className="mt-1 text-xs leading-relaxed text-ink-600 dark:text-ink-300">{adv.text}</p>
           <p className="mt-1 text-[11px] text-ink-500">Next: {p.next.repTarget[0]}–{p.next.repTarget[1]} reps, ~{p.next.rirTarget} reps in reserve{!bw ? ` · smallest step ${fmt(inc, 2)} kg` : ''}.</p>
         </div>
+        {def?.variationFields?.includes('angle') && p.variantLabel == null && p.sessions.length > 0 && <AssignAngle p={p} name={names.ex(def, p.exerciseId)} />}
       </Card>
 
       <Card>
@@ -159,7 +163,7 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
                 {(mode !== 'reps' && !bw) && <YAxis yAxisId="w" tickLine={false} axisLine={false} domain={['auto', 'auto']} />}
                 {(mode !== 'weight' || bw) && <YAxis yAxisId="r" orientation={mode === 'both' && !bw ? 'right' : 'left'} tickLine={false} axisLine={false} allowDecimals={false} domain={['auto', 'auto']} />}
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
                 {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name="Top weight (kg)" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
                 {(mode !== 'weight' || bw) && <Line yAxisId="r" type="monotone" dataKey="reps" name="Reps (top set)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />}
               </LineChart>
@@ -236,7 +240,7 @@ function feelText(x: SetPoint): string {
 function FeedbackTable({ p }: { p: ProgressionSeries }) {
   const rows = [...p.sessions].reverse().flatMap((s) => s.sets.map((x, i) => ({ s, x, i })));
   return (
-    <div className="-mx-4 overflow-x-auto sm:mx-0">
+    <div className="scroll-x">
       <table className="w-full min-w-[340px] text-xs tabular-nums">
         <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="px-4 py-1 sm:px-0">Date</th><th>kg</th><th>Reps</th><th>Felt</th><th className="pr-4 text-right sm:pr-0">RIR</th></tr></thead>
         <tbody className="divide-y divide-ink-100 dark:divide-ink-800">
@@ -271,5 +275,40 @@ function PersonalBests({ p, bw }: { p: ProgressionSeries; bw: boolean }) {
       {!bw && <div><dt className="text-ink-500">Heaviest</dt><dd className="text-sm font-semibold tabular-nums">{heaviest ? `${fmt(heaviest.weight, 2)} kg × ${heaviest.reps}` : '—'}</dd><dd className="text-ink-400">{heaviest ? formatDate(heaviest.date) : ''}</dd></div>}
       <div><dt className="text-ink-500">Most reps</dt><dd className="text-sm font-semibold tabular-nums">{mostReps ? `${mostReps.reps}${mostReps.weight != null && !bw ? ` @ ${fmt(mostReps.weight, 2)} kg` : ''}` : '—'}</dd><dd className="text-ink-400">{mostReps ? formatDate(mostReps.date) : ''}</dd></div>
     </dl>
+  );
+}
+
+/** One-time: give earlier sessions logged without a bench angle the angle you actually used (audited). */
+function AssignAngle({ p, name }: { p: ProgressionSeries; name: string }) {
+  const data = useData();
+  const a = useAnalysis();
+  const [open, setOpen] = useState(false);
+  const [angle, setAngle] = useState<number | null>(null);
+  // An incline exercise done flat is a different exercise (as in the logger), so no "Flat" here.
+  const incline = a.registry.get(p.exerciseId)?.pattern === 'incline_push';
+  const n = p.sessions.length;
+  const apply = async () => {
+    if (angle == null) return;
+    if (!confirmAction(`Set ${angle}° on ${n} earlier session${n === 1 ? '' : 's'} of ${name} that had no angle? Weights and reps stay as logged; the angle can change how those sets are credited to upper chest / front delts. Each workout gets an audit note.`)) return;
+    const def = a.registry.get(p.exerciseId);
+    const changed = assignBenchAngle(data.workouts, { workoutIds: p.sessions.map((s) => s.workoutId), exerciseId: p.exerciseId, equipmentId: p.equipmentId, exerciseName: name, matches: (e, w) => progressionKey(e, w, def) === p.key }, angle, new Date().toISOString());
+    for (const w of changed) await store.saveWorkout(w);
+    toast(`${changed.length} workout${changed.length === 1 ? '' : 's'} updated`);
+    setOpen(false);
+  };
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-2 min-h-[40px] text-left text-xs text-accent-600 underline decoration-dotted underline-offset-2 dark:text-accent-400">These {n} session{n === 1 ? '' : 's'} have no bench angle — assign the angle you used</button>;
+  return (
+    <div className="mt-3 rounded-xl bg-ink-50 p-3 dark:bg-ink-950">
+      <div className="text-xs font-medium text-ink-700 dark:text-ink-200">Angle used in these {n} session{n === 1 ? '' : 's'}</div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {(incline ? [15, 30, 45] : [0, 15, 30, 45]).map((d) => (
+          <button key={d} type="button" onClick={() => setAngle(d)} aria-pressed={angle === d}
+            className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium', angle === d ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{d === 0 ? 'Flat' : `${d}°`}</button>
+        ))}
+        <div className="w-24"><NumInput value={angle != null && ![0, 15, 30, 45].includes(angle) ? angle : null} onChange={setAngle} placeholder="other °" /></div>
+      </div>
+      <p className="mt-2 text-[11px] text-ink-500">Only entries without an angle change. Weights and reps stay as logged; each workout records the correction.</p>
+      <div className="mt-2 flex gap-2"><Button size="sm" variant="primary" disabled={angle == null} onClick={apply}>Apply</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
+    </div>
   );
 }

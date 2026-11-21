@@ -78,7 +78,40 @@ export interface WorkoutSet {
   intendedWeightKg?: number | null;
   /** Audit trail: corrections made after the workout was finished (original → corrected). */
   corrections?: SetCorrection[];
+  // ---- Failure status (v1.3; optional, never invented for older sets) ----
+  /**
+   * "Did you reach muscular failure?" — kept SEPARATE from RIR (RIR is never overwritten by it).
+   * muscular = could not complete another full rep with proper technique; none = stopped
+   * voluntarily with at least one more rep possible; uncertain = not sure. Undefined = not recorded.
+   * The older `toFailure` flag (the "Fail" chip / import `to_failure`) still means RIR 0 was reported.
+   */
+  failure?: FailureStatus;
+  /** The set ended because technique broke down (technical failure). undefined = unknown. */
+  technicalFailure?: boolean;
+  failureNote?: string;
+  /** Optional "did you follow the recommended execution?" answer (technique guidance only, never volume credit). */
+  execution?: ExecutionFeedback;
+  /**
+   * What the prescription engine suggested for this set when it was planned. Stored separately so
+   * prescribed and performed values are never mixed; calculations always use the performed values.
+   */
+  prescribed?: SetPrescription;
   notes?: string;
+}
+
+export type FailureStatus = 'muscular' | 'none' | 'uncertain';
+export type ExecutionFeedback = 'followed' | 'ecc_too_fast' | 'ecc_too_slow' | 'momentum' | 'lost_concentric_control' | 'short_rom';
+export interface SetPrescription {
+  weightKg: number | null;
+  repsMin: number;
+  repsMax: number;
+  rirMin: number;
+  rirMax: number;
+  restSec?: number | null;
+  /** 'warmup' sets are prescribed too (never counted as volume). */
+  kind: 'warmup' | 'working';
+  /** Engine version that produced it, for later audits. */
+  engine: string;
 }
 
 export type Side = 'left' | 'right';
@@ -88,9 +121,9 @@ export type WeightAccuracy = 'correct' | 'too_light' | 'too_heavy' | 'unknown';
 export type Technique = 'good' | 'slightly_degraded' | 'compromised' | 'failed' | 'not_assessed';
 export interface SetCorrection {
   at: string; // ISO timestamp of the correction
-  field: 'weightKg' | 'reps' | 'rir' | 'type' | 'side';
-  from: number | string | null;
-  to: number | string | null;
+  field: 'weightKg' | 'reps' | 'rir' | 'type' | 'side' | 'failure' | 'technicalFailure' | 'toFailure';
+  from: number | string | boolean | null;
+  to: number | string | boolean | null;
 }
 
 export interface Variation {
@@ -117,7 +150,7 @@ export interface Variation {
 }
 
 /** Variation controls the logger offers for an exercise (beyond grip, grip width and ROM, which are always available). */
-export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance';
+export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance' | 'grip' | 'gripWidth';
 
 export interface WorkoutExercise {
   id: string;
@@ -133,6 +166,10 @@ export interface WorkoutExercise {
   sets: WorkoutSet[];
   restAfterSec?: number | null;
   startedAt?: string;
+  /** Live logger: the owner tapped "Finish exercise" (card collapses; can be reopened). */
+  doneAt?: string;
+  /** Live logger: the owner marked the exercise as skipped (planned sets are dropped at finish). */
+  skipped?: boolean;
   notes?: string;
 }
 
@@ -254,6 +291,11 @@ export interface Location {
   name: string;
   address?: string;
   notes?: string;
+  /**
+   * Dumbbell / kettlebell jumps available at THIS gym (e.g. [2.5] or [1, 2]); used for load steps and
+   * prescriptions of free-weight exercises without their own equipment record. Empty/undefined = app default.
+   */
+  freeWeightIncrementsKg?: number[];
   photoIds: string[];
   createdAt: string;
 }
@@ -278,6 +320,8 @@ export interface Equipment {
   exerciseIds: string[];
   photoIds: string[];
   notes?: string;
+  /** Starred in pickers (shown first). */
+  favorite?: boolean;
   createdAt: string;
   updatedAt: string;
 }

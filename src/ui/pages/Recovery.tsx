@@ -69,7 +69,7 @@ export function RecoveryPage() {
               { value: 'all', label: 'All' }, { value: 'recovering', label: 'Recovering' }, { value: 'likely_recovered', label: 'Recovered' }, { value: 'insufficient_data', label: 'No data' },
             ]} />
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {shown.map((m) => <RecoveryCard key={m.muscle} m={m} active={selected === m.muscle} onClick={() => setSelected(m.muscle)} />)}
           </div>
           {shown.length === 0 && <p className="py-6 text-center text-sm text-ink-500">No muscles in this category.</p>}
@@ -202,7 +202,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
         right={<Badge tone={existing ? 'good' : 'neutral'}>{existing ? 'Saved today' : formatDate(today)}</Badge>}>
         Daily check-in
       </CardTitle>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Field label="Sleep last night (hours)"><NumInput value={log.sleepHours} onChange={(v) => set('sleepHours', v)} step={0.25} placeholder="e.g. 7.5" /></Field>
         <Field label="Sleep quality"><Rating value={log.sleepQuality} onChange={(v) => set('sleepQuality', v)} labels={['Poor', 'Excellent']} /></Field>
         <Field label="Energy"><Rating value={log.energy} onChange={(v) => set('energy', v)} labels={['Very low', 'Excellent']} /></Field>
@@ -214,12 +214,12 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
           <span className="text-xs font-medium text-ink-600 dark:text-ink-300">Muscle soreness (0 none · 4 severe). Tap again to clear.</span>
           <span className="flex gap-1">{[0, 1, 2, 3, 4].map((n) => <span key={n} className={cx('rounded px-1.5 text-[10px] font-semibold', SORE_CLS[n])}>{n}</span>)}</span>
         </div>
-        <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {TRACKED_MUSCLES.map((m) => {
             const v = log.soreness?.[m];
             return (
-              <div key={m} className="flex items-center justify-between gap-2 py-0.5">
-                <span className="truncate text-sm text-ink-700 dark:text-ink-200">{names.muscle(m)}</span>
+              <div key={m} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-0.5">
+                <span className="min-w-[6rem] flex-1 truncate text-sm text-ink-700 dark:text-ink-200">{names.muscle(m)}</span>
                 <div className="flex shrink-0 gap-1">
                   {[0, 1, 2, 3, 4].map((n) => (
                     <button key={n} type="button" onClick={() => setSore(m, n)} aria-label={`${names.muscle(m)} soreness ${n}`}
@@ -242,7 +242,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
             <IconChevronDown size={16} className={cx('transition', optOpen && 'rotate-180')} />
           </button>
           {optOpen && (
-            <div className="grid gap-3 border-t border-ink-200 p-4 dark:border-ink-800 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 border-t border-ink-200 p-4 dark:border-ink-800 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Protein (g)"><NumInput value={log.proteinG} onChange={(v) => set('proteinG', v)} /></Field>
               <Field label="Calories (kcal)"><NumInput value={log.calories} onChange={(v) => set('calories', v)} /></Field>
               <Field label="Creatine (g)"><NumInput value={log.creatineG} onChange={(v) => set('creatineG', v)} step={0.5} /></Field>
@@ -295,7 +295,7 @@ function WellnessChart() {
               <Bar yAxisId="h" dataKey="sleep" name="Sleep (h)" fill="#0ea5e9" fillOpacity={0.6} radius={[4, 4, 0, 0]} />
               <Line yAxisId="s" dataKey="fatigue" name="Fatigue (1–5)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
               <Line yAxisId="s" dataKey="soreness" name="Peak soreness (0–4)" stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 2 }} connectNulls />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

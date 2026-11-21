@@ -23,6 +23,12 @@ export interface MuscleVolume {
   unknownEffortSets: number;
   /** Raw working sets touching this muscle, by quality status (left/right pairs count once). */
   status: { good: number; easy: number; compromised: number; pain: number; uncertain: number };
+  /**
+   * Part of `status.good` whose effort is only ESTIMATED from how the set felt (no RIR, no failure
+   * status). Show as "good (estimated)"; `status.good − goodEstimated` = good with effort recorded
+   * (RIR, Fail chip or muscular-failure status).
+   */
+  goodEstimated: number;
   sessions: number;
 }
 
@@ -44,7 +50,7 @@ function emptyMuscle(m: MuscleId): MuscleVolume {
   return {
     muscle: m, rawWorkingSets: 0, directSets: 0, indirectSets: 0, fractional: 0, effective: 0,
     effectiveDirect: 0, effectiveIndirect: 0, uncertainEffective: 0, lowEffortSets: 0, unknownEffortSets: 0,
-    status: { good: 0, easy: 0, compromised: 0, pain: 0, uncertain: 0 }, sessions: 0,
+    status: { good: 0, easy: 0, compromised: 0, pain: 0, uncertain: 0 }, goodEstimated: 0, sessions: 0,
   };
 }
 
@@ -107,6 +113,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           if (q.tier === 'low_effort') mv.lowEffortSets += k;
           if (q.tier === 'unknown') mv.unknownEffortSets += k;
           if (q.status !== 'warmup') mv.status[q.status] += k;
+          if (q.status === 'good' && q.effortSource === 'feel') mv.goodEstimated += k;
           touched.add(mid);
         }
         const chestCoef = contributions.chest ?? 0;

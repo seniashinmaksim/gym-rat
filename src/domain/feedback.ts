@@ -99,7 +99,8 @@ export function formatRirRange(r: [number, number | null]): string {
 /**
  * Is this set a fair benchmark for strength progression? Performed sets are always KEPT;
  * this only decides whether they are used to judge progress. Excluded: accidental wrong
- * weight, pain, significantly compromised or failed technique.
+ * weight, pain, significantly compromised or failed technique, technical failure.
+ * Reps at clean muscular failure ARE valid performance.
  */
 export function benchmarkExclusion(s: WorkoutSet): string | null {
   if (s.weightAccuracy === 'too_light') return 'wrong weight (too light by accident)';
@@ -108,6 +109,8 @@ export function benchmarkExclusion(s: WorkoutSet): string | null {
   const t = techniqueOf(s);
   if (t === 'compromised') return 'technique compromised';
   if (t === 'failed') return 'could not complete correctly';
+  // Technical failure: reps after technique gave out are not a clean performance to compare.
+  if (s.technicalFailure === true) return 'technical failure (technique gave out)';
   return null;
 }
 
@@ -124,7 +127,7 @@ export const STATUS_LABEL: Record<SetStatus, string> = {
 
 // ---------------------------------------------------------------- Corrections audit
 
-const AUDITED: SetCorrection['field'][] = ['weightKg', 'reps', 'rir', 'type', 'side'];
+const AUDITED: SetCorrection['field'][] = ['weightKg', 'reps', 'rir', 'type', 'side', 'failure', 'technicalFailure', 'toFailure'];
 
 /** A workout counts as finished (so edits are corrections) once it has an end time, was finished, or did not come from the live logger. */
 export function isFinished(w: Workout): boolean {
@@ -152,8 +155,8 @@ export function withCorrections(original: Workout, current: Workout, at: string,
       const earlier = (s.corrections ?? []).slice(base.length);
       const fresh: SetCorrection[] = [];
       for (const f of AUDITED) {
-        const from = (o[f] ?? null) as number | string | null;
-        const to = (s[f] ?? null) as number | string | null;
+        const from = (o[f] ?? null) as number | string | boolean | null;
+        const to = (s[f] ?? null) as number | string | boolean | null;
         if (from !== to) fresh.push({ at: earlier.find((c) => c.field === f && c.from === from && c.to === to)?.at ?? at, field: f, from, to });
       }
       const corrections = fresh.length ? [...base, ...fresh] : base.length ? base : undefined;

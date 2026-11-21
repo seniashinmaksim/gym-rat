@@ -221,7 +221,7 @@ function VolumeTrendCard() {
               <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} />
               <Bar yAxisId="v" dataKey="total" name="Effective sets" fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
               <Line yAxisId="s" dataKey="sessions" name="Sessions" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -246,7 +246,7 @@ function HeatTable() {
   return (
     <Card>
       <CardTitle hint="Effective sets per muscle per week, coloured against the current target: amber = below lower end · blue = within range · green = target met · violet = above upper bound.">Weekly volume by muscle · last 8 weeks</CardTitle>
-      <div className="-mx-4 overflow-x-auto sm:mx-0">
+      <div className="scroll-x">
         <table className="w-full min-w-[560px] border-separate border-spacing-1 text-xs">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-ink-400">

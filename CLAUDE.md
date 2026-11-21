@@ -26,7 +26,7 @@ This file tells Claude how to **interpret, structure, analyze and remember** the
 
 1. Read the whole message; split it into workouts (one per date/session) and exercises.
 2. For each exercise identify: exercise → `exercise_id`, equipment instance, variation (bench angle, grip, ROM), and every set.
-3. Produce JSON in the **`gymrat.workout` v1.2** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
+3. Produce JSON in the **`gymrat.workout` v1.3** format (see `docs/WORKOUT_SCHEMA.md`, formal schema `docs/schema/workout-import.v1.schema.json`).
 4. List every assumption and uncertainty in `uncertainties` **and** in your reply.
 5. Show the JSON to the owner for correction **before** they import it.
 
@@ -143,7 +143,10 @@ Note "Leg curl" (hamstrings) vs "curl" (biceps), and "французский ж�
 | `50 kg for 12, 11, 10` | 3 sets, reps 12, 11, 10 |
 | `5x5 at 100` | 5 sets × 5 reps × 100 kg |
 | `2 RIR`, `RIR 2`, `2 in reserve`, `2 в запасе`, `RPE 8` | RIR 2 (RPE 8 ≈ RIR 2; RPE 10 = RIR 0). Mark RPE conversions `rir_source: "inferred"` |
-| `to failure`, `до отказа` | `to_failure: true` (credited as RIR 0); leave `rir` null unless stated |
+| `to failure`, `до отказа` | `failure_status: "muscular_failure"` + `to_failure: true` (credited as RIR 0); leave `rir` null unless stated |
+| `could have done one more`, `stopped before failure` | `failure_status: "no_failure"` (+ `rir: 1` only if a number is implied) |
+| `form broke`, `started swinging`, `техника поплыла` | `technical_failure: true` (does NOT by itself mean RIR 0) |
+| `not sure if failure` | `failure_status: "uncertain"` |
 | `lbs` | Convert to kg (×0.4536, round to 0.1) and add an uncertainty noting the conversion |
 
 - **RIR attaches only to the set(s) it was stated for.** "2 RIR on the last set" → only the last set gets `rir: 2`; earlier sets keep `rir` omitted (`null`). "All sets at 2 RIR" → every set.
@@ -234,7 +237,7 @@ The app models **Gym Location → Equipment instance → Exercise variation → 
 When the owner submits a workout:
 
 1. **Parse** the message (sections A–C).
-2. **Validate** against `gymrat.workout` v1.2 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
+2. **Validate** against `gymrat.workout` v1.3 (strict keys, required `date`, `exercises[]`, each set with `weight_kg` and `reps`).
 3. **Match** exercises (library ids), gym (`location_id` / `name_hint`) and equipment (`equipment_id` / hints). Mark anything unsure as `uncertain` and ask.
 4. **Generate** the JSON (envelope form preferred, with a unique `client_ref`, e.g. `"chat-2026-11-21-1"`).
 5. **Allow corrections**: show the JSON plus a short bullet list of assumptions; apply the owner's corrections.
@@ -278,6 +281,15 @@ Rules specific to these movements:
 - **Corrections:** editing a finished workout (ended, marked finished, or imported) records original → corrected values per set (and removed sets) — never overwrite silently.
 - **UI principle:** the main screen shows only quality sets left per muscle and one increase/keep/reduce call per recent exercise; details open on demand. All calculations live in `src/domain` (feedback.ts, quality.ts, volume.ts, progression.ts, reports.ts).
 
+## H. Failure status, prescriptions, equipment memory and the research library (Part 3)
+
+- **Failure status (v1.3) is separate from RIR.** Per set: `failure_status` ∈ `muscular_failure` (no further full rep with proper technique ≈ RIR 0) · `no_failure` (stopped with ≥ 1 rep left) · `uncertain`; `technical_failure: true` when technique broke down; `failure_notes` for the owner's words. Never invent any of these and never overwrite a stated RIR; if status and RIR disagree, keep both, add an uncertainty and ask. The app: muscular failure without RIR ≈ RIR 0 with the SAME credit as RIR 1–3 (failure is neither required nor superior for hypertrophy); technical failure → technique ×0.7 unless marked good and never a progression benchmark; failure sets count toward the +12 h recovery rule; a weekly failure profile describes patterns (often to failure, on compounds, technique before muscle). Old records need no migration: absent fields = unknown. The logger asks "Failure?" with three one-tap answers (skippable) and shows a gentle note when the answer and RIR disagree.
+- **Execution / tempo:** `src/data/scientific-evidence/tempo.ts` holds a profile per exercise (eccentric, concentric intent, pause, ROM, cues, confidence, sources). The logger shows one "Form" line; details on tap. Optional `execution_feedback` per set (followed / ecc_too_fast / ecc_too_slow / momentum / lost_concentric_control / short_rom) is guidance only — tempo NEVER adds or removes volume credit; only the technique field changes credit. "Fast intent" = trying to move quickly while staying in control; slower reps near failure are normal.
+- **Prescriptions** (`src/domain/prescription.ts`, engine `presc-1`): per exercise × equipment × configuration — warm-ups (never counted), number of sets from today's share of the primary muscle minus what earlier exercises gave it (0 with a reason when the week is covered or the muscle is recovering), load from double progression on the real increments (equipment → the gym's dumbbell steps → default), per-set rep ranges from the owner's own history, RIR targets (machines/isolation 1–2, free-weight compounds 2–3, +1 after technique trouble), rest from the owner's median (bounded), confidence high (≥ 4 comparable sessions in 8 weeks) / moderate (2–3) / low ("calibrating"). After each set `adaptRemaining` re-checks the remaining sets (actual reps, RIR, feel, technique); changes are offered, never applied silently. What was prescribed is stored per set in `prescribed` (v1.3) — written by the app, never by Claude.
+- **Equipment memory:** the machine picker shows favourites, recent for this exercise, this gym's equipment, then "Not assigned to a gym" (one tap to assign); other gyms' equipment only when searched/expanded and labelled with its gym. Gyms can record their dumbbell steps (`freeWeightIncrementsKg`).
+- **Exercise-specific fields:** grip / grip width appear only where relevant (pulldowns, rows, pull-ups, barbell/EZ curls, bench press width); range of motion sits under "More options"; values logged earlier are still shown.
+- **Research library:** `src/data/scientific-evidence/` (references, muscles, exercises, general, tempo, rules) + `SCIENTIFIC_METHOD.md`. Every reference was verified (PMID resolves in PubMed AND DOI matches in Crossref, 2026-11-21); EMG/acute studies are labelled indirect. `rules.ts` lists every numeric adjustment with basis (research / research-informed heuristic / heuristic), confidence, setting and sources; tests enforce it. Research happens at development time only — the app makes no network calls. Cite these ids when explaining a recommendation; never cite from memory.
+
 ---
 
 ## Developer notes
@@ -297,6 +309,10 @@ src/
     analysis.ts    weekly status, remaining sets, today's share, priorities
     reports.ts     weekly/baseline reports, rest analysis, deload, body
     importer.ts    gymrat.workout v1.x zod schema, matching, dedupe, export
+    failure.ts     failure status consistency + weekly failure profile
+    prescription.ts today's prescription (warm-ups, sets, loads, reps, RIR, rest) + set-by-set adaptation
+    equipmentMemory.ts machine picker grouping by gym   increments.ts real load steps
+  data/scientific-evidence/  verified references, per-muscle/exercise evidence, tempo model, rule registry
   data/exercises.ts  seed exercise library (EN/RU, aliases, coefficients)
   lib/
     crypto.ts      Web Crypto: PBKDF2-SHA-256 (600k) → KEK; AES-256-GCM DEK; AAD-bound records

@@ -125,7 +125,7 @@ export function MusclesPage() {
 function SetLegend() {
   return (
     <Card>
-      <div className="grid gap-3 text-xs leading-relaxed text-ink-600 dark:text-ink-300 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 text-xs leading-relaxed text-ink-600 dark:text-ink-300 md:grid-cols-3">
         <div>
           <div className="mb-0.5 font-semibold text-ink-900 dark:text-white">Raw working sets <span className="font-normal text-ink-400">(observed)</span></div>
           Every non-warm-up set you logged that involves the muscle. <b>Direct</b> = the muscle is a primary mover (coefficient ≥ 0.75); <b>Indirect</b> = secondary or minor contributor.
@@ -212,7 +212,7 @@ function RegionCard() {
       {chest <= 0 ? (
         <p className="text-sm text-ink-500">No chest work logged this week yet.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {[{ k: 'Upper chest emphasis', v: up }, { k: 'Lower chest emphasis', v: low }].map(({ k, v }) => (
             <div key={k}>
               <div className="flex items-baseline justify-between text-sm">
@@ -290,7 +290,7 @@ function HistoryCard() {
                 <Bar dataKey="indirect" name="Indirect (effective)" stackId="v" fill="#5eead4" fillOpacity={0.55} radius={[4, 4, 0, 0]} />
                 <Line dataKey="target" name="Target" type="stepAfter" stroke="#8791a5" strokeDasharray="4 4" dot={false} strokeWidth={1.5} />
                 <ReferenceLine y={t.min} stroke="#f59e0b" strokeOpacity={0.5} strokeDasharray="2 4" />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -307,7 +307,7 @@ function HistoryCard() {
               {Object.entries(GROUP_COLORS).map(([g, c]) => (
                 <Area key={g} type="monotone" dataKey={g} name={GROUP_LABEL[g]} stackId="g" stroke={c} fill={c} fillOpacity={0.35} />
               ))}
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

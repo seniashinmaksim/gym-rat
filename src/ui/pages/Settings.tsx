@@ -25,7 +25,7 @@ export function SettingsPage() {
 
         <Card>
           <CardTitle hint="Weeks run in this timezone. Changing it re-buckets history; nothing is lost.">Training calendar</CardTitle>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Timezone">
               <Select value={s.timezone} onChange={(e) => save({ timezone: e.target.value })}>
                 {listTimezones().map((tz) => <option key={tz} value={tz}>{tz}</option>)}
@@ -97,7 +97,7 @@ function SecurityCard() {
   return (
     <Card>
       <CardTitle hint={header ? `${header.kdf} · ${header.iterations.toLocaleString()} iterations · AES-256-GCM` : undefined} right={<Button size="sm" onClick={() => store.lock()}><IconLock size={14} />Lock now</Button>}>Security</CardTitle>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Input type="password" autoComplete="current-password" placeholder="Current password" value={oldPw} onChange={(e) => setOld(e.target.value)} />
         <Input type="password" autoComplete="new-password" placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} />
         <Input type="password" autoComplete="new-password" placeholder="Repeat new" value={pw2} onChange={(e) => setPw2(e.target.value)} />
@@ -195,7 +195,7 @@ function LearningCard() {
   return (
     <Card>
       <CardTitle hint="During Learning Mode, targets are provisional reference ranges and no muscle is labelled lagging." right={<Badge tone={a.learning.active ? 'warn' : 'good'}>{a.learning.active ? `Active · day ${a.learning.dayNumber}` : 'Complete'}</Badge>}>Learning Mode</CardTitle>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Start date" hint="Defaults to your first logged workout."><Input type="date" value={l.startDate ?? ''} onChange={(e) => set({ startDate: e.target.value || null })} /></Field>
         <Field label="Length (days)" hint="About 30 days. It extends automatically if data is thin."><NumInput value={l.lengthDays} onChange={(v) => v && set({ lengthDays: Math.max(14, Math.min(90, Math.round(v))) })} /></Field>
       </div>

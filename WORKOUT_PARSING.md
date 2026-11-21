@@ -4,8 +4,8 @@ Practical, **synthetic** examples of how Claude converts a natural-language work
 
 General reminders:
 
-- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.2", "workouts": [...] }` with a unique `client_ref`.
-- Set feedback (how a set felt, wrong weight, technique, pain) has its own section (§15). Only record what the owner actually said.
+- Prefer the envelope form `{ "schema": "gymrat.workout", "schema_version": "1.3", "workouts": [...] }` with a unique `client_ref`.
+- Set feedback (how a set felt, wrong weight, technique, pain) has its own section (§15); failure status (to failure, form broke, not sure) has §16. Only record what the owner actually said.
 - The owner's preferred exercises have their own section at the end (§14) — use exactly those ids and variation fields.
 - Every set needs `weight_kg` and `reps` keys (use `null` when unknown). RIR only on the sets it was stated for.
 - Always include `exercise_name_raw` (owner's words) and `exercise_id` when confident.
@@ -21,7 +21,7 @@ General reminders:
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-1",
@@ -68,7 +68,7 @@ Assumptions: "approximately 2 RIR" → `rir: 2`, only on set 3. No machine ids w
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-ru",
@@ -375,7 +375,7 @@ Soreness is 0–4 per muscle id; these feed the Recovery estimates (more recover
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "workouts": [
     {
       "client_ref": "chat-2026-11-16-a",
@@ -423,7 +423,7 @@ All numbers below are **synthetic**. Use these ids and fields every time; rules 
 ```json
 {
   "schema": "gymrat.workout",
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "workouts": [
     {
       "client_ref": "chat-2026-11-21-pref",
@@ -740,3 +740,66 @@ The owner always does the pelvic-curl version in arm straps → `hanging_knee_ra
 - Accidental wrong weight → `wrong_light` / `wrong_heavy` (+ `intended_weight_kg` if stated). The set is kept but not used to judge progress.
 - Pain or unusual discomfort (not normal burning or fatigue) → `feel: "pain"`, `pain_area`, the owner's words in `pain_note`. Never diagnose; suggest not pushing through pain.
 - The separate dimensions can be given directly when the owner is specific, e.g. `{ "effort": "hard", "technique": "slightly_degraded" }`.
+
+---
+
+## 16. Failure status — "to failure", "one more", "form broke", "not sure" (v1.3)
+
+Failure status is recorded **separately from RIR**. Fill `failure_status` / `technical_failure` only from what the owner said; never invent them (and never turn a stated RIR into a failure status or the other way round, except the RIR-0 rule below).
+
+> Pec deck 45 × 14, 13, 12 — last one to failure. Laterals 10s: 15, 14 — could have done one more each. Squats 100 × 8, 7, form broke on the last rep of the second set. Leg curl 40 × 12, not sure if that was failure.
+
+```json
+{
+  "date": "2026-11-21",
+  "location": { "location_id": "gym_a", "confidence": "confirmed" },
+  "exercises": [
+    {
+      "exercise_id": "pec_deck",
+      "exercise_name_raw": "Pec deck",
+      "sets": [
+        { "weight_kg": 45, "reps": 14 },
+        { "weight_kg": 45, "reps": 13 },
+        { "weight_kg": 45, "reps": 12, "to_failure": true, "failure_status": "muscular_failure" }
+      ]
+    },
+    {
+      "exercise_id": "lateral_raise",
+      "exercise_name_raw": "Laterals 10s",
+      "sets": [
+        { "weight_kg": 10, "reps": 15, "rir": 1, "failure_status": "no_failure" },
+        { "weight_kg": 10, "reps": 14, "rir": 1, "failure_status": "no_failure" }
+      ]
+    },
+    {
+      "exercise_id": "back_squat",
+      "exercise_name_raw": "Squats",
+      "sets": [
+        { "weight_kg": 100, "reps": 8 },
+        { "weight_kg": 100, "reps": 7, "technical_failure": true, "failure_notes": "form broke on the last rep" }
+      ]
+    },
+    {
+      "exercise_id": "seated_leg_curl",
+      "exercise_name_raw": "Leg curl",
+      "equipment": { "name_hint": "leg curl", "confidence": "uncertain" },
+      "sets": [{ "weight_kg": 40, "reps": 12, "failure_status": "uncertain" }]
+    }
+  ],
+  "uncertainties": ["Leg curl: seated or lying not stated — seated assumed, please confirm", "Squat set 2: failure status not stated (only that form broke)"]
+}
+```
+
+| Owner says | Record |
+|---|---|
+| "to failure", "до отказа", "couldn't do another rep" | `failure_status: "muscular_failure"` (+ `to_failure: true`, which the app credits as RIR 0 when `rir` is null). Keep a stated RIR as stated. |
+| "could have done one more", "stopped short", "1–2 in the tank", "не до отказа" | `failure_status: "no_failure"`; `rir` only if a number is given or clearly implied ("one more" → `rir: 1`). |
+| "form broke", "technique fell apart", "started cheating / swinging at the end" | `technical_failure: true`, the owner's words in `failure_notes`. Do **not** set `rir: 0` — the muscle may still have had reps left. Add `failure_status` only if the owner also said whether the muscle failed. |
+| "not sure if that was failure", "maybe failure" | `failure_status: "uncertain"`; leave `rir` null unless given. |
+| nothing about failure | omit all failure fields (unknown). |
+
+- Failure status is **not** a better set: the app gives failure sets the same effort credit as sets with 1–3 RIR (failure is not required for growth). It only uses the status for consistency checks, fatigue/recovery and a descriptive "how often do you go to failure" profile.
+- A set marked `muscular_failure` with `technical_failure: true` is treated as technical failure (not a clean failure set) and is not used to judge progress.
+- If the owner gives both a status and an RIR that disagree (e.g. "to failure, RIR 2"), keep both as stated, add an uncertainty, and ask; the app also shows a gentle note.
+- `execution_feedback` (`followed`, `ecc_too_fast`, `ecc_too_slow`, `momentum`, `lost_concentric_control`, `short_rom`) only when the owner comments on how a recommended execution was followed. `prescribed` is written by the app's prescription engine, not by Claude.
+- Older records have none of these fields; they stay "not recorded" (nothing is back-filled).

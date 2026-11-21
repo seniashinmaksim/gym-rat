@@ -72,7 +72,7 @@ export function ExercisesPage() {
       </Callout>
 
       <Card>
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
           <div className="relative">
             <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search: pulldown, жим лежа, pec deck…" className="pl-9" />
@@ -103,7 +103,7 @@ export function ExercisesPage() {
       {list.length === 0 ? (
         <Empty title="No exercises match" action={<Button onClick={() => setCreating(true)}>Create a custom exercise</Button>}>Try a different spelling, or add it as a custom exercise.</Empty>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {list.map((d) => {
             const u = usage.get(d.id);
             const entries = Object.entries(d.contributions).filter(([, c]) => (c ?? 0) > 0).sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0)) as [MuscleId, number][];
@@ -384,14 +384,14 @@ function CustomExerciseForm({ onClose, onCreated }: { onClose: () => void; onCre
     <Modal open onClose={onClose} wide title="Create custom exercise"
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save}>Create</Button></>}>
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name (English)"><Input value={en} onChange={(e) => setEn(e.target.value)} placeholder="e.g. Seated cable chest fly" /></Field>
           <Field label="Название (русский)"><Input value={ru} onChange={(e) => setRu(e.target.value)} placeholder="напр. Сведение рук сидя" /></Field>
         </div>
         <Field label="Aliases" hint="Comma-separated names Claude or you might use, in any language. Improves matching on import.">
           <Input value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="seated fly, сведение сидя" />
         </Field>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Movement pattern">
             <Select value={pattern} onChange={(e) => setPattern(e.target.value as MovementPattern)}>{PATTERNS.map((p) => <option key={p} value={p}>{pretty(p)}</option>)}</Select>
           </Field>

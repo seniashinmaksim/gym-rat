@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { useData } from '../../lib/store';
+import { MUSCLE_EVIDENCE } from '../../data/scientific-evidence/muscles';
+import { REFERENCE_BY_ID, REFERENCES } from '../../data/scientific-evidence/references';
+import { RULES } from '../../data/scientific-evidence/rules';
+import { TRACKED_MUSCLES } from '../../domain/muscles';
+import { useNames } from '../hooks';
 import { Badge, Callout, Card, CardTitle, cx, Page, Segmented } from '../components/ui';
 
 type Quality = 'umbrella' | 'meta' | 'rct' | 'consensus' | 'preprint' | 'observational';
@@ -163,7 +168,7 @@ const ALGORITHMS: { title: string; body: string[]; basis: string; status: 'evide
 ];
 
 export function SciencePage() {
-  const [tab, setTab] = useState<'algorithms' | 'refs'>('algorithms');
+  const [tab, setTab] = useState<'muscles' | 'rules' | 'algorithms' | 'refs'>('muscles');
   const [topic, setTopic] = useState<string>('All');
   const data = useData();
   const topics = ['All', ...Array.from(new Set(REFS.map((r) => r.topic)))];
@@ -175,14 +180,14 @@ export function SciencePage() {
         Muscles grow from hard sets taken close to failure, done consistently and progressed over time. When sets are near failure, growth is similar across roughly 5–30 reps (≈30–85% 1RM). Heavy loads mainly build maximal strength. So the app rewards effort (RIR) and progression on each machine, not absolute heaviness.
       </Callout>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'algorithms', label: 'Algorithms' }, { value: 'refs', label: `References · ${REFS.length}` }]} />
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'muscles', label: 'By muscle' }, { value: 'rules', label: `Rules · ${RULES.length}` }, { value: 'algorithms', label: 'Algorithms' }, { value: 'refs', label: `Sources · ${REFERENCES.length}` }]} />
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           <Badge tone="good">Evidence-based</Badge><Badge tone="info">Mixed</Badge><Badge tone="warn">Heuristic</Badge>
         </div>
       </div>
 
-      {tab === 'algorithms' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+      {tab === 'muscles' ? <MuscleLibrary /> : tab === 'rules' ? <RuleList /> : tab === 'refs' ? <SourceList /> : tab === 'algorithms' ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {ALGORITHMS.map((a) => (
             <Card key={a.title}>
               <CardTitle hint={`Basis: ${a.basis}`} right={<Badge tone={a.status === 'evidence' ? 'good' : a.status === 'mixed' ? 'info' : 'warn'}>{a.status === 'evidence' ? 'Evidence-based' : a.status === 'mixed' ? 'Evidence + heuristics' : 'Heuristic'}</Badge>}>{a.title}</CardTitle>
@@ -230,5 +235,101 @@ export function SciencePage() {
       )}
       <Callout tone="warn">The app never recommends anabolic steroids, performance-enhancing drugs, or supplements beyond the whey and creatine you already use. Strength and volume trends are not proof of muscle growth.</Callout>
     </Page>
+  );
+}
+
+const LEVEL_TONE = { strong: 'good', moderate: 'info', limited: 'warn', very_limited: 'warn' } as const;
+const LEVEL_LABEL = { strong: 'Strong', moderate: 'Moderate', limited: 'Limited', very_limited: 'Very limited' } as const;
+
+function RefLine({ id }: { id: string }) {
+  const r = REFERENCE_BY_ID[id];
+  if (!r) return null;
+  return (
+    <li className="text-[11px] leading-snug text-ink-500">
+      <a href={r.url} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-700 underline decoration-dotted underline-offset-2 dark:text-accent-300">{r.authors} {r.year}</a>
+      {' · '}{r.journal} · {r.design.replace(/_/g, ' ')}{['emg_activation', 'acute_mps_or_damage'].includes(r.outcome) ? ' · indirect' : ''} — {r.finding}
+    </li>
+  );
+}
+
+/** Verified evidence per tracked muscle (src/data/scientific-evidence). Collapsed by default. */
+function MuscleLibrary() {
+  const names = useNames();
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <Card padded={false}>
+      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
+        {TRACKED_MUSCLES.map((m) => {
+          const e = MUSCLE_EVIDENCE[m];
+          if (!e) return null;
+          const isOpen = open === m;
+          return (
+            <li key={m}>
+              <button type="button" onClick={() => setOpen(isOpen ? null : m)} aria-expanded={isOpen} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-ink-900 dark:text-white">{names.muscle(m)}</span>
+                  <span className="block truncate text-xs text-ink-500">{e.summary}</span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge tone={LEVEL_TONE[e.evidenceLevel]}>{LEVEL_LABEL[e.evidenceLevel]}</Badge>
+                  {e.indirectOnly && <Badge tone="warn">indirect only</Badge>}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="space-y-2 px-4 pb-4 text-xs leading-relaxed text-ink-700 dark:text-ink-200">
+                  {e.findings.map((f, i) => (
+                    <div key={i}>
+                      <p>{f.indirect && <Badge tone="warn">indirect</Badge>} {f.text}</p>
+                      <ul className="mt-1 space-y-1 pl-2">{f.refIds.map((id) => <RefLine key={id} id={id} />)}</ul>
+                    </div>
+                  ))}
+                  {e.limitation && <p className="text-ink-500"><b className="font-medium">Limitation:</b> {e.limitation}</p>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="border-t border-ink-100 px-4 py-3 text-[11px] text-ink-500 dark:border-ink-800">Every source was checked on 2026-11-21: its PubMed ID resolves and its DOI matches Crossref. EMG and short-term (acute) studies are marked indirect: they are not proof of growth. Research is done once, during development; the app makes no network calls.</p>
+    </Card>
+  );
+}
+
+/** Every number the engine uses, with its basis and confidence. */
+function RuleList() {
+  const [open, setOpen] = useState<string | null>(null);
+  const basis = { research: ['Research', 'good'], research_informed_heuristic: ['Research + judgement', 'info'], heuristic: ['Heuristic', 'warn'] } as const;
+  return (
+    <Card padded={false}>
+      <ul className="divide-y divide-ink-100 dark:divide-ink-800">
+        {RULES.map((r) => (
+          <li key={r.id}>
+            <button type="button" onClick={() => setOpen(open === r.id ? null : r.id)} aria-expanded={open === r.id} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left">
+              <span className="min-w-0 text-sm text-ink-800 dark:text-ink-100">{r.rule}</span>
+              <span className="flex shrink-0 flex-col items-end gap-1"><Badge tone={basis[r.basis][1]}>{basis[r.basis][0]}</Badge><span className="text-[10px] text-ink-400">{r.confidence} confidence</span></span>
+            </button>
+            {open === r.id && (
+              <div className="space-y-1.5 px-4 pb-4 text-xs leading-relaxed text-ink-700 dark:text-ink-200">
+                <p><b className="font-medium">Value:</b> {r.value}{r.configurable ? ` · change it in ${r.configurable}` : ''}</p>
+                <p>{r.rationale}</p>
+                {r.refIds.length > 0 && <ul className="space-y-1 pl-2">{r.refIds.map((id) => <RefLine key={id} id={id} />)}</ul>}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/** All verified sources, newest first. */
+function SourceList() {
+  const [q, setQ] = useState('');
+  const list = [...REFERENCES].sort((a, b) => b.year - a.year).filter((r) => !q.trim() || `${r.title} ${r.authors} ${r.finding}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <Card>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sources" aria-label="Search sources" className="mb-3 h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" />
+      <ul className="space-y-2">{list.map((r) => <RefLine key={r.id} id={r.id} />)}</ul>
+    </Card>
   );
 }

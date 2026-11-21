@@ -1,4 +1,5 @@
-import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, techniqueOf, type SetStatus } from './feedback';
+import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, type SetStatus } from './feedback';
+import { failureImpliedRir, techniqueWithFailure } from './failure';
 import type { QualityModel, Rom, Workout, WorkoutSet } from './types';
 
 export type EffortTier = 'warmup' | 'high_effort' | 'working' | 'low_effort' | 'unknown';
@@ -11,6 +12,11 @@ export interface SetQuality {
   uncertain: boolean;
   /** Effort came from the owner's feel (estimated RIR range), not from a logged RIR. */
   estimated?: boolean;
+  /**
+   * Where the effort credit came from: a logged RIR, the "Fail" chip / to_failure (RIR 0), a recorded
+   * muscular failure without RIR (≈ RIR 0), how the set felt (estimate), or nothing (provisional).
+   */
+  effortSource?: 'rir' | 'to_failure' | 'failure_status' | 'feel' | 'none';
   /** Quality status for display and per-muscle counts (good / easy / compromised / pain / uncertain). */
   status: SetStatus | 'warmup';
   reasons: string[];
@@ -37,8 +43,18 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
   let estimated = false;
 
   const rir = set.rir ?? (set.toFailure ? 0 : null);
+  // Muscular failure recorded (technique held) but no RIR → effort treated like RIR 0. This is NOT
+  // extra credit: RIR 0–3 all earn the same credit, because failure is not shown to grow more muscle.
+  const failRir = rir == null ? failureImpliedRir(set) : null;
   const est = m.useFeelWhenNoRir === false ? null : estimatedRirRange(set);
-  if (rir == null && est) {
+  let effortSource: SetQuality['effortSource'];
+  if (rir == null && failRir != null) {
+    const idx = Math.max(0, Math.min(failRir, m.rirCredit.length - 1));
+    credit = m.rirCredit[idx];
+    tier = 'high_effort';
+    effortSource = 'failure_status';
+    reasons.push(`No RIR logged; muscular failure recorded ≈ RIR 0 (from the failure status) → credit ${credit} (same as RIR 1–3: failure earns no extra credit)`);
+  } else if (rir == null && est) {
     // No RIR logged, but the owner said how it felt: use the CONSERVATIVE end of the estimated
     // RIR range through the same evidence-based RIR table. Marked as an estimate.
     const r = est[1] ?? est[0];
@@ -47,16 +63,21 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     tier = r <= 1 ? 'high_effort' : r <= 3 ? 'working' : 'low_effort';
     uncertain = true;
     estimated = true;
+    effortSource = 'feel';
     reasons.push(`No RIR logged. Felt "${EFFORT_LABEL[set.effort!]}" ≈ RIR ${formatRirRange(est)} (estimate, not measured) → credit ${credit}`);
   } else if (rir == null) {
     credit = m.unknownRirCredit;
     tier = 'unknown';
     uncertain = true;
+    effortSource = 'none';
     reasons.push(`Effort unknown (no RIR) → provisional credit ${m.unknownRirCredit}`);
+    if (set.failure === 'none') reasons.push('Stopped before failure (no RIR) — at least 1 rep in reserve, exact effort unknown');
+    else if (set.failure === 'uncertain') reasons.push('Not sure whether failure was reached — effort stays unknown');
   } else {
     const idx = Math.max(0, Math.min(Math.round(rir), m.rirCredit.length - 1));
     credit = m.rirCredit[idx];
     tier = rir <= 1 ? 'high_effort' : rir <= 3 ? 'working' : 'low_effort';
+    effortSource = set.rir != null ? 'rir' : 'to_failure';
     reasons.push(`RIR ${rir} → credit ${credit}`);
     if (set.rirSource === 'inferred') {
       uncertain = true;
@@ -88,7 +109,13 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     reasons.push(`Lengthened partials ×${m.lengthenedPartialCredit}`);
   }
   if (rir != null && set.feel && FEEL_BY_ID[set.feel]?.effort) reasons.push(`Feel: ${FEEL_BY_ID[set.feel].title} (logged RIR is used for effort)`);
-  const technique = techniqueOf(set);
+  // Technical failure (technique gave out) counts as compromised technique unless technique was explicitly good.
+  const technique = techniqueWithFailure(set);
+  if (set.technicalFailure === true) {
+    reasons.push(technique === 'good'
+      ? 'Technical failure recorded although technique is marked good — please check'
+      : 'Technical failure: technique gave out — not a clean muscular-failure set');
+  }
   if (technique === 'compromised' || technique === 'failed') {
     credit *= m.compromisedTechniqueCredit;
     reasons.push(`${technique === 'failed' ? 'Could not complete correctly' : 'Technique compromised'} — less certain the target muscle did the work ×${m.compromisedTechniqueCredit}`);
@@ -110,7 +137,7 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     : tier === 'low_effort' ? 'easy'
     : tier === 'unknown' ? 'uncertain'
     : 'good';
-  return { credit: round2(credit), tier, uncertain, estimated, status, reasons };
+  return { credit: round2(credit), tier, uncertain, estimated, effortSource, status, reasons };
 }
 
 /** A set counts only once it has been performed (planned/pre-filled sets are ignored). */

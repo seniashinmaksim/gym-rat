@@ -2,7 +2,9 @@ import type { AppData } from './appdata';
 import { daysLeftInWeek, diffDays, localNowParts, weekOf, type WeekRange } from './dates';
 import { mean, weeklyHistory, type WeekBucket } from './history';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
-import { buildProgression, defaultIncrement, warmupFor, type NextLoad, type ProgressionSeries, type WarmupPlan } from './progression';
+import { failureProfile, type FailureProfile } from './failure';
+import { loadStep } from './increments';
+import { buildProgression, warmupFor, type NextLoad, type ProgressionSeries, type WarmupPlan } from './progression';
 import { round2, roundHalf, stripPlanned } from './quality';
 import { estimateRecovery, type RecoveryEstimate } from './recovery';
 import { buildRegistry, type Registry } from './registry';
@@ -89,6 +91,8 @@ export interface Analysis {
   avgSessionsPerWeek: number;
   expectedRemainingSessions: number;
   plan: NextWorkoutPlan;
+  /** Failure-status profile of the current week (descriptive only; one line for the UI in `failure.line`). */
+  failure: FailureProfile;
 }
 
 /** A muscle still recovering but within this many hours of the window's end is not held back today. */
@@ -109,7 +113,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   const thisWeek = data.workouts.filter((w) => w.date >= week.start && w.date <= week.end && w.date <= today);
   const current = computeVolume(thisWeek, registry, quality);
   const learning = learningState(data, today, weeks);
-  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false);
+  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false, data.locations);
   const recovery = estimateRecovery(data, registry, local.virtualMs, today);
   const planRecovery = estimateRecovery(data, registry, local.virtualMs, today, { before: today });
   const targets = computeTargets({ data, weeks, learning, progression, recovery, registry, today });
@@ -210,9 +214,10 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   });
 
   const plan = planNextWorkout(data, registry, muscles, progression, today, perSessionSetCap);
+  const failure = failureProfile(data, { start: week.start, end: today < week.end ? today : week.end }, registry);
   return {
     today, nowVirtualMs: local.virtualMs, week, daysLeft, registry, weeks, current, learning, targets, recovery, planRecovery, progression, muscles,
-    sessionsThisWeek: thisWeek.length, trainedToday, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, plan,
+    sessionsThisWeek: thisWeek.length, trainedToday, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, plan, failure,
   };
 }
 
@@ -247,6 +252,7 @@ function planNextWorkout(
 
   const lastLocation = [...data.workouts].sort((a, b) => b.date.localeCompare(a.date))[0]?.locationId ?? null;
   const eqById = new Map(data.equipment.map((e) => [e.id, e]));
+  const locById = new Map(data.locations.map((l) => [l.id, l]));
   const used = new Set<string>();
   const priorities: PlanItem[] = [];
   for (const { mw } of candidates.slice(0, 5)) {
@@ -268,7 +274,8 @@ function planNextWorkout(
       used.add(p.key);
       const def = registry.get(p.exerciseId);
       const eq = p.equipmentId ? eqById.get(p.equipmentId) : undefined;
-      const inc = eq?.incrementsKg?.length ? Math.min(...eq.incrementsKg) : defaultIncrement(def?.equipmentKind, p.loadMode);
+      const loc = locById.get(p.locationId ?? lastLocation ?? '');
+      const inc = loadStep(eq, loc, def?.equipmentKind, p.loadMode).step;
       const exSets = hist.length === 1 ? sets : i === 0 ? Math.ceil(sets / 2) : Math.floor(sets / 2);
       if (exSets <= 0) return;
       exercises.push({
