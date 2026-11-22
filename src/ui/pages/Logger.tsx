@@ -23,6 +23,10 @@ import { measuredRestSec, summarizeSession, type SessionSummary } from '../../do
 import { adaptRemaining, prescribe, PRESCRIPTION_ENGINE, toSetPrescription, type Prescription } from '../../domain/prescription';
 import { Badge, Button, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
+import { applyPendingUpdate, replanPending, replacementOptions, type ReplacementOption } from '../../domain/planner';
+import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
+import type { ExerciseChoiceRecord, PlanDecision, PlanDecisionReason } from '../../domain/types';
 
 const MACHINE_KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith'];
 
@@ -190,14 +194,15 @@ function SessionEditor({ initial }: { initial: Workout }) {
   const live = !isFinished(w);
   const sessionEff = useMemo(() => sessionMuscleEffective(w, a.registry, data.settings.quality), [w, a.registry, data.settings.quality]);
 
-  const addExercise = (def: ExerciseDef) => {
-    setPicker(false);
-    const eq = data.equipment.find((e) => e.exerciseIds.includes(def.id) && e.locationId === w.locationId) ?? null;
+  /** Build a new exercise card (prescribed planned sets in a live session). `base` = the session it joins. */
+  const buildExercise = (def: ExerciseDef, base: Workout, opts: AddOpts = {}): WorkoutExercise => {
+    const eq = (opts.equipmentId ? data.equipment.find((e) => e.id === opts.equipmentId) : undefined)
+      ?? data.equipment.find((e) => e.exerciseIds.includes(def.id) && e.locationId === w.locationId && !(w.busyEquipment ?? []).some((b) => b.equipmentId === e.id)) ?? null;
     const prev = lastSessionFor(data.workouts, def.id, eq?.id ?? null, w.id);
     // Same configuration as last time (angle, attachment, one side at a time…), else the exercise's default.
-    const variation = prev?.variation ? { ...prev.variation } : def.defaultVariation ? { ...def.defaultVariation } : undefined;
+    const variation = opts.variation ? { ...opts.variation } : prev?.variation ? { ...prev.variation } : def.defaultVariation ? { ...def.defaultVariation } : undefined;
     const draft: WorkoutExercise = {
-      id: uid('we'), order: w.exercises.length, exerciseId: def.id, exerciseConfidence: 'confirmed',
+      id: uid('we'), order: base.exercises.length, exerciseId: def.id, exerciseConfidence: 'confirmed',
       equipmentId: eq?.id ?? null, equipmentConfidence: eq ? 'confirmed' : 'unknown',
       settings: eq && Object.keys(eq.settings).length ? { ...eq.settings } : undefined,
       variation, sets: [], startedAt: new Date().toISOString(),
@@ -211,9 +216,11 @@ function SessionEditor({ initial }: { initial: Workout }) {
     const perSideLast = prev ? prev.sets.some((s) => s.side) : !!def.defaultVariation?.unilateral;
     // Live session with a prescription: one planned set per prescribed working set, each carrying what was
     // prescribed (stored separately from what will be performed). Otherwise one planned set as before.
-    const plan = live ? safePrescribe(data, a, { ...w, exercises: [...w.exercises, draft] }, w.exercises.length) : null;
+    const plan = live ? safePrescribe(data, a, { ...base, exercises: [...base.exercises, draft] }, base.exercises.length) : null;
     let sets: WorkoutSet[];
+    let plannedCount: number | undefined;
     if (plan && plan.setCount > 0 && !perSideLast) {
+      plannedCount = plan.sets.length;
       sets = plan.sets.map((ps) => ({ ...newSet('working', ps.weightKg ?? firstWeight, ps.repsMin, plan.loadMode ?? defaultLoadMode(def), true), prescribed: toSetPrescription(ps, 'working') }));
     } else {
       const first = newSet('working', firstWeight, firstReps, defaultLoadMode(def), live);
@@ -221,9 +228,89 @@ function SessionEditor({ initial }: { initial: Workout }) {
       if (perSideLast) first.side = 'left';
       sets = [first];
     }
-    const ex: WorkoutExercise = { ...draft, sets };
-    update((x) => ({ ...x, exercises: [...x.exercises, ex] }));
+    return { ...draft, sets, ...(plannedCount != null ? { plannedCount } : {}), ...(opts.choice ? { choice: opts.choice } : {}) };
   };
+  const addExercise = (def: ExerciseDef, opts: AddOpts = {}) => {
+    setPicker(false);
+    const ex = buildExercise(def, w, opts);
+    const at = new Date().toISOString();
+    update((x) => ({
+      ...x, exercises: [...x.exercises, { ...ex, order: x.exercises.length }],
+      ...(opts.ackKey ? { choiceAcks: [...(x.choiceAcks ?? []), { key: opts.ackKey, at }] } : {}),
+    }));
+  };
+  /** Replace a not-yet-started exercise in place (busy machine, preference, pain). The decision is logged. */
+  const replaceExercise = (exId: string, o: ReplacementOption, reason: PlanDecisionReason | null) => {
+    const old = w.exercises.find((e) => e.id === exId);
+    const def = a.registry.get(o.exerciseId);
+    if (!old || !def) return;
+    const base = { ...w, exercises: w.exercises.filter((e) => e.id !== exId) };
+    const fresh = buildExercise(def, base, { equipmentId: o.equipmentId, variation: o.variation });
+    const d: PlanDecision = { action: 'replaced', exerciseId: old.exerciseId, equipmentId: old.equipmentId, replacement: { exerciseId: o.exerciseId, equipmentId: fresh.equipmentId }, reason, at: new Date().toISOString() };
+    update((x) => {
+      const xs = [...x.exercises];
+      const i = xs.findIndex((e) => e.id === exId);
+      if (i < 0) return x;
+      xs[i] = { ...fresh, order: i };
+      return { ...x, exercises: xs, planDecisions: [...(x.planDecisions ?? []), d] };
+    }, { now: true });
+    toast(`Replaced with ${def.name.en}`);
+  };
+  /** "Later": postpone (e.g. occupied); moves to the end, stays pending. Optionally marks its machine busy. */
+  const postpone = (exId: string, busyMachine: boolean) => {
+    const at = new Date().toISOString();
+    update((x) => {
+      const e = x.exercises.find((y) => y.id === exId);
+      if (!e) return x;
+      const rest = x.exercises.filter((y) => y.id !== exId);
+      const moved = { ...e, deferredAt: at };
+      const decisions: PlanDecision[] = [...(x.planDecisions ?? []), { action: busyMachine ? 'busy' : 'later', exerciseId: e.exerciseId, equipmentId: e.equipmentId, reason: busyMachine ? 'busy' : null, at }];
+      const busyList = busyMachine && e.equipmentId && !(x.busyEquipment ?? []).some((b) => b.equipmentId === e.equipmentId)
+        ? [...(x.busyEquipment ?? []), { equipmentId: e.equipmentId, at }] : x.busyEquipment;
+      return { ...x, exercises: [...rest, moved].map((y, i) => ({ ...y, order: i })), planDecisions: decisions, ...(busyList ? { busyEquipment: busyList } : {}) };
+    }, { now: true });
+  };
+  /** "Machine busy": marks its machine unavailable for THIS session (alternatives exclude it); the card stays put. */
+  const markBusy = (exId: string) => {
+    const at = new Date().toISOString();
+    update((x) => {
+      const e = x.exercises.find((y) => y.id === exId);
+      if (!e || !e.equipmentId) return x;
+      const list = (x.busyEquipment ?? []).some((b) => b.equipmentId === e.equipmentId) ? x.busyEquipment ?? [] : [...(x.busyEquipment ?? []), { equipmentId: e.equipmentId, at }];
+      return { ...x, busyEquipment: list, planDecisions: [...(x.planDecisions ?? []), { action: 'busy', exerciseId: e.exerciseId, equipmentId: e.equipmentId, reason: 'busy', at }] };
+    }, { now: true });
+  };
+  const freeMachine = (equipmentId: string) => update((x) => ({ ...x, busyEquipment: (x.busyEquipment ?? []).filter((b) => b.equipmentId !== equipmentId) }), { now: true });
+
+  // E.9: never assume the planned order was followed. Whenever what was actually DONE changes (a set
+  // completed, an exercise skipped), every exercise not yet started is re-prescribed from the real session.
+  // Only untouched planned sets are updated; anything the owner edited stays as it is.
+  const [adjusted, setAdjusted] = useState<Record<string, string>>({});
+  const doneSig = w.exercises.map((e) => `${e.id}:${e.skipped ? 's' : ''}:${e.sets.filter((x) => !x.planned && x.type !== 'warmup').map((x) => x.id).join('.')}`).join('|');
+  const lastSig = useRef<{ sig: string; n: number } | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    const prevSig = lastSig.current;
+    lastSig.current = { sig: doneSig, n: w.exercises.length };
+    // First render, or an exercise was added/removed: prescriptions were just made — nothing to re-check.
+    if (!prevSig || prevSig.n !== w.exercises.length) return;
+    const doneNow = doneSig.split('|').map((p) => p.split(':').slice(1).join(':')).join('|');
+    const donePrev = prevSig.sig.split('|').map((p) => p.split(':').slice(1).join(':')).join('|');
+    if (doneNow === donePrev) return;
+    let ups: ReturnType<typeof replanPending>;
+    try { ups = replanPending(data, a, latest.current, new Date()); } catch { return; }
+    const notes: Record<string, string> = {};
+    const patched = new Map<string, WorkoutExercise>();
+    for (const u of ups) {
+      const e = latest.current.exercises[u.exerciseIndex];
+      if (!e) continue;
+      const next = applyPendingUpdate(e, u, () => uid('s'));
+      if (next) { patched.set(e.id, next); notes[e.id] = u.reason; }
+    }
+    if (!patched.size) return;
+    setAdjusted((x) => ({ ...x, ...notes }));
+    update((x) => ({ ...x, exercises: x.exercises.map((e) => patched.get(e.id) ?? e) }));
+  }, [doneSig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** ✓ toggles a set: done (counted, timer starts, next set pre-filled) ↔ not done. */
   const completeSet = (exId: string, setId: string) => {
@@ -343,7 +430,9 @@ function SessionEditor({ initial }: { initial: Workout }) {
           <MobileRemainingStrip sessionEff={sessionEff} />
           <SessionMeta w={w} update={update} />
           {w.exercises.map((ex, i) => (
-            <ExerciseCard key={ex.id} index={i} w={w} ex={ex} live={live} update={update} onComplete={completeSet} onNext={() => setPicker(true)} />
+            <ExerciseCard key={ex.id} index={i} w={w} ex={ex} live={live} update={update} onComplete={completeSet} onNext={() => setPicker(true)}
+              onLater={(busyMachine) => postpone(ex.id, busyMachine)} onBusy={() => markBusy(ex.id)} onReplace={(o, r) => replaceExercise(ex.id, o, r)} onFreeMachine={freeMachine}
+              adjustedNote={adjusted[ex.id] ?? null} />
           ))}
           <button type="button" onClick={() => setPicker(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-ink-300 py-5 text-sm font-semibold text-ink-600 transition hover:border-accent-500 hover:text-accent-600 dark:border-ink-700 dark:text-ink-300 dark:hover:text-accent-400">
             <IconPlus size={18} /> Add exercise
@@ -354,12 +443,21 @@ function SessionEditor({ initial }: { initial: Workout }) {
           <LiveRemaining sessionEff={sessionEff} />
         </div>
       </div>
-      <ExercisePicker open={picker} onClose={() => setPicker(false)} onPick={addExercise} locationId={w.locationId} />
+      <ExercisePicker open={picker} onClose={() => setPicker(false)} onPick={addExercise} locationId={w.locationId} workout={live ? w : null} />
       {live && !summary && <RestTimer w={w} />}
       {summary && <SummaryModal s={summary} onDone={() => nav('/')} />}
       <div className="h-6" aria-hidden />
     </Page>
   );
+}
+
+interface AddOpts {
+  equipmentId?: string | null;
+  variation?: Variation;
+  /** Exercise-choice record (Part 5) when the assistant was shown. */
+  choice?: ExerciseChoiceRecord;
+  /** Answered warning: not repeated in this session unless the inputs change. */
+  ackKey?: string;
 }
 
 function newSet(type: SetType, weight: number | null, reps: number | null, loadMode: LoadMode = 'total', planned = false): WorkoutSet {
@@ -451,8 +549,9 @@ function ScalePick({ label, value, onChange }: { label: string; value: number | 
 
 // ---------------------------------------------------------------- Exercise card
 
-function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
+function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater, onBusy, onReplace, onFreeMachine, adjustedNote }: {
   index: number; w: Workout; ex: WorkoutExercise; live: boolean; update: (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void; onComplete: (exId: string, setId: string) => void; onNext: () => void;
+  onLater: (busyMachine: boolean) => void; onBusy: () => void; onReplace: (o: ReplacementOption, reason: PlanDecisionReason | null) => void; onFreeMachine: (equipmentId: string) => void; adjustedNote: string | null;
 }) {
   const data = useData();
   const a = useAnalysis();
@@ -485,7 +584,9 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
   }, [def, w.exercises, index, a.registry]);
   const target = series?.next ?? null;
   const wu = warmupFor(def, target?.weight ?? ex.sets.find((s) => s.type === 'working')?.weightKg ?? null, inc, priorSameMuscle);
-  const plan = useMemo(() => (live ? safePrescribe(data, a, w, index) : null), [live, data, a, w, index]);
+  // Cards the app planned (plan / re-assessment) show the SAME set count as their planned sets; others use today's share.
+  const appCount = ex.plannedCount != null && ex.plannedCount === ex.sets.filter((s) => s.type === 'working').length ? ex.plannedCount : null;
+  const plan = useMemo(() => (live ? safePrescribe(data, a, w, index, appCount != null ? { count: appCount, reason: 'Planned for the whole session (re-checked against what you actually did).' } : undefined) : null), [live, data, a, w, index, appCount]);
   const resolved = def ? resolveCoefficients(def, ex.variation) : null;
   // A machine created or edited from here brings its remembered settings once (the session's own values win).
   // Only right after the owner created/picked a machine here, and only in a live session — opening an
@@ -581,11 +682,20 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
     const j = index + d;
     if (j < 0 || j >= xs.length) return x;
     [xs[index], xs[j]] = [xs[j], xs[index]];
-    return { ...x, exercises: xs.map((e, i) => ({ ...e, order: i })) };
+    const rec: PlanDecision = { action: 'reordered', exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, at: new Date().toISOString() };
+    return { ...x, exercises: xs.map((e, i) => ({ ...e, order: i })), ...(x.generated ? { planDecisions: [...(x.planDecisions ?? []), rec] } : {}) };
   }, { now: true });
   const closed = live && (!!ex.doneAt || !!ex.skipped);
   const [reopen, setReopen] = useState(false);
-  const finishEx = (skip = false) => { setReopen(false); setEx((e) => ({ ...e, ...(skip ? { skipped: true } : { doneAt: new Date().toISOString(), skipped: undefined }) })); };
+  const finishEx = (skip = false) => {
+    setReopen(false);
+    const at = new Date().toISOString();
+    update((x) => ({
+      ...x,
+      exercises: x.exercises.map((e) => (e.id !== ex.id ? e : { ...e, ...(skip ? { skipped: true } : { doneAt: at, skipped: undefined }) })),
+      ...(skip && x.generated ? { planDecisions: [...(x.planDecisions ?? []), { action: 'skipped' as const, exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, at }] } : {}),
+    }));
+  };
   if (closed && !reopen) {
     const doneSets = ex.sets.filter((s) => !s.planned && s.type !== 'warmup');
     return (
@@ -603,7 +713,7 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
 
   return (
     <Card padded={false}>
-      <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
+      <div id={`ex-${ex.id}`} className="flex scroll-mt-28 items-start justify-between gap-3 px-4 pt-4 sm:px-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-xs font-semibold text-ink-600 dark:bg-ink-800 dark:text-ink-300">{index + 1}</span>
@@ -654,6 +764,7 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext }: {
         </div>
       )}
 
+      {live && <PendingActions w={w} ex={ex} onLater={onLater} onBusy={onBusy} onReplace={onReplace} onFreeMachine={onFreeMachine} adjustedNote={adjustedNote} />}
       {plan ? (
         <TodayPlan plan={plan} unit={unit} hasWarmups={ex.sets.some((s) => s.type === 'warmup')} onAddWarmups={addWarmups} adapt={adapt} onApplyAdapt={applyAdapt}
           last={prev ? prev.sets.filter((s) => s.type === 'working' && !s.planned).map((s) => `${s.side ? (s.side === 'left' ? 'L ' : 'R ') : ''}${s.weightKg ?? 'BW'}×${s.reps ?? '?'}${s.rir != null ? `@${s.rir}` : ''}`).join(', ') : null} />
@@ -1006,9 +1117,9 @@ function ExecutionCue({ exerciseId }: { exerciseId: string }) {
 // ---------------------------------------------------------------- Today's workout (prescription)
 
 /** The prescription never throws into the UI: on any error the card falls back to the classic hints. */
-function safePrescribe(data: ReturnType<typeof useData>, a: ReturnType<typeof useAnalysis>, workout: Workout, exerciseIndex: number): Prescription | null {
+function safePrescribe(data: ReturnType<typeof useData>, a: ReturnType<typeof useAnalysis>, workout: Workout, exerciseIndex: number, setCount?: { count: number; reason: string }): Prescription | null {
   try {
-    return prescribe({ data, analysis: a, now: new Date(), workout, exerciseIndex });
+    return prescribe({ data, analysis: a, now: new Date(), workout, exerciseIndex, ...(setCount ? { setCount } : {}) });
   } catch (e) {
     if (import.meta.env.DEV) console.warn('prescribe failed', e);
     return null;
@@ -1446,7 +1557,11 @@ function LiveBar({ w }: { w: Workout }) {
   const done = w.exercises.filter((e) => e.sets.some((s) => !s.planned && s.type !== 'warmup'));
   const sets = w.exercises.reduce((n, e) => n + countedSetCount(e.sets.filter((s) => !s.planned)), 0);
   const last = lastCompleted(w);
-  const cur = last ? w.exercises[last.exIndex] : w.exercises[w.exercises.length - 1];
+  // "Now" = the exercise being worked on (last ticked set, unless closed), else the next one not started yet —
+  // never simply the last card (a plan lists everything up front, and the order may change).
+  const lastEx = last ? w.exercises[last.exIndex] : undefined;
+  const pending = w.exercises.find((e) => !e.skipped && !e.doneAt && !e.sets.some((s) => !s.planned && s.type !== 'warmup'));
+  const cur = lastEx && !lastEx.doneAt && !lastEx.skipped ? lastEx : pending ?? lastEx ?? w.exercises[w.exercises.length - 1];
   const cell = (k: string, v: string) => <div className="min-w-0"><div className="text-[10px] uppercase tracking-wider text-ink-400">{k}</div><div className="truncate text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
   return (
     <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] gap-x-4 rounded-2xl border border-ink-200 bg-white px-4 py-2.5 dark:border-ink-800 dark:bg-ink-900">
@@ -1460,13 +1575,25 @@ function LiveBar({ w }: { w: Workout }) {
 
 // ---------------------------------------------------------------- Pickers
 
-function ExercisePicker({ open, onClose, onPick, locationId }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef) => void; locationId: string | null }) {
+function ExercisePicker({ open, onClose, onPick, locationId, workout }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null }) {
   const a = useAnalysis();
   const data = useData();
   const names = useNames();
   const [q, setQ] = useState('');
   const [muscle, setMuscle] = useState<MuscleId | null>(null);
-  useEffect(() => { if (open) { setQ(''); setMuscle(null); } }, [open]);
+  const [card, setCard] = useState<{ def: ExerciseDef; a: ChoiceAssessment } | null>(null);
+  useEffect(() => { if (open) { setQ(''); setMuscle(null); setCard(null); } }, [open]);
+  const outcomes = useMemo(() => (open && workout ? choiceOutcomes(data, a) : new Map()), [open, workout, data, a]);
+  const badge = (d: ExerciseDef) => (workout ? assessChoice({ data, analysis: a, workout, exerciseId: d.id, alternatives: false, outcomes }) : null);
+  const choose = (d: ExerciseDef) => {
+    if (!workout) return onPick(d);
+    const full = assessChoice({ data, analysis: a, workout, exerciseId: d.id, outcomes });
+    if (!needsPrompt(workout, full)) return onPick(d);
+    setCard({ def: d, a: full });
+  };
+  const record = (c: ChoiceAssessment, followed: ExerciseChoiceRecord['followed'], replaced?: string): ExerciseChoiceRecord => ({
+    status: c.status, reasonKind: c.reasonKind, alternativeOffered: c.alternatives[0]?.exerciseId ?? null, followed, ...(replaced ? { replacedExerciseId: replaced } : {}), at: new Date().toISOString(),
+  });
 
   const usage = useMemo(() => {
     const m = new Map<string, number>();
@@ -1484,6 +1611,28 @@ function ExercisePicker({ open, onClose, onPick, locationId }: { open: boolean; 
   const needs = a.muscles.filter((m) => m.todayLeft > 0).sort((x, y) => y.todayLeft - x.todayLeft).slice(0, 8);
   // On touch phones, opening the keyboard immediately would hide the muscle filter.
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
+  if (card) {
+    return (
+      <Modal open={open} onClose={onClose} title="Add exercise" wide>
+        <ChoiceCard a={card.a} name={names.ex(card.def)} altName={(id) => names.ex(a.registry.get(id))}
+          onContinue={() => onPick(card.def, { choice: record(card.a, 'continued'), ackKey: card.a.key })}
+          onAlternative={(alt) => {
+            const d = a.registry.get(alt.exerciseId);
+            if (!d) return;
+            if (alt.kind === 'do_first') {
+              // Already in the session: go to that card instead of adding a duplicate.
+              onClose();
+              const target = workout?.exercises.find((e) => e.exerciseId === alt.exerciseId && !e.skipped);
+              if (target) window.setTimeout(() => document.getElementById(`ex-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+              return;
+            }
+            onPick(d, { equipmentId: alt.equipmentId, choice: record(card.a, 'alternative', card.def.id), ackKey: card.a.key });
+          }} />
+        <button type="button" onClick={() => setCard(null)} className="mt-2 min-h-[44px] text-sm font-medium text-ink-600 dark:text-ink-300">← Back to the list</button>
+      </Modal>
+    );
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="Add exercise" wide>
@@ -1508,10 +1657,13 @@ function ExercisePicker({ open, onClose, onPick, locationId }: { open: boolean; 
       <ul className="mt-3 divide-y divide-ink-100 dark:divide-ink-800">
         {results.map((d) => (
           <li key={d.id}>
-            <button type="button" onClick={() => onPick(d)} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left hover:bg-ink-50 active:bg-ink-100 dark:hover:bg-ink-800/50 dark:active:bg-ink-800">
-              <div className="min-w-0">
+            <button type="button" onClick={() => choose(d)} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 py-2.5 text-left hover:bg-ink-50 active:bg-ink-100 dark:hover:bg-ink-800/50 dark:active:bg-ink-800">
+              <div className="flex min-w-0 items-center gap-2">
+                {(() => { const b = badge(d); return b ? <ChoiceDot a={b} /> : null; })()}
+                <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{names.ex(d)}</div>
                 <div className="truncate text-xs text-ink-500">{d.name.ru} · {Object.entries(d.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</div>
+                </div>
               </div>
               <div className="flex shrink-0 gap-1">
                 {atGym.has(d.id) && <Badge tone="info">at this gym</Badge>}
@@ -1527,3 +1679,66 @@ function ExercisePicker({ open, onClose, onPick, locationId }: { open: boolean; 
 }
 
 
+
+const REASON_CHIPS: [PlanDecisionReason, string][] = [['busy', 'Machine busy'], ['time', 'No time'], ['preference', 'Prefer another'], ['pain', 'Pain']];
+
+/**
+ * Real-gym controls for an exercise not started yet (E.9): Later (occupied — comes back at the end),
+ * Machine busy (marks it unavailable for this session and shows alternatives), Replace (same muscle, available
+ * equipment, familiar first). Also shows what changed after re-checking against what was actually done, and a
+ * one-line order note from the choice assistant. Never blocks anything.
+ */
+function PendingActions({ w, ex, onLater, onBusy, onReplace, onFreeMachine, adjustedNote }: {
+  w: Workout; ex: WorkoutExercise; onLater: (busyMachine: boolean) => void; onBusy: () => void; onReplace: (o: ReplacementOption, reason: PlanDecisionReason | null) => void;
+  onFreeMachine: (equipmentId: string) => void; adjustedNote: string | null;
+}) {
+  const data = useData();
+  const a = useAnalysis();
+  const names = useNames();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<PlanDecisionReason | null>(null);
+  const started = ex.sets.some((s) => !s.planned && s.type !== 'warmup');
+  const isBusy = !!ex.equipmentId && (w.busyEquipment ?? []).some((b) => b.equipmentId === ex.equipmentId);
+  const options = useMemo(() => (open ? replacementOptions(data, a, w, ex.exerciseId) : []), [open, data, a, w, ex.exerciseId]);
+  const order = useMemo(() => {
+    if (started || ex.skipped) return null;
+    try {
+      const c = assessChoice({ data, analysis: a, workout: { ...w, exercises: w.exercises.filter((e) => e.id !== ex.id) }, exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, variation: ex.variation, alternatives: false });
+      return c.status !== 'good' && (c.reasonKind === 'order' || c.reasonKind === 'fatigue') ? c : null;
+    } catch { return null; }
+  }, [started, ex, w, data, a]);
+  if (started || ex.skipped || ex.doneAt) return null;
+  return (
+    <div className="mx-4 mt-2 space-y-1.5 sm:mx-5" data-testid="pending-actions">
+      {ex.deferredAt && <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Later — postponed{isBusy ? ' (machine busy)' : ''}; it waits at the end of the list.</p>}
+      {adjustedNote && <p className="text-xs text-accent-700 dark:text-accent-300" data-testid="adjusted-note">Adjusted: {adjustedNote}</p>}
+      {order && <p className="text-xs text-ink-600 dark:text-ink-300"><Badge tone={order.status === 'reconsider' ? 'bad' : 'warn'}>{order.label}</Badge> {order.why[0]}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => onLater(false)}>Later</Button>
+        {ex.equipmentId && (isBusy
+          ? <Button size="sm" variant="ghost" onClick={() => onFreeMachine(ex.equipmentId as string)}>Machine free again</Button>
+          : <Button size="sm" variant="ghost" onClick={() => { onBusy(); setOpen(true); setReason('busy'); }}>Machine busy</Button>)}
+        <Button size="sm" variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open}>Replace</Button>
+      </div>
+      {open && (
+        <div className="space-y-1.5 rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950" data-testid="replace-sheet">
+          <div className="flex flex-wrap gap-1.5" aria-label="Reason (optional)">
+            {REASON_CHIPS.map(([r, label]) => (
+              <button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(reason === r ? null : r)}
+                className={cx('h-9 rounded-full px-3 text-xs font-medium', reason === r ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>{label}</button>
+            ))}
+          </div>
+          {isBusy && <p className="text-xs text-ink-600 dark:text-ink-300">Machine busy: pick an alternative on free equipment, or do it later.</p>}
+          {isBusy && <Button size="sm" onClick={() => { setOpen(false); onLater(false); }}>Do it later</Button>}
+          {options.length === 0 && <p className="text-xs text-ink-500">No familiar alternative available here — add any exercise with “Add exercise”.</p>}
+          {options.map((o) => (
+            <button key={o.exerciseId} type="button" onClick={() => { setOpen(false); onReplace(o, reason); }} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 bg-white px-3 py-2 text-left dark:border-ink-700 dark:bg-ink-900">
+              <span className="text-sm font-medium text-ink-900 dark:text-white">{names.ex(a.registry.get(o.exerciseId))}{o.equipmentId ? <span className="text-ink-500"> · {data.equipment.find((e) => e.id === o.equipmentId)?.name}</span> : null}</span>
+              <span className="text-xs text-ink-500">{o.why}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

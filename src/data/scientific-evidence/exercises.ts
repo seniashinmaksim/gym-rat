@@ -441,7 +441,7 @@ export const EXERCISE_EVIDENCE: ExerciseEvidence[] = [
       "back_squat",
       "smith_squat"
     ],
-    text: "Squats grew the vasti, gluteus maximus and adductors but barely grew the rectus femoris and hamstrings. Full depth beat half depth for glutes and adductors, and deep beat shallow for front-thigh size in one trial. This is consistent with quads 1, glutes 0.5, adductors 0.5 and no hamstring credit; the glute and adductor values may be conservative for deep squats. Recording depth is justified.",
+    text: "Squats grew the vasti, gluteus maximus and adductors but barely grew the rectus femoris and hamstrings. Full depth beat half depth for glutes and adductors, and deep beat shallow for front-thigh size in one trial. Since the 2026-11-22 audit the app credits full-depth squats with quads 1, glutes 0.75, adductors 0.75 and no hamstring credit; above-parallel squats keep glutes and adductors at 0.5 (registry depth rule). Recording depth is justified.",
     refIds: [
       "kubo2019_squatdepth",
       "bloomquist2013_squatrom",

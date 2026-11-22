@@ -71,7 +71,10 @@ describe('confidence tiers', () => {
     const p = run(appData([workout(addDays(TODAY, -30), [pecDeck([14, 13, 12])])]), live([ex('pec_deck', [], 'pd_a')]));
     expect(p.sessionsUsed).toBe(1);
     expect(p.confidence).toBe('low');
-    expect(p.workingWeightKg).toBe(45); // the known load is reused, not invented
+    // The known load is reused, not invented — one real step down because the last session was 30 days ago
+    // (rule planner_returning: > 14 days off → first session one step below the last comparable load).
+    expect(p.workingWeightKg).toBe(40);
+    expect(p.decisionWhy).toMatch(/Back after 30 days/);
   });
   it('sessions older than 8 weeks do not count', () => {
     const old = Array.from({ length: 5 }, (_, i) => workout(addDays(TODAY, -100 + i * 7), [pecDeck([14, 13, 12])]));

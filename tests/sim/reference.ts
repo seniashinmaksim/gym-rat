@@ -18,9 +18,9 @@ export const REF_COEF: Record<string, Coef> = {
   ez_bar_curl: { biceps: 1, forearms: 0.25 },
   lateral_raise: { side_delts: 1, traps: 0.25 }, // §F row 5
   cable_lateral_raise: { side_delts: 1, traps: 0.25 },
-  back_squat: { quads: 1, glutes: 0.5, adductors: 0.5, spinal_erectors: 0.25 }, // §F row 6
+  back_squat: { quads: 1, glutes: 0.75, adductors: 0.75, spinal_erectors: 0.25 }, // §F row 6 (full depth; audit 2026-11-22)
   leg_extension: { quads: 1 },
-  romanian_deadlift: { hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5, adductors: 0.5, forearms: 0.25, traps: 0.25 }, // §F row 7
+  romanian_deadlift: { hamstrings: 1, glutes: 0.75, adductors: 0.5, spinal_erectors: 0.25 }, // §F row 7 (audit 2026-11-22: grip/traps not credited)
   seated_leg_curl: { hamstrings: 1, calves: 0.25 },
   lying_leg_curl: { hamstrings: 1, calves: 0.25 },
   hanging_knee_raise_pelvic_curl: { abs: 1 }, // §F row 8

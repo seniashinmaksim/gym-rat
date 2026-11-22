@@ -11,6 +11,7 @@ import { effortCoverage, effortDistribution } from '../../domain/effort';
 import { qualitySetTotal } from '../../domain/volume';
 import { latestWeighIn, rollingAverage, weeklyTrend } from '../../domain/bodyweight';
 import { AddBodyWeight } from '../components/AddBodyWeight';
+import { NextWorkoutCard } from '../components/NextWorkout';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
@@ -69,6 +70,8 @@ export function DashboardPage() {
           {deload.summary} <Link to="/periodization" className="font-semibold underline">See why</Link>
         </Callout>
       )}
+
+      <NextWorkoutCard />
 
       <Card padded={false}>
         <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">

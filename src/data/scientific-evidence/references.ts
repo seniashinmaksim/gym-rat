@@ -2,6 +2,8 @@
 // Edit by hand only together with tests/evidence.test.ts; never add a reference without verifying its PMID and DOI.
 import type { MuscleId } from '../../domain/types';
 
+import { AUDIT_REFERENCES } from './references-audit';
+import { ORDER_REFERENCES } from './references-order';
 import { TEMPO_REFERENCES } from './references-tempo';
 
 export type EvidenceDesign =
@@ -2271,7 +2273,7 @@ const CORE_REFERENCES: Reference[] = [
   }
 ];
 
-/** Core library + the tempo/execution review (deduplicated by DOI when generated). */
-export const REFERENCES: Reference[] = [...CORE_REFERENCES, ...TEMPO_REFERENCES];
+/** Core library + the tempo/execution review + the exercise-order pass (deduplicated by DOI). */
+export const REFERENCES: Reference[] = [...CORE_REFERENCES, ...TEMPO_REFERENCES, ...ORDER_REFERENCES, ...AUDIT_REFERENCES];
 
 export const REFERENCE_BY_ID: Record<string, Reference> = Object.fromEntries(REFERENCES.map((r) => [r.id, r]));

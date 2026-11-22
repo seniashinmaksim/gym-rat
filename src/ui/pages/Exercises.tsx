@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { SEED_BY_ID } from '../../data/exercises';
+import { EXERCISE_AUDIT_BY_ID } from '../../data/scientific-evidence/exerciseAudit';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, involvement, muscleName } from '../../domain/muscles';
 import { searchExercises } from '../../domain/registry';
 import type { EquipmentKind, ExerciseDef, ExerciseOverride, MovementPattern, MuscleId, RegionId } from '../../domain/types';
@@ -248,6 +249,22 @@ function ExerciseDetail({ def, seed, override, usage, defaultRir, onClose }: {
             </p>
           )}
           {def.aliases.length > 0 && <p className="mt-2 text-xs text-ink-500">Also recognised as: {def.aliases.join(' · ')}</p>}
+          {EXERCISE_AUDIT_BY_ID[def.id] && !def.custom && (() => {
+            const au = EXERCISE_AUDIT_BY_ID[def.id];
+            return (
+              <div className="mt-3 rounded-xl bg-ink-50 p-3 text-xs leading-relaxed text-ink-600 dark:bg-ink-950 dark:text-ink-300" data-testid="mapping-audit">
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold uppercase tracking-wide text-ink-500">Muscle mapping</span>
+                  <Badge tone={au.verdict === 'uncertain' ? 'warn' : 'good'}>{au.verdict === 'uncertain' ? 'UNCERTAIN' : au.verdict === 'corrected' ? 'CORRECTED' : 'VERIFIED'}</Badge>
+                  <Badge>{au.confidence} confidence</Badge>
+                </div>
+                <p>{au.rationale}</p>
+                {au.stabilizers.length > 0 && <p className="mt-1">Stabilisers only (not counted as trained): {au.stabilizers.map((m) => muscleName(m)).join(', ')}.</p>}
+                {au.previous && <p className="mt-1">Before the audit: {Object.entries(au.previous).map(([m, c]) => `${muscleName(m as MuscleId)} ${c}`).join(', ')}.</p>}
+                {au.limitations && <p className="mt-1 text-ink-500">Limits: {au.limitations}</p>}
+              </div>
+            );
+          })()}
         </div>
 
         <div className="grid grid-cols-3 gap-3 rounded-2xl bg-ink-50 p-3 text-center dark:bg-ink-950">

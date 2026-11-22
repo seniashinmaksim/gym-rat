@@ -103,7 +103,10 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
   const recent7 = data.workouts.filter((w) => diffDays(today, w.date) >= 0 && diffDays(today, w.date) < 7);
   const vol7 = computeVolume(recent7, registry, quality);
   const recent14 = sorted.filter((w) => diffDays(today, w.date) >= 0 && diffDays(today, w.date) < 14);
-  const perSession14 = recent14.map((w) => sessionMuscleEffective(w, registry, quality));
+  // A muscle is "significantly stimulated" by contributions of 0.5 or more only: minor 0.25 credits (grip,
+  // bracing) add up over many sets but should not start a recovery hold on a muscle that only stabilised.
+  const SIG = { minCoef: 0.5 };
+  const perSession14 = recent14.map((w) => sessionMuscleEffective(w, registry, quality, SIG));
 
   // Subjective inputs from the last 3 days (daily logs + session wellness).
   const since = addDays(today, -2);
@@ -120,7 +123,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     let last: { date: string; sets: number; workout: (typeof sorted)[number] } | null = null;
     for (const w of sorted) {
       if (at(w) > nowVirtualMs) continue;
-      const eff = sessionMuscleEffective(w, registry, quality)[m] ?? 0;
+      const eff = sessionMuscleEffective(w, registry, quality, SIG)[m] ?? 0;
       if (eff >= significantStimulusSets) {
         last = { date: w.date, sets: eff, workout: w };
         break;

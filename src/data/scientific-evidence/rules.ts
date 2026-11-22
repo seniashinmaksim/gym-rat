@@ -8,7 +8,7 @@
  * Where evidence is weak, a rule is an explanatory note or a heuristic, never presented as a finding.
  */
 export type RuleBasis = 'research' | 'research_informed_heuristic' | 'heuristic';
-export type RuleArea = 'volume' | 'effort' | 'exercise' | 'session' | 'recovery' | 'progression' | 'prescription' | 'execution';
+export type RuleArea = 'volume' | 'effort' | 'exercise' | 'session' | 'recovery' | 'progression' | 'prescription' | 'execution' | 'choice' | 'planner';
 
 export interface Rule {
   id: string;
@@ -221,6 +221,86 @@ export const RULES: Rule[] = [
     rule: 'Tempo never adds or removes volume credit: no bonus for slow negatives, no downgrade for a faster eccentric. Only momentum or a shortened range, reported as technique, can change credit (via the technique rule).',
     value: 'no multiplier', basis: 'research', confidence: 'moderate', configurable: null,
     rationale: 'Pooled evidence shows similar hypertrophy over a wide range of repetition durations; very slow reps are not superior.', refIds: ['enes2025_tempo', 'schoenfeld2015_repduration', 'amdi2025_eccduration', 'dasilva2025_ecc_con'], implementedIn: 'src/domain/quality.ts, src/data/scientific-evidence/tempo.ts',
+  },
+
+  // ---- Exercise choice, order and fatigue cost (Part 5)
+  {
+    id: 'fatigue_cost', area: 'choice',
+    rule: 'Each exercise has a fatigue cost for the rest of the session: HIGH (heavy free-weight squat / hinge / lunge, barbell presses and rows, weighted pull-ups / dips), MODERATE (machine and dumbbell compounds, bodyweight pull-ups), LOW (single-joint isolation).',
+    value: 'high / moderate / low', basis: 'research_informed_heuristic', confidence: 'low', configurable: null,
+    rationale: 'Exercises done after demanding work lose repetitions and load (acute data), and fatigue partly carries over to the repetition capacity of other muscles. No long-term trial quantifies a per-exercise cost, so the classes are a practical estimate, not calories and not difficulty.',
+    refIds: ['spreuwenberg2006_squat_order', 'behm2021_nonlocal_fatigue', 'simao2012_exercise_order_review'], implementedIn: 'src/data/exercises.ts, src/domain/fatigue.ts',
+  },
+  {
+    id: 'exercise_order', area: 'choice',
+    rule: 'Default order HIGH → MODERATE → LOW fatigue cost, larger muscles first; a priority muscle (high priority or the largest recovered weekly deficit) may go first even as isolation. Order advice is a soft suggestion ("CONSIDER LATER"), never a block.',
+    value: 'compound first unless prioritised', basis: 'research_informed_heuristic', confidence: 'moderate', configurable: 'Muscles → priority',
+    rationale: 'Whatever is trained first gains more strength and gets more repetitions; hypertrophy differs little or not at all between orders (meta-analysis). So order protects performance of the lifts that matter most; it is not a growth rule.',
+    refIds: ['nunes2021_exercise_order', 'simao2012_exercise_order_review', 'spineti2010_order_strength_volume', 'avelar2019_order_hypertrophy', 'brandao2020_mj_sj_order', 'hermann2026_pre_exhaustion', 'acsm2009_progression'], implementedIn: 'src/domain/exerciseChoice.ts, src/domain/planner.ts',
+  },
+  {
+    id: 'choice_status', area: 'choice',
+    rule: 'Exercise choice: CONSIDER ALTERNATIVE when the primary muscle is still inside its recovery window, a significant synergist (coefficient ≥ 0.5) is and an alternative spares it, or the primary is above its weekly upper bound; ACCEPTABLE when a synergist is loaded without an alternative, the week is already met or the trend is declining; GOOD otherwise. A weekly deficit never overrides recovery.',
+    value: 'good / acceptable / reconsider', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Combines the existing recovery, volume and trend heuristics into one transparent call with the reason shown; it never blocks and never claims a biological state.',
+    refIds: [], implementedIn: 'src/domain/exerciseChoice.ts',
+  },
+  {
+    id: 'choice_learning', area: 'choice',
+    rule: 'A recovery warning for an exercise is softened to ACCEPTABLE only after ≥ 3 overridden warnings whose next comparable performance was not lower (≥ 2 of 3). One workout never changes anything; subjective feedback alone is never proof.',
+    value: '≥ 3 observations', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Personal responses vary; repeated observations are needed before a heuristic is relaxed.',
+    refIds: [], implementedIn: 'src/domain/exerciseChoice.ts',
+  },
+  // ---- Planner (Part 5)
+  {
+    id: 'planner_modes', area: 'planner',
+    rule: 'LEARNING until ≥ 8 well-documented workouts over ≥ 21 days with gyms identified and ≥ 3 frequent exercises calibrated (PROVISIONAL ADAPTIVE); FULL ADAPTIVE after ≥ 10 well-documented workouts over ≥ 28 days with calibrated familiar exercises covering ≥ 80 % of the major muscles\' weekly targets. Never by calendar alone.',
+    value: '8 / 21 d → 10 / 28 d + 80 %', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Personal prescriptions need comparable, well-logged exposures per exercise and machine; badly logged sessions do not count.',
+    refIds: [], implementedIn: 'src/domain/readiness.ts',
+  },
+  {
+    id: 'planner_session_allocation', area: 'planner',
+    rule: 'Sets are allocated for the WHOLE session: the open share of today for each muscle (capped, catch-up-free) is covered by fractional contributions of all planned exercises, without overshoot; muscles still recovering get no sets.',
+    value: 'today share − planned contributions', basis: 'research_informed_heuristic', confidence: 'moderate', configurable: 'Settings → Set-quality model',
+    rationale: 'Fractional counting of indirect work and the per-session taper; avoids the first exercise of a muscle taking the whole share of the day.',
+    refIds: ['pelland2026_volume_frequency', 'schoenfeld2017_volume'], implementedIn: 'src/domain/planner.ts',
+  },
+  {
+    id: 'planner_calibration', area: 'planner',
+    rule: 'Loads only from the same exercise × machine × configuration history on its real increments: calibrated (≥ 2 comparable sessions with effort), provisional (1 session or older history), needs data (no kg — "pick a load for 10–12 reps at RIR 2–3"). Kg is never transferred between machines.',
+    value: '2 / 1 / 0 comparable sessions', basis: 'heuristic', confidence: 'moderate', configurable: null,
+    rationale: 'Loads on two machines are not comparable (cam profile, ratio, friction).',
+    refIds: [], implementedIn: 'src/domain/planner.ts, src/domain/readiness.ts',
+  },
+  {
+    id: 'planner_returning', area: 'planner',
+    rule: 'After ≥ 10 days without training the plan is marked "returning"; after > 14 days loads start one step below the last comparable session. Missed sessions never add catch-up volume.',
+    value: '10 / 14 days', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'Short breaks cost little; a cautious first session back protects technique and recovery.',
+    refIds: [], implementedIn: 'src/domain/planner.ts',
+  },
+  {
+    id: 'planner_learning', area: 'planner',
+    rule: 'Preferences shift only after ≥ 3 repeated choices at the same gym (e.g. always replaces X with Y). Substitutions because equipment was busy, and pain-related skips, never count as a preference.',
+    value: '≥ 3, busy excluded', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'An occupied machine says nothing about what the owner prefers; one decision is not a pattern.',
+    refIds: [], implementedIn: 'src/domain/planner.ts',
+  },
+  {
+    id: 'volume_individual', area: 'volume',
+    rule: 'After Learning Mode each muscle target starts from its own baseline and changes only on evidence: +1–2 when stalled with consistent technique, adequate effort (RIR ≤ 3), good recovery, a stable volume for ≥ 3 weeks and no history of more volume failing; −1–2 (or back to the earlier productive level) on repeated decline with adequate effort, consistently poor recovery, technique breakdown on ≥ 25 % of sets, or a recent increase without better performance; otherwise hold. Never raised only because it is below a generic reference.',
+    value: '±1–2 effective sets/week', basis: 'research_informed_heuristic', confidence: 'low', configurable: 'Muscles → target per muscle',
+    rationale: 'Volume shows a dose–response with diminishing returns and large individual differences; the productive volume of each muscle has to be found from its own response, gradually, not from a population average.',
+    refIds: ['pelland2026_volume_frequency', 'schoenfeld2017_volume', 'bazvalle2022_volume'], implementedIn: 'src/domain/volumeResponse.ts, src/domain/targets.ts',
+  },
+  {
+    id: 'planner_live_reassessment', area: 'planner',
+    rule: 'During a workout every exercise not yet started is re-prescribed from what was ACTUALLY done (any order): sets from the open share minus completed contributions, warm-ups from completed same-muscle work, order advice from completed demanding lifts. Untouched planned sets update; edited sets are never overwritten.',
+    value: 'on every completed set / reorder', basis: 'heuristic', confidence: 'moderate', configurable: null,
+    rationale: 'Real gyms have busy machines; the planned order is never assumed to have been followed.',
+    refIds: [], implementedIn: 'src/domain/planner.ts, src/ui/pages/Logger.tsx',
   },
 ];
 

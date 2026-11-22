@@ -10,6 +10,13 @@ import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Part 5: picking an exercise may first show the exercise-choice card (advice, never blocking) — answer "Continue". */
+async function continueChoice(page: import('@playwright/test').Page) {
+  await page.waitForTimeout(250);
+  const cc = page.getByTestId('choice-card');
+  if (await cc.count()) await cc.getByRole('button', { name: 'Continue' }).click();
+}
+
 const TEST_VAULT_PASSWORD = 'synthetic-e2e-vault-02'; // throwaway local test vault, never real data
 const PNG_1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -55,6 +62,7 @@ test('first gym session works end to end', async ({ page }) => {
   await page.getByRole('button', { name: /^Add exercise$/ }).click();
   await page.locator('[role=dialog] input').first().fill('incline dumbbell');
   await page.locator('[role=dialog] button', { hasText: /^Incline dumbbell press/ }).first().click();
+  await continueChoice(page);
   await logSet(page, 'Incline dumbbell press', 0, '22.5', '12', '2', 'Stopped before');
   await expect(page.locator('.fixed', { hasText: /REST/i })).toBeVisible(); // timer started automatically
   await page.waitForTimeout(40_500); // ≥ rest + time under load so a rest is measured
@@ -70,6 +78,7 @@ test('first gym session works end to end', async ({ page }) => {
   // 3) Pec Deck: new machine with a photo at Gym A
   await page.locator('[role=dialog] input').first().fill('pec deck');
   await page.locator('[role=dialog] button', { hasText: /^Pec deck/ }).first().click();
+  await continueChoice(page);
   await card(page, 'Pec deck').getByRole('button', { name: /Which machine/ }).click();
   await page.locator('[role=dialog]').getByRole('button', { name: /^New$/ }).click();
   const form = page.locator('[role=dialog]');
@@ -135,6 +144,7 @@ test('first gym session works end to end', async ({ page }) => {
   await page.getByRole('button', { name: /^Add exercise$/ }).click();
   await page.locator('[role=dialog] input').first().fill('pec deck');
   await page.locator('[role=dialog] button', { hasText: /^Pec deck/ }).first().click();
+  await continueChoice(page);
   await expect(card(page, 'Pec deck')).toContainText('Pec deck (Gym A)');
   await expect(card(page, 'Pec deck')).toContainText('seat 4');
   await card(page, 'Pec deck').getByRole('button', { name: /^Why$/ }).click().catch(() => undefined);

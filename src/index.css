@@ -21,7 +21,15 @@
      width: 100%, so they spill out of narrow cards. Reset the native box (the native picker still opens). */
   input, select, textarea { min-width: 0; max-width: 100%; }
   input[type='date'], input[type='time'], input[type='datetime-local'] { -webkit-appearance: none; appearance: none; display: block; }
-  input::-webkit-date-and-time-value { text-align: left; min-height: 1.5em; }
+  /* Date / time values sit in the middle of their box, like numbers (a block-level native input otherwise puts the
+     value at the top-left on iOS). Line height = the field height minus its 1 px borders (h-11 phones, h-10 ≥ sm). */
+  input[type='date'], input[type='time'], input[type='datetime-local'] { text-align: center; line-height: calc(2.75rem - 2px); padding-top: 0; padding-bottom: 0; }
+  @media (min-width: 640px) {
+    input[type='date'], input[type='time'], input[type='datetime-local'] { line-height: calc(2.5rem - 2px); }
+  }
+  input::-webkit-date-and-time-value { text-align: center; margin: 0 auto; min-height: 1.5em; }
+  input::-webkit-datetime-edit { display: inline-flex; justify-content: center; align-items: center; padding: 0; }
+  input::-webkit-datetime-edit-fields-wrapper { padding: 0; }
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 

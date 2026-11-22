@@ -44,7 +44,8 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
   const regions: Partial<Record<RegionId, number>> = { ...(def.regionEmphasis ?? {}) };
   const notes: string[] = [];
   const angle = variation?.benchAngleDeg;
-  if (def.angleSensitive && angle != null && Number.isFinite(angle)) {
+  // A logged angle outside what a bench can do (typo) is ignored rather than turned into a rule.
+  if (def.angleSensitive && angle != null && Number.isFinite(angle) && angle >= -30 && angle <= 90) {
     const isFly = def.pattern === 'chest_fly';
     if (angle <= -5) {
       regions.lower_chest = 1;
@@ -70,9 +71,18 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
       notes.push(`Steep incline ${angle}°: approaches an overhead press — chest credit reduced, front delts increased (heuristic).`);
     }
   }
-  if (variation?.grip === 'supinated' && def.pattern === 'vertical_pull') {
+  // Underhand grip on a PULL with elbow flexion (pulldowns, chin-ups). Not on straight-arm pulldowns
+  // (isolation, elbows locked) — a grip there does not make the biceps work (audit 2026-11-22).
+  if (variation?.grip === 'supinated' && def.pattern === 'vertical_pull' && def.category === 'compound') {
     contributions.biceps = Math.max(contributions.biceps ?? 0, 0.75);
     notes.push('Supinated grip: higher biceps contribution.');
+  }
+  // Squat depth (Kubo 2019): glute and adductor growth came from FULL-depth squats; above parallel they are
+  // credited as ordinary secondaries (0.5) instead of 0.75.
+  if ((def.id === 'back_squat' || def.id === 'smith_squat') && variation?.depth === 'above_parallel') {
+    if ((contributions.glutes ?? 0) > 0.5) contributions.glutes = 0.5;
+    if ((contributions.adductors ?? 0) > 0.5) contributions.adductors = 0.5;
+    notes.push('Above-parallel squat: glutes and adductors credited 0.5 (their extra growth was shown for full-depth squats).');
   }
   return { contributions, regions, notes };
 }

@@ -176,7 +176,9 @@ describe('week transitions, missed weeks and continuous recovery', () => {
     const normal = run(data, weekStartOf(14), '06:00'); // a Monday in a normal week
     for (const m of a.muscles) {
       expect(m.completed).toBe(0);
-      expect(m.todayShare, m.muscle).toBeLessThanOrEqual(Math.min(m.target.preferred * 0.6, data.settings.perSessionSetCap) + 1e-9);
+      // Whole sets: a share is at least 1 when anything is open (never more than what is left this week).
+      expect(m.todayShare, m.muscle).toBeLessThanOrEqual(Math.max(Math.min(1, m.remainingToPreferred), Math.min(m.target.preferred * 0.6, data.settings.perSessionSetCap)) + 1e-9);
+      expect(m.todayShare, m.muscle).toBeLessThanOrEqual(m.remainingToPreferred + 1e-9);
       // The weekly target itself is not raised to compensate for the gap.
       const n = normal.muscles.find((x) => x.muscle === m.muscle)!;
       expect(m.target.preferred, m.muscle).toBeLessThanOrEqual(n.target.preferred + 2);

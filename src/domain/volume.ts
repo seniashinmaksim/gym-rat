@@ -61,7 +61,8 @@ function emptyMuscle(m: MuscleId): MuscleVolume {
  * Within one session, effective volume for a muscle above `sessionCreditCap` is
  * tapered (×`beyondSessionCapCredit`). Planned (not yet performed) sets are ignored.
  */
-export function computeVolume(workouts: Workout[], registry: Registry, model: QualityModel): VolumeResult {
+export function computeVolume(workouts: Workout[], registry: Registry, model: QualityModel, opts: { minCoef?: number } = {}): VolumeResult {
+  const minCoef = opts.minCoef ?? 0;
   const muscles = Object.fromEntries(TRACKED_MUSCLES.map((m) => [m, emptyMuscle(m)])) as Record<MuscleId, MuscleVolume>;
   const regions: Record<RegionId, RegionVolume> = {
     upper_chest: { region: 'upper_chest', effective: 0, sets: 0 },
@@ -97,7 +98,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
         const q = assessSet(s, model, { rom: ex.variation?.rom, timed: def.repRange[1] <= 1 });
         for (const [mid, coef] of Object.entries(contributions) as [MuscleId, number][]) {
           const mv = muscles[mid];
-          if (!mv || !coef) continue;
+          if (!mv || !coef || coef < minCoef) continue;
           const inv = involvement(coef);
           mv.rawWorkingSets += k;
           if (inv === 'direct') mv.directSets += k;
@@ -139,8 +140,8 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
 }
 
 /** Effective sets per muscle for a single session (used by recovery & history). */
-export function sessionMuscleEffective(w: Workout, registry: Registry, model: QualityModel): Partial<Record<MuscleId, number>> {
-  const v = computeVolume([w], registry, model);
+export function sessionMuscleEffective(w: Workout, registry: Registry, model: QualityModel, opts: { minCoef?: number } = {}): Partial<Record<MuscleId, number>> {
+  const v = computeVolume([w], registry, model, opts);
   const out: Partial<Record<MuscleId, number>> = {};
   for (const m of TRACKED_MUSCLES) if (v.muscles[m].effective > 0) out[m] = v.muscles[m].effective;
   return out;

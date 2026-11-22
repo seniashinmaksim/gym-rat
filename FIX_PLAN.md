@@ -423,7 +423,7 @@ Owner's two pasted requests (full text in the session transcript), condensed. Do
 
 # PART 5 — Exercise-choice assistant, exercise order & fatigue cost, data-gated adaptive Full Body planner (requested 2026-11-21, after the six-month audit, commit 6105fc4)
 
-Status: **planned, not started.** The owner's four pasted requests (full text in the session transcript) are condensed below. Where they conflict, the LATER, stricter request wins (noted inline). Rules at the top of this file still apply: never lose or rewrite stored data; no personal data or passwords in the repo; touch-first, minimal UI; never claim something works unless tested; no network calls (research is dev-time only, verified references only; never invent DOIs/PMIDs).
+Status: **implemented 2026-11-22** (E.0–E.11; see CLAUDE.md section J and test-artifacts/part5/REPORT.md). The owner's four pasted requests (full text in the session transcript) are condensed below. Where they conflict, the LATER, stricter request wins (noted inline). Rules at the top of this file still apply: never lose or rewrite stored data; no personal data or passwords in the repo; touch-first, minimal UI; never claim something works unless tested; no network calls (research is dev-time only, verified references only; never invent DOIs/PMIDs).
 
 ## E.0 What exists — build on it, do NOT create a second engine
 - `analyze()` already gives per muscle: completed / target / remaining, todayShare (capped, never catch-up), carryOver, todayBlocked, `planRecovery` (recovery entering today), moreVolumeJustified; per history key: trend, next load, plateau/decline guards (single bad session, sustained decline, index scales).
@@ -484,3 +484,24 @@ Operating mode on each synthetic history; sessions needed for reliable personali
 
 ## E.8 Build order
 1. Research → references + rules. 2. fatigueCost data + sessionLoad. 3. exerciseChoice.ts + tests + picker UI. 4. readiness.ts + modes + tests. 5. planner.ts (library, patterns, session budget, selection, order, prescriptions) + tests + data-quality simulations. 6. Next-workout card, Start / Replace / Skip / Edit, decision logging. 7. Docs (CLAUDE.md §0 + new section J), review, ship, report.
+
+## E.9 Real-world gym conditions (requested 2026-11-21, during Part 5)
+- Active workout from a plan is never a fixed order: **Later** (temporarily skip an occupied machine; the exercise moves to the end and stays pending), **↑/↓ reorder** at any time, **Machine busy** (marks the equipment temporarily unavailable for THIS session: `Workout.busyEquipment?`), and **alternatives that use available equipment** (busy machines excluded).
+- Never assume the planned order was followed: every exercise with no performed set is re-prescribed from what was ACTUALLY done (fatigue of completed work, remaining weekly volume, recovery and synergist fatigue, loads/reps, warm-ups, fatigue cost / position). Untouched planned sets are updated with a visible "adjusted" line; edited sets are never overwritten.
+- A demanding lift done earlier than planned → later prescriptions recalculated (fewer sets for muscles already covered, shorter warm-ups, order advice).
+- The original plan (`Workout.generated`) is stored separately from execution (`exercises`); decisions (`Workout.planDecisions`) record later / reorder / busy / replace / skip.
+- Learning: substitutions with reason "equipment busy" are excluded from preference learning; only repeated (≥ 3) non-equipment choices shift preferences.
+
+## E.10 Evidence-based weekly volume per muscle (requested 2026-11-21, during Part 5)
+- Never raise weekly sets only because a muscle is below a generic reference. After Learning Mode each muscle's target starts from ITS OWN baseline (median of recent complete weeks) and changes only on evidence:
+  - **Increase (+1–2 effective sets)** only when its comparable sessions have stalled (plateau), technique and working weights are consistent, effort is adequate (sets near failure), recovery indicators are good, the volume has been stable for ≥ 3 weeks (the last change was observed), and earlier history does not show that more volume failed to help.
+  - **Reduce (−1–2, or back to the last productive level)** when performance repeatedly declines with adequate effort, recovery is consistently worse, technique deteriorates, or a recent volume increase brought no better performance (more fatigue, no benefit).
+  - **Hold** when progressing (e.g. progressing at 12–14 → no reason to go to 16), when evidence is insufficient, when effort is too low (take sets closer to failure first), or while observing a recent change.
+- Response observation: earlier 4 weeks vs recent 4 weeks — volume level and performance slope of the muscle's direct exercises (same index kind), plus recovery and technique signals; body circumference (arms, chest, thighs, calves, shoulders) as supporting context only.
+- Per muscle, independently; rationale lines say which rule fired. Rules registered (`volume_individual`), tests cover each branch.
+
+## E.11 Final audit: exercise biomechanics and muscle mapping (requested 2026-11-21, during Part 5 — do LAST, before the full-app simulation)
+- Audit EVERY exercise in src/data/exercises.ts (preferred first: incline DB press, straight-bar pushdown, pec deck, machine curl, EZ curl, DB + cable lateral raise, back squat, leg extension, RDL, seated leg curl, hanging knee raise with pelvic curl, bodyweight + weighted pull-ups, deadlift, dips, shoulder press, bent-over rows): primary / significant secondary / minor / stabiliser-only, regional emphasis; variation effects (bench angle, grip width/orientation, elbow position, trajectory, body position, ROM, equipment). Stabilisers get no (or minimal) credit.
+- Verified sources only (systematic reviews, longitudinal hypertrophy trials, biomechanics; EMG labelled indirect). Per important classification: evidence, rationale, quality, confidence, limitations; insufficient evidence → marked uncertain.
+- Coefficients: exercise-specific values where justified (not automatically 0.5); one source of truth (registry → volume, remaining sets, recovery, planner, choice assistant, reports, importer); changes recompute history from raw sets without touching stored workouts.
+- Independent tests with hand-derived expected values + a regression test per corrected mapping. Report: total audited, verified, corrected, uncertain, coefficient fixes, tests, limitations.

@@ -7,6 +7,7 @@ import { roundHalf } from './quality';
 import type { RecoveryEstimate } from './recovery';
 import type { Registry } from './registry';
 import type { MuscleId, TargetConfidence } from './types';
+import { volumeDecision, type VolumeAction, type VolumeEvidence } from './volumeResponse';
 
 export interface LearningState {
   active: boolean;
@@ -63,6 +64,9 @@ export interface MuscleTarget {
   source: 'reference' | 'individualized' | 'manual';
   baseline: number | null;
   rationale: string[];
+  /** E.10: what the individual volume logic decided (absent while provisional / manual). */
+  volumeAction?: VolumeAction;
+  evidence?: VolumeEvidence;
 }
 
 export interface TargetInputs {
@@ -157,34 +161,17 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
       continue;
     }
 
-    const rationale: string[] = [`Your baseline (median of ${usable.length} recent weeks): ${baseline} effective sets/week.`];
-    let preferred: number;
-    const poorRecovery = rec.status === 'recovering' && (rec.soreness ?? 0) >= 3;
-    if (baseline < ref.min) {
-      preferred = Math.min(ref.preferred, baseline + Math.max(2, baseline * 0.25));
-      rationale.push(`Below the evidence-informed reference minimum (${ref.min}). Increase gradually (≈ +2 sets or +25%) rather than jumping straight to ${ref.preferred}.`);
-    } else if (baseline <= ref.max) {
-      if (trend.overall === 'progressing') {
-        preferred = baseline;
-        rationale.push('Direct exercises are progressing at this volume — keep what is working.');
-      } else if (trend.overall === 'stalled' && !poorRecovery) {
-        preferred = Math.min(ref.max, baseline + 2);
-        rationale.push('Progress has stalled with no sign of poor recovery — a modest +2 sets is a reasonable test.');
-      } else if (trend.overall === 'declining') {
-        preferred = poorRecovery ? Math.max(ref.min, baseline - 2) : baseline;
-        rationale.push(poorRecovery ? 'Performance is declining with recovery warning signs — reduce slightly.' : 'Performance is declining — hold volume and check sleep, rest periods and exercise order before adding sets.');
-      } else {
-        preferred = (baseline + ref.preferred) / 2;
-        rationale.push('Progress is not yet clear — target moves halfway toward the reference preferred value.');
-      }
-    } else {
-      if (trend.overall === 'progressing' && !poorRecovery) {
-        preferred = Math.min(baseline, ref.max + 4);
-        rationale.push(`Above the typical range (${ref.max}) but still progressing and recovering — no reason to cut, though returns diminish at high volumes.`);
-      } else {
-        preferred = ref.max;
-        rationale.push(`Above the typical range (${ref.max}) without clear progress — reducing toward ${ref.max} is unlikely to cost growth (diminishing returns).`);
-      }
+    // E.10: each muscle's volume follows ITS OWN response — never raised just to reach a generic reference.
+    const decision = volumeDecision({ m, data, usable, recentWeeks: weeks.filter((w) => w.complete).slice(-4), baseline, trend, rec, registry, today: inp.today ?? usable[usable.length - 1].range.end, ref });
+    const rationale = [...decision.rationale];
+    let preferred = decision.preferred;
+    // The owner's explicit priority (not a generic number) allows a gradual +1–2 while nothing argues against it.
+    // Only on a NEUTRAL hold (stable / unknown, effort adequate, no break, nothing argues against it), capped at the
+    // upper end of the reference range — never on top of a muscle that is progressing or after a failed increase.
+    if (data.settings.priorities[m] === 'high' && decision.neutral && !decision.evidence.recoveryPoor && decision.evidence.stableWeeks >= 3 && baseline < ref.max) {
+      const step = baseline < 8 ? 1 : 2;
+      preferred = Math.min(ref.max, baseline + step);
+      rationale.push(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`);
     }
     preferred = roundHalf(preferred);
     const min = roundHalf(Math.max(0, Math.min(preferred, preferred * 0.75)));
@@ -192,7 +179,7 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     if (data.settings.priorities[m]) rationale.push(`Priority: ${data.settings.priorities[m]}.`);
     rationale.push(`Confidence ${confidence}: ${conf.join(', ')}.`);
     if (usable.length < 3) confidence = 'low';
-    out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale };
+    out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale, volumeAction: decision.action, evidence: decision.evidence };
   }
   if (deload) {
     // Deload = reduced volume (≈ half the sets) with moderate effort, not full rest (Bell 2023 consensus;

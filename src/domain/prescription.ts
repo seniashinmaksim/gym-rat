@@ -115,6 +115,11 @@ export interface PrescribeInput {
   /** The live session (may already contain done sets). */
   workout: Workout;
   exerciseIndex: number;
+  /**
+   * Session-level allocation (planner, Part 5): the number of working sets decided for the WHOLE session
+   * (all planned exercises' fractional contributions), replacing the per-exercise share calculation.
+   */
+  setCount?: { count: number; reason: string };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -270,6 +275,26 @@ export function prescribe(input: PrescribeInput): Prescription {
       decisionWhy = `${assisted ? 'No less assistance is available' : `The next load does not exist on this equipment (max ${maxKg ?? lastLoad} kg)`} — keep ${lastLoad} kg and add reps instead.`;
     } else weight = snapped;
   }
+  // Back after > 14 days without training: one step below the last comparable load — a load that exists
+  // (a lighter one already used on this history, else one real step down), then progress as usual.
+  const priorDates = data.workouts.filter((w) => w.id !== workout.id && w.date < today).map((w) => w.date).sort();
+  const daysOff = priorDates.length ? diffDays(today, priorDates[priorDates.length - 1]) : null;
+  if (daysOff != null && daysOff > 14 && weight != null && weight > 0 && step > 0 && hist.length) {
+    const cur = weight;
+    const used = [...new Set(hist.flatMap((s) => s.sets.filter((p) => p.benchmark && p.weight != null).map((p) => p.weight as number)))].sort((a, b) => a - b);
+    let to: number;
+    if (assisted) to = maxKg != null ? Math.min(maxKg, cur + step) : cur + step;
+    else {
+      const lighter = used.filter((u) => u < cur && cur - u <= step * 1.5 + 1e-9);
+      to = lighter.length ? lighter[lighter.length - 1] : snapLoad(stepLoad(cur, -step, step), step, stepInfo.source, minKg, maxKg);
+    }
+    if (to !== weight && to >= 0) {
+      weight = to;
+      decision = 'reduce';
+      decisionWhy = `Back after ${daysOff} days without training: one step ${assisted ? 'easier' : 'down'} to ${to} kg for the first session, then progress as usual.`;
+      notes.push(`Back after ${daysOff} days: one step down`);
+    }
+  }
   if (sessionsUsed <= 1 && decision === 'keep') {
     decision = 'calibrate';
     decisionWhy = weight != null
@@ -387,6 +412,11 @@ export function prescribe(input: PrescribeInput): Prescription {
         }
       }
     }
+  }
+
+  if (input.setCount) {
+    setCount = clamp(Math.round(input.setCount.count), 0, maxSets);
+    setCountReason = input.setCount.reason;
   }
 
   // ---- working sets

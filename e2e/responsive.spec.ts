@@ -7,6 +7,13 @@ import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Part 5: picking an exercise may first show the exercise-choice card (advice, never blocking) — answer "Continue". */
+async function continueChoice(page: import('@playwright/test').Page) {
+  await page.waitForTimeout(250);
+  const cc = page.getByTestId('choice-card');
+  if (await cc.count()) await cc.getByRole('button', { name: 'Continue' }).click();
+}
+
 const PHASE = process.env.PHASE ?? 'after';
 const AUDIT = fs.readFileSync('scripts/layout-audit.js', 'utf8');
 const DATA = fs.readFileSync('e2e/fixtures/synthetic-import.json', 'utf8');
@@ -94,6 +101,7 @@ test('every screen and control stays inside its boundaries', async ({ page }, in
   await snap(page, out, '31-exercise-picker');
   await page.locator('[role=dialog] input').first().fill('incline dumbbell');
   await page.locator('[role=dialog] button', { hasText: /^Incline dumbbell press/ }).first().click();
+  await continueChoice(page);
   await page.waitForTimeout(600);
   await snap(page, out, '32-exercise-card');
   await click(page, /^Setup/);
@@ -119,6 +127,7 @@ test('every screen and control stays inside its boundaries', async ({ page }, in
   await click(page, /^Add exercise$/);
   await page.locator('[role=dialog] input').first().fill('pull-up');
   await page.locator('[role=dialog] button', { hasText: /^Pull-up/ }).first().click();
+  await continueChoice(page);
   await page.waitForTimeout(600);
   await page.getByRole('button', { name: /^Setup/ }).last().click();
   await snap(page, out, '37-pullup-setup');

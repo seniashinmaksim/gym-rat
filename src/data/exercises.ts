@@ -93,45 +93,45 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'vertical_pull', 'compound', 'cable', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [8, 12], 120,
     'Shoulder adduction/extension. Wider grip adds upper-back involvement; neutral/supinated grip adds biceps.'),
   ex('close_grip_pulldown', 'Close-grip pulldown', 'Тяга верхнего блока узким хватом', ['neutral grip pulldown', 'v-bar pulldown', 'узкая тяга верхнего'],
-    'vertical_pull', 'compound', 'cable', { lats: 1, upper_back: 0.5, biceps: 0.5, forearms: 0.25 }, [8, 12], 120,
+    'vertical_pull', 'compound', 'cable', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [8, 12], 120,
     'Neutral close grip allows greater shoulder extension; strong lat emphasis.'),
   ex('machine_pulldown', 'Machine pulldown', 'Тяга сверху в тренажёре', ['plate loaded pulldown', 'хаммер тяга сверху'],
-    'vertical_pull', 'compound', 'machine', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25 }, [8, 12], 120,
+    'vertical_pull', 'compound', 'machine', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [8, 12], 120,
     'Machine vertical pull; often unilateral handles.'),
   ex('pull_up', 'Pull-up', 'Подтягивания', ['pull ups', 'pullup', 'chin up', 'chin-up', 'подтягивания'],
     'vertical_pull', 'compound', 'bodyweight', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [5, 12], 150,
     'Bodyweight vertical pull. Supinated (chin-up) grip increases biceps contribution.'),
   ex('assisted_pull_up', 'Assisted pull-up', 'Подтягивания в гравитроне', ['gravitron', 'гравитрон', 'assisted pullup'],
-    'vertical_pull', 'compound', 'machine', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25 }, [6, 12], 120,
+    'vertical_pull', 'compound', 'machine', { lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [6, 12], 120,
     'Assistance weight is SUBTRACTED from bodyweight; a lower number means harder.'),
   ex('seated_cable_row', 'Seated cable row', 'Тяга горизонтального блока', ['cable row', 'seated row', 'low row', 'тяга нижнего блока', 'горизонтальная тяга'],
     'horizontal_pull', 'compound', 'cable', { upper_back: 1, lats: 0.75, biceps: 0.5, rear_delts: 0.5, traps: 0.25, forearms: 0.25 }, [8, 12], 120,
     'Elbows tucked → more lats; elbows flared → more upper back and rear delts.'),
   ex('chest_supported_row', 'Chest-supported row', 'Тяга с упором грудью', ['t-bar row supported', 'machine row', 'seal row', 'тяга с упором'],
-    'horizontal_pull', 'compound', 'machine', { upper_back: 1, lats: 0.75, biceps: 0.5, rear_delts: 0.5, traps: 0.25 }, [8, 12], 120,
+    'horizontal_pull', 'compound', 'machine', { upper_back: 1, lats: 0.75, rear_delts: 0.5, biceps: 0.5, traps: 0.25, forearms: 0.25 }, [8, 12], 120,
     'Removes lower-back demand; row path determines lat vs upper-back emphasis.'),
   ex('barbell_row', 'Barbell row', 'Тяга штанги в наклоне', ['bent over row', 'bb row', 'тяга штанги в наклоне'],
-    'horizontal_pull', 'compound', 'barbell', { upper_back: 1, lats: 0.75, biceps: 0.5, rear_delts: 0.5, spinal_erectors: 0.5, traps: 0.25, forearms: 0.25 }, [6, 10], 150,
+    'horizontal_pull', 'compound', 'barbell', { upper_back: 1, lats: 0.75, rear_delts: 0.5, biceps: 0.5, traps: 0.25, forearms: 0.25, spinal_erectors: 0.25 }, [6, 10], 150,
     'Free-standing row: substantial isometric spinal-erector demand.'),
   ex('dumbbell_row', 'One-arm dumbbell row', 'Тяга гантели одной рукой', ['db row', 'one arm row', 'тяга гантели'],
     'horizontal_pull', 'compound', 'dumbbell', { lats: 1, upper_back: 0.75, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 }, [8, 12], 90,
     'Unilateral row; path toward the hip emphasizes lats. Log weight per dumbbell.'),
   ex('t_bar_row', 'T-bar row', 'Тяга Т-грифа', ['t bar', 'тяга т грифа'],
-    'horizontal_pull', 'compound', 'plate_loaded', { upper_back: 1, lats: 0.75, biceps: 0.5, rear_delts: 0.5, spinal_erectors: 0.25, traps: 0.25 }, [6, 12], 150,
+    'horizontal_pull', 'compound', 'plate_loaded', { upper_back: 1, lats: 0.75, rear_delts: 0.5, biceps: 0.5, traps: 0.25, forearms: 0.25, spinal_erectors: 0.25 }, [6, 12], 150,
     'Plate-loaded row; lever ratio varies by machine.'),
   ex('straight_arm_pulldown', 'Straight-arm pulldown', 'Пуловер на блоке', ['straight arm pushdown', 'cable pullover', 'пуловер в кроссовере'],
     'vertical_pull', 'isolation', 'cable', { lats: 1, triceps: 0.25 }, [10, 15], 90,
     'Shoulder extension without elbow flexion — lats without meaningful biceps work.'),
   ex('shrug', 'Shrug', 'Шраги', ['barbell shrug', 'dumbbell shrug', 'шраги'],
-    'shrug', 'isolation', 'dumbbell', { traps: 1, forearms: 0.25 }, [10, 15], 90,
+    'shrug', 'isolation', 'dumbbell', { traps: 1 }, [10, 15], 90,
     'Scapular elevation — upper trapezius.'),
   ex('face_pull', 'Face pull', 'Тяга к лицу', ['face pulls', 'тяга каната к лицу'],
-    'rear_delt', 'isolation', 'cable', { rear_delts: 1, upper_back: 0.5, traps: 0.25 }, [12, 20], 75,
+    'rear_delt', 'isolation', 'cable', { rear_delts: 1, upper_back: 0.5, traps: 0.25, biceps: 0.25 }, [12, 20], 75,
     'Horizontal abduction + external rotation: rear delts, mid traps, rotator cuff.'),
 
   // ---------------- Shoulders ----------------
   ex('overhead_press', 'Overhead press', 'Жим штанги стоя', ['ohp', 'military press', 'standing press', 'армейский жим', 'жим стоя'],
-    'vertical_push', 'compound', 'barbell', { front_delts: 1, triceps: 0.5, side_delts: 0.25, traps: 0.25, abs: 0.25 }, [5, 10], 180,
+    'vertical_push', 'compound', 'barbell', { front_delts: 1, triceps: 0.5, traps: 0.25, side_delts: 0.25 }, [5, 10], 180,
     'Vertical pressing: front delts primary, triceps significant, side delts minor.'),
   ex('dumbbell_shoulder_press', 'Dumbbell shoulder press', 'Жим гантелей сидя', ['db shoulder press', 'seated dumbbell press', 'жим гантелей сидя'],
     'vertical_push', 'compound', 'dumbbell', { front_delts: 1, triceps: 0.5, side_delts: 0.25 }, [6, 12], 150,
@@ -202,7 +202,7 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'elbow_extension', 'isolation', 'barbell', { triceps: 1 }, [8, 12], 90,
     'Lying elbow extension.'),
   ex('close_grip_bench', 'Close-grip bench press', 'Жим узким хватом', ['cgbp', 'close grip bench press', 'жим узким хватом'],
-    'horizontal_push', 'compound', 'barbell', { triceps: 1, chest: 0.5, front_delts: 0.5 }, [6, 10], 150,
+    'horizontal_push', 'compound', 'barbell', { triceps: 1, chest: 0.75, front_delts: 0.5 }, [6, 10], 150,
     'Narrow grip increases elbow extension demand — triceps primary, chest secondary.'),
   ex('machine_dip', 'Machine dip', 'Отжимания в тренажёре', ['seated dip', 'dip machine', 'тренажер для трицепса'],
     'elbow_extension', 'compound', 'machine', { triceps: 1, chest: 0.5, front_delts: 0.25 }, [8, 12], 90,
@@ -215,19 +215,19 @@ export const SEED_EXERCISES: ExerciseDef[] = [
 
   // ---------------- Legs ----------------
   ex('back_squat', 'Back squat', 'Приседания со штангой', ['squat', 'squats', 'приседания', 'присед'],
-    'squat', 'compound', 'barbell', { quads: 1, glutes: 0.5, adductors: 0.5, spinal_erectors: 0.25 }, [5, 10], 180,
+    'squat', 'compound', 'barbell', { quads: 1, glutes: 0.75, adductors: 0.75, spinal_erectors: 0.25 }, [5, 10], 180,
     'Deep squats load glutes and adductors substantially; hamstrings change length little (minimal stimulus).'),
   ex('front_squat', 'Front squat', 'Фронтальные приседания', ['фронтальный присед'],
-    'squat', 'compound', 'barbell', { quads: 1, glutes: 0.5, adductors: 0.5, upper_back: 0.25 }, [5, 10], 180,
+    'squat', 'compound', 'barbell', { quads: 1, glutes: 0.5, adductors: 0.5, spinal_erectors: 0.25 }, [5, 10], 180,
     'Upright torso — high quad emphasis.'),
   ex('hack_squat', 'Hack squat', 'Гакк-приседания', ['hack', 'гакк', 'гак присед'],
     'squat', 'compound', 'machine', { quads: 1, glutes: 0.5, adductors: 0.5 }, [8, 12], 150,
     'Machine squat — sled angle and weight differ heavily between manufacturers.'),
   ex('smith_squat', 'Smith machine squat', 'Приседания в Смите', ['smith squat', 'присед в смите'],
-    'squat', 'compound', 'smith', { quads: 1, glutes: 0.5, adductors: 0.5 }, [8, 12], 150,
+    'squat', 'compound', 'smith', { quads: 1, glutes: 0.75, adductors: 0.5 }, [8, 12], 150,
     'Foot placement shifts emphasis between quads and glutes.'),
   ex('leg_press', 'Leg press', 'Жим ногами', ['legpress', 'жим ногами', 'платформа'],
-    'squat', 'compound', 'plate_loaded', { quads: 1, glutes: 0.5, adductors: 0.5 }, [8, 15], 150,
+    'squat', 'compound', 'plate_loaded', { quads: 1, glutes: 0.75, adductors: 0.5 }, [8, 15], 150,
     'Loads are NOT comparable between leg presses (sled angle, friction, sled weight).'),
   ex('pendulum_squat', 'Pendulum squat', 'Маятниковые приседания', ['pendulum', 'маятник'],
     'squat', 'compound', 'machine', { quads: 1, glutes: 0.5, adductors: 0.25 }, [8, 12], 150,
@@ -242,13 +242,13 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'knee_extension', 'isolation', 'machine', { quads: 1 }, [10, 15], 90,
     'Knee extension — trains rectus femoris, which squats train relatively less.'),
   ex('romanian_deadlift', 'Romanian deadlift', 'Румынская тяга', ['rdl', 'stiff leg deadlift', 'румынская тяга', 'становая на прямых'],
-    'hinge', 'compound', 'barbell', { hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5, adductors: 0.5, forearms: 0.25, traps: 0.25 }, [6, 12], 150,
+    'hinge', 'compound', 'barbell', { hamstrings: 1, glutes: 0.75, adductors: 0.5, spinal_erectors: 0.25 }, [6, 12], 150,
     'Hip hinge (barbell) loading hamstrings at long lengths; glutes work hard, spinal erectors and grip as stabilisers. Different from leg curls (knee flexion).'),
   ex('dumbbell_romanian_deadlift', 'Dumbbell Romanian deadlift', 'Румынская тяга с гантелями', ['db rdl', 'dumbbell rdl', 'dumbbell romanian deadlift', 'румынская тяга с гантелями', 'румынская гантели'],
-    'hinge', 'compound', 'dumbbell', { hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5, adductors: 0.5, forearms: 0.25, traps: 0.25 }, [8, 12], 120,
+    'hinge', 'compound', 'dumbbell', { hamstrings: 1, glutes: 0.75, adductors: 0.5, spinal_erectors: 0.25 }, [8, 12], 120,
     'Same hip hinge as the barbell RDL. Log weight PER DUMBBELL. Separate history from the barbell version.'),
   ex('deadlift', 'Deadlift', 'Становая тяга', ['conventional deadlift', 'становая', 'становая тяга'],
-    'hinge', 'compound', 'barbell', { glutes: 1, hamstrings: 0.5, spinal_erectors: 0.75, quads: 0.5, adductors: 0.5, traps: 0.5, upper_back: 0.25, forearms: 0.5 }, [3, 8], 210,
+    'hinge', 'compound', 'barbell', { glutes: 1, quads: 0.5, hamstrings: 0.5, adductors: 0.5, traps: 0.25, forearms: 0.25, spinal_erectors: 0.25 }, [3, 8], 210,
     'Whole posterior chain; high systemic fatigue per set.'),
   ex('lying_leg_curl', 'Lying leg curl', 'Сгибания ног лёжа', ['leg curl', 'prone leg curl', 'сгибание ног лежа'],
     'knee_flexion', 'isolation', 'machine', { hamstrings: 1, calves: 0.25 }, [10, 15], 90,
@@ -281,7 +281,7 @@ export const SEED_EXERCISES: ExerciseDef[] = [
   // ---------------- Core ----------------
   ex('cable_crunch', 'Cable crunch', 'Скручивания на блоке', ['rope crunch', 'молитва', 'скручивания на блоке'],
     'core', 'isolation', 'cable', { abs: 1 }, [10, 20], 60, 'Loaded spinal flexion.'),
-  ex('crunch', 'Crunch', 'Скручивания', ['crunches', 'sit up', 'скручивания', 'пресс'],
+  ex('crunch', 'Crunch', 'Скручивания', ['crunches', 'скручивания'],
     'core', 'isolation', 'bodyweight', { abs: 1 }, [12, 25], 60, 'Spinal flexion.'),
   ex('hanging_leg_raise', 'Hanging leg raise', 'Подъём ног в висе', ['leg raise', 'подъем ног в висе', 'подъем ног'],
     'core', 'isolation', 'bodyweight', { abs: 1, forearms: 0.25 }, [8, 15], 75,
@@ -295,7 +295,7 @@ export const SEED_EXERCISES: ExerciseDef[] = [
     'core', 'isolation', 'bodyweight', { abs: 0.5 }, [1, 1], 60,
     'Isometric; low hypertrophy stimulus for most trainees — counted as indirect.'),
   ex('farmer_carry', "Farmer's carry", 'Прогулка фермера', ['farmers walk', 'farmer walk', 'фермерская прогулка'],
-    'carry', 'compound', 'dumbbell', { forearms: 1, traps: 0.5, abs: 0.25 }, [1, 1], 120, 'Loaded carry; grip and traps.'),
+    'carry', 'compound', 'dumbbell', { forearms: 1, traps: 0.25 }, [1, 1], 120, 'Loaded carry; grip and traps.'),
 ];
 
 /**
@@ -366,3 +366,30 @@ for (const e of SEED_EXERCISES) {
 }
 
 export const SEED_BY_ID: Record<string, ExerciseDef> = Object.fromEntries(SEED_EXERCISES.map((e) => [e.id, e]));
+
+/**
+ * Fatigue cost (Part 5): how much systemic and local fatigue a typical hard set leaves for the rest of the
+ * session — NOT calories and not "difficulty". Initial classification (research-informed heuristic, low–
+ * moderate confidence; see rules `fatigue_cost`, `exercise_order`): heavy free-weight multi-joint lifts that
+ * load the spine / many muscles at once are HIGH; machine and dumbbell compounds MODERATE; single-joint
+ * isolation LOW (isolation is not automatically easy — it is simply less costly for the lifts that follow).
+ * Weighted pull-ups / dips are raised to HIGH by `fatigueCostOf` from the variation.
+ */
+export const HIGH_FATIGUE_COST: readonly string[] = [
+  'back_squat', 'front_squat', 'deadlift', 'romanian_deadlift', 'barbell_bench_press', 'incline_barbell_press',
+  'decline_press', 'close_grip_bench', 'overhead_press', 'barbell_row', 't_bar_row', 'hack_squat',
+  'bulgarian_split_squat', 'walking_lunge',
+];
+for (const e of SEED_EXERCISES) {
+  e.fatigueCost = HIGH_FATIGUE_COST.includes(e.id) ? 'high' : e.category === 'isolation' ? 'low' : 'moderate';
+}
+// Carries and core holds are compound in the library but cheap for the lifts that follow.
+for (const id of ['plank']) { const d = SEED_EXERCISES.find((x) => x.id === id); if (d) d.fatigueCost = 'low'; }
+
+/** The owner's regular movements (CLAUDE.md §F). Generic exercise ids only — no personal data. */
+export const PREFERRED_EXERCISE_IDS: readonly string[] = [
+  'incline_dumbbell_press', 'triceps_pushdown_bar', 'triceps_pushdown_rope', 'triceps_pushdown', 'pec_deck',
+  'machine_biceps_curl', 'preacher_curl', 'ez_bar_curl', 'lateral_raise', 'cable_lateral_raise', 'back_squat',
+  'leg_extension', 'romanian_deadlift', 'dumbbell_romanian_deadlift', 'seated_leg_curl', 'lying_leg_curl',
+  'standing_leg_curl', 'hanging_knee_raise_pelvic_curl',
+];

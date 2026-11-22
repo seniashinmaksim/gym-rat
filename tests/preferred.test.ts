@@ -105,9 +105,9 @@ describe('muscle coefficients (direct and indirect)', () => {
     expect(c('ez_bar_curl').biceps).toBe(1);
     expect(c('lateral_raise').side_delts).toBe(1);
     expect(c('cable_lateral_raise').side_delts).toBe(1);
-    expect(c('back_squat')).toMatchObject({ quads: 1, glutes: 0.5, adductors: 0.5, spinal_erectors: 0.25 });
+    expect(c('back_squat')).toEqual({ quads: 1, glutes: 0.75, adductors: 0.75, spinal_erectors: 0.25 }); // audit 2026-11-22 (Kubo 2019, full depth)
     expect(c('leg_extension')).toEqual({ quads: 1 });
-    expect(c('romanian_deadlift')).toMatchObject({ hamstrings: 1, glutes: 0.75, spinal_erectors: 0.5 });
+    expect(c('romanian_deadlift')).toEqual({ hamstrings: 1, glutes: 0.75, adductors: 0.5, spinal_erectors: 0.25 }); // audit: grip/traps are stabilisers
     expect(c('dumbbell_romanian_deadlift')).toEqual(c('romanian_deadlift'));
     for (const id of ['seated_leg_curl', 'lying_leg_curl', 'standing_leg_curl']) expect(c(id).hamstrings).toBe(1);
     expect(c('romanian_deadlift').quads).toBeUndefined();

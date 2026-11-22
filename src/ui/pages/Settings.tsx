@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { LEVEL_LABEL, MODE_LABEL, readinessReport, type ReadinessLevel } from '../../domain/readiness';
+import { muscleName } from '../../domain/muscles';
 import { DEFAULT_QUALITY } from '../../domain/defaults';
 import { listTimezones } from '../../domain/dates';
 import { IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION, workoutToExport } from '../../domain/importer';
@@ -54,6 +56,7 @@ export function SettingsPage() {
         </Card>
 
         <LearningCard />
+        <PlannerCard />
 
         <Card>
           <CardTitle>Display</CardTitle>
@@ -183,6 +186,48 @@ function BackupCard() {
         </div>
         <p className="text-[11px] leading-relaxed text-ink-400">Never commit backups or exports to the repository. Keep a copy somewhere private, like an encrypted drive.</p>
       </div>
+    </Card>
+  );
+}
+
+const LEVEL_TONE: Record<ReadinessLevel, 'neutral' | 'warn' | 'info' | 'good'> = { INSUFFICIENT_DATA: 'neutral', DEVELOPING: 'warn', SUFFICIENT: 'info', WELL_CALIBRATED: 'good' };
+
+/** Settings → Planner: readiness in plain words (no scores). */
+function PlannerCard() {
+  const data = useData();
+  const a = useAnalysis();
+  const r = useMemo(() => readinessReport(data, a), [data, a]);
+  const [all, setAll] = useState(false);
+  const keys = [...r.keys].sort((x, y) => Number(y.frequent) - Number(x.frequent) || y.comparable - x.comparable);
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle hint="The planner switches modes from data quality, never from the calendar alone." right={<Badge tone={r.mode === 'full' ? 'good' : r.mode === 'provisional' ? 'info' : 'warn'}>{MODE_LABEL[r.mode]}</Badge>}>Planner readiness</CardTitle>
+      {r.next.length > 0 && <p className="mb-3 text-sm text-ink-700 dark:text-ink-200">Next mode needs: {r.next.join(' · ')}</p>}
+      <ul className="divide-y divide-ink-100 text-sm dark:divide-ink-800" data-testid="readiness-areas">
+        {r.areas.map((x) => (
+          <li key={x.area} className="flex items-center justify-between gap-3 py-2">
+            <span className="min-w-0 flex-1"><span className="block font-medium text-ink-900 dark:text-white">{x.area}</span><span className="block text-xs text-ink-500">{x.detail}</span></span>
+            <Badge tone={LEVEL_TONE[x.level]}>{LEVEL_LABEL[x.level]}</Badge>
+          </li>
+        ))}
+      </ul>
+      <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Muscles</h3>
+      <ul className="mt-1 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+        {r.muscles.filter((m) => m.directSessions8w > 0 || m.level !== 'INSUFFICIENT_DATA').map((m) => (
+          <li key={m.muscle} className="flex items-center justify-between gap-2 py-1.5 text-sm"><span className="truncate">{muscleName(m.muscle)}</span><Badge tone={LEVEL_TONE[m.level]}>{LEVEL_LABEL[m.level]}</Badge></li>
+        ))}
+      </ul>
+      <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Exercises and machines</h3>
+      <ul className="mt-1 divide-y divide-ink-100 dark:divide-ink-800">
+        {(all ? keys : keys.slice(0, 6)).map((k) => (
+          <li key={k.key} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+            <span className="min-w-0 flex-1"><span className="block truncate">{k.label}</span><span className="block text-xs text-ink-500">{k.comparable} comparable session{k.comparable === 1 ? '' : 's'} in 8 weeks{k.frequent ? ' · regular' : ''}</span></span>
+            <Badge tone={LEVEL_TONE[k.level]}>{LEVEL_LABEL[k.level]}</Badge>
+          </li>
+        ))}
+      </ul>
+      {keys.length > 6 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${keys.length}`}</Button>}
+      {r.dataGaps.length > 0 && <div className="mt-3 text-xs text-ink-500"><span className="font-semibold">Data gaps:</span> {r.dataGaps.join(' · ')}</div>}
     </Card>
   );
 }

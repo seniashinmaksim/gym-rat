@@ -10,6 +10,13 @@ import path from 'node:path';
 import { generateSixMonths } from '../tests/sim/sixMonth';
 import { createBackup } from '../src/lib/backup';
 
+/** Part 5: picking an exercise may first show the exercise-choice card (advice, never blocking) — answer "Continue". */
+async function continueChoice(page: import('@playwright/test').Page) {
+  await page.waitForTimeout(250);
+  const cc = page.getByTestId('choice-card');
+  if (await cc.count()) await cc.getByRole('button', { name: 'Continue' }).click();
+}
+
 const VAULT_PW = 'synthetic-e2e-vault-03';
 const BACKUP_PW = 'synthetic-e2e-backup-03';
 const OUT = path.join('test-artifacts', 'six-month-audit');
@@ -148,6 +155,7 @@ test('six-month journeys: dashboard, progression, weekly summary, body weight, g
   await page.getByRole('button', { name: /^Add exercise$/ }).click();
   await page.locator('[role=dialog] input').first().fill('pec deck');
   await page.locator('[role=dialog] button', { hasText: /^Pec deck/ }).first().click();
+  await continueChoice(page);
   const card = page.locator('section, .rounded-2xl').filter({ has: page.locator('h3', { hasText: /^Pec deck$/ }) }).first();
   await expect(card).toContainText('Pec deck A'); // pre-selected: the machine used here before
   await expect(card).toContainText(/seat 4/);

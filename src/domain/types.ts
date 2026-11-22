@@ -172,7 +172,62 @@ export interface WorkoutExercise {
   doneAt?: string;
   /** Live logger: the owner marked the exercise as skipped (planned sets are dropped at finish). */
   skipped?: boolean;
+  /** Live logger: "Later" — postponed (e.g. machine occupied); still pending, comes back at the end. */
+  deferredAt?: string;
+  /** Exercise-choice assistant (Part 5): the assessment shown when it was added and what the owner did. */
+  choice?: ExerciseChoiceRecord;
+  /** Index of the generated-plan item this exercise came from (Part 5); absent = added by hand. */
+  planItem?: number;
+  /**
+   * How many working sets the APP last planned for this exercise. A re-assessment may only replace planned sets
+   * while the card still has exactly this many working sets (the owner added / removed / edited nothing).
+   */
+  plannedCount?: number;
   notes?: string;
+}
+
+/** What the exercise-choice assistant said when the exercise was picked, and what the owner did (never blocks). */
+export interface ExerciseChoiceRecord {
+  status: 'good' | 'acceptable' | 'reconsider';
+  reasonKind: string | null;
+  /** Exercise id of the alternative that was offered (if any). */
+  alternativeOffered?: string | null;
+  /** continued = picked it anyway; alternative = took the offered alternative (this exercise IS the alternative). */
+  followed: 'continued' | 'alternative';
+  /** When this is the alternative: the exercise originally picked. */
+  replacedExerciseId?: string;
+  at: string;
+}
+
+/** Snapshot of a generated plan (Part 5), stored separately from what was actually performed. */
+export interface GeneratedPlanSnapshot {
+  engine: string;
+  createdAt: string;
+  mode: 'learning' | 'provisional' | 'full';
+  items: {
+    exerciseId: string;
+    equipmentId: string | null;
+    variation?: Variation;
+    order: number;
+    calibration: 'calibrated' | 'provisional' | 'needs_data';
+    sets: number;
+    weightKg: number | null;
+    repsMin: number;
+    repsMax: number;
+  }[];
+}
+
+export type PlanDecisionAction = 'replaced' | 'skipped' | 'later' | 'reordered' | 'busy' | 'edited';
+export type PlanDecisionReason = 'busy' | 'time' | 'preference' | 'pain';
+/** One owner decision about the plan (Part 5). Reason "busy" (equipment occupied) never counts as a preference. */
+export interface PlanDecision {
+  action: PlanDecisionAction;
+  exerciseId: string;
+  equipmentId?: string | null;
+  /** For replaced: what was used instead. */
+  replacement?: { exerciseId: string; equipmentId: string | null } | null;
+  reason?: PlanDecisionReason | null;
+  at: string;
 }
 
 export interface SessionWellness {
@@ -207,6 +262,14 @@ export interface Workout {
   finishedAt?: string | null;
   /** Audit notes for corrections made after the workout was finished (e.g. a removed set). */
   audit?: { at: string; note: string }[];
+  /** Exercise-choice warnings the owner already answered in this session (not repeated unless inputs change). */
+  choiceAcks?: { key: string; at: string }[];
+  /** The generated plan this session started from (Part 5) — kept separate from the performed exercises. */
+  generated?: GeneratedPlanSnapshot;
+  /** Decisions about the plan during the session (later / reorder / busy / replace / skip). */
+  planDecisions?: PlanDecision[];
+  /** Equipment marked "busy" (temporarily unavailable) during this session. */
+  busyEquipment?: { equipmentId: string; at: string }[];
   blockId?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -238,6 +301,8 @@ export type MovementPattern =
   | 'back_extension'
   | 'carry'
   | 'other';
+
+export type FatigueCost = 'high' | 'moderate' | 'low';
 
 export type EquipmentKind =
   | 'machine'
@@ -273,6 +338,8 @@ export interface ExerciseDef {
   variationFields?: VariationField[];
   /** Default variation for a NEW entry of this exercise (e.g. standing single-leg curl → unilateral). */
   defaultVariation?: Partial<Variation>;
+  /** Systemic / local fatigue cost of a typical hard set (Part 5). Absent = derived (see fatigueCostOf). */
+  fatigueCost?: FatigueCost;
   custom?: boolean;
 }
 
