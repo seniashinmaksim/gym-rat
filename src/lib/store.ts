@@ -19,7 +19,8 @@ export interface StoreState {
 }
 
 type ArrayField = Exclude<keyof AppData, 'settings'>;
-const FIELD: Record<Exclude<RecordKind, 'settings'>, ArrayField> = {
+type EntityKind = Exclude<RecordKind, 'settings' | 'draft'>;
+const FIELD: Record<EntityKind, ArrayField> = {
   workout: 'workouts',
   location: 'locations',
   equipment: 'equipment',
@@ -39,6 +40,10 @@ class Store {
   private header: VaultHeader | null = null;
   private listeners = new Set<() => void>();
   private photoUrls = new Map<string, string>();
+  /** Unsaved form drafts (encrypted at rest, loaded on unlock, dropped from memory on lock). */
+  private drafts = new Map<string, unknown>();
+  /** Run synchronously right before the key is dropped (flush pending edits while it is still there). */
+  private beforeLock = new Set<() => void>();
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -81,6 +86,7 @@ class Store {
     this.key = dek;
     const settings = migrateSettings(undefined);
     await db.putRecord(dek, 'settings', 'settings', settings);
+    this.drafts.clear();
     this.set({ status: 'unlocked', data: emptyData(settings), error: null });
   }
 
@@ -90,13 +96,41 @@ class Store {
     this.requestPersistence();
     this.key = key;
     const data = await this.loadAll(key);
+    this.drafts = new Map((await db.loadKind<{ id: string; value: unknown }>(key, 'draft')).map((d) => [d.id, d.value]));
     this.set({ status: 'unlocked', data, error: null });
+  }
+
+  // ---- drafts: typed-but-unsaved form input survives navigation, reload and the vault lock (encrypted)
+  getDraft<T>(id: string): T | undefined {
+    return this.drafts.get(id) as T | undefined;
+  }
+  async saveDraft(id: string, value: unknown) {
+    const key = this.key;
+    if (!key) return;
+    this.drafts.set(id, value);
+    await this.chainDraft(id, async () => db.putRecord(key, 'draft', await draftRecordId(id), { id, value }));
+  }
+  async clearDraft(id: string) {
+    this.drafts.delete(id);
+    await this.chainDraft(id, async () => db.deleteRecord('draft', await draftRecordId(id)));
+  }
+  /** Writes and deletes of one draft run in order (a delete can never be overtaken by an earlier write). */
+  private draftQueue = new Map<string, Promise<unknown>>();
+  private chainDraft(id: string, op: () => Promise<unknown>) {
+    const next = (this.draftQueue.get(id) ?? Promise.resolve()).catch(() => undefined).then(op);
+    this.draftQueue.set(id, next);
+    return next;
+  }
+  /** Register a flush to run right before locking; returns the unregister function. */
+  onBeforeLock(fn: () => void): () => void {
+    this.beforeLock.add(fn);
+    return () => this.beforeLock.delete(fn);
   }
 
   private async loadAll(key: CryptoKey): Promise<AppData> {
     const [settings] = await db.loadKind<Settings>(key, 'settings');
     const data = emptyData(migrateSettings(settings));
-    for (const [kind, field] of Object.entries(FIELD) as [Exclude<RecordKind, 'settings'>, ArrayField][]) {
+    for (const [kind, field] of Object.entries(FIELD) as [EntityKind, ArrayField][]) {
       (data[field] as unknown[]) = await db.loadKind(key, kind);
     }
     data.workouts.sort((a, b) => a.date.localeCompare(b.date) || (a.startTime ?? '').localeCompare(b.startTime ?? ''));
@@ -104,7 +138,12 @@ class Store {
   }
 
   lock() {
+    // Pending edits (debounced saves, open drafts) are written while the key is still available.
+    for (const f of [...this.beforeLock]) {
+      try { f(); } catch { /* a flush must never block locking */ }
+    }
     this.key = null;
+    this.drafts.clear();
     for (const u of this.photoUrls.values()) URL.revokeObjectURL(u);
     this.photoUrls.clear();
     this.set({ status: this.header ? 'locked' : 'new', data: null });
@@ -126,11 +165,12 @@ class Store {
     return this.key;
   }
 
-  private async putEntity<T extends { id: string }>(kind: Exclude<RecordKind, 'settings'>, item: T) {
+  private async putEntity<T extends { id: string }>(kind: EntityKind, item: T) {
     const key = this.requireKey();
     await db.putRecord(key, kind, item.id, item);
     const field = FIELD[kind];
-    const data = this.state.data!;
+    const data = this.state.data;
+    if (!data) return; // locked meanwhile: the encrypted record is written; memory was cleared
     const arr = data[field] as unknown as T[];
     const idx = arr.findIndex((x) => x.id === item.id);
     const next = idx >= 0 ? arr.map((x, i) => (i === idx ? item : x)) : [...arr, item];
@@ -138,15 +178,18 @@ class Store {
     this.set({ data: { ...data, [field]: next } });
   }
 
-  private async removeEntity(kind: Exclude<RecordKind, 'settings'>, id: string) {
+  private async removeEntity(kind: EntityKind, id: string) {
     this.requireKey();
     await db.deleteRecord(kind, id);
     const field = FIELD[kind];
-    const data = this.state.data!;
+    const data = this.state.data;
+    if (!data) return;
     this.set({ data: { ...data, [field]: (data[field] as { id: string }[]).filter((x) => x.id !== id) } });
   }
 
   saveWorkout = (w: Workout) => this.putEntity('workout', { ...w, updatedAt: new Date().toISOString() });
+  /** Undo of a delete: put the identical record back (timestamps unchanged). */
+  putWorkoutAsIs = (w: Workout) => this.putEntity('workout', w);
   deleteWorkout = (id: string) => this.removeEntity('workout', id);
   saveLocation = (l: Location) => this.putEntity('location', l);
   deleteLocation = (id: string) => this.removeEntity('location', id);
@@ -168,7 +211,7 @@ class Store {
     const key = this.requireKey();
     const settings = { ...this.state.data!.settings, ...patch, id: 'settings' as const };
     await db.putRecord(key, 'settings', 'settings', settings);
-    this.set({ data: { ...this.state.data!, settings } });
+    if (this.state.data) this.set({ data: { ...this.state.data, settings } });
   }
 
   /** Encrypts and stores a photo. Images are downscaled before encryption to keep storage small. */
@@ -209,8 +252,9 @@ class Store {
   async replaceAll(data: AppData, photos: { id: string; bytes: Uint8Array }[]) {
     const key = this.requireKey();
     await db.clearDataKeepHeader();
+    this.drafts.clear();
     const items: { kind: RecordKind; id: string; value: unknown }[] = [{ kind: 'settings', id: 'settings', value: migrateSettings(data.settings) }];
-    for (const [kind, field] of Object.entries(FIELD) as [Exclude<RecordKind, 'settings'>, ArrayField][]) {
+    for (const [kind, field] of Object.entries(FIELD) as [EntityKind, ArrayField][]) {
       for (const it of (data[field] as { id: string }[]) ?? []) items.push({ kind, id: it.id, value: it });
     }
     await db.putRecords(key, items);
@@ -220,10 +264,17 @@ class Store {
 
   async eraseEverything() {
     await db.wipeAll();
+    this.drafts.clear();
     this.header = null;
     this.key = null;
     this.set({ status: 'new', data: null });
   }
+}
+
+/** Opaque record id for a draft: the readable name (which may contain a gym id) stays inside the encrypted value. */
+async function draftRecordId(id: string): Promise<string> {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`gymrat-draft:${id}`)));
+  return `d_${Array.from(h.slice(0, 12), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
 export function emptyData(settings: Settings): AppData {

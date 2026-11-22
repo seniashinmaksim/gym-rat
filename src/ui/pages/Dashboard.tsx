@@ -9,6 +9,7 @@ import { activeWorkout } from '../Layout';
 import type { MuscleId } from '../../domain/types';
 import { effortCoverage, effortDistribution } from '../../domain/effort';
 import { qualitySetTotal } from '../../domain/volume';
+import { mappingSpread } from '../../domain/mappingUncertainty';
 import { latestWeighIn, rollingAverage, weeklyTrend } from '../../domain/bodyweight';
 import { AddBodyWeight } from '../components/AddBodyWeight';
 import { NextWorkoutCard } from '../components/NextWorkout';
@@ -137,8 +138,14 @@ function statusChip(m: MuscleWeek) {
 /** Opened on tap: the plain-language reason, the quality breakdown and the exercises for this muscle. */
 function MuscleDetail({ m }: { m: MuscleWeek }) {
   const a = useAnalysis();
+  const data = useData();
   const names = useNames();
   const st = m.volume.status;
+  // How much this number rests on an exercise mapping the audit left uncertain (shown only when it matters).
+  const spread = useMemo(() => {
+    const week = data.workouts.filter((w) => w.date >= a.week.start && w.date <= a.today);
+    return mappingSpread(week, a.registry, data.settings.quality, data.exerciseOverrides)[m.muscle];
+  }, [data, a, m.muscle]);
   const series = a.progression.filter((p) => (a.registry.get(p.exerciseId)?.contributions[m.muscle] ?? 0) >= 0.75).slice(0, 4);
   return (
     <div className="space-y-3 text-sm">
@@ -155,6 +162,11 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
         <Fact k="Uncertain volume" v={fmt(m.volume.uncertainEffective)} />
       </dl>
       <p className="text-xs text-ink-500">{m.justification}</p>
+      {spread && spread.exerciseIds.length > 0 && spread.high - spread.low >= 0.25 && (
+        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200" data-testid="mapping-spread">
+          Uncertain mapping: {spread.exerciseIds.map((id) => names.ex(a.registry.get(id))).join(', ')}. Counted {fmt(spread.effective)}; plausible {fmt(spread.low)}–{fmt(spread.high)} depending on how much it really trains {names.muscle(m.muscle).toLowerCase()}. Adjust it in Exercise database if you know better.
+        </p>
+      )}
       {series.length > 0 && (
         <ul className="space-y-1.5">
           {series.map((p) => <AdviceRow key={p.key} p={p} />)}

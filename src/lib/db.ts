@@ -19,11 +19,13 @@ export type RecordKind =
   | 'daily'
   | 'block'
   | 'import'
-  | 'snapshot';
+  | 'snapshot'
+  /** Unsaved form drafts (encrypted like everything else; never part of backups or exports). */
+  | 'draft';
 
 export const RECORD_KINDS: RecordKind[] = [
   'settings', 'workout', 'location', 'equipment', 'exerciseOverride', 'customExercise',
-  'photo', 'body', 'daily', 'block', 'import', 'snapshot',
+  'photo', 'body', 'daily', 'block', 'import', 'snapshot', 'draft',
 ];
 
 interface MetaRow { key: string; value: VaultHeader }

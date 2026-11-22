@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { analyze, type Analysis } from '../domain/analysis';
 import type { AppData } from '../domain/appdata';
 import { muscleName } from '../domain/muscles';
@@ -119,4 +119,55 @@ export function usePhotoUrl(id: string | null | undefined) {
     };
   }, [id]);
   return url;
+}
+
+/**
+ * Keeps typed-but-unsaved form input as an ENCRYPTED draft (store kind 'draft'): it survives leaving the
+ * screen, a reload and the vault lock, and is restored when the form opens again. `id = null` disables it
+ * (e.g. editing an existing record). Debounced writes; flushed on hide, unmount and right before a lock.
+ * Never use it for passwords.
+ */
+export function useDraftSync<T>(id: string | null, value: T, active = true, opts: { clearWhenInactive?: boolean } = {}) {
+  const pending = useRef<{ id: string; value: T } | null>(null);
+  const timer = useRef<number | null>(null);
+  const initial = useRef(JSON.stringify(value));
+  const wasActive = useRef(active);
+  const flush = () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    const p = pending.current;
+    pending.current = null;
+    if (p) void store.saveDraft(p.id, p.value).catch(() => undefined);
+  };
+  useEffect(() => {
+    const json = JSON.stringify(value);
+    const becameInactive = wasActive.current && !active;
+    wasActive.current = active;
+    // Emptied by the owner (e.g. all text deleted): the stored draft goes too, when the form asks for it.
+    if (becameInactive && opts.clearWhenInactive && id) {
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = null; pending.current = null;
+      void store.clearDraft(id).catch(() => undefined);
+      return;
+    }
+    if (json === initial.current) return; // the value the form opened with is not an edit (StrictMode-safe)
+    if (!id || !active) return;
+    pending.current = { id, value };
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(flush, 300);
+  }, [id, active, JSON.stringify(value)]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const off = store.onBeforeLock(flush);
+    const hide = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', hide);
+    window.addEventListener('pagehide', flush);
+    return () => { off(); document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', flush); flush(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Drop the draft (after saving or an explicit Cancel). */
+  return () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
+    pending.current = null;
+    if (id) void store.clearDraft(id).catch(() => undefined);
+  };
 }

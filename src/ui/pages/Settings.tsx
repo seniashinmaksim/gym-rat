@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LEVEL_LABEL, MODE_LABEL, readinessReport, type ReadinessLevel } from '../../domain/readiness';
 import { muscleName } from '../../domain/muscles';
+import { ruleChecks, type RuleVerdict } from '../../domain/ruleChecks';
 import { DEFAULT_QUALITY } from '../../domain/defaults';
 import { listTimezones } from '../../domain/dates';
 import { IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION, workoutToExport } from '../../domain/importer';
@@ -57,6 +58,7 @@ export function SettingsPage() {
 
         <LearningCard />
         <PlannerCard />
+        <RuleChecksCard />
 
         <Card>
           <CardTitle>Display</CardTitle>
@@ -228,6 +230,35 @@ function PlannerCard() {
       </ul>
       {keys.length > 6 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${keys.length}`}</Button>}
       {r.dataGaps.length > 0 && <div className="mt-3 text-xs text-ink-500"><span className="font-semibold">Data gaps:</span> {r.dataGaps.join(' · ')}</div>}
+    </Card>
+  );
+}
+
+const VERDICT: Record<RuleVerdict, [string, 'good' | 'neutral' | 'warn' | 'info']> = {
+  supports: ['YOUR DATA AGREE', 'good'], no_clear_difference: ['NO CLEAR DIFFERENCE', 'info'], contradicts: ['YOUR DATA DISAGREE', 'warn'], insufficient: ['NOT ENOUGH DATA', 'neutral'],
+};
+
+/**
+ * The app's rules of thumb (recovery windows, exercise order) checked against the owner's own logged performance.
+ * Observational only — shown, never applied automatically.
+ */
+function RuleChecksCard() {
+  const data = useData();
+  const a = useAnalysis();
+  const checks = useMemo(() => ruleChecks(data, a.registry, a.progression), [data, a]);
+  return (
+    <Card className="lg:col-span-2">
+      <CardTitle hint="Rules of thumb with low-confidence evidence, compared with your own performance. Your data can confirm or question them; the app never changes a rule on its own.">Rules of thumb vs your data</CardTitle>
+      <ul className="divide-y divide-ink-100 text-sm dark:divide-ink-800" data-testid="rule-checks">
+        {checks.map((c) => (
+          <li key={c.id} className="py-2.5">
+            <div className="flex items-center justify-between gap-3"><span className="font-medium text-ink-900 dark:text-white">{c.title}</span><Badge tone={VERDICT[c.verdict][1]}>{VERDICT[c.verdict][0]}</Badge></div>
+            <p className="mt-0.5 text-xs text-ink-500">{c.rule}</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-700 dark:text-ink-200">{c.text}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] text-ink-500">Performance = each session's index on the same exercise and machine vs the median of your previous three sessions there. Observational: fatigue, sleep and exercise choice also play a part.</p>
     </Card>
   );
 }

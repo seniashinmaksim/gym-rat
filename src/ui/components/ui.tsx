@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import type { TargetConfidence } from '../../domain/types';
 import { IconChevronDown, IconInfo, IconX } from './icons';
 
@@ -130,13 +130,13 @@ export function NumInput({ value, onChange, step = 1, min, max, placeholder, cla
 export function Stepper({ value, onChange, step = 1, min = 0, label, suffix }: { value: number | null; onChange: (v: number | null) => void; step?: number; min?: number; label?: string; suffix?: string }) {
   const bump = (d: number) => onChange(Math.max(min, Math.round(((value ?? 0) + d) * 100) / 100));
   return (
-    <div className="flex h-11 items-stretch overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700">
-      <button type="button" aria-label={`Decrease ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl min-[360px]:w-10 text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(-step)}>−</button>
+    <div className="flex h-12 items-stretch overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700">
+      <button type="button" aria-label={`Decrease ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(-step)}>−</button>
       <div className="relative min-w-0 flex-1">
         <NumInput value={value} onChange={onChange} className="h-full rounded-none border-0 px-1 text-base font-semibold focus:ring-0 dark:bg-ink-950" aria-label={label} />
         {suffix && <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-400">{suffix}</span>}
       </div>
-      <button type="button" aria-label={`Increase ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl min-[360px]:w-10 text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700" onClick={() => bump(step)}>+</button>
+      <button type="button" aria-label={`Increase ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(step)}>+</button>
     </div>
   );
 }
@@ -259,8 +259,61 @@ export function Callout({ tone = 'info', title, children, icon }: { tone?: 'info
   );
 }
 
+// ---------------------------------------------------------------- Back gesture closes the open sheet
+
+/**
+ * The phone's back gesture / browser Back closes the top-most open sheet instead of leaving the page.
+ * Opening a sheet pushes ONE marked history entry (same URL); it is reused by the next sheet and never
+ * removed with history.back() on a normal close (that would race with a navigation right after closing).
+ * Instead, a Back press that would only land on a same-page entry (or a left-over marked entry) is
+ * passed straight through, so Back never has to be pressed twice.
+ */
+const backStack: { close: () => void }[] = [];
+const MARK = 'gymratSheet';
+const isMark = (st: unknown) => !!(st as Record<string, unknown> | null)?.[MARK];
+let onMark = typeof window !== 'undefined' && isMark(window.history.state);
+let markHref = onMark && typeof window !== 'undefined' ? window.location.href : '';
+let backListening = false;
+function pushMark() {
+  window.history.pushState({ ...(window.history.state ?? {}), [MARK]: true }, '');
+  onMark = true;
+  markHref = window.location.href;
+}
+function onBackPop(e: PopStateEvent) {
+  const wasMark = onMark;
+  const fromHref = markHref;
+  onMark = isMark(e.state);
+  const top = backStack[backStack.length - 1];
+  if (top) {
+    top.close();
+    if (backStack.length > 1) pushMark(); // a sheet below is still open: it gets its own entry again
+    return;
+  }
+  // No sheet open: skip entries that would show the same page again (left by a sheet closed earlier).
+  if (onMark || (wasMark && window.location.href === fromHref)) window.history.back();
+}
+export function registerBackClose(close: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  if (!backListening) { window.addEventListener('popstate', onBackPop); backListening = true; }
+  const entry = { close };
+  backStack.push(entry);
+  if (!isMark(window.history.state)) pushMark();
+  else { onMark = true; markHref = window.location.href; }
+  return () => {
+    const i = backStack.indexOf(entry);
+    if (i >= 0) backStack.splice(i, 1);
+  };
+}
+/** Hook form: while `open`, Back calls `onClose` (latest version). */
+export function useBackToClose(open: boolean, onClose: () => void) {
+  const ref = useRef(onClose);
+  ref.current = onClose;
+  useEffect(() => (open ? registerBackClose(() => ref.current()) : undefined), [open]);
+}
+
 export function Modal({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const id = useId();
+  useBackToClose(open, onClose);
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -316,29 +369,48 @@ export function fmt(n: number | null | undefined, digits = 1): string {
   return String(Number(r.toFixed(digits)));
 }
 
-/** Tiny toast system. */
-let toastFn: ((t: { msg: string; tone?: 'good' | 'bad' | 'info' }) => void) | null = null;
-export function toast(msg: string, tone: 'good' | 'bad' | 'info' = 'good') {
-  toastFn?.({ msg, tone });
+/** Tiny toast system. A toast with `undo` shows an Undo button and stays ~7 s (one tap to reverse). */
+type ToastItem = { id: number; msg: string; tone?: 'good' | 'bad' | 'info'; undo?: () => unknown };
+let toastFn: ((t: Omit<ToastItem, 'id'>) => void) | null = null;
+export function toast(msg: string, tone: 'good' | 'bad' | 'info' = 'good', opts?: { undo?: () => unknown }) {
+  toastFn?.({ msg, tone, ...(opts?.undo ? { undo: opts.undo } : {}) });
+}
+/** Shorthand: a neutral confirmation with Undo. `undo` may return false = nothing could be undone. */
+export function undoToast(msg: string, undo: () => unknown) {
+  toast(msg, 'info', { undo });
 }
 export function Toaster() {
-  const [items, setItems] = useState<{ id: number; msg: string; tone?: string }[]>([]);
+  const [items, setItems] = useState<ToastItem[]>([]);
   useEffect(() => {
     toastFn = (t) => {
       const id = Date.now() + Math.random();
-      setItems((x) => [...x, { id, ...t }]);
-      setTimeout(() => setItems((x) => x.filter((i) => i.id !== id)), 3200);
+      // A new undo toast replaces an older one (only the latest action can be undone from here).
+      setItems((x) => [...(t.undo ? x.filter((i) => !i.undo) : x), { id, ...t }].slice(-3));
+      setTimeout(() => setItems((x) => x.filter((i) => i.id !== id)), t.undo ? 7000 : 3200);
     };
     return () => {
       toastFn = null;
     };
   }, []);
+  const run = async (t: ToastItem) => {
+    setItems((x) => x.filter((i) => i.id !== t.id));
+    try {
+      const r = await t.undo?.();
+      toast(r === false ? 'Nothing to undo — it has changed since' : 'Undone', 'info');
+    } catch (e) {
+      toast(`Could not undo: ${(e as Error).message}`, 'bad');
+    }
+  };
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[8.5rem] z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
       {items.map((t) => (
-        <div key={t.id} className={cx('pointer-events-auto rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg',
+        <div key={t.id} data-testid="toast" role="status" className={cx('pointer-events-auto flex max-w-md items-center gap-3 rounded-xl py-1.5 pl-4 text-sm font-medium shadow-lg',
+          t.undo ? 'pr-1.5' : 'min-h-[40px] pr-4',
           t.tone === 'bad' ? 'bg-rose-600 text-white' : t.tone === 'info' ? 'bg-ink-800 text-white' : 'bg-emerald-600 text-white')}>
-          {t.msg}
+          <span className="min-w-0 py-1">{t.msg}</span>
+          {t.undo && (
+            <button type="button" onClick={() => void run(t)} className="h-11 shrink-0 rounded-lg bg-white/15 px-4 font-semibold text-accent-300 active:bg-white/25">Undo</button>
+          )}
         </div>
       ))}
     </div>

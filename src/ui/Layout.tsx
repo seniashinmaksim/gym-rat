@@ -6,7 +6,7 @@ import {
   IconBook, IconCalendar, IconDashboard, IconFlask, IconHeart, IconImport, IconLayers, IconLock, IconMachine, IconMoon,
   IconMore, IconMuscle, IconPlus, IconReport, IconScale, IconSettings, IconSun, IconTimer, IconTrend, IconX,
 } from './components/icons';
-import { cx } from './components/ui';
+import { cx, useBackToClose } from './components/ui';
 import { applyTheme, useAutoLock } from './hooks';
 
 type NavItem = { to: string; label: string; short?: string; icon: (p: { size?: number }) => JSX.Element };
@@ -45,6 +45,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const data = useData();
   const [more, setMore] = useState(false);
   const loc = useLocation();
+  useBackToClose(more, () => setMore(false));
   useAutoLock(data.settings.autoLockMinutes);
   useEffect(() => applyTheme(data.settings.theme), [data.settings.theme]);
   useEffect(() => {
@@ -90,7 +91,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-ink-200 bg-ink-50/85 px-3 py-1.5 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 lg:hidden" style={{ paddingTop: 'max(6px, env(safe-area-inset-top))' }}>
+      <header className="sticky top-0 z-30 flex items-center [@media(max-height:500px)]:static justify-between border-b border-ink-200 bg-ink-50/85 px-3 py-1.5 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 lg:hidden" style={{ paddingTop: 'max(6px, env(safe-area-inset-top))' }}>
         <Brand small />
         <div className="flex">
           <button onClick={toggleTheme} className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 active:bg-ink-200 dark:active:bg-ink-800" aria-label="Toggle theme">{isDark ? <IconSun size={20} /> : <IconMoon size={20} />}</button>
@@ -98,7 +99,18 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1">
+        {/* An unfinished live workout can be resumed from every screen (one tap). */}
+        {active && !loc.pathname.startsWith('/log') && (
+          <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
+            <NavLink to={logTo} className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-accent-500/40 bg-accent-500/10 px-4 py-2" data-testid="resume-banner">
+              <span className="min-w-0 truncate text-sm"><b className="font-semibold text-ink-900 dark:text-white">Workout in progress</b><span className="text-ink-500"> · started {active.startTime ?? ''}</span></span>
+              <span className="flex h-10 shrink-0 items-center rounded-xl bg-accent-500 px-4 text-sm font-semibold text-ink-950">Resume</span>
+            </NavLink>
+          </div>
+        )}
+        {children}
+      </main>
 
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-200 bg-white/90 backdrop-blur-md dark:border-ink-800 dark:bg-ink-900/90 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>

@@ -8,9 +8,13 @@ import type { PlanDecision, PlanDecisionReason, Variation } from '../../domain/t
 import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { activeWorkout } from '../Layout';
-import { useAnalysis, useNames } from '../hooks';
+import { useAnalysis, useDraftSync, useNames } from '../hooks';
 import { Badge, Button, Card, cx, fmt, Select, toast, Why } from './ui';
 
+interface PlanDraft {
+  date: string; loc: string | null; exclude: string[]; force: { exerciseId: string; equipmentId: string | null; variation?: Variation }[];
+  skipped: string[]; edits: Record<string, ItemEdit>; decisions: PlanDecision[]; replaced: { from: string; to: string }[];
+}
 const REASONS: [PlanDecisionReason, string][] = [['busy', 'Machine busy'], ['time', 'No time'], ['preference', 'Prefer another'], ['pain', 'Pain']];
 const restText = (r: [number, number]) => { const f = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`; return r[0] === r[1] ? f(r[0]) : `${f(r[0])}–${f(r[1])}`; };
 
@@ -27,12 +31,19 @@ export function NextWorkoutCard() {
   const nav = useNavigate();
   const readiness = useMemo(() => readinessReport(data, a), [data, a]);
   const lastLoc = [...data.workouts].sort((x, y) => y.date.localeCompare(x.date)).find((w) => w.locationId)?.locationId ?? data.locations[0]?.id ?? null;
-  const [loc, setLoc] = useState<string | null>(lastLoc);
-  const [exclude, setExclude] = useState<string[]>([]);
-  const [force, setForce] = useState<{ exerciseId: string; equipmentId: string | null; variation?: Variation }[]>([]);
-  const [skipped, setSkipped] = useState<string[]>([]);
-  const [edits, setEdits] = useState<Record<string, ItemEdit>>({});
-  const [decisions, setDecisions] = useState<PlanDecision[]>([]);
+  // Plan edits made before Start are kept for today as an encrypted draft (leaving the screen, reload, lock).
+  const today = localNowParts(data.settings.timezone).date;
+  const saved = useMemo(() => { const d = store.getDraft<PlanDraft>('plan'); return d && d.date === today ? d : null; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [loc, setLoc] = useState<string | null>(saved?.loc ?? lastLoc);
+  const [exclude, setExclude] = useState<string[]>(saved?.exclude ?? []);
+  const [force, setForce] = useState<{ exerciseId: string; equipmentId: string | null; variation?: Variation }[]>(saved?.force ?? []);
+  const [skipped, setSkipped] = useState<string[]>(saved?.skipped ?? []);
+  const [edits, setEdits] = useState<Record<string, ItemEdit>>(saved?.edits ?? {});
+  const [decisions, setDecisions] = useState<PlanDecision[]>(saved?.decisions ?? []);
+  const [replaced, setReplaced] = useState<{ from: string; to: string }[]>(saved?.replaced ?? []);
+  const touched = skipped.length + replaced.length + Object.keys(edits).length > 0 || loc !== lastLoc;
+  const clearPlanDraft = useDraftSync<PlanDraft>('plan', { date: today, loc, exclude, force, skipped, edits, decisions, replaced }, touched);
+  const reset = () => { setExclude([]); setForce([]); setSkipped([]); setEdits({}); setDecisions([]); setReplaced([]); clearPlanDraft(); };
   const [showLearning, setShowLearning] = useState(false);
   const [openItem, setOpenItem] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<string | null>(null);
@@ -59,6 +70,7 @@ export function NextWorkoutCard() {
       const ds = [...decisions, ...Object.keys(edits).filter((id) => plan.items.some((it) => it.exerciseId === id)).map((id): PlanDecision => ({ action: 'edited', exerciseId: id, at: new Date().toISOString() }))];
       const w = workoutFromPlan(plan, { id: uid('w'), date: now.date, startTime: now.time, nowIso: new Date().toISOString(), uid: () => uid('s') }, byOrder, ds);
       await store.saveWorkout(w);
+      clearPlanDraft();
       if (!data.settings.learning.startDate) await store.saveSettings({ learning: { ...data.settings.learning, startDate: now.date } });
       nav(`/log/${w.id}`);
     } catch {
@@ -93,7 +105,7 @@ export function NextWorkoutCard() {
         {learning && <p className="text-xs text-amber-700 dark:text-amber-300">PROVISIONAL suggestions — still learning ({readiness.next.join(' · ')}).</p>}
         {mode === 'provisional' && readiness.next.length > 0 && <p className="text-xs text-ink-500">Full adaptive after: {readiness.next.join(' · ')}</p>}
         {data.locations.length > 1 && (
-          <Select aria-label="Gym" value={loc ?? ''} onChange={(e) => { setLoc(e.target.value || null); setExclude([]); setForce([]); setSkipped([]); setEdits({}); }}>
+          <Select aria-label="Gym" value={loc ?? ''} onChange={(e) => { setLoc(e.target.value || null); setExclude([]); setForce([]); setSkipped([]); setEdits({}); setReplaced([]); }}>
             {data.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </Select>
         )}
@@ -116,6 +128,7 @@ export function NextWorkoutCard() {
               exName={(id) => names.ex(a.registry.get(id))}
               onPickReplacement={(o) => {
                 decide({ action: 'replaced', exerciseId: it.exerciseId, equipmentId: it.equipmentId, replacement: { exerciseId: o.exerciseId, equipmentId: o.equipmentId }, reason });
+                setReplaced((r) => [...r, { from: it.exerciseId, to: o.exerciseId }]);
                 setExclude((x) => [...x, it.exerciseId]);
                 setForce((f) => [...f, { exerciseId: o.exerciseId, equipmentId: o.equipmentId, variation: o.variation }]);
                 setReplacing(null); setOpenItem(null); setReason(null);
@@ -124,6 +137,23 @@ export function NextWorkoutCard() {
         </ol>
       )}
       <div className="space-y-2 px-4 pb-4 pt-2 sm:px-5">
+        {(skipped.length > 0 || replaced.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5" data-testid="plan-changes">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Changed</span>
+            {skipped.map((id) => (
+              <button key={`s-${id}`} type="button" aria-label={`Bring back ${names.ex(a.registry.get(id))}`} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
+                onClick={() => { setSkipped((s) => s.filter((x) => x !== id)); setDecisions((ds) => ds.filter((d) => !(d.action === 'skipped' && d.exerciseId === id))); }}>↺ {names.ex(a.registry.get(id))} <span className="text-ink-400">skipped</span></button>
+            ))}
+            {replaced.map((r) => (
+              <button key={`r-${r.from}`} type="button" aria-label={`Undo replacing ${names.ex(a.registry.get(r.from))}`} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
+                onClick={() => {
+                  setExclude((x) => x.filter((y) => y !== r.from)); setForce((f) => f.filter((y) => y.exerciseId !== r.to)); setReplaced((xs) => xs.filter((y) => y !== r));
+                  setDecisions((ds) => ds.filter((d) => !(d.action === 'replaced' && d.exerciseId === r.from)));
+                }}>↺ {names.ex(a.registry.get(r.from))} <span className="text-ink-400">→ {names.ex(a.registry.get(r.to))}</span></button>
+            ))}
+            <button type="button" className="h-11 px-2 text-xs font-medium text-ink-500 underline decoration-dotted underline-offset-2" onClick={reset}>Reset plan</button>
+          </div>
+        )}
         {gen.skippedMuscles.length > 0 && <p className="text-xs text-ink-500">Not today: {gen.skippedMuscles.slice(0, 5).map((s) => `${names.muscle(s.muscle).toLowerCase()} (${s.reason})`).join(' · ')}</p>}
         {items.length > 0 && <Button variant="primary" size="lg" className="w-full" disabled={busy} onClick={start}>Start</Button>}
         <Why label="How this was planned">

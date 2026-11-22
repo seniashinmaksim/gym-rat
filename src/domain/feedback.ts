@@ -165,6 +165,14 @@ export function withCorrections(original: Workout, current: Workout, at: string,
     }),
   }));
   const notes: { at: string; note: string }[] = [];
+  // Exercise or machine corrected on a card (sets moved with it): recorded, never silent.
+  for (const e of current.exercises) {
+    const o = original.exercises.find((x) => x.id === e.id);
+    if (!o) continue;
+    const n = e.sets.filter((s) => !s.planned).length;
+    if (o.exerciseId !== e.exerciseId) notes.push({ at, note: `Exercise corrected: ${describe(o.exerciseId)} → ${describe(e.exerciseId)} (${n} set${n === 1 ? '' : 's'})` });
+    if ((o.equipmentId ?? null) !== (e.equipmentId ?? null)) notes.push({ at, note: `Machine corrected on ${describe(e.exerciseId)}: ${o.equipmentId ?? 'none'} → ${e.equipmentId ?? 'none'}` });
+  }
   for (const e of original.exercises) for (const s of e.sets) {
     if (seen.has(s.id) || s.planned) continue;
     notes.push({ at, note: `Removed ${s.type} set from ${describe(e.exerciseId)}: ${s.weightKg ?? '?'} kg × ${s.reps ?? '?'}${s.rir != null ? ` @ RIR ${s.rir}` : ''}` });

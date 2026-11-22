@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../domain/dates';
 import { effectiveVariation, variationParts } from '../../domain/progression';
@@ -10,7 +10,7 @@ import { slugId, uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconCheck, IconCopy, IconImport } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, cx, Field, fmt, Input, Page, Select, TextArea, toast, Why } from '../components/ui';
-import { useAnalysis, useNames } from '../hooks';
+import { useAnalysis, useDraftSync, useNames } from '../hooks';
 
 const EXAMPLE = `{
   "schema": "${IMPORT_SCHEMA_ID}",
@@ -37,10 +37,23 @@ export function ImportPage() {
   const data = useData();
   const a = useAnalysis();
   const nav = useNavigate();
-  const [text, setText] = useState('');
+  const kept = useMemo(() => {
+    const k = store.getDraft<{ text: string; drafts: ImportDraft[] }>('import');
+    if (!k) return k;
+    // Re-check duplicates against what is saved NOW (something may have been imported since the draft).
+    const drafts = k.drafts.map((d) => {
+      const dup = data.imports.find((i) => i.hash === d.hash)?.workoutId ?? data.workouts.find((w) => w.importHash === d.hash || w.id === d.workout.id)?.id
+        ?? (d.workout.clientRef ? data.workouts.find((w) => w.clientRef === d.workout.clientRef)?.id : undefined) ?? null;
+      return dup && !d.duplicateOf ? { ...d, duplicateOf: dup } : d;
+    });
+    return { ...k, drafts };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [text, setText] = useState(kept?.text ?? '');
   const [errors, setErrors] = useState<string[]>([]);
-  const [drafts, setDrafts] = useState<ImportDraft[]>([]);
+  const [drafts, setDrafts] = useState<ImportDraft[]>(kept?.drafts ?? []);
   const [busy, setBusy] = useState(false);
+  // Pasted JSON and the corrections made while reviewing are kept (encrypted) until saved or cancelled.
+  const clearImportDraft = useDraftSync('import', { text, drafts }, !!(text.trim() || drafts.length), { clearWhenInactive: true });
 
   const validate = async (src = text) => {
     setErrors([]);
@@ -88,6 +101,7 @@ export function ImportPage() {
       toast(`${saved} workout${saved === 1 ? '' : 's'} imported`);
       setDrafts([]);
       setText('');
+      clearImportDraft();
       if (saved) nav('/');
     } finally {
       setBusy(false);
@@ -143,7 +157,7 @@ export function ImportPage() {
         <div className="sticky bottom-20 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-ink-800 dark:bg-ink-900/95 lg:bottom-4">
           <span className="text-sm text-ink-600 dark:text-ink-300">{blocked ? 'Resolve the red items before saving.' : `${drafts.length} workout${drafts.length === 1 ? '' : 's'} ready.`}</span>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setDrafts([])}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setDrafts([]); setText(''); clearImportDraft(); }}>Cancel</Button>
             <Button variant="primary" onClick={saveAll} disabled={busy || drafts.every((d) => draftBlockers(d).length > 0)}><IconCheck size={16} />Save {blocked ? 'valid ones' : 'all'}</Button>
           </div>
         </div>

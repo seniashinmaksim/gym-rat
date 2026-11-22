@@ -7,12 +7,12 @@ import { monthlyBodyReport, weeklyWeightAverages } from '../../domain/reports';
 import type { BodyMeasurement, Photo } from '../../domain/types';
 import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
-import { IconCamera, IconPlus, IconScale, IconTrash } from '../components/icons';
+import { IconCamera, IconEdit, IconPlus, IconScale, IconTrash } from '../components/icons';
 import { PhotoThumb, PhotoViewer } from '../components/PhotoGrid';
 import {
-  Badge, Button, Card, CardTitle, Empty, Field, Input, NumInput, Page, Segmented, Select, Stat, Table, Td, TextArea, fmt, toast,
+  Badge, Button, Card, CardTitle, Empty, Field, Input, NumInput, Page, Segmented, Select, Stat, Table, Td, TextArea, fmt, toast, undoToast,
 } from '../components/ui';
-import { useAnalysis, usePhotoUrl } from '../hooks';
+import { useAnalysis, useDraftSync, usePhotoUrl } from '../hooks';
 
 type FieldKey = 'weightKg' | 'waistCm' | 'chestCm' | 'shouldersCm' | 'armsCm' | 'forearmsCm' | 'thighsCm' | 'calvesCm';
 const FIELDS: { key: FieldKey; label: string; ru: string; unit: string; step: number }[] = [
@@ -39,6 +39,7 @@ export function BodyPage() {
   const monthlyRate = last28.length >= 2 ? ((last28[last28.length - 1].avg - last28[0].avg) / Math.max(1, diffDays(last28[last28.length - 1].week, last28[0].week))) * 30 : null;
   const latestWaist = [...sorted].reverse().find((b) => b.waistCm != null)?.waistCm ?? null;
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<BodyMeasurement | null>(null);
   const last = latestWeighIn(data.body);
   const todayN = weighInsOn(data.body, a.today).length;
   const avg7 = rollingAverage(data.body, a.today);
@@ -48,6 +49,7 @@ export function BodyPage() {
     <Page title="Body" subtitle="Encrypted on this device"
       actions={<><Button variant="primary" onClick={() => setAddOpen(true)}><IconPlus size={16} />Body weight</Button><Segmented value={tab} onChange={setTab} options={[{ value: 'overview', label: 'Overview' }, { value: 'log', label: 'Log' }, { value: 'photos', label: 'Photos' }]} /></>}>
       <AddBodyWeight open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddBodyWeight open={!!editing} entry={editing} extraFields={FIELDS.filter((f) => f.key !== 'weightKg') as never} onClose={() => setEditing(null)} />
 
       {tab === 'overview' && (
         <>
@@ -100,10 +102,16 @@ export function BodyPage() {
                     <Td right={false}>{formatDate(b.date)}{b.time ? <span className="ml-1 tabular-nums text-ink-500">{b.time}</span> : null}{b.notes ? <span title={b.notes} className="ml-1 text-ink-400">✎</span> : null}</Td>
                     {FIELDS.map((f) => <Td key={f.key}>{fmt(b[f.key])}</Td>)}
                     <Td>
-                      <button type="button" aria-label="Delete measurement" className="rounded-lg p-1 text-ink-400 hover:bg-rose-500/10 hover:text-rose-600"
-                        onClick={async () => { if (window.confirm(`Delete the ${b.date} entry?`)) { await store.deleteBody(b.id); toast('Entry deleted'); } }}>
-                        <IconTrash size={14} />
-                      </button>
+                      <span className="inline-flex">
+                        <button type="button" aria-label={`Edit entry ${b.date}`} className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700 dark:hover:bg-ink-800"
+                          onClick={() => setEditing(b)}>
+                          <IconEdit size={15} />
+                        </button>
+                        <button type="button" aria-label="Delete measurement" className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-400 hover:bg-rose-500/10 hover:text-rose-600"
+                          onClick={async () => { await store.deleteBody(b.id); undoToast(`Entry from ${b.date} deleted`, () => store.saveBody(b)); }}>
+                          <IconTrash size={15} />
+                        </button>
+                      </span>
                     </Td>
                   </tr>
                 ))}
@@ -120,12 +128,15 @@ export function BodyPage() {
 
 function MeasurementForm({ today }: { today: string }) {
   const data = useData();
-  const [date, setDate] = useState(today);
-  const [time, setTime] = useState(() => localNowParts(data.settings.timezone).time);
-  const [vals, setVals] = useState<Partial<Record<FieldKey, number | null>>>({});
-  const [notes, setNotes] = useState('');
+  const kept = useMemo(() => store.getDraft<{ date: string; time: string; vals: Partial<Record<FieldKey, number | null>>; notes: string }>('measurement:new'), []);
+  const [date, setDate] = useState(kept?.date ?? today);
+  const [time, setTime] = useState(() => kept?.time ?? localNowParts(data.settings.timezone).time);
+  const [vals, setVals] = useState<Partial<Record<FieldKey, number | null>>>(kept?.vals ?? {});
+  const [notes, setNotes] = useState(kept?.notes ?? '');
   const [busy, setBusy] = useState(false);
   const any = Object.values(vals).some((v) => v != null);
+  const clearMeasDraft = useDraftSync('measurement:new', { date, time, vals, notes }, any || !!notes.trim(), { clearWhenInactive: true });
+  const [restored, setRestored] = useState(!!kept);
 
   const save = async () => {
     if (!any) return toast('Enter at least one measurement', 'bad');
@@ -136,7 +147,9 @@ function MeasurementForm({ today }: { today: string }) {
       await store.saveBody(rec);
       setVals({});
       setNotes('');
-      toast('Measurement saved');
+      clearMeasDraft();
+      setRestored(false);
+      undoToast('Measurement saved', () => store.deleteBody(rec.id));
     } finally {
       setBusy(false);
     }
@@ -145,6 +158,12 @@ function MeasurementForm({ today }: { today: string }) {
   return (
     <Card>
       <CardTitle hint="Leave anything you didn't measure empty — nothing is filled in for you.">New measurement</CardTitle>
+      {restored && (
+        <p className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs text-accent-700 dark:text-accent-300" data-testid="draft-restored">
+          <span>Unsaved measurement restored (date {date} {time}) — check the date before saving.</span>
+          <button type="button" className="min-h-[36px] px-2 font-semibold" onClick={() => { clearMeasDraft(); setRestored(false); setVals({}); setNotes(''); setDate(today); setTime(localNowParts(data.settings.timezone).time); }}>Discard</button>
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Field label="Date"><Input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} /></Field>
         <Field label="Time"><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>

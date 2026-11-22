@@ -321,6 +321,18 @@ Rules specific to these movements:
 
 ---
 
+## K. Editing, undo, drafts and navigation (UX audit 2026-11-22)
+
+- **Every entered value stays editable.** Live logger: weight / reps / RIR / failure / feel / side / set type / rest / setup / notes / session date, time, gym / wellness; a ticked set unticks with a second tap (after the 1.5 s double-tap guard). A wrong exercise is corrected with **Change exercise** on the card: performed sets are kept, only the exercise changes (machine kept only if linked to the new exercise); nothing performed yet → a fresh card with a new plan. The machine and the recorded variation values the new exercise also uses are kept; on a finished workout the change is written to the audit trail ("Exercise corrected: X → Y (n sets)"). Finished workouts: History → Edit (corrections audit trail, section G). Weigh-ins / measurements: Body → Log → ✎ (date, time, condition, note, every value). Imports, equipment, overrides, settings and plan edits before Start are editable as before.
+- **Undo instead of blocking dialogs** for destructive or accidental actions: remove set, remove exercise, Skip, Done, Later, Machine busy, Replace, Apply (remaining sets), delete weigh-in, empty Finish. A short toast with **Undo** (~7 s) restores exactly what changed; an undo never discards sets performed after the action, never puts unticked sets into a finished workout, says "Nothing to undo" when things changed since, and reaches the workout even if it was closed and re-opened meanwhile. Deleting a WHOLE workout (logger or History) still asks first — rare and costly — and then also offers Undo. **Finish** by mistake → "Back to workout" in the summary restores the live session (planned sets included). Permanent photo deletion still asks first (encrypted bytes are removed).
+- **Nothing typed is lost:** live-logger edits autosave (debounced 350 ms) and are flushed on hide, unmount and **right before the vault locks** (`store.onBeforeLock`). Unsaved form input (new weigh-in, new measurement, new machine, import text and review, plan edits before Start) is kept as an ENCRYPTED draft (`store` kind `draft`, hook `useDraftSync`) until saved or cancelled — it survives leaving the screen, reload and lock, is never part of backups/exports, has an opaque record id, and passwords are never drafted. Cancel discards a draft; ✕ / Back keeps it.
+- **Back gesture:** the phone's back gesture / browser Back closes the top-most sheet (picker, forms, More) instead of leaving the workout (`registerBackClose` in `ui.tsx`). An unfinished live workout shows **Resume** on every other screen.
+- **During training:** set-row controls are ≥ 44 × 44 px on 390 / 430 px phones (375 px: stepper ± 40 px wide, RIR chips ≈ 42 px — the row cannot fit more); the set to do next is marked ("Next set", data-current); the rest timer never covers a focused field (it scrolls the field above itself); in landscape the header and the remaining-sets strip stop being sticky.
+- **Covering the stated limitations:** (1) uncertain exercise mappings — `mappingRanges.ts` holds the plausible range the audit text gives for each uncertain coefficient (never invented; 3 uncertain exercises have none); the Week screen shows "counted x; plausible a–b" when a muscle's weekly number depends on one, and the logger marks such credits "(a–b?)". The counted value is still the library value / the owner's override. (2) rules of thumb — `ruleChecks.ts` compares the recovery-window and exercise-order heuristics with the owner's OWN performance (each session vs the median of the previous three on the same exercise × machine; ≥ 6 sessions per side; < 2 % = no clear difference). Settings → "Rules of thumb vs your data" shows the verdict; the app never changes a rule automatically (observational, confounded).
+- Tests: `tests/ux-store.test.ts` (pre-lock flush, encrypted drafts, identical undo), `tests/ux-limitations.test.ts` (ranges, spread by hand, rule-check verdicts), `e2e/ux-recovery.spec.ts` (mistakes-and-recovery journey, tap targets, landscape, plan / import drafts, 4 WebKit viewports).
+
+---
+
 ## Developer notes
 
 ### Architecture
@@ -346,6 +358,7 @@ src/
     fatigue.ts     fatigue cost, session load          exerciseChoice.ts  choice assistant, alternatives, safety
     readiness.ts   operating modes, calibration       planner.ts   adaptive planner, live re-assessment
     volumeResponse.ts  per-muscle volume decisions (E.10)
+    ruleChecks.ts  rules of thumb vs the owner's data   mappingUncertainty.ts  volume ranges for uncertain mappings
   data/scientific-evidence/  verified references, per-muscle/exercise evidence, tempo model, rule registry
   data/exercises.ts  seed exercise library (EN/RU, aliases, coefficients)
   lib/

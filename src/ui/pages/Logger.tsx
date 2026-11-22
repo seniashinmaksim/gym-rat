@@ -10,7 +10,7 @@ import type { Effort, Equipment, ExecutionFeedback, FailureStatus, EquipmentKind
 import { sessionMuscleEffective } from '../../domain/volume';
 import { slugId, uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
-import { IconCheck, IconChevronDown, IconPlus, IconSearch, IconTimer, IconTrash } from '../components/icons';
+import { IconCheck, IconChevronDown, IconEdit, IconPlus, IconSearch, IconTimer, IconTrash } from '../components/icons';
 import { EquipmentPicker } from '../components/EquipmentPicker';
 import { EquipmentForm } from './Equipment';
 import { loadStep } from '../../domain/increments';
@@ -21,11 +21,12 @@ import { AddBodyWeight } from '../components/AddBodyWeight';
 import { EXECUTION_FEEDBACK, tempoFor } from '../../data/scientific-evidence/tempo';
 import { measuredRestSec, summarizeSession, type SessionSummary } from '../../domain/sessionSummary';
 import { adaptRemaining, prescribe, PRESCRIPTION_ENGINE, toSetPrescription, type Prescription } from '../../domain/prescription';
-import { Badge, Button, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, Why } from '../components/ui';
+import { Badge, Button, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, undoToast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
 import { applyPendingUpdate, replanPending, replacementOptions, type ReplacementOption } from '../../domain/planner';
 import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
+import { uncertainMuscles } from '../../domain/mappingUncertainty';
 import type { ExerciseChoiceRecord, PlanDecision, PlanDecisionReason } from '../../domain/types';
 
 const MACHINE_KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith'];
@@ -123,12 +124,21 @@ function StartSession() {
 
 // ---------------------------------------------------------------- Editor
 
+/** The mounted editor per workout id: an Undo tapped after the editor was re-opened goes to the live one. */
+const liveEditors = new Map<string, (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void>();
+
 function SessionEditor({ initial }: { initial: Workout }) {
   const data = useData();
   const a = useAnalysis();
   const nav = useNavigate();
   const [w, setW] = useState<Workout>(initial);
   const [picker, setPicker] = useState(false);
+  /** Card whose exercise is being corrected ("Change exercise"), else null. */
+  const [changing, setChanging] = useState<string | null>(null);
+  /** The live session as it was right before Finish — "Back to workout" restores it. */
+  const [preFinish, setPreFinish] = useState<Workout | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const tickGuard = useRef(new Map<string, number>()); // set id → when it was ticked (double-tap guard)
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const finishing = useRef(false);
@@ -156,6 +166,15 @@ function SessionEditor({ initial }: { initial: Workout }) {
   // Autosave (encrypted write): debounced while typing, IMMEDIATE for a completed set, and flushed
   // whenever the page is hidden (phone locked, app switched, reload) so a performed set is never lost.
   const update = useCallback((fn: (w: Workout) => Workout, opts?: { now?: boolean }) => {
+    if (!mounted.current) {
+      // This editor is gone (e.g. Undo tapped on another screen). If the workout is open again, the open
+      // editor applies it (its state would otherwise overwrite the record); else the saved record is updated.
+      const other = liveEditors.get(initialRef.current.id);
+      if (other && other !== updateRef.current) { other(fn, opts); return; }
+      const cur = store.getState().data?.workouts.find((x) => x.id === initialRef.current.id);
+      if (cur) void store.saveWorkout(withCorrections(initialRef.current, fn(cur), new Date().toISOString(), (id) => registryRef.current.get(id)?.name.en ?? id));
+      return;
+    }
     setW((prev) => {
       // Edits to a FINISHED workout are corrections: keep original → corrected values (audit trail).
       const next = withCorrections(initialRef.current, fn(prev), new Date().toISOString(), (id) => registryRef.current.get(id)?.name.en ?? id);
@@ -169,6 +188,26 @@ function SessionEditor({ initial }: { initial: Workout }) {
       return next;
     });
   }, []);
+  const updateRef = useRef(update);
+  updateRef.current = update;
+  useEffect(() => {
+    liveEditors.set(initial.id, update);
+    return () => { if (liveEditors.get(initial.id) === update) liveEditors.delete(initial.id); };
+  }, [initial.id, update]);
+  /**
+   * A change that can be reversed with one tap: a short confirmation with Undo (applies `revert`).
+   * A finished workout never gets planned (unticked) sets back; a revert that changes nothing says so.
+   */
+  const undoable = useCallback((msg: string, revert: (x: Workout) => Workout) => undoToast(msg, () => {
+    const safe = (x: Workout) => {
+      const r = revert(x);
+      return r !== x && isFinished(r) ? { ...r, exercises: r.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => !s.planned) })) } : r;
+    };
+    const cur = mounted.current ? latest.current : store.getState().data?.workouts.find((x) => x.id === initialRef.current.id);
+    if (cur && safe(cur) === cur) return false;
+    update(safe, { now: true });
+    return true;
+  }), [update]);
   /** Drop a pending debounced save (before delete / finish): the unmount flush must not write it back. */
   const cancelSave = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); saveTimer.current = null; };
   useEffect(() => {
@@ -182,7 +221,10 @@ function SessionEditor({ initial }: { initial: Workout }) {
     const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', flush);
+    // "Lock now" / auto-lock right after typing: write the pending edit while the key is still there.
+    const offLock = store.onBeforeLock(flush);
     return () => {
+      offLock();
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', flush);
       flush();
@@ -254,11 +296,63 @@ function SessionEditor({ initial }: { initial: Workout }) {
       xs[i] = { ...fresh, order: i };
       return { ...x, exercises: xs, planDecisions: [...(x.planDecisions ?? []), d] };
     }, { now: true });
-    toast(`Replaced with ${def.name.en}`);
+    undoable(`Replaced with ${def.name.en}`, (x) => {
+      const i = x.exercises.findIndex((e) => e.id === fresh.id);
+      // Only while the replacement is untouched; performed sets are never thrown away by an undo.
+      if (i < 0 || x.exercises[i].sets.some((s) => !s.planned)) return x;
+      const xs = [...x.exercises];
+      xs[i] = { ...old, order: i };
+      return { ...x, exercises: xs, planDecisions: (x.planDecisions ?? []).filter((y) => y.at !== d.at) };
+    });
+  };
+  /**
+   * Correct a wrong exercise on a card. Nothing performed yet -> a fresh card for the right exercise (new plan).
+   * Sets already performed -> kept as they are (they were done), only the exercise changes; the machine is kept
+   * when it is linked to the new exercise. One tap on Undo restores the card.
+   */
+  const changeExercise = (exId: string, def: ExerciseDef) => {
+    const old = w.exercises.find((e) => e.id === exId);
+    if (!old || old.exerciseId === def.id) return;
+    const performed = old.sets.filter((s) => !s.planned);
+    let next: WorkoutExercise;
+    if (!performed.length) {
+      const base = { ...w, exercises: w.exercises.filter((e) => e.id !== exId) };
+      next = { ...buildExercise(def, base), id: old.id, order: old.order };
+    } else {
+      // The sets were done on that machine: it stays (linking it to the new exercise is the owner's choice).
+      const lastDone = [...performed].reverse().find((s) => s.type !== 'warmup');
+      const sets = live && lastDone ? [...performed, newSet('working', lastDone.weightKg, lastDone.reps, lastDone.loadMode, true)] : performed;
+      const { plannedCount: _p, choice: _c, planItem: _i, exerciseNameRaw: _r, ...rest } = old;
+      void _p; void _c; void _i; void _r;
+      // Recorded variation values the new exercise also uses are kept (e.g. bench angle); the rest is dropped.
+      const keepKeys = new Set<string>(['unilateral', 'rom', ...(def.variationFields ?? []).map((f) => (f === 'angle' ? 'benchAngleDeg' : f))]);
+      const keptVar = Object.fromEntries(Object.entries(old.variation ?? {}).filter(([k, v]) => keepKeys.has(k) && v != null));
+      const variation = { ...(def.defaultVariation ?? {}), ...keptVar };
+      next = { ...rest, exerciseId: def.id, exerciseConfidence: 'confirmed', variation: Object.keys(variation).length ? variation : undefined, sets };
+    }
+    update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === exId ? next : e)) }), { now: true });
+    undoable(`Changed to ${def.name.en}`, (x) => {
+      const e = x.exercises.find((y) => y.id === exId);
+      if (!e || e.exerciseId !== def.id) return x;
+      // Exercise-level fields go back; the sets stay as they are now (edits and sets done since are kept).
+      // A fresh card that was never started gets the original planned sets back.
+      const sets = performed.length || e.sets.some((s2) => !s2.planned) ? e.sets : old.sets;
+      return { ...x, exercises: x.exercises.map((y) => (y.id === exId ? { ...old, sets } : y)) };
+    });
   };
   /** "Later": postpone (e.g. occupied); moves to the end, stays pending. Optionally marks its machine busy. */
   const postpone = (exId: string, busyMachine: boolean) => {
     const at = new Date().toISOString();
+    const from = w.exercises.findIndex((y) => y.id === exId);
+    const prevDeferred = w.exercises[from]?.deferredAt;
+    undoable(busyMachine ? 'Machine busy — moved to the end' : 'Moved to the end (Later)', (x) => {
+      const e = x.exercises.find((y) => y.id === exId);
+      if (!e) return x;
+      const rest = x.exercises.filter((y) => y.id !== exId);
+      const back = { ...e, deferredAt: prevDeferred };
+      const xs = [...rest.slice(0, Math.max(0, from)), back, ...rest.slice(Math.max(0, from))].map((y, i) => ({ ...y, order: i }));
+      return { ...x, exercises: xs, planDecisions: (x.planDecisions ?? []).filter((d) => d.at !== at), busyEquipment: (x.busyEquipment ?? []).filter((b) => b.at !== at) };
+    });
     update((x) => {
       const e = x.exercises.find((y) => y.id === exId);
       if (!e) return x;
@@ -279,6 +373,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
       const list = (x.busyEquipment ?? []).some((b) => b.equipmentId === e.equipmentId) ? x.busyEquipment ?? [] : [...(x.busyEquipment ?? []), { equipmentId: e.equipmentId, at }];
       return { ...x, busyEquipment: list, planDecisions: [...(x.planDecisions ?? []), { action: 'busy', exerciseId: e.exerciseId, equipmentId: e.equipmentId, reason: 'busy', at }] };
     }, { now: true });
+    undoable('Machine marked busy for this session', (x) => ({ ...x, busyEquipment: (x.busyEquipment ?? []).filter((b) => b.at !== at), planDecisions: (x.planDecisions ?? []).filter((d) => d.at !== at) }));
   };
   const freeMachine = (equipmentId: string) => update((x) => ({ ...x, busyEquipment: (x.busyEquipment ?? []).filter((b) => b.equipmentId !== equipmentId) }), { now: true });
 
@@ -383,13 +478,16 @@ function SessionEditor({ initial }: { initial: Workout }) {
       .map((e) => ({ ...e, sets: e.sets.filter((s) => !s.planned) }))
       .filter((e) => e.sets.length > 0)
       .map((e, i) => ({ ...e, order: i }));
+    const snapshot = latest.current;
     const x = { ...latest.current, exercises };
     // #9: skipped exercises counted BEFORE empty ones are dropped.
     const skipped = latest.current.exercises.filter((e) => e.skipped).length;
     cancelSave();
     if (!x.exercises.length) {
+      // Nothing was performed: the empty session is discarded - never silently (Undo brings it back).
       await store.deleteWorkout(x.id);
       nav('/');
+      undoToast('Nothing was logged — workout discarded', async () => { await store.putWorkoutAsIs(snapshot); window.location.hash = `#/log/${snapshot.id}`; });
       return;
     }
     const now = localNowParts(data.settings.timezone);
@@ -405,6 +503,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
     const wasLive = live;
     setW(final);
     await store.saveWorkout(final);
+    if (wasLive) setPreFinish(snapshot);
     toast(unticked ? `Workout saved · ${unticked} unticked set${unticked === 1 ? '' : 's'} left out` : 'Workout saved');
     if (!wasLive) return nav('/history');
     // Short numeric summary from the same engine as the dashboard (summary of what was saved).
@@ -412,11 +511,26 @@ function SessionEditor({ initial }: { initial: Workout }) {
   };
 
   const remove = async () => {
-    if (!confirmAction('Delete this workout permanently?')) return;
+    // Deleting a whole session is rare and costly: ask first (the Undo below is a second safety net).
+    if (!confirmAction('Delete this whole workout? You can undo it for a few seconds.')) return;
+    const copy = latest.current;
     cancelSave();
     await store.deleteWorkout(w.id);
     nav('/history');
+    undoToast('Workout deleted', async () => { await store.putWorkoutAsIs(copy); window.location.hash = `#/log/${copy.id}`; });
   };
+  /** Finish tapped by mistake: the session comes back exactly as it was (planned sets included). */
+  const backToWorkout = () => {
+    const s = preFinish;
+    if (!s) return;
+    setSummary(null);
+    setPreFinish(null);
+    const { finishedAt: _f, ...live0 } = s;
+    void _f;
+    update(() => live0 as Workout, { now: true });
+    toast('Back in the workout — nothing was lost', 'info');
+  };
+  const curEx = live ? currentExercise(w) : null;
 
   return (
     <Page
@@ -432,7 +546,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
           {w.exercises.map((ex, i) => (
             <ExerciseCard key={ex.id} index={i} w={w} ex={ex} live={live} update={update} onComplete={completeSet} onNext={() => setPicker(true)}
               onLater={(busyMachine) => postpone(ex.id, busyMachine)} onBusy={() => markBusy(ex.id)} onReplace={(o, r) => replaceExercise(ex.id, o, r)} onFreeMachine={freeMachine}
-              adjustedNote={adjusted[ex.id] ?? null} />
+              adjustedNote={adjusted[ex.id] ?? null} undoable={undoable} onChange={() => setChanging(ex.id)} current={curEx?.id === ex.id} />
           ))}
           <button type="button" onClick={() => setPicker(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-ink-300 py-5 text-sm font-semibold text-ink-600 transition hover:border-accent-500 hover:text-accent-600 dark:border-ink-700 dark:text-ink-300 dark:hover:text-accent-400">
             <IconPlus size={18} /> Add exercise
@@ -443,9 +557,10 @@ function SessionEditor({ initial }: { initial: Workout }) {
           <LiveRemaining sessionEff={sessionEff} />
         </div>
       </div>
-      <ExercisePicker open={picker} onClose={() => setPicker(false)} onPick={addExercise} locationId={w.locationId} workout={live ? w : null} />
+      <ExercisePicker open={picker || !!changing} title={changing ? 'Change exercise' : 'Add exercise'} onClose={() => { setPicker(false); setChanging(null); }}
+        onPick={changing ? (d) => { const id = changing; setChanging(null); changeExercise(id, d); } : addExercise} locationId={w.locationId} workout={live && !changing ? w : null} />
       {live && !summary && <RestTimer w={w} />}
-      {summary && <SummaryModal s={summary} onDone={() => nav('/')} />}
+      {summary && <SummaryModal s={summary} onDone={() => nav('/')} onBack={preFinish ? backToWorkout : undefined} />}
       <div className="h-6" aria-hidden />
     </Page>
   );
@@ -549,9 +664,10 @@ function ScalePick({ label, value, onChange }: { label: string; value: number | 
 
 // ---------------------------------------------------------------- Exercise card
 
-function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater, onBusy, onReplace, onFreeMachine, adjustedNote }: {
+function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater, onBusy, onReplace, onFreeMachine, adjustedNote, undoable, onChange, current }: {
   index: number; w: Workout; ex: WorkoutExercise; live: boolean; update: (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void; onComplete: (exId: string, setId: string) => void; onNext: () => void;
   onLater: (busyMachine: boolean) => void; onBusy: () => void; onReplace: (o: ReplacementOption, reason: PlanDecisionReason | null) => void; onFreeMachine: (equipmentId: string) => void; adjustedNote: string | null;
+  undoable: (msg: string, revert: (x: Workout) => Workout) => void; onChange: () => void; current: boolean;
 }) {
   const data = useData();
   const a = useAnalysis();
@@ -568,6 +684,19 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
 
   const setEx = (fn: (e: WorkoutExercise) => WorkoutExercise) => update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === ex.id ? fn(e) : e)) }));
   const setSet = (sid: string, patch: Partial<WorkoutSet>) => setEx((e) => ({ ...e, sets: e.sets.map((s) => (s.id === sid ? { ...s, ...patch } : s)) }));
+  const exName = names.ex(def, ex.exerciseNameRaw ?? ex.exerciseId);
+  /** Remove a set at once (no dialog); Undo puts it back in the same place. */
+  const removeSet = (s: WorkoutSet) => {
+    const i = ex.sets.findIndex((x) => x.id === s.id);
+    update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === ex.id ? { ...e, sets: e.sets.filter((y) => y.id !== s.id) } : e)) }), { now: true });
+    undoable(s.completedAt || !s.planned ? 'Set removed' : 'Planned set removed', (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== ex.id || e.sets.some((y) => y.id === s.id) ? e : { ...e, sets: [...e.sets.slice(0, i), s, ...e.sets.slice(i)] })) }));
+  };
+  const removeExercise = () => {
+    const copy = ex;
+    update((x) => ({ ...x, exercises: x.exercises.filter((e) => e.id !== ex.id).map((e, i) => ({ ...e, order: i })) }), { now: true });
+    undoable(`${exName} removed`, (x) => (x.exercises.some((e) => e.id === copy.id) ? x
+      : { ...x, exercises: [...x.exercises.slice(0, index), copy, ...x.exercises.slice(index)].map((e, i) => ({ ...e, order: i })) }));
+  };
 
   const key = def ? progressionKey(ex, w, def) : '';
   const series = a.progression.find((p) => p.key === key);
@@ -667,6 +796,8 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
   const adapt = planFull && planFull.sets.length > 0 && doneWorking.length > 0 && plannedWorking.length > 0 ? adaptRemaining(planFull, doneWorking, inc) : null;
   const applyAdapt = () => {
     if (!adapt) return;
+    const before = new Map(ex.sets.filter((x) => x.planned).map((x) => [x.id, x]));
+    undoable('Remaining sets updated', (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== ex.id ? e : { ...e, sets: e.sets.map((y) => (y.planned && before.has(y.id) ? before.get(y.id)! : y)) })) }));
     let k = 0;
     setEx((e) => ({ ...e, sets: e.sets.map((x) => {
       if (x.type !== 'working' || !x.planned) return x;
@@ -674,7 +805,6 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
       k++;
       return ps ? { ...x, weightKg: ps.weightKg ?? x.weightKg, reps: ps.repsMin, prescribed: { ...toSetPrescription(ps, 'working'), engine: `${PRESCRIPTION_ENGINE}+adapt` } } : x;
     }) }));
-    toast('Remaining sets updated');
   };
 
   const move = (d: -1 | 1) => update((x) => {
@@ -690,12 +820,20 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
   const finishEx = (skip = false) => {
     setReopen(false);
     const at = new Date().toISOString();
+    const prev = { skipped: ex.skipped, doneAt: ex.doneAt };
     update((x) => ({
       ...x,
       exercises: x.exercises.map((e) => (e.id !== ex.id ? e : { ...e, ...(skip ? { skipped: true } : { doneAt: at, skipped: undefined }) })),
       ...(skip && x.generated ? { planDecisions: [...(x.planDecisions ?? []), { action: 'skipped' as const, exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, at }] } : {}),
+    }), { now: true });
+    undoable(skip ? `${exName} skipped` : `${exName} done`, (x) => ({
+      ...x,
+      exercises: x.exercises.map((e) => (e.id !== ex.id ? e : { ...e, skipped: prev.skipped, doneAt: prev.doneAt })),
+      ...(x.planDecisions ? { planDecisions: x.planDecisions.filter((d) => d.at !== at) } : {}),
     }));
   };
+  // The set to do next (current exercise only): marked so it is obvious at a glance.
+  const nextSetId = current && live ? ex.sets.find((s) => !s.completedAt && s.type !== 'warmup')?.id ?? ex.sets.find((s) => !s.completedAt)?.id ?? null : null;
   if (closed && !reopen) {
     const doneSets = ex.sets.filter((s) => !s.planned && s.type !== 'warmup');
     return (
@@ -722,16 +860,23 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
           {names.exSub(def) && <div className="ml-8 text-xs text-ink-400">{names.exSub(def)}</div>}
           {resolved && (
             <div className="ml-8 mt-1.5 flex flex-wrap gap-1">
-              {Object.entries(resolved.contributions).filter(([, c]) => (c ?? 0) > 0).sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0)).map(([m, c]) => (
-                <Badge key={m} tone={(c ?? 0) >= 0.75 ? 'accent' : 'neutral'}>{names.muscle(m as MuscleId)} {c}</Badge>
-              ))}
+              {Object.entries(resolved.contributions).filter(([, c]) => (c ?? 0) > 0).sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0)).map(([m, c]) => {
+                const r = uncertainMuscles(ex.exerciseId, data.exerciseOverrides)[m as MuscleId];
+                return <Badge key={m} tone={(c ?? 0) >= 0.75 ? 'accent' : 'neutral'} title={r ? `Uncertain mapping: plausible ${r[0]}–${r[1]} (exercise audit). Counted as ${c}.` : undefined}>{names.muscle(m as MuscleId)} {c}{r ? ` (${r[0]}–${r[1]}?)` : ''}</Badge>;
+              })}
             </div>
           )}
         </div>
-        <button type="button" className="-mr-2 -mt-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-400 hover:bg-ink-100 hover:text-rose-500 active:text-rose-500 dark:hover:bg-ink-800" aria-label="Remove exercise"
-          onClick={() => confirmAction('Remove this exercise and its sets?') && update((x) => ({ ...x, exercises: x.exercises.filter((e) => e.id !== ex.id).map((e, i) => ({ ...e, order: i })) }))}>
-          <IconTrash size={16} />
-        </button>
+        <div className="-mr-2 -mt-1.5 flex shrink-0">
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-400 hover:bg-ink-100 hover:text-ink-700 active:bg-ink-100 dark:hover:bg-ink-800" aria-label="Change exercise" title="Wrong exercise? Change it — logged sets are kept"
+            onClick={onChange}>
+            <IconEdit size={16} />
+          </button>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-400 hover:bg-ink-100 hover:text-rose-500 active:text-rose-500 dark:hover:bg-ink-800" aria-label="Remove exercise"
+            onClick={removeExercise}>
+            <IconTrash size={16} />
+          </button>
+        </div>
       </div>
 
       <ExecutionCue exerciseId={ex.exerciseId} />
@@ -798,13 +943,13 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
         {perSide && <p className="px-4 pb-1 text-[11px] text-ink-500 sm:px-5">One side at a time: log a left and a right set — each pair counts as <b className="font-semibold">one</b> set.</p>}
         {index === 0 && <p className="px-4 pb-1 text-[11px] leading-snug text-ink-500 sm:px-5">Numbers below the reps are <b className="font-semibold">RIR</b> — reps you still had left. Tap one, then ✓ to count the set.</p>}
         {ex.sets.map((s, i) => (
-          <SetRow key={s.id} s={s} live={live} pair={pairs.get(s.id) ?? 1} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type && (x.side ?? null) === (s.side ?? null)).length} inc={inc} sideToggle={perSide} onChange={(p) => setSet(s.id, p)}
-            onRemove={() => setEx((e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) }))} onComplete={() => onComplete(ex.id, s.id)} />
+          <SetRow key={s.id} s={s} live={live} current={s.id === nextSetId} pair={pairs.get(s.id) ?? 1} n={ex.sets.slice(0, i + 1).filter((x) => x.type === s.type && (x.side ?? null) === (s.side ?? null)).length} inc={inc} sideToggle={perSide} onChange={(p) => setSet(s.id, p)}
+            onRemove={() => removeSet(s)} onComplete={() => onComplete(ex.id, s.id)} />
         ))}
         <div className="flex flex-wrap gap-2 px-4 py-3 sm:px-5">
-          <Button size="sm" onClick={() => addSet('working')}><IconPlus size={14} />Set</Button>
-          <Button size="sm" variant="ghost" onClick={() => addSet('warmup')}>+ Warm-up</Button>
-          <Button size="sm" variant="ghost" onClick={() => addSet('drop')}>+ Drop</Button>
+          <Button size="md" onClick={() => addSet('working')}><IconPlus size={14} />Set</Button>
+          <Button size="md" variant="ghost" onClick={() => addSet('warmup')}>+ Warm-up</Button>
+          <Button size="md" variant="ghost" onClick={() => addSet('drop')}>+ Drop</Button>
         </div>
         {live && (
           <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
@@ -812,8 +957,8 @@ function ExerciseCard({ index, w, ex, live, update, onComplete, onNext, onLater,
             <Button size="md" onClick={() => finishEx()}>Done</Button>
             <Button size="md" variant="ghost" onClick={() => finishEx(true)}>Skip</Button>
             <span className="ml-auto flex gap-1">
-              <button type="button" aria-label="Move exercise up" disabled={index === 0} onClick={() => move(-1)} className="h-11 w-10 rounded-lg text-ink-500 disabled:opacity-30">↑</button>
-              <button type="button" aria-label="Move exercise down" disabled={index === w.exercises.length - 1} onClick={() => move(1)} className="h-11 w-10 rounded-lg text-ink-500 disabled:opacity-30">↓</button>
+              <button type="button" aria-label="Move exercise up" disabled={index === 0} onClick={() => move(-1)} className="h-11 w-11 rounded-lg text-ink-500 disabled:opacity-30">↑</button>
+              <button type="button" aria-label="Move exercise down" disabled={index === w.exercises.length - 1} onClick={() => move(1)} className="h-11 w-11 rounded-lg text-ink-500 disabled:opacity-30">↓</button>
             </span>
           </div>
         )}
@@ -875,7 +1020,7 @@ function humanizeDepth(d: string): string {
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={on}
-      className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium transition active:scale-95', on ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{children}</button>
+      className={cx('h-11 rounded-full px-3.5 text-[13px] font-medium transition active:scale-95', on ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{children}</button>
   );
 }
 
@@ -972,7 +1117,7 @@ const RIR_OPTIONS: { v: number | null; label: string }[] = [
  * Touch-first set row. Row 1: set type + large weight/reps steppers. Row 2: one-tap RIR chips + big ✓.
  * Every tap target is ≥ 40px; explanations open on tap (no hover-only information).
  */
-function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; pair: number; live: boolean; sideToggle: boolean; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
+function SetRow({ s, n, inc, pair, live, current = false, sideToggle, onChange, onRemove, onComplete }: { s: WorkoutSet; n: number; inc: number; pair: number; live: boolean; current?: boolean; sideToggle: boolean; onChange: (p: Partial<WorkoutSet>) => void; onRemove: () => void; onComplete: () => void }) {
   const data = useData();
   const [info, setInfo] = useState(false);
   const q = assessSet(s, data.settings.quality);
@@ -985,20 +1130,21 @@ function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onCompl
   // RIR and the failure answer are separate fields: picking an RIR never changes the failure answer.
   const setRir = (v: number | null) => onChange({ rir: v, rirSource: v == null ? 'unknown' : 'reported', ...(v != null ? { planned: undefined } : {}) });
   return (
-    <div id={`set-${s.id}`} className={cx('scroll-mt-32 border-l-[3px] border-t border-t-ink-100 px-4 py-3 first:border-t-0 dark:border-t-ink-800/60 sm:px-5',
-      done ? 'border-l-emerald-500 bg-emerald-500/[0.05]' : planned ? 'border-l-ink-300 dark:border-l-ink-600' : 'border-l-transparent', warm && 'bg-ink-50/60 dark:bg-ink-950/30')}>
-      <div className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)] min-[360px]:grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+    <div id={`set-${s.id}`} data-current={current ? 'true' : undefined} className={cx('scroll-mt-32 border-l-[3px] border-t border-t-ink-100 px-3 py-3 first:border-t-0 dark:border-t-ink-800/60 sm:px-5',
+      done ? 'border-l-emerald-500 bg-emerald-500/[0.05]' : current ? 'border-l-accent-500 bg-accent-500/[0.07]' : planned ? 'border-l-ink-300 dark:border-l-ink-600' : 'border-l-transparent', warm && !current && 'bg-ink-50/60 dark:bg-ink-950/30')}>
+      {current && <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-accent-700 dark:text-accent-300">Next set</div>}
+      <div className="grid grid-cols-[36px_minmax(0,1fr)_minmax(0,1fr)] min-[360px]:grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5">
         <button type="button" aria-label="Change set type (working / warm-up / drop)" onClick={() => onChange({ type: s.type === 'working' ? 'warmup' : s.type === 'warmup' ? 'drop' : 'working' })}
-          className={cx('h-11 w-9 rounded-xl text-sm font-bold active:scale-95 min-[360px]:w-11', warm ? 'bg-ink-200 text-ink-600 dark:bg-ink-800 dark:text-ink-300' : s.type === 'drop' ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300' : 'bg-accent-500/15 text-accent-600 dark:text-accent-400')}>{tag}</button>
+          className={cx('h-12 w-9 rounded-xl text-sm font-bold active:scale-95 min-[360px]:w-11', warm ? 'bg-ink-200 text-ink-600 dark:bg-ink-800 dark:text-ink-300' : s.type === 'drop' ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300' : 'bg-accent-500/15 text-accent-600 dark:text-accent-400')}>{tag}</button>
         <Stepper value={s.weightKg} onChange={(v) => onChange({ weightKg: v })} step={inc} label="weight" />
         <Stepper value={s.reps} onChange={(v) => onChange({ reps: v == null ? null : Math.round(v) })} step={1} label="reps" />
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5">
+      <div className="mt-2 flex items-center gap-[3px] sm:gap-1.5">
         {warm ? (
           <span className="flex-1 text-xs text-ink-500">Warm-up · never counted as volume</span>
         ) : (
-          <div className="flex min-w-0 flex-1 items-center gap-1" role="group" aria-label="Reps in reserve (RIR)">
+          <div className="flex min-w-0 flex-1 items-center gap-[3px] sm:gap-1" role="group" aria-label="Reps in reserve (RIR)">
             <span className="hidden w-9 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:inline">RIR</span>
             {RIR_OPTIONS.map((o) => (
               <button key={o.label} type="button" onClick={() => setRir(s.rir === o.v ? null : o.v)} aria-pressed={s.rir === o.v}
@@ -1008,7 +1154,7 @@ function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onCompl
           </div>
         )}
         <button type="button" onClick={onComplete} aria-label={done ? 'Set completed' : 'Complete set'}
-          className={cx('flex h-11 w-14 shrink-0 items-center justify-center rounded-xl transition active:scale-95', done ? 'bg-emerald-500 text-white' : 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-300')}>
+          className={cx('flex h-11 w-[46px] shrink-0 items-center justify-center rounded-xl transition active:scale-95 sm:w-14', done ? 'bg-emerald-500 text-white' : current ? 'bg-accent-500 text-ink-950' : 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-300')}>
           <IconCheck size={22} />
         </button>
       </div>
@@ -1017,7 +1163,7 @@ function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onCompl
         <div className="flex min-w-0 items-center gap-2">
           {sideToggle && !warm && (
             <button type="button" aria-label="Side (left / right / both)" onClick={() => onChange({ side: s.side === 'left' ? 'right' : s.side === 'right' ? undefined : 'left' })}
-              className="flex h-9 min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ink-100 px-2 text-xs font-semibold text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200">{s.side === 'right' ? 'Right' : s.side === 'left' ? 'Left' : 'Both'}</button>
+              className="flex h-11 min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ink-100 px-2 text-xs font-semibold text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200">{s.side === 'right' ? 'Right' : s.side === 'left' ? 'Left' : 'Both'}</button>
           )}
           {!warm && (
             <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="min-h-[44px] truncate text-left underline decoration-dotted underline-offset-2">
@@ -1026,12 +1172,12 @@ function SetRow({ s, n, inc, pair, live, sideToggle, onChange, onRemove, onCompl
           )}
           <label className="flex min-h-[44px] shrink-0 items-center gap-1">
             <IconTimer size={14} />
-            <input aria-label="Rest before set (seconds)" inputMode="numeric" className="h-9 w-14 rounded-md bg-transparent px-1 text-center outline-none placeholder:text-ink-400 focus:bg-ink-100 dark:focus:bg-ink-800" placeholder="rest s"
+            <input aria-label="Rest before set (seconds)" inputMode="numeric" className="h-11 w-14 rounded-md bg-transparent px-1 text-center outline-none placeholder:text-ink-400 focus:bg-ink-100 dark:focus:bg-ink-800" placeholder="rest s"
               value={s.restSecBefore ?? ''} onChange={(e) => { const v = e.target.value.replace(/\D/g, ''); onChange({ restSecBefore: v ? Number(v) : null, restSource: v ? 'manual' : undefined }); }} />
             {s.restSource === 'timer' && <span className="text-accent-600 dark:text-accent-400">auto</span>}
           </label>
         </div>
-        <button type="button" onClick={onRemove} className="min-h-[44px] shrink-0 px-2 text-ink-400 active:text-rose-500">Remove</button>
+        <button type="button" onClick={onRemove} className="min-h-[44px] min-w-[44px] shrink-0 px-2 text-ink-400 active:text-rose-500">Remove</button>
       </div>
       {!warm && !planned && (done || !live || s.rir != null || !!s.toFailure) && <FailureQuestion s={s} onChange={onChange} />}
       {!warm && !planned && (done || !live || s.rir != null || !!s.toFailure) && <SetFeedback s={s} onChange={onChange} startOpen={live} />}
@@ -1219,14 +1365,14 @@ function FailureQuestion({ s, onChange }: { s: WorkoutSet; onChange: (p: Partial
         <span className="w-14 shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-wider text-ink-400">Failure?</span>
         {FAILURE_OPTIONS.map((o) => (
           <button key={o.id} type="button" aria-pressed={cur === o.id} title={o.hint} onClick={() => pick(o.id)}
-            className={cx('h-10 min-w-0 flex-1 rounded-lg px-1 text-[12px] font-medium leading-tight transition active:scale-95',
+            className={cx('h-11 min-w-0 flex-1 rounded-lg px-1 text-[12px] font-medium leading-tight transition active:scale-95',
               cur === o.id ? (o.id === 'muscular' ? 'bg-rose-500 text-white' : o.id === 'none' ? 'bg-accent-500 text-ink-950' : 'bg-ink-500 text-white') : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>{o.label}</button>
         ))}
       </div>
       {cur === 'muscular' && (
         <div className="mt-1 flex items-center gap-1.5 pl-[3.875rem]">
           <button type="button" aria-pressed={s.technicalFailure === true} onClick={() => onChange({ technicalFailure: s.technicalFailure === true ? undefined : true })}
-            className={cx('h-9 rounded-lg px-3 text-[12px] font-medium active:scale-95', s.technicalFailure ? 'bg-amber-500 text-ink-950' : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>Form broke first</button>
+            className={cx('h-11 rounded-lg px-3 text-[12px] font-medium active:scale-95', s.technicalFailure ? 'bg-amber-500 text-ink-950' : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>Form broke first</button>
           <span className="text-[11px] text-ink-400">optional</span>
         </div>
       )}
@@ -1247,7 +1393,7 @@ function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: 
   const [details, setDetails] = useState(false); // hooks before any early return
   if (!open && !s.feel) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-[40px] text-[12px] font-medium text-accent-600 dark:text-accent-400">+ How did it feel?</button>
+      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-[44px] text-[12px] font-medium text-accent-600 dark:text-accent-400">+ How did it feel?</button>
     );
   }
   const sel = s.feel ? FEEL_BY_ID[s.feel] : null;
@@ -1261,7 +1407,7 @@ function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: 
   if (!open && sel) {
     return (
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-        <button type="button" onClick={() => setOpen(true)} className={cx('flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 font-medium', FEEL_TONE[sel.id])}>
+        <button type="button" onClick={() => setOpen(true)} className={cx('flex min-h-[44px] items-center gap-1.5 rounded-lg px-3 font-medium', FEEL_TONE[sel.id])}>
           {sel.title}{s.pain?.area ? ` · ${s.pain.area}` : ''}{s.intendedWeightKg != null ? ` · meant ${fmt(s.intendedWeightKg, 2)} kg` : ''} <span className="text-[10px] opacity-70">change</span>
         </button>
         {est && <span className="text-ink-500">RIR ≈ {formatRirRange(est)} (estimate)</span>}
@@ -1291,10 +1437,10 @@ function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: 
           <div className="flex flex-wrap gap-1.5">
             {PAIN_AREAS.map((a) => (
               <button key={a} type="button" aria-pressed={s.pain?.area === a} onClick={() => onChange({ pain: { area: s.pain?.area === a ? '' : a, note: s.pain?.note } })}
-                className={cx('h-10 rounded-full px-3 text-[12px] font-medium', s.pain?.area === a ? 'bg-rose-500 text-white' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{a}</button>
+                className={cx('h-11 rounded-full px-3 text-[12px] font-medium', s.pain?.area === a ? 'bg-rose-500 text-white' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{a}</button>
             ))}
           </div>
-          <input className="h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="What did it feel like? (optional)"
+          <input className="h-11 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="What did it feel like? (optional)"
             value={s.pain?.note ?? ''} onChange={(e) => onChange({ pain: { area: s.pain?.area ?? '', note: e.target.value || undefined } })} />
         </div>
       )}
@@ -1305,8 +1451,8 @@ function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: 
         </label>
       )}
       <div className="mt-1.5 flex items-center justify-between">
-        <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="min-h-[40px] text-[12px] font-medium text-accent-600 dark:text-accent-400">{details ? 'Hide details' : 'Details & note'}</button>
-        {sel && <button type="button" onClick={() => setOpen(false)} className="min-h-[40px] px-2 text-[12px] text-ink-500">Done</button>}
+        <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="min-h-[44px] text-[12px] font-medium text-accent-600 dark:text-accent-400">{details ? 'Hide details' : 'Details & note'}</button>
+        {sel && <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] min-w-[44px] px-2 text-[12px] text-ink-500">Done</button>}
       </div>
       {details && (
         <div className="mt-1 space-y-2">
@@ -1314,7 +1460,7 @@ function SetFeedback({ s, onChange, startOpen }: { s: WorkoutSet; onChange: (p: 
           <DimRow label="Weight" value={s.weightAccuracy} options={Object.entries(ACCURACY_LABEL) as [WeightAccuracy, string][]} onPick={(v) => onChange({ weightAccuracy: v })} />
           <DimRow label="Execution" value={s.execution} options={EXECUTION_FEEDBACK.map((o) => [o.id, o.label]) as [ExecutionFeedback, string][]} onPick={(v) => onChange({ execution: v })} />
           <DimRow label="Technique" value={techniqueOf(s)} options={Object.entries(TECHNIQUE_LABEL) as [Technique, string][]} onPick={(v) => onChange({ technique: v, ...(s.techniqueOk === false ? { techniqueOk: undefined } : {}) })} />
-          <input className="h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="Note (e.g. lost balance on the last reps)"
+          <input className="h-11 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none dark:border-ink-700 dark:bg-ink-900" placeholder="Note (e.g. lost balance on the last reps)"
             value={s.notes ?? ''} onChange={(e) => onChange({ notes: e.target.value || undefined })} />
           <p className="text-[11px] text-ink-400">RIR stays separate — log it with the numbers above if you know it.</p>
         </div>
@@ -1330,7 +1476,7 @@ function DimRow<T extends string>({ label, value, options, onPick }: { label: st
       <div className="flex flex-wrap gap-1.5">
         {options.map(([v, l]) => (
           <button key={v} type="button" aria-pressed={value === v} onClick={() => onPick(value === v ? undefined : v)}
-            className={cx('min-h-[40px] rounded-full px-3 text-[12px] font-medium', value === v ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{l}</button>
+            className={cx('min-h-[44px] rounded-full px-3 text-[12px] font-medium', value === v ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{l}</button>
         ))}
       </div>
     </div>
@@ -1397,7 +1543,7 @@ function MobileRemainingStrip({ sessionEff }: { sessionEff: Partial<Record<Muscl
   const rows = [...due, ...covered];
   if (!rows.length) return null;
   return (
-    <div className="sticky top-[57px] z-20 -mx-4 border-b border-ink-200 bg-ink-50/90 px-4 py-2 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/90 lg:hidden">
+    <div className="sticky top-[57px] z-20 -mx-4 border-b border-ink-200 bg-ink-50/90 px-4 py-2 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/90 lg:hidden [@media(max-height:500px)]:static">
       <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Today · sets still due <span className="normal-case tracking-normal text-ink-400">(week left)</span></div>
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
         {rows.map((m) => {
@@ -1464,6 +1610,22 @@ function RestTimer({ w }: { w: Workout }) {
   }, []);
   const [sound, setSound] = useState(() => { try { return localStorage.getItem('gymrat.restSound') === '1'; } catch { return false; } });
   const alerted = useRef('');
+  // The timer floats above the content: a field tapped behind it scrolls up so it is never covered.
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      window.setTimeout(() => {
+        const box = document.querySelector('[data-testid="rest-timer"]');
+        if (!box) return;
+        const top = box.getBoundingClientRect().top;
+        const r = el.getBoundingClientRect();
+        if (r.bottom > top - 8) window.scrollBy({ top: r.bottom - top + 24 });
+      }, 50);
+    };
+    document.addEventListener('focusin', onFocus);
+    return () => document.removeEventListener('focusin', onFocus);
+  }, []);
   if (!last || !ex) return null;
   const pausedNow = t.pausedAt ? now - t.pausedAt : 0;
   const elapsed = Math.floor((now - last.at - t.paused - pausedNow) / 1000);
@@ -1487,7 +1649,7 @@ function RestTimer({ w }: { w: Workout }) {
   const btn = 'h-11 min-w-[44px] rounded-xl px-3 text-sm font-semibold active:scale-95';
   return (
     <div className="fixed inset-x-0 bottom-[4.5rem] z-40 px-3 pb-[env(safe-area-inset-bottom)] lg:bottom-4 lg:left-64">
-      <div className={cx('mx-auto flex max-w-xl items-center gap-2 rounded-2xl border px-3 py-2 shadow-xl backdrop-blur-md', ready ? 'border-emerald-500/50 bg-emerald-500/20' : 'border-ink-200 bg-white/95 dark:border-ink-700 dark:bg-ink-900/95')}>
+      <div data-testid="rest-timer" className={cx('mx-auto flex max-w-xl items-center gap-2 rounded-2xl border px-3 py-2 shadow-xl backdrop-blur-md', ready ? 'border-emerald-500/50 bg-emerald-500/20' : 'border-ink-200 bg-white/95 dark:border-ink-700 dark:bg-ink-900/95')}>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">{between ? 'Since last set' : ready ? 'Rest done — go' : t.pausedAt ? 'Rest · paused' : 'Rest'}</div>
           <div className={cx('text-3xl font-bold leading-none tabular-nums', ready ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')} aria-live="polite">{between ? mmss(elapsed) : mmss(Math.max(left, -599))}</div>
@@ -1507,12 +1669,12 @@ function RestTimer({ w }: { w: Workout }) {
 }
 
 /** End-of-workout numbers. One button. */
-function SummaryModal({ s, onDone }: { s: SessionSummary; onDone: () => void }) {
+function SummaryModal({ s, onDone, onBack }: { s: SessionSummary; onDone: () => void; onBack?: () => void }) {
   const a = useAnalysis();
   const names = useNames();
   const stat = (k: string, v: string) => <div className="rounded-xl bg-ink-50 px-3 py-2 dark:bg-ink-950"><div className="text-[10px] uppercase tracking-wider text-ink-500">{k}</div><div className="text-lg font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
   return (
-    <Modal open onClose={onDone} title="Workout saved" footer={<Button variant="primary" className="w-full" onClick={onDone}>Done</Button>}>
+    <Modal open onClose={onDone} title="Workout saved" footer={<>{onBack && <Button className="flex-1" onClick={onBack}>Back to workout</Button>}<Button variant="primary" className="flex-1" onClick={onDone}>Done</Button></>}>
       <div className="grid grid-cols-3 gap-2">
         {stat('Duration', s.durationMin != null ? `${s.durationMin} min` : '—')}
         {stat('Exercises', String(s.exercises))}
@@ -1546,6 +1708,17 @@ function SummaryModal({ s, onDone }: { s: SessionSummary; onDone: () => void }) 
   );
 }
 
+/**
+ * "Now" = the exercise being worked on (last ticked set, unless closed), else the next one not started yet —
+ * never simply the last card (a plan lists everything up front, and the order may change).
+ */
+function currentExercise(w: Workout): WorkoutExercise | undefined {
+  const last = lastCompleted(w);
+  const lastEx = last ? w.exercises[last.exIndex] : undefined;
+  const pending = w.exercises.find((e) => !e.skipped && !e.doneAt && !e.sets.some((s) => !s.planned && s.type !== 'warmup'));
+  return lastEx && !lastEx.doneAt && !lastEx.skipped ? lastEx : pending ?? lastEx ?? w.exercises[w.exercises.length - 1];
+}
+
 /** Compact live line: duration · exercises · working sets · current exercise. */
 function LiveBar({ w }: { w: Workout }) {
   const a = useAnalysis();
@@ -1556,12 +1729,7 @@ function LiveBar({ w }: { w: Workout }) {
   const min = Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 60_000)) : null;
   const done = w.exercises.filter((e) => e.sets.some((s) => !s.planned && s.type !== 'warmup'));
   const sets = w.exercises.reduce((n, e) => n + countedSetCount(e.sets.filter((s) => !s.planned)), 0);
-  const last = lastCompleted(w);
-  // "Now" = the exercise being worked on (last ticked set, unless closed), else the next one not started yet —
-  // never simply the last card (a plan lists everything up front, and the order may change).
-  const lastEx = last ? w.exercises[last.exIndex] : undefined;
-  const pending = w.exercises.find((e) => !e.skipped && !e.doneAt && !e.sets.some((s) => !s.planned && s.type !== 'warmup'));
-  const cur = lastEx && !lastEx.doneAt && !lastEx.skipped ? lastEx : pending ?? lastEx ?? w.exercises[w.exercises.length - 1];
+  const cur = currentExercise(w);
   const cell = (k: string, v: string) => <div className="min-w-0"><div className="text-[10px] uppercase tracking-wider text-ink-400">{k}</div><div className="truncate text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
   return (
     <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)] gap-x-4 rounded-2xl border border-ink-200 bg-white px-4 py-2.5 dark:border-ink-800 dark:bg-ink-900">
@@ -1575,7 +1743,7 @@ function LiveBar({ w }: { w: Workout }) {
 
 // ---------------------------------------------------------------- Pickers
 
-function ExercisePicker({ open, onClose, onPick, locationId, workout }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null }) {
+function ExercisePicker({ open, onClose, onPick, locationId, workout, title = 'Add exercise' }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null; title?: string }) {
   const a = useAnalysis();
   const data = useData();
   const names = useNames();
@@ -1635,7 +1803,8 @@ function ExercisePicker({ open, onClose, onPick, locationId, workout }: { open: 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add exercise" wide>
+    <Modal open={open} onClose={onClose} title={title} wide>
+      {title !== 'Add exercise' && <p className="mb-2 text-xs text-ink-500">Sets you already did stay on the card; only the exercise changes.</p>}
       <div className="relative">
         <IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
         <Input autoFocus={!coarse} type="search" enterKeyHint="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search in English or Russian… (e.g. pulldown, жим)" className="pl-9" />
@@ -1714,22 +1883,22 @@ function PendingActions({ w, ex, onLater, onBusy, onReplace, onFreeMachine, adju
       {adjustedNote && <p className="text-xs text-accent-700 dark:text-accent-300" data-testid="adjusted-note">Adjusted: {adjustedNote}</p>}
       {order && <p className="text-xs text-ink-600 dark:text-ink-300"><Badge tone={order.status === 'reconsider' ? 'bad' : 'warn'}>{order.label}</Badge> {order.why[0]}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => onLater(false)}>Later</Button>
+        <Button size="md" onClick={() => onLater(false)}>Later</Button>
         {ex.equipmentId && (isBusy
-          ? <Button size="sm" variant="ghost" onClick={() => onFreeMachine(ex.equipmentId as string)}>Machine free again</Button>
-          : <Button size="sm" variant="ghost" onClick={() => { onBusy(); setOpen(true); setReason('busy'); }}>Machine busy</Button>)}
-        <Button size="sm" variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open}>Replace</Button>
+          ? <Button size="md" variant="ghost" onClick={() => onFreeMachine(ex.equipmentId as string)}>Machine free again</Button>
+          : <Button size="md" variant="ghost" onClick={() => { onBusy(); setOpen(true); setReason('busy'); }}>Machine busy</Button>)}
+        <Button size="md" variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open}>Replace</Button>
       </div>
       {open && (
         <div className="space-y-1.5 rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950" data-testid="replace-sheet">
           <div className="flex flex-wrap gap-1.5" aria-label="Reason (optional)">
             {REASON_CHIPS.map(([r, label]) => (
               <button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(reason === r ? null : r)}
-                className={cx('h-9 rounded-full px-3 text-xs font-medium', reason === r ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>{label}</button>
+                className={cx('h-11 rounded-full px-3.5 text-xs font-medium', reason === r ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>{label}</button>
             ))}
           </div>
           {isBusy && <p className="text-xs text-ink-600 dark:text-ink-300">Machine busy: pick an alternative on free equipment, or do it later.</p>}
-          {isBusy && <Button size="sm" onClick={() => { setOpen(false); onLater(false); }}>Do it later</Button>}
+          {isBusy && <Button size="md" onClick={() => { setOpen(false); onLater(false); }}>Do it later</Button>}
           {options.length === 0 && <p className="text-xs text-ink-500">No familiar alternative available here — add any exercise with “Add exercise”.</p>}
           {options.map((o) => (
             <button key={o.exerciseId} type="button" onClick={() => { setOpen(false); onReplace(o, reason); }} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 bg-white px-3 py-2 text-left dark:border-ink-700 dark:bg-ink-900">

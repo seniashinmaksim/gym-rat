@@ -10,7 +10,7 @@ import { PhotoPicker } from '../components/PhotoPicker';
 import {
   Badge, Button, Callout, Card, CardTitle, Empty, Field, Input, Modal, NumInput, Page, Select, Table, Td, TextArea, cx, fmt, toast,
 } from '../components/ui';
-import { useAnalysis, useNames } from '../hooks';
+import { useAnalysis, useDraftSync, useNames } from '../hooks';
 
 const KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith', 'barbell', 'dumbbell', 'kettlebell', 'bodyweight', 'band', 'other'];
 const pretty = (s: string) => s.replace(/_/g, ' ');
@@ -237,19 +237,24 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
   const data = useData();
   const a = useAnalysis();
   const names = useNames();
-  const [name, setName] = useState(eq?.name ?? defaultName ?? '');
-  const [kind, setKind] = useState<EquipmentKind>(eq?.kind ?? defaultKind ?? 'machine');
-  const [manufacturer, setManufacturer] = useState(eq?.manufacturer ?? '');
-  const [model, setModel] = useState(eq?.model ?? '');
-  const [locationId, setLocationId] = useState<string>(eq ? eq.locationId ?? '' : defaultLocation ?? '');
-  const [increments, setIncrements] = useState(eq?.incrementsKg.join(', ') ?? '');
-  const [minKg, setMinKg] = useState<number | null>(eq?.minKg ?? null);
-  const [maxKg, setMaxKg] = useState<number | null>(eq?.maxKg ?? null);
-  const [stackNotes, setStackNotes] = useState(eq?.stackNotes ?? '');
-  const [barWeightKg, setBarWeightKg] = useState<number | null>(eq?.barWeightKg ?? null);
-  const [settings, setSettings] = useState<[string, string][]>(Object.entries(eq?.settings ?? {}));
-  const [exerciseIds, setExerciseIds] = useState<string[]>(eq?.exerciseIds ?? (defaultExerciseId ? [defaultExerciseId] : []));
-  const [notes, setNotes] = useState(eq?.notes ?? '');
+  // A NEW machine being typed in is kept as an encrypted draft (per exercise / gym) until saved or cancelled.
+  const draftId = eq ? null : `equipment:new:${defaultExerciseId ?? '-'}:${defaultLocation ?? '-'}`;
+  const d0 = useMemo(() => (draftId ? store.getDraft<Record<string, unknown>>(draftId) : undefined), [draftId]);
+  const dv = <T,>(k: string, fallback: T): T => (d0 && k in d0 ? (d0[k] as T) : fallback);
+  const [name, setName] = useState(dv('name', eq?.name ?? defaultName ?? ''));
+  const [kind, setKind] = useState<EquipmentKind>(dv('kind', eq?.kind ?? defaultKind ?? 'machine'));
+  const [manufacturer, setManufacturer] = useState(dv('manufacturer', eq?.manufacturer ?? ''));
+  const [model, setModel] = useState(dv('model', eq?.model ?? ''));
+  const [locationId, setLocationId] = useState<string>(dv('locationId', eq ? eq.locationId ?? '' : defaultLocation ?? ''));
+  const [increments, setIncrements] = useState(dv('increments', eq?.incrementsKg.join(', ') ?? ''));
+  const [minKg, setMinKg] = useState<number | null>(dv('minKg', eq?.minKg ?? null));
+  const [maxKg, setMaxKg] = useState<number | null>(dv('maxKg', eq?.maxKg ?? null));
+  const [stackNotes, setStackNotes] = useState(dv('stackNotes', eq?.stackNotes ?? ''));
+  const [barWeightKg, setBarWeightKg] = useState<number | null>(dv('barWeightKg', eq?.barWeightKg ?? null));
+  const [settings, setSettings] = useState<[string, string][]>(dv('settings', Object.entries(eq?.settings ?? {})));
+  const [exerciseIds, setExerciseIds] = useState<string[]>(dv('exerciseIds', eq?.exerciseIds ?? (defaultExerciseId ? [defaultExerciseId] : [])));
+  const [notes, setNotes] = useState(dv('notes', eq?.notes ?? ''));
+  const clearEqDraft = useDraftSync(draftId, { name, kind, manufacturer, model, locationId, increments, minKg, maxKg, stackNotes, barWeightKg, settings, exerciseIds, notes });
   const [exQ, setExQ] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -291,6 +296,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
         updatedAt: now,
       };
       await store.saveEquipment(rec);
+      clearEqDraft();
       toast(eq ? 'Equipment updated' : 'Equipment added');
       onSaved(id);
     } catch (e) {
@@ -302,7 +308,8 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
 
   return (
     <Modal open onClose={onClose} wide title={eq ? `Edit ${eq.name}` : 'Add equipment'}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></>}>
+      footer={<><Button onClick={() => { clearEqDraft(); onClose(); }}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></>}>
+      {d0 && <p className="mb-3 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs text-accent-700 dark:text-accent-300" data-testid="draft-restored">Unsaved machine restored — Cancel discards it.</p>}
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Name" hint="How you'd describe it: “Lat pulldown”, “Hack squat (Gym B)”."><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>

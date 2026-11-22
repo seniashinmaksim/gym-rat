@@ -9,7 +9,7 @@ import type { MuscleId, Workout } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
 import { store, useData } from '../../lib/store';
 import { IconChevron, IconChevronDown, IconCopy, IconEdit, IconMapPin, IconTimer, IconTrash } from '../components/icons';
-import { Badge, Button, Card, Empty, Page, Segmented, cx, confirmAction, fmt, toast } from '../components/ui';
+import { Badge, Button, Card, Empty, Page, Segmented, confirmAction, cx, fmt, toast, undoToast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -234,10 +234,12 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
       toast('Clipboard unavailable', 'bad');
     }
   };
+  // A whole workout: ask first, and Undo puts the identical record back for a few seconds after.
   const del = async () => {
-    if (!confirmAction(`Delete the workout from ${w.date}? This cannot be undone.`)) return;
+    if (!confirmAction(`Delete the workout from ${w.date}? You can undo it for a few seconds.`)) return;
+    const copy = w;
     await store.deleteWorkout(w.id);
-    toast('Workout deleted', 'info');
+    undoToast(`Workout from ${w.date} deleted`, () => store.putWorkoutAsIs(copy));
   };
 
   return (
