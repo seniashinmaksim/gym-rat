@@ -1,4 +1,5 @@
 import { TRACKED_MUSCLES } from './muscles';
+import { objectiveForSets } from './perception';
 import { assessSet, isCounted, round2, sideFactors, taperBeyondCap } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId, QualityModel, RegionId, Workout } from './types';
@@ -82,6 +83,8 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
       const def = registry.get(ex.exerciseId);
       // Left/right sets of a unilateral exercise pair up into one set (0.5 + 0.5).
       const factors = sideFactors(ex.sets);
+      // What the numbers of this exercise say about each set (ramp sets, rep collapse) — Part 6.
+      const objective = model.useNumbersCheck === false ? null : objectiveForSets(ex.sets);
       for (const s of ex.sets) {
         if (!isCounted(s)) continue;
         if (s.type === 'warmup') {
@@ -95,7 +98,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           continue;
         }
         const { contributions, regions: reg } = resolveCoefficients(def, ex.variation);
-        const q = assessSet(s, model, { rom: ex.variation?.rom, timed: def.repRange[1] <= 1 });
+        const q = assessSet(s, model, { rom: ex.variation?.rom, timed: def.repRange[1] <= 1, objective: objective?.get(s.id) });
         for (const [mid, coef] of Object.entries(contributions) as [MuscleId, number][]) {
           const mv = muscles[mid];
           if (!mv || !coef || coef < minCoef) continue;
@@ -114,7 +117,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           if (q.tier === 'low_effort') mv.lowEffortSets += k;
           if (q.tier === 'unknown') mv.unknownEffortSets += k;
           if (q.status !== 'warmup') mv.status[q.status] += k;
-          if (q.status === 'good' && q.effortSource === 'feel') mv.goodEstimated += k;
+          if (q.status === 'good' && (q.effortSource === 'feel' || q.effortSource === 'numbers')) mv.goodEstimated += k;
           touched.add(mid);
         }
         const chestCoef = contributions.chest ?? 0;
@@ -158,9 +161,10 @@ export function qualitySetTotal(workouts: Workout[], registry: Registry, model: 
   for (const w of workouts) for (const ex of w.exercises) {
     const def = registry.get(ex.exerciseId);
     const factors = sideFactors(ex.sets);
+    const objective = model.useNumbersCheck === false ? null : objectiveForSets(ex.sets);
     for (const s of ex.sets) {
       if (!isCounted(s) || s.type === 'warmup') continue;
-      t += assessSet(s, model, { rom: ex.variation?.rom, timed: def ? def.repRange[1] <= 1 : false }).credit * (factors.get(s.id) ?? 1);
+      t += assessSet(s, model, { rom: ex.variation?.rom, timed: def ? def.repRange[1] <= 1 : false, objective: objective?.get(s.id) }).credit * (factors.get(s.id) ?? 1);
     }
   }
   return r2(t);

@@ -20,7 +20,7 @@
  */
 import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
-import type { ProgressionSeries } from './progression';
+import { comparableSessions, type ProgressionSeries } from './progression';
 import { rollingAverage } from './bodyweight';
 import type { MuscleId, Workout } from './types';
 
@@ -38,7 +38,9 @@ export interface StrengthProgress {
 }
 
 export function strengthProgress(series: ProgressionSeries, today: string): StrengthProgress {
-  const all = series.sessions.filter((s) => s.representative && s.index != null);
+  // Part 6 (F.8): like with like — sessions of the latest context only (≥ 3 of them), else pre-loaded sessions
+  // normalised to the fresh context, so a changed exercise order is not read as a gain or a loss.
+  const all = comparableSessions(series.sessions).sessions.filter((s) => s.representative && s.index != null);
   const out: StrengthProgress = { key: series.key, exerciseId: series.exerciseId, status: 'more_data', baseline: null, current: null, pct: null };
   if (!all.length) return out;
   // Never compare a kg-based index with a reps-based one (e.g. bodyweight dips vs dips with a belt).

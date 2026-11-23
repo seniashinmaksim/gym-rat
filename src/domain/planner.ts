@@ -17,14 +17,14 @@ import { diffDays, localNowParts } from './dates';
 import { availableEquipment, exerciseSessionCounts, priorWorkouts, safetyLine, usualExerciseCount } from './exerciseChoice';
 import { FATIGUE_RANK, fatigueCostOf, significantMuscles } from './fatigue';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
-import { prescribe, toSetPrescription, type Prescription } from './prescription';
+import { prescribe, PRESCRIPTION_ENGINE, type Prescription } from './prescription';
 import { progressionKey } from './progression';
 import { countedSetCount, isCounted } from './quality';
 import { MAJOR_MUSCLES, readinessReport, type OperatingMode, type ReadinessLevel, type ReadinessReport } from './readiness';
 import { resolveCoefficients } from './registry';
 import { sessionMuscleEffective, computeVolume } from './volume';
 import type { analyze } from './analysis';
-import type { ExerciseDef, GeneratedPlanSnapshot, MuscleId, PlanDecision, Variation, Workout, WorkoutExercise, WorkoutSet } from './types';
+import type { ExerciseDef, GeneratedPlanSnapshot, MuscleId, PlanDecision, Variation, Workout, WorkoutExercise, WorkoutSet, ExerciseTarget } from './types';
 import { PREFERRED_EXERCISE_IDS } from '../data/exercises';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -471,27 +471,26 @@ export function planSnapshot(g: GeneratedWorkout): GeneratedPlanSnapshot {
 
 export interface ItemEdit { sets?: number; weightKg?: number | null }
 
+/** Today's target for one exercise, from a prescription (Part 6: a line, never set rows). */
+export function targetFromPrescription(p: Pick<Prescription, 'workingWeightKg' | 'sets' | 'setCount'>, sets: number = p.setCount, weightKg: number | null | undefined = undefined, edited = false): ExerciseTarget {
+  const reps = p.sets.length ? p.sets.map((x) => ({ min: x.repsMin, max: x.repsMax })) : [{ min: 10, max: 12 }];
+  return { sets, weightKg: weightKg !== undefined ? weightKg : p.workingWeightKg, reps, engine: PRESCRIPTION_ENGINE, ...(edited ? { edited: true } : {}) };
+}
+
 /**
- * A live workout started from a plan: one card per item with planned (unticked) working sets carrying
- * what was prescribed. Edits change the planned values only; the prescription stays as it was.
+ * A live workout started from a plan: one exercise per item with a TARGET (sets × load × reps). No set rows are
+ * created — a set exists only once it was performed and logged (Part 6). Edits before Start change the target
+ * and mark it as the owner's; the prescription stays as it was.
  */
 export function workoutFromPlan(g: GeneratedWorkout, base: { id: string; date: string; startTime: string; nowIso: string; uid: () => string }, edits: Record<number, ItemEdit> = {}, decisions: PlanDecision[] = []): Workout {
   const exercises: WorkoutExercise[] = g.items.map((it, i) => {
     const ed = edits[it.order] ?? {};
     const n = ed.sets != null ? Math.max(0, Math.min(8, ed.sets)) : it.setCount;
-    const proto = it.prescription.sets;
-    const sets: WorkoutSet[] = Array.from({ length: n }, (_, k) => {
-      const ps = proto[Math.min(k, proto.length - 1)] ?? { weightKg: it.prescription.workingWeightKg, repsMin: 10, repsMax: 12, rirMin: 1, rirMax: 2, restSec: null };
-      return {
-        id: base.uid(), type: 'working', weightKg: ed.weightKg !== undefined ? ed.weightKg : ps.weightKg, loadMode: it.prescription.loadMode, reps: ps.repsMin, rir: null,
-        rirSource: 'unknown', restSecBefore: null, planned: true, prescribed: toSetPrescription(ps, 'working'),
-      };
-    });
     return {
       id: base.uid(), order: i, exerciseId: it.exerciseId, exerciseConfidence: 'confirmed', equipmentId: it.equipmentId,
-      equipmentConfidence: it.equipmentId ? 'confirmed' : 'unknown', ...(it.variation ? { variation: { ...it.variation } } : {}), sets, planItem: it.order,
+      equipmentConfidence: it.equipmentId ? 'confirmed' : 'unknown', ...(it.variation ? { variation: { ...it.variation } } : {}), sets: [], planItem: it.order,
       // An item the owner edited before starting is never re-planned automatically.
-      ...(edits[it.order] ? {} : { plannedCount: n }),
+      target: targetFromPrescription(it.prescription, n, ed.weightKg, !!edits[it.order]),
     };
   });
   return {
@@ -558,24 +557,28 @@ export function untouchedPlanned(s: WorkoutSet): boolean {
 }
 
 /**
- * Apply a re-assessment to one exercise: replace its UNTOUCHED planned working sets with the new
- * prescription (count, load, reps). Any edited or performed set is kept as is. Returns null when nothing changes.
+ * Apply a re-assessment to one exercise that has NOT been started: its target is replaced by the new
+ * prescription (count, load, reps). A target the owner edited is never overwritten; an exercise with a
+ * performed set is never touched. A session started before Part 6 (untouched planned rows the app made) is
+ * converted: the rows go, the target takes their place. Returns null when nothing changes.
  */
-export function applyPendingUpdate(e: WorkoutExercise, u: PendingUpdate, uid: () => string): WorkoutExercise | null {
-  const working = e.sets.filter((s) => s.type === 'working');
-  // Only cards whose planned sets the app made and the owner left alone: same count as planned, every set untouched.
-  if (e.plannedCount == null || working.length !== e.plannedCount) return null;
-  if (working.some((s) => !untouchedPlanned(s))) return null; // owner edited something — never overwrite
-  if (working.some((s) => s.side)) return null;
+export function applyPendingUpdate(e: WorkoutExercise, u: PendingUpdate, _uid?: () => string): WorkoutExercise | null {
+  void _uid;
+  if (performed(e)) return null;
   const p = u.prescription;
-  const same = working.length === p.setCount && working.every((s, k) => s.weightKg === (p.sets[k]?.weightKg ?? null) && s.reps === p.sets[k]?.repsMin);
-  if (same) return null;
-  const others = e.sets.filter((s) => s.type !== 'working');
-  const sets: WorkoutSet[] = p.sets.map((ps) => ({
-    id: uid(), type: 'working', weightKg: ps.weightKg, loadMode: p.loadMode, reps: ps.repsMin, rir: null, rirSource: 'unknown', restSecBefore: null, planned: true,
-    prescribed: toSetPrescription(ps, 'working'),
-  }));
-  return { ...e, sets: [...others, ...sets], plannedCount: sets.length };
+  const next = targetFromPrescription(p);
+  if (e.target) {
+    if (e.target.edited) return null;
+    const same = e.target.sets === next.sets && e.target.weightKg === next.weightKg && JSON.stringify(e.target.reps) === JSON.stringify(next.reps);
+    return same ? null : { ...e, target: next };
+  }
+  // Legacy cards (planned rows): only when the app made them and the owner left them alone.
+  const working = e.sets.filter((s) => s.type === 'working');
+  if (e.plannedCount == null || working.length !== e.plannedCount) return null;
+  if (working.some((s) => !untouchedPlanned(s)) || working.some((s) => s.side)) return null;
+  const { plannedCount: _c, ...rest } = e;
+  void _c;
+  return { ...rest, sets: e.sets.filter((s) => s.type !== 'working'), target: next };
 }
 
 // ---------------------------------------------------------------- replacements + adherence
@@ -635,12 +638,18 @@ export function planAdherence(w: Workout): { order: number; exerciseId: string; 
     // Compared with what was prescribed on the sets at the time (after any live re-assessment); L/R pairs count once.
     const done = ex.sets.filter((s) => isCounted(s) && s.type === 'working');
     const nDone = countedSetCount(done, ['working']);
-    const nPlanned = countedSetCount(ex.sets.filter((s) => s.type === 'working' && s.prescribed?.kind === 'working'), ['working']) || it.sets;
+    // Planned = the exercise's target (Part 6; after any live re-assessment), else the plan item. Sessions from
+    // before Part 6 carry the prescription on each set instead.
+    const t = ex.target;
+    const nPlanned = t ? t.sets : it.sets;
     if (!done.length) return { order: it.order, exerciseId: it.exerciseId, result: 'not_done' };
     if (nDone > nPlanned) return { order: it.order, exerciseId: it.exerciseId, result: 'more_sets' };
     if (nDone < nPlanned) return { order: it.order, exerciseId: it.exerciseId, result: 'fewer_sets' };
-    if (done.some((s) => s.prescribed && s.prescribed.weightKg != null && s.weightKg !== s.prescribed.weightKg)) return { order: it.order, exerciseId: it.exerciseId, result: 'weight_changed' };
-    if (done.some((s) => s.prescribed && s.reps != null && (s.reps < s.prescribed.repsMin - 1 || s.reps > s.prescribed.repsMax + 1))) return { order: it.order, exerciseId: it.exerciseId, result: 'reps_changed' };
+    const planW = (sx: WorkoutSet) => sx.prescribed?.weightKg ?? t?.weightKg ?? null;
+    const planR = (sx: WorkoutSet, k: number): [number, number] | null => (sx.prescribed ? [sx.prescribed.repsMin, sx.prescribed.repsMax] : t && t.reps.length ? [t.reps[Math.min(k, t.reps.length - 1)].min, t.reps[Math.min(k, t.reps.length - 1)].max] : null);
+    if (done.some((sx) => planW(sx) != null && sx.weightKg !== planW(sx))) return { order: it.order, exerciseId: it.exerciseId, result: 'weight_changed' };
+    const perSide = done.some((sx) => sx.side);
+    if (done.some((sx, k) => { const r = planR(sx, perSide ? Math.floor(k / 2) : k); return !!r && sx.reps != null && (sx.reps < r[0] - 1 || sx.reps > r[1] + 1); })) return { order: it.order, exerciseId: it.exerciseId, result: 'reps_changed' };
     return { order: it.order, exerciseId: it.exerciseId, result: 'followed' };
   });
 }

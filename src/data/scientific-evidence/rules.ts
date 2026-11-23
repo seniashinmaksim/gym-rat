@@ -138,9 +138,9 @@ export const RULES: Rule[] = [
   // ---- Progression
   {
     id: 'double_progression', area: 'progression',
-    rule: 'Increase load only after all working sets reach the top of the rep range with effort recorded in two consecutive sessions (one session if every set was clearly too light); never right after pain; reduce only when technique broke down on at least half the session\'s sets.',
-    value: '2 sessions / 1 if RIR ≥ target + 2', basis: 'heuristic', confidence: 'moderate', configurable: null,
-    rationale: 'Progressive overload over time is what matters; requiring repeat performance avoids reacting to one good day.', refIds: ['plotkin2022_progression', 'currier2026_acsm_position'], implementedIn: 'src/domain/progression.ts',
+    rule: 'Increase load only after all working sets reach the top of the rep range in two consecutive comparable sessions — the reps themselves are the evidence, an effort answer is not required (Part 6). One session is enough only when at least two sets were each clearly too light (RIR ≥ target + 2, or "too easy") and the reps did not fall across them. Never right after pain. Reduce when technique broke down on at least half the session\'s sets AND that is confirmed: on two or more sets, or by reps under the bottom of the range at that load, or by the same in the session before. Also reduce one step when most sets fall under the range while the trend is declining and a short rest does not explain it.',
+    value: '2 sessions / 1 if ≥ 2 sets clearly light', basis: 'heuristic', confidence: 'moderate', configurable: null,
+    rationale: 'Progressive overload over time is what matters; requiring repeat performance avoids reacting to one good day, and requiring confirmation avoids reacting to one subjective answer (effort perception errs by 1–2+ reps).', refIds: ['plotkin2022_progression', 'currier2026_acsm_position', 'halperin2022_rir_accuracy'], implementedIn: 'src/domain/progression.ts',
   },
   {
     id: 'benchmark_exclusion', area: 'progression',
@@ -211,9 +211,9 @@ export const RULES: Rule[] = [
   },
   {
     id: 'warmups_not_counted', area: 'prescription',
-    rule: 'Warm-up sets are generated per exercise (fewer when the muscle was already trained this session) and never count as volume.',
+    rule: 'Warm-up loads are SUGGESTED per exercise as text (fewer when the muscle was already trained this session). A set tagged as a warm-up never counts as volume; since Part 6 the tag comes from the numbers (rule warmup_by_reserve) or from the owner.',
     value: 'not counted', basis: 'heuristic', confidence: 'moderate', configurable: null,
-    rationale: 'Warm-ups prepare the movement; they are far from failure.', refIds: ['ribeiro2014_warmup', 'viveiros2024_warmup_load'], implementedIn: 'src/domain/progression.ts, src/domain/prescription.ts',
+    rationale: 'Warm-ups prepare the movement; they are far from failure. Acute studies of warm-up sets and later repetition performance disagree, so no number of warm-up sets is required.', refIds: ['ribeiro2014_warmup', 'viveiros2024_warmup_load', 'lisboa2024_specific_warmup_older_women', 'souza2024_warmup_load_squat'], implementedIn: 'src/domain/progression.ts, src/domain/prescription.ts',
   },
   // ---- Execution / tempo
   {
@@ -297,10 +297,56 @@ export const RULES: Rule[] = [
   },
   {
     id: 'planner_live_reassessment', area: 'planner',
-    rule: 'During a workout every exercise not yet started is re-prescribed from what was ACTUALLY done (any order): sets from the open share minus completed contributions, warm-ups from completed same-muscle work, order advice from completed demanding lifts. Untouched planned sets update; edited sets are never overwritten.',
+    rule: 'During a workout every exercise not yet started is re-prescribed from what was ACTUALLY done (any order): sets from the open share minus completed contributions, warm-ups from completed same-muscle work, order advice from completed demanding lifts. Since Part 6 the plan of an exercise is a TARGET line (no prepared set rows): untouched targets update; a target the owner edited is never overwritten.',
     value: 'on every completed set / reorder', basis: 'heuristic', confidence: 'moderate', configurable: null,
     rationale: 'Real gyms have busy machines; the planned order is never assumed to have been followed.',
-    refIds: [], implementedIn: 'src/domain/planner.ts, src/ui/pages/Logger.tsx',
+    refIds: [], implementedIn: 'src/domain/planner.ts, src/ui/pages/Train.tsx',
+  },
+  // ---- Part 6: log after the set, effort from the numbers, context within a session
+  {
+    id: 'warmup_by_reserve', area: 'effort',
+    rule: 'A set is credited by how far from failure it was, not by a label. For a set done BEFORE the best set of the same exercise in the session, reps possible at its load follow from the best set (Epley inverse: 30 × (best ÷ load − 1)); possible − done = estimated reps in reserve, credited through the SAME RIR table (0–3 → 1, 4 → 0.6, 5 → 0.3, 6–7 → 0.15, ≥ 8 → 0). Without an effort answer the estimate never earns more than the provisional 0.75. Estimated credit 0 → the set is tagged a warm-up automatically (correctable by the owner; the owner\'s tag is never changed). A lighter set AFTER the best set loses one more rep of reserve per set since the best one. Bodyweight, belt-only and assisted loads get no load-based estimate.',
+    value: 'reserve = 30 × (best ÷ load − 1) − reps', basis: 'research_informed_heuristic', confidence: 'low', configurable: 'Settings → Set-quality model → Check effort against the numbers',
+    rationale: 'Volume research counts sets taken to or near failure, and growth falls as a set stops further from failure — so a light ramp set is not a working set, while a heavy last ramp set partly is. The estimate uses a repetitions-to-failure equation, which is accurate up to about 10 reps and increasingly rough above (people differ by ± 2.5 reps at 80 % and ± 4.4 at 60 % of 1RM); it cannot see a set that was hard for another reason. That is why it only lowers credit, is flagged as an estimate, and the one-tap effort answer exists.',
+    refIds: ['bazvalle2021_sets_quantification', 'dankel2017_training_to_fatigue', 'robinson2024_proximity_failure', 'refalo2023_failure_meta', 'reynolds2006_multiple_rm_prediction', 'nuzzo2024_reps_percent_1rm', 'roberts2025_rtf_equations_crossvalidation'], implementedIn: 'src/domain/perception.ts, src/domain/quality.ts, src/domain/volume.ts',
+  },
+  {
+    id: 'perception_check', area: 'effort',
+    rule: 'A reported effort (RIR, failure, or the one-tap EASY / GOOD / HARD / FAILED) is cross-checked against the logged numbers of the same exercise. It is used unless the numbers clearly contradict it: (1) a ramp estimate of ≥ 5 reps in reserve that is ≥ 3 reps further from failure than the report → credited by the numbers; (2) reported easy (≥ 4 in reserve) but reps fell by ≥ 2 on the next set at the same load after a rest of ≥ 60 s → credited as a hard set; (3) reported at the limit but the next set matched or beat it → credit unchanged, flagged. With no report, a rep collapse on the next set counts as a hard set. The stored answer is never rewritten; disagreements are shown ("felt harder / easier than the numbers").',
+    value: 'gap ≥ 3 reps · next-set drop ≥ 2 reps', basis: 'research_informed_heuristic', confidence: 'low', configurable: 'Settings → Set-quality model → Check effort against the numbers',
+    rationale: 'People judge reps in reserve to about 1 rep within 0–5 reps of failure, but err by more than 2 reps at 7–10 from failure, more in sets above 12 reps and in first sets, and on average believe they are closer to failure than they are. A 3-rep gap at ≥ 5 in reserve is outside that error; what the next set shows at the same load is direct evidence. The thresholds themselves are practical choices.',
+    refIds: ['halperin2022_rir_accuracy', 'hackett2017_erf_accuracy', 'zourdos2021_rir_accuracy_squat', 'refalo2024_rir_accuracy_bench', 'remmert2023_rir_accuracy_single_joint', 'steele2017_predict_reps_failure', 'armes2020_predict_task_failure'], implementedIn: 'src/domain/perception.ts, src/domain/quality.ts',
+  },
+  {
+    id: 'perception_bias', area: 'effort',
+    rule: 'Over every set that has both an effort answer and clear next-set evidence (≥ 12 sets), the app counts how often the answer was harder / easier than the numbers and names a tendency when ≥ 30 % point one way. Shown in Settings; it changes no entry and no credit.',
+    value: '≥ 12 sets · ≥ 30 %', basis: 'heuristic', confidence: 'low', configurable: null,
+    rationale: 'The direction of a personal bias is useful to know; the group-level bias is toward underpredicting the reps left.', refIds: ['halperin2022_rir_accuracy', 'hickmott2024_subjective_vs_velocity_rir'], implementedIn: 'src/domain/perception.ts',
+  },
+  {
+    id: 'index_basis', area: 'progression',
+    rule: 'One index basis per history: reps in reserve are added to the reps (RIR-adjusted Epley) only when EVERY scored session of that history has an RIR on its top set; otherwise the index of all its sessions is built from weight and reps alone. A history never mixes the two.',
+    value: 'all sessions with RIR → reps + RIR, else reps', basis: 'heuristic', confidence: 'high', configurable: null,
+    rationale: 'Adding RIR to some sessions and not to others fakes a change: 60 × 12 reads as 90 with "3 in reserve" and as 84 without (formula audit F-1). No study validates an RIR-adjusted prediction equation; logged RIR is itself uncertain by 1–2 reps.', refIds: ['halperin2022_rir_accuracy', 'nickerson2020_rtf_equations_epley'], implementedIn: 'src/domain/progression.ts',
+  },
+  {
+    id: 'preload_context', area: 'progression',
+    rule: 'Every session of a history has a context: pre-load = fractional sets already performed in that session, before the exercise\'s first set, by earlier exercises that train one of its primary muscles with a coefficient ≥ 0.5 (order = completion times). FRESH < 2 ≤ PRE-LOADED. Trend, plateau, decline, double progression and progress % compare like with like when the latest context has ≥ 3 sessions; otherwise a pre-loaded session\'s index is normalised: × (1 + min(6 %, d × pre-load)), d = the owner\'s own drop per pre-loading set when the history has ≥ 2 sessions in each context (kept within 0–3 %), else 1 %. The prescription lowers the rep target by the equivalent reps and says so; a drop of that size is never called a decline and never reduces the load.',
+    value: 'fresh < 2 sets ≤ pre-loaded · 1 % per set, max 6 %', basis: 'research_informed_heuristic', confidence: 'low', configurable: null,
+    rationale: 'At an unchanged load an exercise loses repetitions after work for the same prime mover (bench press after machine fly about −25 %, fly after bench press about −17 % over five sets with 2-min rests; more after a fatigued limiting synergist or with 1-min rests), while total work over both exercises is similar and long-term growth does not depend on order. In index terms that is about 3–5 % after five sets; the per-set value is a practical average, not a study result.',
+    refIds: ['senna2019_bench_fly_order', 'vilacaalves2014_biceps_preexhaustion', 'miranda2010_order_rest_interaction', 'augustsson2003_preexhaustion_legpress', 'gentil2007_pecdeck_chestpress_order', 'spreuwenberg2006_squat_order', 'simao2012_exercise_order_review', 'nunes2021_exercise_order'], implementedIn: 'src/domain/preload.ts, src/domain/progression.ts, src/domain/prescription.ts',
+  },
+  {
+    id: 'rest_default', area: 'session',
+    rule: 'Logging a set starts a rest of 2:30, adjustable by −15 / +15 s at any time; an adjustment stays for that exercise for the rest of the session. The owner\'s measured rest is still recorded per set.',
+    value: '150 s', basis: 'research_informed_heuristic', confidence: 'moderate', configurable: 'Settings → Rest timer',
+    rationale: 'Longer rests (about 2–3 min) preserve repetitions and volume on later sets better than 1-min rests; one fixed, visible default is easier to follow than a per-exercise number. The exact value is the owner\'s choice.', refIds: ['schoenfeld2016_rest', 'singer2024_rest', 'miranda2010_order_rest_interaction'], implementedIn: 'src/domain/liveFlow.ts, src/ui/pages/Train.tsx',
+  },
+  {
+    id: 'log_after_set', area: 'session',
+    rule: 'In a live session a set exists only once it was performed and logged; the plan is a target line. Weight is pre-filled from the same set last time while the session repeats last time\'s weights, else from the last set of this session, else from the plan; nothing pre-filled counts.',
+    value: 'no prepared sets', basis: 'heuristic', confidence: 'high', configurable: null,
+    rationale: 'Reps are not known before a set; prepared rows had to be corrected after every set and could be ticked by mistake.', refIds: [], implementedIn: 'src/domain/liveFlow.ts, src/ui/pages/Train.tsx',
   },
 ];
 

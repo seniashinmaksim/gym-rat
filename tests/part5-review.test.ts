@@ -19,15 +19,21 @@ const start = (o: Parameters<typeof dataQualityHistory>[0], days = 3) => {
   return { d, now, a, g };
 };
 const tick = (s: WorkoutSet, at: string): WorkoutSet => ({ ...s, planned: false, completedAt: at, rir: 2, rirSource: 'reported' });
+/** The sets an exercise's target asks for, as performed sets (Part 6: no prepared rows exist). */
+const targetSets = (e: Workout['exercises'][number], at: string): WorkoutSet[] => Array.from({ length: e.target!.sets }, (_, k) => {
+  const r = e.target!.reps[Math.min(k, e.target!.reps.length - 1)];
+  return { id: `${e.id}-${k}`, type: 'working', weightKg: e.target!.weightKg, loadMode: 'total', reps: r.min, rir: 2, rirSource: 'reported', restSecBefore: null, completedAt: at };
+});
 
 describe('review #1: owner edits to the set COUNT are never overwritten or re-added', () => {
   it('an item edited before Start, sets removed in the logger, all sets removed → no re-assessment touches them', () => {
     const { d, now, g } = start({ sessions: 14 });
     const w = workoutFromPlan(g, { id: 'live', date: '2026-10-20', startTime: '17:00', nowIso: now.toISOString(), uid: uidT }, { 1: { sets: 7 } });
-    expect(w.exercises[1].plannedCount).toBeUndefined(); // edited → never re-planned
-    const removedOne = { ...w.exercises[2], sets: w.exercises[2].sets.slice(1) };
-    const removedAll = { ...w.exercises[3], sets: [] };
-    const live: Workout = { ...w, exercises: [{ ...w.exercises[0], sets: w.exercises[0].sets.map((s, i) => (i === 0 ? tick(s, now.toISOString()) : s)) }, w.exercises[1], removedOne, removedAll, ...w.exercises.slice(4)] };
+    expect(w.exercises[1].target).toMatchObject({ sets: 7, edited: true }); // edited → never re-planned
+    // Part 6: the owner changes a target in the overview (fewer sets / none) → it is theirs from then on.
+    const fewer = { ...w.exercises[2], target: { ...w.exercises[2].target!, sets: Math.max(0, w.exercises[2].target!.sets - 1), edited: true } };
+    const none = { ...w.exercises[3], target: { ...w.exercises[3].target!, sets: 0, edited: true } };
+    const live: Workout = { ...w, exercises: [{ ...w.exercises[0], sets: targetSets(w.exercises[0], now.toISOString()).slice(0, 1) }, w.exercises[1], fewer, none, ...w.exercises.slice(4)] };
     const all = { ...d, workouts: [...d.workouts, live] };
     for (const u of replanPending(all, analyze(all, now), live, now)) {
       if ([1, 2, 3].includes(u.exerciseIndex)) expect(applyPendingUpdate(live.exercises[u.exerciseIndex], u, uidT), `card ${u.exerciseIndex}`).toBeNull();
@@ -42,7 +48,7 @@ describe('review #2: the returning step-down survives live re-assessment and lan
     const used = new Set(a.progression.find((p) => p.key === inc.prescription.key)!.sessions.flatMap((s) => s.sets.map((x) => x.weight)));
     expect(used.has(inc.prescription.workingWeightKg)).toBe(true); // a load already used, never 30.5
     const w = workoutFromPlan(g, { id: 'live', date: a.today, startTime: '17:00', nowIso: now.toISOString(), uid: uidT });
-    const live: Workout = { ...w, exercises: w.exercises.map((e, i) => (i === 0 ? { ...e, sets: e.sets.map((s, k) => (k === 0 ? tick(s, now.toISOString()) : s)) } : e)) };
+    const live: Workout = { ...w, exercises: w.exercises.map((e, i) => (i === 0 ? { ...e, sets: targetSets(e, now.toISOString()).slice(0, 1) } : e)) };
     const all = { ...d, workouts: [...d.workouts, live] };
     const u = replanPending(all, analyze(all, now), live, now).find((x) => live.exercises[x.exerciseIndex].exerciseId === 'incline_dumbbell_press')!;
     expect(u.prescription.workingWeightKg).toBe(inc.prescription.workingWeightKg);
@@ -113,7 +119,7 @@ describe('review #8/#9/#10: replacements, adherence, session size', () => {
     const { g, now } = start({ sessions: 14 });
     const w = workoutFromPlan(g, { id: 'live', date: '2026-10-20', startTime: '17:00', nowIso: now.toISOString(), uid: uidT });
     const e0 = w.exercises[0];
-    const pairs = e0.sets.flatMap((s): WorkoutSet[] => [tick({ ...s, side: 'left' }, now.toISOString()), tick({ ...s, id: `${s.id}R`, side: 'right' }, now.toISOString())]);
+    const pairs = targetSets(e0, now.toISOString()).flatMap((s): WorkoutSet[] => [tick({ ...s, side: 'left' }, now.toISOString()), tick({ ...s, id: `${s.id}R`, side: 'right' }, now.toISOString())]);
     expect(planAdherence({ ...w, exercises: [{ ...e0, sets: pairs }, ...w.exercises.slice(1)] })[0].result).toBe('followed');
   });
   it('a generated session stays near the usual number of working sets (≤ +15 %)', () => {

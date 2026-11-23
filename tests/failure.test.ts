@@ -130,15 +130,18 @@ describe('progression with failure status', () => {
     expect(buildProgression([pec('2026-11-10', s())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('hold');
     expect(buildProgression([pec('2026-11-10', s()), pec('2026-11-13', s())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('increase');
   });
-  it('"stopped before failure" alone is NOT recorded effort (it says nothing about how close the set was); muscular failure is', () => {
+  it('Part 6 (F.7): two sessions with every set at the top of the range increase the load whatever effort was (or was not) recorded', () => {
+    // Before Part 6 an increase needed an effort answer on every set ("Effort was not recorded" → hold). Reps at the
+    // top of the range twice in a row are objective evidence; the effort answer is optional in the new flow.
     const none = () => times(3, () => set(40, hi, null, { failure: 'none' }));
-    expect(buildProgression([pec('2026-11-10', none()), pec('2026-11-13', none())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('hold');
+    expect(buildProgression([pec('2026-11-10', none()), pec('2026-11-13', none())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('increase');
     const fail = () => times(3, () => set(40, hi, null, { failure: 'muscular' }));
     expect(buildProgression([pec('2026-11-10', fail()), pec('2026-11-13', fail())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('increase');
     const unknown = () => times(3, () => set(40, hi, null));
     const p = buildProgression([pec('2026-11-10', unknown()), pec('2026-11-13', unknown())], reg, [], [], 2, '2026-11-21')[0];
-    expect(p.next.action).toBe('hold');
-    expect(p.next.reason).toMatch(/Effort was not recorded/);
+    expect(p.next.action).toBe('increase');
+    // One such session is still not enough.
+    expect(buildProgression([pec('2026-11-13', unknown())], reg, [], [], 2, '2026-11-21')[0].next.action).toBe('hold');
   });
 });
 

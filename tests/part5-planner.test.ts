@@ -25,6 +25,16 @@ const run = (o: DqOptions, nowDays = 2) => {
 let n = 0;
 const uidT = () => `t${n++}`;
 
+/** Performs an exercise exactly as its target says (Part 6: sets exist only once performed). 'top' = top of the rep range at 20 kg when no load is known. */
+function perform(e: Workout['exercises'][number], at: string, reps: 'min' | 'top' = 'min'): Workout['exercises'][number] {
+  const t = e.target!;
+  const sets: WorkoutSet[] = Array.from({ length: t.sets }, (_, k) => {
+    const r = t.reps[Math.min(k, t.reps.length - 1)];
+    return { id: `${e.id}-${k}`, type: 'working', weightKg: t.weightKg ?? (reps === 'top' ? 20 : null), loadMode: 'total', reps: reps === 'top' ? r.max : r.min, rir: 2, rirSource: 'reported', restSecBefore: null, completedAt: at };
+  });
+  return { ...e, sets };
+}
+
 /**
  * A load exists on the equipment when it was already used on THIS history (same exercise × machine ×
  * configuration), or it is whole steps away from such a load, or on the machine's grid (min + k × step).
@@ -196,14 +206,18 @@ describe('start, edit, adherence (E.3)', () => {
     const { g } = run({ sessions: 14 });
     const w = workoutFromPlan(g, { id: 'live', date: '2026-10-20', startTime: '17:00', nowIso: '2026-10-20T17:00:00Z', uid: uidT }, { 0: { sets: g.items[0].setCount + 1 } });
     expect(w.generated!.items[0].sets).toBe(g.items[0].setCount);
-    expect(w.exercises[0].sets).toHaveLength(g.items[0].setCount + 1);
-    expect(w.exercises.every((e, i) => e.planItem === i && e.sets.every((s) => s.planned && s.prescribed?.kind === 'working'))).toBe(true);
-    // Perform item 0 exactly, skip item 1 → adherence
-    const done = (s: WorkoutSet): WorkoutSet => ({ ...s, planned: false, completedAt: '2026-10-20T17:10:00Z', rir: 2 });
-    const w2: Workout = { ...w, exercises: w.exercises.map((e, i) => (i === 0 ? { ...e, sets: e.sets.slice(0, g.items[0].setCount).map(done) } : i === 1 ? { ...e, skipped: true } : e)) };
+    // Part 6: the plan is a TARGET per exercise; no set rows exist until a set was performed.
+    expect(w.exercises[0].target).toMatchObject({ sets: g.items[0].setCount + 1, edited: true });
+    expect(w.exercises[1].target!.edited).toBeUndefined();
+    expect(w.exercises.every((e, i) => e.planItem === i && e.sets.length === 0 && !!e.target)).toBe(true);
+    // Perform item 0 exactly as targeted, skip item 1 → adherence
+    const w2: Workout = { ...w, exercises: w.exercises.map((e, i) => (i === 0 ? perform(e, '2026-10-20T17:10:00Z') : i === 1 ? { ...e, skipped: true } : e)) };
     const adh = planAdherence(w2);
     expect(adh[0].result).toBe('followed');
     expect(adh[1].result).toBe('skipped');
+    // One set fewer than targeted is reported as such (formula audit C-2: this could never happen before).
+    const fewer: Workout = { ...w, exercises: w.exercises.map((e, i) => (i === 0 ? { ...perform(e, '2026-10-20T17:10:00Z'), sets: perform(e, '2026-10-20T17:10:00Z').sets.slice(1) } : e)) };
+    expect(planAdherence(fewer)[0].result).toBe('fewer_sets');
   });
 });
 
@@ -220,7 +234,7 @@ describe('real gym conditions: order changes, busy machines, re-assessment (E.9)
     const { d, now, w } = setup();
     const press = w.exercises.findIndex((e) => e.exerciseId === 'incline_dumbbell_press');
     expect(press).toBeGreaterThanOrEqual(0);
-    const before = w.exercises[press].sets.length;
+    const before = w.exercises[press].target!.sets;
     // Pec deck added and done first: 4 sets near failure.
     const pec = { id: 'pec', order: 99, exerciseId: 'pec_deck', exerciseConfidence: 'confirmed' as const, equipmentId: 'pd_a', equipmentConfidence: 'confirmed' as const,
       sets: Array.from({ length: 4 }, (_, i): WorkoutSet => ({ id: `p${i}`, type: 'working', weightKg: 60, loadMode: 'total', reps: 12, rir: 1, rirSource: 'reported', restSecBefore: null, completedAt: now.toISOString() })) };
@@ -231,16 +245,41 @@ describe('real gym conditions: order changes, busy machines, re-assessment (E.9)
     expect(u.setCount).toBeLessThan(before);
     expect(u.reason).toMatch(/what you actually did/);
     const patched = applyPendingUpdate(live.exercises[u.exerciseIndex], u, uidT)!;
-    expect(patched.sets.filter((s) => s.type === 'working')).toHaveLength(u.setCount);
+    expect(patched.target!.sets).toBe(u.setCount);
+    expect(patched.sets).toHaveLength(0); // still no prepared rows
   });
-  it('edited planned sets are never overwritten by a re-assessment', () => {
+  it('a target the owner edited is never overwritten by a re-assessment; a started exercise is never touched', () => {
     const { w, d, now } = setup();
     const e0 = w.exercises[0];
-    const edited = { ...e0, sets: e0.sets.map((s, i) => (i === 0 ? { ...s, weightKg: (s.weightKg ?? 0) + 5 } : s)) };
-    expect(untouchedPlanned(edited.sets[0])).toBe(false);
+    const edited = { ...e0, target: { ...e0.target!, weightKg: (e0.target!.weightKg ?? 0) + 5, edited: true } };
     const ups = replanPending(d, analyze(d, now), { ...w, exercises: [edited, ...w.exercises.slice(1)] }, now);
     const u = ups.find((x) => x.exerciseIndex === 0)!;
-    expect(applyPendingUpdate(edited, { ...u, setCount: 1, prescription: { ...u.prescription, setCount: 1, sets: u.prescription.sets.slice(0, 1) } }, uidT)).toBeNull();
+    const one = { ...u, setCount: 1, prescription: { ...u.prescription, setCount: 1, sets: u.prescription.sets.slice(0, 1) } };
+    expect(applyPendingUpdate(edited, one, uidT)).toBeNull();
+    expect(applyPendingUpdate(e0, one, uidT)!.target!.sets).toBe(1); // untouched → updated
+    const started = { ...perform(e0, now.toISOString()), sets: perform(e0, now.toISOString()).sets.slice(0, 1) };
+    expect(applyPendingUpdate(started, one, uidT)).toBeNull();
+  });
+  it('a session started before Part 6 (prepared rows the app made) is converted to a target, untouched rows only', () => {
+    const { w, d, now } = setup();
+    const e0 = w.exercises[0];
+    const t = e0.target!;
+    const rows: WorkoutSet[] = Array.from({ length: t.sets }, (_, k) => ({
+      id: `old${k}`, type: 'working', weightKg: t.weightKg, loadMode: 'total', reps: t.reps[Math.min(k, t.reps.length - 1)].min, rir: null, rirSource: 'unknown', restSecBefore: null, planned: true,
+      prescribed: { weightKg: t.weightKg, repsMin: t.reps[Math.min(k, t.reps.length - 1)].min, repsMax: t.reps[Math.min(k, t.reps.length - 1)].max, rirMin: 1, rirMax: 2, restSec: null, kind: 'working', engine: 'presc-1' },
+    }));
+    const { target: _t, ...noTarget } = e0;
+    void _t;
+    const legacy = { ...noTarget, sets: rows, plannedCount: rows.length };
+    expect(untouchedPlanned(rows[0])).toBe(true);
+    const ups = replanPending(d, analyze(d, now), { ...w, exercises: [legacy, ...w.exercises.slice(1)] }, now);
+    const u = ups.find((x) => x.exerciseIndex === 0)!;
+    const out = applyPendingUpdate(legacy, u, uidT)!;
+    expect(out.sets).toHaveLength(0);
+    expect(out.target!.sets).toBe(u.setCount);
+    expect(out.plannedCount).toBeUndefined();
+    const touched = { ...legacy, sets: rows.map((r, k) => (k === 0 ? { ...r, weightKg: (r.weightKg ?? 0) + 5 } : r)) };
+    expect(applyPendingUpdate(touched, u, uidT)).toBeNull();
   });
   it('a busy machine is excluded from alternatives; alternatives use available equipment for the same muscle', () => {
     const { d, a, w } = setup();
@@ -354,7 +393,7 @@ describe('a realistic 8-week run following the planner (E.6)', () => {
       const w = workoutFromPlan(g, { id: `run${s}`, date, startTime: '17:00', nowIso: now.toISOString(), uid: uidT });
       const performed: Workout = {
         ...w, endTime: '18:15', finishedAt: now.toISOString(),
-        exercises: w.exercises.map((e) => ({ ...e, sets: e.sets.map((x) => ({ ...x, planned: false, weightKg: x.weightKg ?? 20, reps: x.prescribed?.repsMax ?? 12, rir: 2, rirSource: 'reported' as const, completedAt: now.toISOString() })) })),
+        exercises: w.exercises.map((e) => perform(e, now.toISOString(), 'top')),
       };
       d = { ...d, workouts: [...d.workouts, performed] };
       // No week exceeds a muscle's upper bound by cramming.

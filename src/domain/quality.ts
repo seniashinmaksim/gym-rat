@@ -1,5 +1,7 @@
 import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, type SetStatus } from './feedback';
 import { failureImpliedRir, techniqueWithFailure } from './failure';
+import { L } from '../i18n/core';
+import { creditForRir, crossCheck, type Disagreement, type Objective } from './perception';
 import type { QualityModel, Rom, Workout, WorkoutSet } from './types';
 
 export type EffortTier = 'warmup' | 'high_effort' | 'working' | 'low_effort' | 'unknown';
@@ -16,7 +18,14 @@ export interface SetQuality {
    * Where the effort credit came from: a logged RIR, the "Fail" chip / to_failure (RIR 0), a recorded
    * muscular failure without RIR (≈ RIR 0), how the set felt (estimate), or nothing (provisional).
    */
-  effortSource?: 'rir' | 'to_failure' | 'failure_status' | 'feel' | 'none';
+  effortSource?: 'rir' | 'to_failure' | 'failure_status' | 'feel' | 'numbers' | 'none';
+  /**
+   * The reported effort and the logged numbers clearly disagree (Part 6): felt_harder = rated harder than the
+   * numbers show, felt_easier = rated easier. The stored answer is never changed.
+   */
+  disagreement?: Disagreement;
+  /** What the numbers of this exercise say about the set (when the caller supplied it). */
+  objective?: Objective;
   /** Quality status for display and per-muscle counts (good / easy / compromised / pain / uncertain). */
   status: SetStatus | 'warmup';
   reasons: string[];
@@ -27,6 +36,12 @@ export interface SetContext {
   rom?: Rom | null;
   /** Timed exercise (plank, carry) logged as a single "rep": the low-rep rule does not apply. */
   timed?: boolean;
+  /**
+   * What the logged numbers of the same exercise say about this set (`objectiveForSets`). With it, effort is
+   * cross-checked: ramp sets far from failure earn less or nothing, and a report the numbers clearly contradict
+   * is credited by the numbers (rules `warmup_by_reserve`, `perception_check`).
+   */
+  objective?: Objective;
 }
 
 /**
@@ -48,7 +63,32 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
   const failRir = rir == null ? failureImpliedRir(set) : null;
   const est = m.useFeelWhenNoRir === false ? null : estimatedRirRange(set);
   let effortSource: SetQuality['effortSource'];
-  if (rir == null && failRir != null) {
+  const chk = m.useNumbersCheck !== false && ctx.objective ? crossCheck(set, ctx.objective, m.useFeelWhenNoRir !== false) : null;
+  if (chk?.use === 'numbers' && chk.rir != null) {
+    // The numbers decide: a load-based estimate of the reserve (ramp / back-off set), or a rep collapse on the
+    // next set. Same credit table as a logged RIR; without a report never above the provisional credit.
+    const table = creditForRir(chk.rir, m);
+    credit = chk.capAtProvisional ? Math.min(table, m.unknownRirCredit) : table;
+    tier = chk.rir >= 4 ? 'low_effort' : chk.capAtProvisional ? 'unknown' : chk.rir <= 1 ? 'high_effort' : 'working';
+    uncertain = true;
+    estimated = true;
+    effortSource = 'numbers';
+    const o = ctx.objective as Objective;
+    if (o.estRir != null) {
+      const capped = chk.capAtProvisional && table > credit;
+      reasons.push(L(
+        `By the numbers: about ${o.possibleReps} reps were possible at this load (from the best set of this exercise today), ${set.reps} done → ≈ ${o.estRir} in reserve → credit ${credit}${capped ? ' (no effort answer: not above the provisional credit)' : ''}`,
+        `По цифрам: с этим весом было возможно около ${o.possibleReps} повторений (по лучшему подходу упражнения сегодня), сделано ${set.reps} → ≈ ${o.estRir} в запасе → зачёт ${credit}${capped ? ' (без оценки усилия: не выше предварительного зачёта)' : ''}`,
+      ));
+    } else {
+      reasons.push(L(
+        `By the numbers: reps fell by 2 or more on the next set at the same load → this set was close to the limit → credit ${credit}`,
+        `По цифрам: в следующем подходе с тем же весом повторений стало меньше на 2 и более → этот подход был близок к пределу → зачёт ${credit}`,
+      ));
+    }
+    if (chk.disagreement === 'felt_harder') reasons.push(L('You rated it harder than the numbers show — your answer is kept; the credit follows the numbers', 'Вы оценили подход тяжелее, чем показывают цифры — ответ сохранён; зачёт идёт по цифрам'));
+    if (chk.disagreement === 'felt_easier') reasons.push(L('You rated it easier than the numbers show — your answer is kept; the credit follows the numbers', 'Вы оценили подход легче, чем показывают цифры — ответ сохранён; зачёт идёт по цифрам'));
+  } else if (rir == null && failRir != null) {
     const idx = Math.max(0, Math.min(failRir, m.rirCredit.length - 1));
     credit = m.rirCredit[idx];
     tier = 'high_effort';
@@ -137,7 +177,10 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     : tier === 'low_effort' ? 'easy'
     : tier === 'unknown' ? 'uncertain'
     : 'good';
-  return { credit: round2(credit), tier, uncertain, estimated, effortSource, status, reasons };
+  if (chk?.use === 'reported' && chk.disagreement === 'felt_harder') {
+    reasons.push(L('Rated at the limit, but the next set at the same load matched it — the numbers suggest a little reserve (credit unchanged)', 'Оценён как предельный, но следующий подход с тем же весом получился не хуже — по цифрам запас был (зачёт не меняется)'));
+  }
+  return { credit: round2(credit), tier, uncertain, estimated, effortSource, status, reasons, ...(chk?.disagreement ? { disagreement: chk.disagreement } : {}), ...(ctx.objective ? { objective: ctx.objective } : {}) };
 }
 
 /** A set counts only once it has been performed (planned/pre-filled sets are ignored). */

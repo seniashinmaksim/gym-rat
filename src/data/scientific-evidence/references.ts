@@ -4,6 +4,7 @@ import type { MuscleId } from '../../domain/types';
 
 import { AUDIT_REFERENCES } from './references-audit';
 import { ORDER_REFERENCES } from './references-order';
+import { PERCEPTION_REFERENCES } from './references-perception';
 import { TEMPO_REFERENCES } from './references-tempo';
 
 export type EvidenceDesign =
@@ -39,7 +40,8 @@ export interface Reference {
   muscles: MuscleId[];
   limitations: string;
   confidence: Confidence;
-  verifiedOn: '2026-11-21';
+  /** Date of the PubMed + Crossref check (2026-11-23 = Part 6 pass). */
+  verifiedOn: '2026-11-21' | '2026-11-23';
 }
 
 /** Outcomes that are acute or mechanistic: may only support findings marked indirect. */
@@ -2274,6 +2276,6 @@ const CORE_REFERENCES: Reference[] = [
 ];
 
 /** Core library + the tempo/execution review + the exercise-order pass (deduplicated by DOI). */
-export const REFERENCES: Reference[] = [...CORE_REFERENCES, ...TEMPO_REFERENCES, ...ORDER_REFERENCES, ...AUDIT_REFERENCES];
+export const REFERENCES: Reference[] = [...CORE_REFERENCES, ...TEMPO_REFERENCES, ...ORDER_REFERENCES, ...AUDIT_REFERENCES, ...PERCEPTION_REFERENCES];
 
 export const REFERENCE_BY_ID: Record<string, Reference> = Object.fromEntries(REFERENCES.map((r) => [r.id, r]));

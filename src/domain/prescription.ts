@@ -23,9 +23,11 @@ import { diffDays, localNowParts } from './dates';
 import { benchmarkExclusion, hasPain, techniqueOf } from './feedback';
 import { loadStep, type IncrementSource } from './increments';
 import {
-  adviceFor, classifyTrend, progressionKey, roundToIncrement, stepLoad, suggestNextLoad, warmupFor,
+  adviceFor, classifyTrend, comparableSessions, progressionKey, roundToIncrement, stepLoad, suggestNextLoad, warmupFor,
   type Advice, type SessionPerf, type SetPoint,
 } from './progression';
+import { L } from '../i18n/core';
+import { expectedRepDrop, preloadFactor, preloadFor, PRELOAD_DEFAULT_DROP, type PreloadContext } from './preload';
 import { computeVolume } from './volume';
 import { countedSetCount, isCounted } from './quality';
 import { resolveCoefficients } from './registry';
@@ -106,6 +108,14 @@ export interface Prescription {
 
   /** Short notes, only when needed. */
   notes: string[];
+
+  /**
+   * Part 6 (F.8): what was already done in this session for the exercise's primary muscle before it, and how
+   * many reps fewer than in the (fresh) reference session that makes the first set — the rep targets already
+   * include it. 0 when the history is in the same context.
+   */
+  context: PreloadContext;
+  expectedRepDrop: number;
 }
 
 export interface PrescribeInput {
@@ -255,9 +265,13 @@ export function prescribe(input: PrescribeInput): Prescription {
   // ---- load decision (double progression, reusing progression.ts)
   const exRange: [number, number] = override?.repRange ?? def.repRange;
   const decisionRir = override?.targetRir ?? Math.max(data.settings.defaultTargetRir, rirTarget[1] - (brokeRecently || frequentFailure ? 1 : 0));
-  const trend = classifyTrend(hist, today);
-  const next = suggestNextLoad(hist, exRange, decisionRir, step, trend, loadMode);
-  const advice = adviceFor({ next, trend, sessions: hist });
+  // F.8: judge the history in the context this exercise is done in TODAY (fresh, or after same-muscle work).
+  const context = preloadFor(workout, ex, registry);
+  const judged = comparableSessions(hist, context.bucket);
+  const cmp = judged.sessions;
+  const trend = classifyTrend(cmp, today);
+  const next = suggestNextLoad(cmp, exRange, decisionRir, step, trend, loadMode);
+  const advice = adviceFor({ next, trend, sessions: cmp });
   let decision: LoadDecision = next.action === 'increase' ? 'increase' : next.action === 'reduce' ? 'reduce' : next.action === 'calibrate' ? 'calibrate' : 'keep';
   let decisionWhy = next.reason;
   let weight: number | null = next.weight;
@@ -348,16 +362,26 @@ export function prescribe(input: PrescribeInput): Prescription {
   const pts = (s: SessionPerf) => s.sets.filter((p) => p.benchmark && p.reps != null);
   let firstReps: number | null = null;
   let repSource: Prescription['repSource'] = 'exercise_default';
+  let repDropFromOrder = 0;
+  const dropPerSet = judged.compare.dropPerSet ?? PRELOAD_DEFAULT_DROP;
   {
-    const atLoad = [...hist].reverse().find((s) => pts(s).some((p) => p.weight === weight));
+    const atLoad = [...cmp].reverse().find((s) => pts(s).some((p) => p.weight === weight));
     if (atLoad) {
       firstReps = (pts(atLoad).find((p) => p.weight === weight) as SetPoint).reps;
       repSource = 'history';
+      // Reference session done fresh, today after same-muscle work: fewer reps are expected at the same load.
+      const extra = context.sets - (atLoad.preload ?? 0);
+      if (context.bucket === 'preloaded' && atLoad.context !== 'preloaded' && extra > 0 && firstReps != null) {
+        repDropFromOrder = expectedRepDrop(firstReps, extra, dropPerSet);
+        firstReps = Math.max(1, firstReps - repDropFromOrder);
+      }
     } else if (weight != null && weight > 0 && !assisted) {
-      const withE = [...hist].reverse().find((s) => s.e1rm != null);
+      const withE = [...cmp].reverse().find((s) => s.e1rm != null);
       if (withE) {
         const rirMid = (rirTarget[0] + rirTarget[1]) / 2;
-        const est = Math.floor(30 * ((withE.e1rm as number) / weight - 1) - rirMid);
+        // `cmp` holds indices normalised to the fresh context; today's context takes its share back.
+        const today1rm = (withE.e1rm as number) / (judged.compare.basis === 'adjusted' && context.bucket === 'preloaded' ? preloadFactor(context.sets, dropPerSet) : 1);
+        const est = Math.floor(30 * (today1rm / weight - 1) - rirMid);
         if (Number.isFinite(est) && est >= 1) {
           firstReps = est;
           repSource = 'estimate';
@@ -446,6 +470,13 @@ export function prescribe(input: PrescribeInput): Prescription {
   if (repSource === 'exercise_default' && setCount > 0) notes.push(`Rep range ${exRange[0]}–${exRange[1]} is the exercise default until you have history at this load`);
   if (repSource === 'estimate' && setCount > 0) notes.push('Reps at this load are estimated from your best recent set');
   if (rest.source === 'bounds') notes.push('No rest history yet');
+  if (repDropFromOrder > 0 && setCount > 0) {
+    const names = context.from.map((id) => { const d = registry.get(id); return d ? L(d.name.en, d.name.ru) : id; }).join(', ');
+    notes.push(L(
+      `After ${names}: expect about ${repDropFromOrder} rep${repDropFromOrder === 1 ? '' : 's'} fewer at this load than when it is done first — the order of the session, not a regression`,
+      `После: ${names} — ожидайте примерно на ${repDropFromOrder} повт. меньше с этим весом, чем когда упражнение идёт первым: это порядок тренировки, а не регресс`,
+    ));
+  }
 
   // ---- warm-ups
   const { warmups, warmupReason } = planWarmups({ data, workout, exerciseIndex, def, weight, loadMode, step, stepSource: stepInfo.source, minKg, maxKg, primaryMuscle, raw, registry });
@@ -455,7 +486,7 @@ export function prescribe(input: PrescribeInput): Prescription {
     sessionsUsed, confidence, status: confidence === 'low' ? 'calibrating' : 'ready', confidenceReason,
     decision, decisionWhy, advice, workingWeightKg: weight, step, stepSource: stepInfo.source, minKg, maxKg,
     warmups, warmupReason, sets, setCount, setCountReason, primaryMuscle, primaryCoefficient,
-    repBounds, repSource, repDropPerSet, rirTarget, rirReason, rest, notes,
+    repBounds, repSource, repDropPerSet, rirTarget, rirReason, rest, notes, context, expectedRepDrop: repDropFromOrder,
   };
 }
 

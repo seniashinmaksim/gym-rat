@@ -3,6 +3,8 @@ import type { Registry } from './registry';
 import { benchmarkExclusion, techniqueOf } from './feedback';
 import { failureImpliedRir } from './failure';
 import { loadStep, type IncrementSource } from './increments';
+import { L } from '../i18n/core';
+import { measuredDrop, preloadFactor, preloadFor, PRELOAD_DEFAULT_DROP, SAME_CONTEXT_MIN, type CompareBasis, type PreloadBucket } from './preload';
 import type { Effort, Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, FailureStatus, Location, SetFeel, Side, Technique, Variation, Workout, WorkoutExercise } from './types';
 
 /**
@@ -130,6 +132,12 @@ export interface SessionPerf {
   restAvgSec: number | null;
   /** Session logged with high fatigue (≥ 4/5) or short sleep (< 6 h). */
   fatigued: boolean;
+  /**
+   * Part 6 (F.8): fractional sets already done in that session for this exercise's primary muscle before its
+   * first set, and the context that follows from it (fresh < 2 ≤ pre-loaded). Absent = not computed.
+   */
+  preload?: number;
+  context?: PreloadBucket;
 }
 
 export type TrendClass = 'progressing' | 'stable' | 'plateau' | 'declining' | 'insufficient_data';
@@ -168,6 +176,18 @@ export interface ProgressionSeries {
   current: SessionPerf | null;
   previous: SessionPerf | null;
   next: NextLoad;
+  /**
+   * Part 6 (F.7): what the index of THIS history is built from. 'rir' = reps + logged reps in reserve (every
+   * scored session has RIR on its top set); 'reps' = weight and reps only (some session has none, so adding
+   * RIR to the others would fake a change). One basis for all sessions of a history.
+   */
+  indexBasis: 'rir' | 'reps';
+  /**
+   * Part 6 (F.8): how trend and load decisions compared the sessions. single_context = the order never
+   * differed; same_context = only sessions of the latest session's context (≥ 3 of them); adjusted = all
+   * sessions, pre-loaded ones normalised by `dropPerSet` per pre-loading set.
+   */
+  compare: { basis: CompareBasis; context: PreloadBucket; dropPerSet: number | null };
 }
 
 export function epley(weight: number, reps: number, rir: number | null): number {
@@ -175,13 +195,14 @@ export function epley(weight: number, reps: number, rir: number | null): number 
   return weight * (1 + r / 30);
 }
 
-function pickTop(sets: SetPoint[], assisted: boolean, extraKg = 0): { top: SetPoint | null; bestE: number | null } {
+function pickTop(sets: SetPoint[], assisted: boolean, extraKg = 0, useRir = true): { top: SetPoint | null; bestE: number | null } {
   let top: SetPoint | null = null;
   let bestE: number | null = null;
+  const rirOf = (s: SetPoint) => (useRir ? s.rir ?? 0 : 0);
   for (const s of sets) {
     if (s.reps == null) continue;
     if (!assisted && s.weight != null && s.weight > 0) {
-      const e = epley(s.weight + extraKg, s.reps, s.rir);
+      const e = epley(s.weight + extraKg, s.reps, useRir ? s.rir : null);
       if (bestE == null || e > bestE) {
         bestE = e;
         top = s;
@@ -190,7 +211,7 @@ function pickTop(sets: SetPoint[], assisted: boolean, extraKg = 0): { top: SetPo
   }
   if (!top) {
     // Bodyweight / assisted / unloaded: best reps (+RIR) is the performance index.
-    for (const s of sets) if (s.reps != null && (!top || (s.reps + (s.rir ?? 0)) > ((top.reps ?? 0) + (top.rir ?? 0)))) top = s;
+    for (const s of sets) if (s.reps != null && (!top || (s.reps + rirOf(s)) > ((top.reps ?? 0) + rirOf(top)))) top = s;
   }
   return { top, bestE };
 }
@@ -199,7 +220,7 @@ function pickTop(sets: SetPoint[], assisted: boolean, extraKg = 0): { top: SetPo
  * @param bodyKg body weight before this session (bodyweight-plus exercises only). With a belt/vest the
  * index then uses body + added load, so 5 kg × 8 → 7.5 kg × 6 reads as a small change, not "+42 %".
  */
-export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true, bodyKg: number | null = null): SessionPerf | null {
+export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true, bodyKg: number | null = null, basis: 'rir' | 'reps' = 'rir'): SessionPerf | null {
   const working = ex.sets.filter((s) => s.type === 'working' && !s.planned);
   if (!working.length) return null;
   const sets: SetPoint[] = working.map((s) => {
@@ -222,12 +243,13 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true, bod
   const bench = sets.filter((s) => s.benchmark);
   const representative = bench.length > 0;
   const system = !assisted && bodyKg != null && bodyKg > 0 && working.every((s) => s.loadMode === 'bodyweight_plus');
-  const { top, bestE } = pickTop(representative ? bench : sets, assisted, system ? (bodyKg as number) : 0);
+  const useRir = basis === 'rir';
+  const { top, bestE } = pickTop(representative ? bench : sets, assisted, system ? (bodyKg as number) : 0, useRir);
   const totalReps = sets.reduce((a, s) => a + (s.reps ?? 0), 0);
   const volumeLoad = sets.reduce((a, s) => a + (s.reps ?? 0) * (s.weight ?? 0), 0);
   const rirs = sets.map((s) => s.rir).filter((r): r is number => r != null);
   const rests = working.slice(1).map((s) => s.restSecBefore).filter((r): r is number => r != null && r > 0);
-  const index = !representative ? null : bestE != null ? bestE : top?.reps != null ? top.reps + (top.rir ?? 0) : null;
+  const index = !representative ? null : bestE != null ? bestE : top?.reps != null ? top.reps + (useRir ? top.rir ?? 0 : 0) : null;
   const well = w.wellness;
   return {
     workoutId: w.id,
@@ -439,7 +461,16 @@ export function suggestNextLoad(
   if (broken.length) {
     const brokeAt = loadOf(broken) as number;
     const cleanLoad = loadOf(intended.filter((p) => p.benchmark));
-    if (broken.length >= Math.ceil(intended.length / 2)) {
+    // Part 6 (F.7): one subjective answer never changes the load. A reduction needs technique trouble on ≥ 2 sets,
+    // OR the numbers confirming it (a set at that load under the bottom of the range), OR the same in the
+    // session before.
+    const prevAny = sessions[sessions.length - 2];
+    const prevIntended = prevAny ? prevAny.sets.filter((p) => !(p.excluded ?? '').startsWith('wrong weight') && p.weight != null && p.reps != null) : [];
+    const prevBroken = prevIntended.filter((p) => p.technique === 'compromised' || p.technique === 'failed');
+    const repeated = prevBroken.length > 0 && prevBroken.length >= Math.ceil(prevIntended.length / 2);
+    const underRange = intended.some((p) => p.weight === brokeAt && (p.reps as number) < lo);
+    const confirmedTrouble = broken.length >= 2 || underRange || repeated;
+    if (broken.length >= Math.ceil(intended.length / 2) && confirmedTrouble) {
       // About ONE step down: back to a clean load from the same session if it is within ~one step, else one increment.
       const oneStep = stepLoad(brokeAt, -step, increment);
       // (A clean load within ~one step counts: 27.5 → 25 kg when dumbbells come in 2.5 kg pairs but the default step is 2.)
@@ -448,7 +479,10 @@ export function suggestNextLoad(
       const to = closerClean ? (cleanLoad as number) : oneStep;
       return { ...base, action: 'reduce', weight: to, reason: `Technique broke down on ${broken.length} of ${intended.length} set${intended.length === 1 ? '' : 's'} last time (at ${brokeAt} kg). Those sets are kept but don't prove progress. ${assisted ? 'Use more assistance' : 'Go back'} to ${to} kg, keep full range and control, and rebuild reps from ~${lo}. (A set that is very hard but clean is fine — this is about technique, not difficulty.)` };
     }
-    brokeNote = `${brokeAt} kg broke your technique on ${broken.length} set${broken.length === 1 ? '' : 's'} — not counted as progress yet.`;
+    brokeNote = L(
+      `${brokeAt} kg broke your technique on ${broken.length} set${broken.length === 1 ? '' : 's'} — not counted as progress yet${broken.length >= Math.ceil(intended.length / 2) ? '; if it happens again next session, the load goes one step down' : ''}.`,
+      `На ${brokeAt} кг техника нарушилась в ${broken.length} подх. — пока не считается прогрессом${broken.length >= Math.ceil(intended.length / 2) ? '; если повторится в следующий раз, вес снизится на один шаг' : ''}.`,
+    );
   }
 
   // 2) Judge progress from representative sessions only.
@@ -481,15 +515,21 @@ export function suggestNextLoad(
   // Effort is "recorded" with a RIR, a feel, or a definite failure answer (muscular / stopped before failure).
   // "Stopped before failure" alone does not say how close the set was, so it is not recorded effort.
   const effortKnown = (p: SetPoint) => p.rir != null || p.effort != null || (p.failure === 'muscular' && !p.technicalFailure);
+  // Part 6 (F.7): reps at the top of the range are objective evidence — no effort answer is needed. A set at the
+  // working load whose technique broke (kept, but not a benchmark) means the top was not reached cleanly.
+  const technique = (p: SetPoint) => !p.benchmark && (p.technique === 'compromised' || p.technique === 'failed' || p.technicalFailure === true);
   const hitsTop = (s: SessionPerf) => {
     const at = atLoad(s);
-    return at.length > 0 && at.length >= Math.ceil(benchPts(s).length / 2) && at.every((p) => (p.reps ?? 0) >= hi && effortKnown(p));
+    return at.length > 0 && at.length >= Math.ceil(benchPts(s).length / 2) && at.every((p) => (p.reps ?? 0) >= hi) && !s.sets.some(technique);
   };
   // "A little too easy" (≈ 3–4 RIR) is not clearly light on its own — only "too easy" or a logged RIR ≥ target + 2.
   const clearlyLight = (p: SetPoint) => (p.rir != null ? p.rir >= rirTarget + 2 : p.effort === 'very_easy');
   const lastTop = hitsTop(last);
   const prevTop = prev ? hitsTop(prev) && workLoad(prev) === w : false;
-  const tooEasy = lastTop && atLoad(last).every(clearlyLight);
+  // One-session shortcut: every set clearly light, on at least TWO sets (one answer is never enough), and the
+  // reps did not fall from the first to the last set (a load that is really too light does not fatigue you).
+  const lastAt = atLoad(last);
+  const tooEasy = lastTop && lastAt.length >= 2 && lastAt.every(clearlyLight) && (lastAt[lastAt.length - 1].reps ?? 0) >= (lastAt[0].reps ?? 0);
   const nextLoad = stepLoad(w, step, increment);
 
   if (painLast) {
@@ -512,7 +552,7 @@ export function suggestNextLoad(
     return { ...base, action: 'reduce', weight: stepLoad(w, -step, increment), reason: `Most sets fell below ${lo} reps and the trend is declining across comparable sessions. A one-step reduction (or checking recovery and rest) may restore quality reps.${tail}` };
   }
   if (benchPts(last).every((p) => !effortKnown(p))) {
-    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set. Effort was not recorded (no RIR or feel), so readiness for a load increase cannot be confirmed — tap how the set felt or log RIR.${tail}` };
+    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set; the load goes up once every set reaches ${hi} reps in two sessions in a row.${tail}` };
   }
   return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and add reps toward ${hi} on every working set (last top set: ${last.topReps ?? '?'} reps${last.topRir != null ? ` @ RIR ${last.topRir}` : ''}).${tail}` };
 }
@@ -591,24 +631,29 @@ export function buildProgression(
   const locById = new Map(locations.map((l) => [l.id, l]));
   const eqById = new Map(equipment.map((e) => [e.id, e]));
   const ovById = new Map(overrides.map((o) => [o.id, o]));
-  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; scope: string; variant: string | null; locationId: string | null }>();
+  const groups = new Map<string, { exerciseId: string; equipmentId: string | null; loadMode: string; sessions: SessionPerf[]; src: { w: Workout; ex: WorkoutExercise; body: number | null }[]; scope: string; variant: string | null; locationId: string | null }>();
   const sorted = [...workouts].sort((a, b) => (a.date + (a.startTime ?? '')).localeCompare(b.date + (b.startTime ?? '')));
   for (const w of sorted) {
     for (const ex of w.exercises) {
       const def = registry.get(ex.exerciseId);
       const key = progressionKey(ex, w, def);
-      const perf = sessionPerf(w, ex, useFeel, (def?.equipmentKind === 'bodyweight' || ex.sets.some((s) => s.loadMode === 'bodyweight_plus')) ? bodyKg(w) : null);
+      const body = (def?.equipmentKind === 'bodyweight' || ex.sets.some((s) => s.loadMode === 'bodyweight_plus')) ? bodyKg(w) : null;
+      const perf = sessionPerf(w, ex, useFeel, body);
       if (!perf) continue;
+      const ctx = preloadFor(w, ex, registry);
+      perf.preload = ctx.sets;
+      perf.context = ctx.bucket;
       let g = groups.get(key);
       if (!g) {
         const eq = ex.equipmentId ? eqById.get(ex.equipmentId) : undefined;
         const base = baseKey(ex, w, def);
         const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? 'Bodyweight' : 'Free weights') : 'Unidentified equipment';
         const parts = variationParts(effectiveVariation(ex, def), def);
-        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null, locationId: null };
+        g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], src: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null, locationId: null };
         groups.set(key, g);
       }
       g.sessions.push(perf);
+      g.src.push({ w, ex, body });
       g.locationId = w.locationId ?? null;
     }
   }
@@ -616,7 +661,18 @@ export function buildProgression(
   for (const [key, g] of groups) {
     const def = registry.get(g.exerciseId);
     const ov = ovById.get(g.exerciseId);
-    const trend = classifyTrend(g.sessions, today);
+    // F.7: one index basis per history. RIR is added only when every scored session has it on its top set.
+    const scoredAll = g.sessions.filter((s) => s.index != null);
+    const indexBasis: 'rir' | 'reps' = scoredAll.length > 0 && scoredAll.every((s) => s.topRir != null) ? 'rir' : 'reps';
+    if (indexBasis === 'reps') {
+      g.sessions = g.sessions.map((s, i) => {
+        const again = sessionPerf(g.src[i].w, g.src[i].ex, useFeel, g.src[i].body, 'reps');
+        return again ? { ...again, preload: s.preload, context: s.context } : s;
+      });
+    }
+    // F.8: compare like with like.
+    const { sessions: cmp, compare } = comparableSessions(g.sessions);
+    const trend = classifyTrend(cmp, today);
     const eq = g.equipmentId ? eqById.get(g.equipmentId) : undefined;
     const { step: inc, source: incrementSource } = loadStep(eq, g.locationId ? locById.get(g.locationId) : undefined, def?.equipmentKind, g.loadMode);
     let best: ProgressionSeries['best'] = { e1rm: null, weight: null, reps: null, date: null };
@@ -637,10 +693,36 @@ export function buildProgression(
       best,
       current: g.sessions[g.sessions.length - 1] ?? null,
       previous: g.sessions[g.sessions.length - 2] ?? null,
-      next: suggestNextLoad(g.sessions, ov?.repRange ?? def?.repRange ?? [8, 12], ov?.targetRir ?? defaultRir, inc, trend, g.loadMode),
+      next: suggestNextLoad(cmp, ov?.repRange ?? def?.repRange ?? [8, 12], ov?.targetRir ?? defaultRir, inc, trend, g.loadMode),
+      indexBasis,
+      compare,
     });
   }
   return out.sort((a, b) => (b.current?.date ?? '').localeCompare(a.current?.date ?? ''));
+}
+
+/**
+ * F.8: the sessions to compare for trend and load decisions, given the context of the session being judged
+ * (default: the latest one). Order never differed → all sessions as they are. Otherwise, with ≥ 3 sessions in
+ * that context → only those; with fewer → all sessions, the index of pre-loaded ones normalised to the fresh
+ * context (× 1 + drop × pre-load, capped), using the owner's own drop on this history when measurable.
+ */
+export function comparableSessions(sessions: SessionPerf[], context?: PreloadBucket): { sessions: SessionPerf[]; compare: ProgressionSeries['compare'] } {
+  const ctxOf = (s: SessionPerf): PreloadBucket => s.context ?? 'fresh';
+  const latest: PreloadBucket = context ?? (sessions.length ? ctxOf(sessions[sessions.length - 1]) : 'fresh');
+  const kinds = new Set(sessions.map(ctxOf));
+  if (context) kinds.add(context);
+  if (kinds.size < 2) return { sessions, compare: { basis: 'single_context', context: latest, dropPerSet: null } };
+  const same = sessions.filter((s) => ctxOf(s) === latest);
+  if (same.length >= SAME_CONTEXT_MIN) return { sessions: same, compare: { basis: 'same_context', context: latest, dropPerSet: null } };
+  const d = measuredDrop(sessions.map((s) => ({ index: s.indexRaw ?? s.index, preload: s.preload, context: ctxOf(s) }))) ?? PRELOAD_DEFAULT_DROP;
+  const adj = sessions.map((s) => {
+    if (ctxOf(s) !== 'preloaded' || s.index == null) return s;
+    const f = preloadFactor(s.preload ?? 0, d);
+    const raw = (s.indexRaw ?? s.index) * f;
+    return { ...s, index: Math.round(raw * 10) / 10, indexRaw: raw, e1rm: s.e1rm != null ? Math.round(s.e1rm * f * 10) / 10 : null };
+  });
+  return { sessions: adj, compare: { basis: 'adjusted', context: latest, dropPerSet: d } };
 }
 
 export interface WarmupPlan {

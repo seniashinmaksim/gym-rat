@@ -39,6 +39,12 @@ export type RestSource = 'timer' | 'manual' | 'reported' | 'estimated';
 export interface WorkoutSet {
   id: string;
   type: SetType;
+  /**
+   * Who decided `type` (Part 6): 'auto' = the app tagged a warm-up from the numbers (re-checked whenever the
+   * exercise's sets change); 'owner' = the owner set or corrected the tag (never changed automatically).
+   * Absent = recorded before Part 6 or by an import (never changed automatically).
+   */
+  typeSource?: 'auto' | 'owner';
   /** Load as entered on THIS equipment. Never normalized across machines. */
   weightKg: number | null;
   loadMode: LoadMode;
@@ -179,6 +185,13 @@ export interface WorkoutExercise {
   /** Index of the generated-plan item this exercise came from (Part 5); absent = added by hand. */
   planItem?: number;
   /**
+   * Today's target for this exercise (Part 6): shown as one line; no set rows are created from it. A set
+   * exists only once it was performed and logged.
+   */
+  target?: ExerciseTarget;
+  /** Rest-timer length chosen for this exercise in this session (−15 / +15 sticks for the rest of the session). */
+  restTargetSec?: number;
+  /**
    * How many working sets the APP last planned for this exercise. A re-assessment may only replace planned sets
    * while the card still has exactly this many working sets (the owner added / removed / edited nothing).
    */
@@ -187,6 +200,18 @@ export interface WorkoutExercise {
 }
 
 /** What the exercise-choice assistant said when the exercise was picked, and what the owner did (never blocks). */
+/** Today's target for one exercise in a live session (a plan, never counted). */
+export interface ExerciseTarget {
+  sets: number;
+  weightKg: number | null;
+  /** Rep range per set (the last entry repeats for further sets). */
+  reps: { min: number; max: number }[];
+  /** Engine that produced it. */
+  engine: string;
+  /** The owner changed it before starting: never re-planned automatically. */
+  edited?: boolean;
+}
+
 export interface ExerciseChoiceRecord {
   status: 'good' | 'acceptable' | 'reconsider';
   reasonKind: string | null;
@@ -481,6 +506,11 @@ export interface QualityModel {
   beyondSessionCapCredit: number;
   /** When no RIR is logged, estimate effort from the owner's set feedback (default on). */
   useFeelWhenNoRir?: boolean;
+  /**
+   * Cross-check effort against the logged numbers (Part 6): ramp sets far from failure earn less or no credit,
+   * and a reported effort that the numbers clearly contradict is credited by the numbers. Absent = on.
+   */
+  useNumbersCheck?: boolean;
 }
 
 export interface Settings {
@@ -499,6 +529,12 @@ export interface Settings {
   priorities: Partial<Record<MuscleId, MusclePriority>>;
   learning: { startDate: string | null; endedOn: string | null; lengthDays: number };
   showOptionalTracking: boolean;
+  /** Rest-timer length started by every logged set, seconds (Part 6; absent = 150). */
+  restDefaultSec?: number;
+  /** App language (Part 6; mirrored outside the vault so the lock screen can use it). */
+  language?: 'en' | 'ru';
+  /** Accent of the training mode: ember (default), volt or ice. */
+  trainAccent?: 'ember' | 'volt' | 'ice';
 }
 
 export interface ImportLogEntry {

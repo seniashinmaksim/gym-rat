@@ -37,11 +37,56 @@ export function refRirCredit(rir: number): number {
   return 0;
 }
 
-/** Credit of one performed working set, from the documented rules only. */
-export function refSetCredit(s: WorkoutSet): number {
+/**
+ * §L (Part 6) "effort from the numbers", written from the documented rule only (independent of perception.ts).
+ * Among the performed, non-warm-up, non-drop sets of ONE exercise with a real load: best = highest
+ * weight × (1 + reps / 30). A set BEFORE it could have done 30 × (best / weight − 1) reps; minus the reps done =
+ * reserve (1 decimal). With a logged RIR / failure the numbers win only when the reserve is ≥ 5 and ≥ 3 reps above
+ * the report; without a report the reserve decides, capped at the provisional 0.75. A lighter set AFTER the best
+ * set loses one more rep of reserve per set since the best one (only without a report). At the same load, reps
+ * falling by ≥ 2 on the next set (rest not under 60 s) mark the set as hard: full credit when nothing or "easy"
+ * (RIR ≥ 4) was reported. Returns the reserve to use for the credit table, or null = no change.
+ */
+function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: boolean } | null {
+  const pool = sets.filter((x) => !x.planned && x.type !== 'warmup');
+  const i = pool.indexOf(s);
+  if (i < 0) return null;
+  const loaded = (x: WorkoutSet) => x.type !== 'drop' && x.weightKg != null && x.weightKg > 0 && x.reps != null && x.reps >= 1 && (x.loadMode === 'total' || x.loadMode === 'per_side');
+  const score = (x: WorkoutSet) => (x.weightKg as number) * (1 + Math.min(x.reps as number, 30) / 30);
+  let b = -1;
+  pool.forEach((x, k) => { if (loaded(x) && (b < 0 || score(x) > score(pool[b]) + 1e-9)) b = k; });
+  const report = s.rir ?? (s.toFailure ? 0 : s.failure === 'muscular' && !s.technicalFailure ? 0 : null);
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  if (b >= 0 && i !== b && loaded(s)) {
+    const possible = 30 * (score(pool[b]) / (s.weightKg as number) - 1);
+    if (i < b) {
+      const reserve = Math.max(0, round1(possible - (s.reps as number)));
+      if (report == null) return { reserve, cap: true };
+      if (reserve >= 5 && reserve - report >= 3) return { reserve, cap: false };
+      return null;
+    }
+    if ((s.weightKg as number) < (pool[b].weightKg as number) && report == null) {
+      const reserve = Math.max(0, round1(possible - (s.reps as number) - (i - b)));
+      const nxt = pool.slice(i + 1).find((x) => (x.side ?? null) === (s.side ?? null));
+      const sameLoadNext = !!nxt && nxt.weightKg === s.weightKg && nxt.loadMode === s.loadMode && nxt.reps != null;
+      if (reserve >= 5 || !sameLoadNext) return { reserve, cap: true };
+    }
+  }
+  const next = pool.slice(i + 1).find((x) => (x.side ?? null) === (s.side ?? null));
+  if (next && s.type !== 'drop' && next.type !== 'drop' && s.reps != null && next.reps != null && next.weightKg === s.weightKg && next.loadMode === s.loadMode
+    && !(next.restSecBefore != null && next.restSecBefore > 0 && next.restSecBefore < 60) && s.reps - next.reps >= 2 && (report == null || report >= 4)) {
+    return { reserve: 1, cap: false };
+  }
+  return null;
+}
+
+/** Credit of one performed working set, from the documented rules only. `sets` = all sets of its exercise entry. */
+export function refSetCredit(s: WorkoutSet, sets: WorkoutSet[] = [s]): number {
   if (s.type === 'warmup' || s.planned) return 0;
   let c: number;
-  if (s.rir != null) c = refRirCredit(s.rir);
+  const byNumbers = refNumbers(sets, s);
+  if (byNumbers) c = byNumbers.cap ? Math.min(0.75, refRirCredit(Math.round(byNumbers.reserve))) : refRirCredit(Math.round(byNumbers.reserve));
+  else if (s.rir != null) c = refRirCredit(s.rir);
   else if (s.toFailure) c = 1;
   else if (s.failure === 'muscular' && !s.technicalFailure) c = 1; // §H: ≈ RIR 0, same credit as RIR 1–3
   else c = 0.75; // unknown effort (failure 'none' / 'uncertain' without RIR stays unknown)
@@ -77,7 +122,7 @@ export function refEffective(workouts: Workout[], cap = 11, beyond = 0.5): Recor
       for (const s of e.sets) {
         if (s.type === 'warmup' || s.planned) continue;
         const k = sw.get(s.id) ?? 1;
-        const credit = refSetCredit(s);
+        const credit = refSetCredit(s, e.sets);
         for (const [m, c] of Object.entries(coef)) {
           const add = c * credit * k;
           const before = run[m] ?? 0;
