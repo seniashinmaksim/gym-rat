@@ -1,11 +1,10 @@
 import type { AppData } from './appdata';
-import { daysLeftInWeek, diffDays, localNowParts, weekOf, type WeekRange } from './dates';
+import { daysLeftInWeek, localNowParts, weekOf, type WeekRange } from './dates';
 import { mean, weeklyHistory, type WeekBucket } from './history';
-import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
+import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { failureProfile, type FailureProfile } from './failure';
-import { loadStep } from './increments';
-import { bodyWeightForSession } from './bodyweight';
-import { buildProgression, warmupFor, type NextLoad, type ProgressionSeries, type WarmupPlan } from './progression';
+import { bodyKgForIndex } from './bodyweight';
+import { buildProgression, type ProgressionSeries } from './progression';
 import { round2, roundHalf, stripPlanned } from './quality';
 import { estimateRecovery, type RecoveryEstimate } from './recovery';
 import { buildRegistry, type Registry } from './registry';
@@ -47,30 +46,6 @@ export interface MuscleWeek {
   explanation: string;
 }
 
-export interface PlannedExercise {
-  exerciseId: string;
-  equipmentId: string | null;
-  sets: number;
-  next: NextLoad | null;
-  warmup: WarmupPlan;
-  lastUsed: string | null;
-  fromHistory: boolean;
-}
-
-export interface PlanItem {
-  muscle: MuscleId;
-  suggestedSets: number;
-  reason: string;
-  exercises: PlannedExercise[];
-}
-
-export interface NextWorkoutPlan {
-  priorities: PlanItem[];
-  avoid: { muscle: MuscleId; reason: string }[];
-  satisfied: MuscleId[];
-  notes: string[];
-}
-
 export interface Analysis {
   today: string;
   nowVirtualMs: number;
@@ -91,7 +66,6 @@ export interface Analysis {
   sessionsLeftInclToday: number;
   avgSessionsPerWeek: number;
   expectedRemainingSessions: number;
-  plan: NextWorkoutPlan;
   /** Failure-status profile of the current week (descriptive only; one line for the UI in `failure.line`). */
   failure: FailureProfile;
 }
@@ -101,6 +75,15 @@ export const RECOVERY_TOLERANCE_H = 6;
 
 /** Share of the weekly preferred target suggested at most in one session (spreads it over ≥2 sessions). */
 export const MAX_SESSION_SHARE = 0.6;
+
+/**
+ * What is still open of today's share: less than half a set counts as nothing, else rounded to half sets.
+ * The one formula for "left today" (Week screen, choice card).
+ */
+export function leftOfShare(share: number, done: number): number {
+  const diff = share - done;
+  return diff < 0.5 ? 0 : roundHalf(diff);
+}
 
 export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   // Planned (pre-filled, not yet performed) sets never count toward anything.
@@ -114,7 +97,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   const thisWeek = data.workouts.filter((w) => w.date >= week.start && w.date <= week.end && w.date <= today);
   const current = computeVolume(thisWeek, registry, quality);
   const learning = learningState(data, today, weeks);
-  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyWeightForSession(data.body, w).kg);
+  const progression = buildProgression(data.workouts, registry, data.equipment, data.exerciseOverrides, defaultTargetRir, today, quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyKgForIndex(data.body, w));
   const recovery = estimateRecovery(data, registry, local.virtualMs, today);
   const planRecovery = estimateRecovery(data, registry, local.virtualMs, today, { before: today });
   const targets = computeTargets({ data, weeks, learning, progression, recovery, registry, today });
@@ -123,7 +106,8 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   const avgSessionsPerWeek = recentWeeks.length ? mean(recentWeeks.map((w) => w.workouts.length)) : 3;
   const daysLeft = daysLeftInWeek(today, week);
   const todays = thisWeek.filter((w) => w.date === today);
-  const trainedToday = todays.length > 0;
+  // Opening the logger is not training: a workout counts once it has a performed set (planned sets are stripped above).
+  const trainedToday = todays.some((w) => w.exercises.some((e) => e.sets.length > 0));
   const todayVol = computeVolume(todays, registry, quality);
   const effDays = trainedToday ? Math.max(0, daysLeft - 1) : daysLeft;
   const expectedRemainingSessions = Math.max(effDays > 0 ? 1 : 0, Math.round((avgSessionsPerWeek * effDays) / 7));
@@ -147,7 +131,8 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
     let status: WeekStatus;
     if (!data.workouts.length) status = 'no_data';
     else if (completed > target.max) status = 'over';
-    else if (completed >= target.preferred) status = 'done';
+    // "Done" as soon as nothing is left after rounding to half sets (11.9 of 12 is the target, not 0 sets short).
+    else if (completed >= target.preferred || remainingToPreferred === 0) status = 'done';
     else if (remainingToPreferred > achievable && remainingToMin > 0) status = 'at_risk';
     else if (completed >= target.min || pct >= elapsedFrac * 0.8) status = 'on_track';
     else status = 'behind';
@@ -205,8 +190,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
       if (todayShare === sessionCap && carryOver > 0) todayNote += ` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`;
       if (mwTrendDeclining(trend.overall)) todayNote += ' · keep sets high-quality';
     }
-    const diff = todayShare - doneToday;
-    const todayLeft = diff < 0.5 ? 0 : roundHalf(diff);
+    const todayLeft = leftOfShare(todayShare, doneToday);
 
     return {
       muscle: m, target, volume, completed, remainingToMin, remainingToPreferred, pctOfPreferred: pct, status, recovery: rec, trend,
@@ -214,98 +198,11 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
     };
   });
 
-  const plan = planNextWorkout(data, registry, muscles, progression, today, perSessionSetCap);
   const failure = failureProfile(data, { start: week.start, end: today < week.end ? today : week.end }, registry);
   return {
     today, nowVirtualMs: local.virtualMs, week, daysLeft, registry, weeks, current, learning, targets, recovery, planRecovery, progression, muscles,
-    sessionsThisWeek: thisWeek.length, trainedToday, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, plan, failure,
+    sessionsThisWeek: thisWeek.length, trainedToday, sessionsLeftInclToday, avgSessionsPerWeek: Math.round(avgSessionsPerWeek * 10) / 10, expectedRemainingSessions, failure,
   };
-}
-
-function planNextWorkout(
-  data: AppData,
-  registry: Registry,
-  muscles: MuscleWeek[],
-  progression: ProgressionSeries[],
-  today: string,
-  cap: number,
-): NextWorkoutPlan {
-  const notes: string[] = [];
-  const avoid: NextWorkoutPlan['avoid'] = [];
-  const satisfied: MuscleId[] = [];
-  const priorityMult = (m: MuscleId) => (data.settings.priorities[m] === 'high' ? 1.3 : data.settings.priorities[m] === 'maintain' ? 0.5 : 1);
-  const candidates: { mw: MuscleWeek; score: number }[] = [];
-  for (const mw of muscles) {
-    if (mw.status === 'done' || mw.status === 'over') {
-      satisfied.push(mw.muscle);
-      continue;
-    }
-    if (mw.todayBlocked) {
-      avoid.push({ muscle: mw.muscle, reason: mw.justification });
-      continue;
-    }
-    if (mw.remainingToPreferred <= 0) continue;
-    const recMult = mw.recovery.status === 'likely_recovered' ? 1 : 0.8;
-    const declining = mw.trend.overall === 'declining' ? 0.7 : 1;
-    candidates.push({ mw, score: mw.remainingToPreferred * recMult * declining * priorityMult(mw.muscle) * (MUSCLE_BY_ID[mw.muscle].size === 'large' ? 1.1 : 1) });
-  }
-  candidates.sort((a, b) => b.score - a.score);
-
-  const lastLocation = [...data.workouts].sort((a, b) => b.date.localeCompare(a.date))[0]?.locationId ?? null;
-  const eqById = new Map(data.equipment.map((e) => [e.id, e]));
-  const locById = new Map(data.locations.map((l) => [l.id, l]));
-  const used = new Set<string>();
-  const priorities: PlanItem[] = [];
-  for (const { mw } of candidates.slice(0, 5)) {
-    const m = mw.muscle;
-    const sets = Math.max(1, Math.min(Math.ceil(mw.remainingToPreferred), cap));
-    const hist = progression
-      .filter((p) => (registry.get(p.exerciseId)?.contributions[m] ?? 0) >= 0.75 && !used.has(p.key))
-      .map((p) => {
-        const eq = p.equipmentId ? eqById.get(p.equipmentId) : undefined;
-        const atLoc = !eq || !lastLocation || eq.locationId === lastLocation;
-        const age = p.current ? diffDays(today, p.current.date) : 999;
-        return { p, score: p.sessions.length * 2 - age / 7 + (atLoc ? 5 : 0) };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 2);
-    const exercises: PlannedExercise[] = [];
-    let prior = 0;
-    hist.forEach(({ p }, i) => {
-      used.add(p.key);
-      const def = registry.get(p.exerciseId);
-      const eq = p.equipmentId ? eqById.get(p.equipmentId) : undefined;
-      const loc = locById.get(p.locationId ?? lastLocation ?? '');
-      const inc = loadStep(eq, loc, def?.equipmentKind, p.loadMode).step;
-      const exSets = hist.length === 1 ? sets : i === 0 ? Math.ceil(sets / 2) : Math.floor(sets / 2);
-      if (exSets <= 0) return;
-      exercises.push({
-        exerciseId: p.exerciseId,
-        equipmentId: p.equipmentId,
-        sets: exSets,
-        next: p.next,
-        warmup: warmupFor(def, p.next.weight, inc, prior),
-        lastUsed: p.current?.date ?? null,
-        fromHistory: true,
-      });
-      prior += exSets;
-    });
-    if (!exercises.length) {
-      const seed = [...registry.values()].find((d) => (d.contributions[m] ?? 0) >= 1 && d.category === 'isolation') ?? [...registry.values()].find((d) => (d.contributions[m] ?? 0) >= 1);
-      if (seed) {
-        exercises.push({ exerciseId: seed.id, equipmentId: null, sets, next: null, warmup: warmupFor(seed, null, 0, 0), lastUsed: null, fromHistory: false });
-      }
-    }
-    const reasonParts = [`${mw.remainingToPreferred} effective sets below ${mw.target.provisional ? 'the provisional' : 'your'} target of ${mw.target.preferred}`];
-    if (mw.recovery.status === 'likely_recovered') reasonParts.push('likely recovered');
-    if (data.settings.priorities[m] === 'high') reasonParts.push('marked high priority');
-    if (mw.trend.overall === 'declining') reasonParts.push('main lifts declining — keep sets high-quality');
-    priorities.push({ muscle: m, suggestedSets: sets, reason: reasonParts.join(' · '), exercises });
-  }
-  if (!data.workouts.length) notes.push('Log your first workout to start receiving recommendations.');
-  if (priorities.length === 0 && data.workouts.length) notes.push('Every muscle is at or above target, or still recovering. A rest day or a light session is a perfectly good choice.');
-  if (priorities.some((p) => p.exercises.some((e) => !e.fromHistory))) notes.push('Some suggestions have no personal history yet — treat the first session as calibration.');
-  return { priorities, avoid, satisfied, notes };
 }
 
 function mwTrendDeclining(t: string) {

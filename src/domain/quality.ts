@@ -57,7 +57,9 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
   let uncertain = false;
   let estimated = false;
 
-  const rir = set.rir ?? (set.toFailure ? 0 : null);
+  // The "Fail" chip means RIR 0 only when technique held: when technique gave out first, the muscle may have had
+  // reps left, so effort is unknown — the same as a muscular-failure answer with technical failure.
+  const rir = set.rir ?? (set.toFailure && set.technicalFailure !== true ? 0 : null);
   // Muscular failure recorded (technique held) but no RIR → effort treated like RIR 0. This is NOT
   // extra credit: RIR 0–3 all earn the same credit, because failure is not shown to grow more muscle.
   const failRir = rir == null ? failureImpliedRir(set) : null;

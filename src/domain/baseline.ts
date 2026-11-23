@@ -16,7 +16,7 @@
  * Hypertrophy assessment combines independent indicators (strength trend, quality sets,
  * consistency, effort, 7-day body-weight trend, circumferences, photos) and returns a status with
  * confidence. It never outputs a growth percentage. Windows: weeks 1–4 baseline, 4–8 early signals,
- * from week 8 a first combined assessment, then every 4 weeks.
+ * after 8 full weeks (day 56 on) a first combined assessment, then every 4 weeks.
  */
 import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
@@ -44,7 +44,9 @@ export function strengthProgress(series: ProgressionSeries, today: string): Stre
   const out: StrengthProgress = { key: series.key, exerciseId: series.exerciseId, status: 'more_data', baseline: null, current: null, pct: null };
   if (!all.length) return out;
   // Never compare a kg-based index with a reps-based one (e.g. bodyweight dips vs dips with a belt).
-  const kind = all[0].indexKind ?? null;
+  // The LATEST kind decides (rule `index_scale`): after a switch (bodyweight → belt, belt → body + belt) the
+  // baseline is the first 28 days of the sessions on the new scale, instead of "baseline only" for ever.
+  const kind = all[all.length - 1].indexKind ?? null;
   const rep = all.filter((s) => (s.indexKind ?? null) === kind);
   const ix = (s: (typeof rep)[number]) => (s.indexRaw ?? s.index) as number;
   const start = rep[0].date;
@@ -54,8 +56,6 @@ export function strengthProgress(series: ProgressionSeries, today: string): Stre
   const weights = (xs: typeof rep) => { const w = xs.map((s) => s.topWeight).filter((x): x is number => x != null); return w.length ? median(w) : null; };
   out.baseline = { index: r1(median(base.map(ix))), topWeight: weights(base), sessions: base.length, from: base[0].date, to: base[base.length - 1].date };
   out.status = 'baseline_only';
-  // The latest sessions must be on the baseline's scale; otherwise there is nothing comparable yet.
-  if ((all.at(-1)?.indexKind ?? null) !== kind) return out;
   // Belt/vest work without any body weight: an Epley on the belt alone exaggerates every belt change
   // (5 → 7.5 kg reads as +50 %), so no % is shown until body weight is logged.
   if (kind === 'load' && series.loadMode === 'bodyweight_plus') return out;

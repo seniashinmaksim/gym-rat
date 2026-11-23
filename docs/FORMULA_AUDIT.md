@@ -31,7 +31,7 @@ information is missing (no RIR, a session with only excluded sets, no body weigh
 floating-point noise or by an empty card, and several places where two screens use slightly different rules.
 
 Status key: **PART 6** = changed in Part 6 because the owner asked for it (F.4 warm-up credit, F.7 perception,
-F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's OK.
+F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's OK; **FIXED (2026-11-23)** = re-checked against the code, reproduced by a failing test and then fixed (section 5, rows 11–41).
 
 ## 2. Findings that matter in practice
 
@@ -57,21 +57,21 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
 - Change (F.7): the two-session rule no longer needs an effort answer. The one-session shortcut ("clearly too light")
   still needs it, on at least two sets, with no rep drop across them.
 
-### F-3 "Two consecutive sessions" has no time limit — QUESTIONABLE → OPEN
+### F-3 "Two consecutive sessions" has no time limit — QUESTIONABLE → FIXED (2026-11-23)
 - Where: `suggestNextLoad` (`prev = rep[rep.length - 2]`).
 - Example (run): 2 × 15 at 60 kg on 2 March and again on 16 November → "increase".
 - Second check: no date is read anywhere in `suggestNextLoad`. The separate "back after > 14 days" rule only looks at days
   without ANY workout, so it does not cover one exercise that was not done for months.
 - Proposed fix: the previous session must be within the trend window (56 days); otherwise "confirm it next session".
 
-### F-4 A second "reduce" rule exists only in the code — INCONSISTENT (documentation) → OPEN
+### F-4 A second "reduce" rule exists only in the code — INCONSISTENT (documentation) → FIXED (2026-11-23)
 - Where: `suggestNextLoad`, last `reduce` branch: more than half of the sets under the bottom of the range AND a declining
   trend AND no short-rest explanation → one step down.
 - CLAUDE.md §G says a reduction happens for broken technique, "never merely because a set was hard". The rule is sensible;
   the documentation does not mention it.
 - Proposed fix: document it (rules.ts `double_progression` + CLAUDE.md §G), or remove it.
 
-### F-5 Upper / lower chest emphasis ignores the per-session ceiling — INCONSISTENT (minor) → OPEN
+### F-5 Upper / lower chest emphasis ignores the per-session ceiling — INCONSISTENT (minor) → FIXED (2026-11-23)
 - Where: `volume.ts` `computeVolume` (regions loop).
 - Example (run): 14 incline dumbbell press sets at RIR 1 in one session → chest 12.5 (11 + 3 × 0.5), upper-chest emphasis 14.
   A share of chest work above 100 % is possible in very long single sessions.
@@ -79,7 +79,7 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
   uses `taperBeyondCap`. Confirmed.
 - Proposed fix: apply the same taper factor to the regional number.
 
-### F-6 "Best" of a history compares different index kinds — INCONSISTENT (minor) → OPEN
+### F-6 "Best" of a history compares different index kinds — INCONSISTENT (minor) → FIXED (2026-11-23)
 - Where: `progression.ts` `buildProgression` (`best`).
 - Example (run): weighted dips, two sessions before any weigh-in (belt-only index 13 and 13.3) and two after (body + belt
   index 120 and 123) → best = 123. Trends and progress % keep kinds apart; `best` does not.
@@ -92,44 +92,44 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
 - Change (F.3): the default stays, but one tap on the step chooser stores the real step for that machine / gym, and any
   value can be typed.
 
-### A-1 A card without a performed set can add 12 h of recovery — WRONG → OPEN
+### A-1 A card without a performed set can add 12 h of recovery — WRONG → FIXED (2026-11-23)
 - Where: `recovery.ts` lines 181–187 ("exercise new to you").
 - Example (run by the first reader): 3 familiar pushdown sets + a skull-crusher card holding only a warm-up (or an
   unticked planned set) → triceps window 36 h instead of 24 h.
 - Second check: the `novel` filter looks at `exercises`, never at their sets. Confirmed by reading.
 - Proposed fix: count an exercise as "new" only when it has at least one performed working set.
 
-### A-2 Impossible dates are accepted — WRONG → OPEN
+### A-2 Impossible dates are accepted — WRONG → FIXED (2026-11-23)
 - Where: `dates.ts` `isIsoDate`.
 - Example: `2026-02-30` → valid (the JavaScript engine rolls it over to 2 March), so week buckets (text comparison) and
   recovery (milliseconds) disagree about the day. Checked on V8 only.
 - Proposed fix: round-trip check (`msToDate(dateMs(s)) === s`).
 
-### A-3 "Restart Learning Mode from today" does nothing when history exists — WRONG → OPEN
+### A-3 "Restart Learning Mode from today" does nothing when history exists — WRONG → FIXED (2026-11-23)
 - Where: `targets.ts` line 32 vs `Settings.tsx` line 282.
 - As coded: start = the EARLIER of the stored date and the first workout. After "Restart from today" with 8 weeks of
   history the mode is still on day 57 (inactive).
 - Second check: `firstWorkout < learning.startDate ? firstWorkout : learning.startDate`. Confirmed.
 - Proposed fix: an explicitly stored start date wins.
 
-### A-4 Opening a workout counts as "trained today" — WRONG → OPEN
+### A-4 Opening a workout counts as "trained today" — WRONG → FIXED (2026-11-23)
 - Where: `analysis.ts` lines 125–128 (`trainedToday = todays.length > 0`).
 - Example (run): Sunday, chest 5 / 12. Opening the logger (zero sets) moves the sessions left this week from 1 to 0 and
   the status from "behind" to "at risk".
 - Proposed fix: a workout counts once it has one performed set.
 
-### A-5 … A-13 Smaller inconsistencies (group A) — OPEN
+### A-5 … A-13 Smaller inconsistencies (group A) — status per row
 | # | What | Where | Example → actual | Proposed fix |
 |---|---|---|---|---|
-| A-5 | Failure / novelty use base coefficients, significance uses resolved ones | `recovery.ts` 170 | OHP 3 sets + bench at −10° 2 × RIR 0: front delts 36 h, expected 24 h | use `resolveCoefficients` |
-| A-6 | Bench-angle range | `registry.ts` 48 (−30…90) vs importer / schema (−45…90) | −31° is imported but credited as flat | one range |
-| A-7 | Fail chip vs failure status when technique gave out | `failure.ts` 86 + `quality.ts` 45 | to_failure + technical → 0.70; muscular + technical → 0.53 | one handling |
-| A-8 | "Effort recorded" counts pain / wrong-weight answers | `effort.ts` 10 | six pain-only sets → "missing 0" | drop `!!s.feel` |
-| A-9 | Confidence text vs field | `targets.ts` 180 | field `low`, text "Confidence moderate" | set the field first |
-| A-10 | "Maintain" priority can still say "increase" after Learning Mode | `targets.ts` 106 vs 164–182 | chest on maintain: 9 / 12 / 18 and action "increase" | never increase a maintain muscle |
-| A-11 | Per-session cap has a floor of 3 | `analysis.ts` 145 vs rule `todays_share` ("≤ 60 %") | preferred 4 → share 3 (75 %) | document the floor |
-| A-12 | Status just below the target | `analysis.ts` 140 vs 150 | chest 11.9 / 12: "Target met" but status "on track" | "done" when the rounded remainder is 0 |
-| A-13 | Legacy `analysis.plan` | `analysis.ts` 236–261 | suggested 10 vs today's share 4; nothing reads it | remove |
+| A-5 | Failure / novelty use base coefficients, significance uses resolved ones | `recovery.ts` 170 | OHP 3 sets + bench at −10° 2 × RIR 0: front delts 36 h, expected 24 h | use `resolveCoefficients` — **FIXED (2026-11-23)** |
+| A-6 | Bench-angle range | `registry.ts` 48 (−30…90) vs importer / schema (−45…90) | −31° is imported but credited as flat | one range — **OPEN (owner's decision: which range)** |
+| A-7 | Fail chip vs failure status when technique gave out | `failure.ts` 86 + `quality.ts` 45 | to_failure + technical → 0.70; muscular + technical → 0.53 | one handling — **FIXED (2026-11-23): technique gave out → effort unknown on both paths** |
+| A-8 | "Effort recorded" counts pain / wrong-weight answers | `effort.ts` 10 | six pain-only sets → "missing 0" | drop `!!s.feel` — **FIXED (2026-11-23)** |
+| A-9 | Confidence text vs field | `targets.ts` 180 | field `low`, text "Confidence moderate" | set the field first — **FIXED (2026-11-23)** |
+| A-10 | "Maintain" priority can still say "increase" after Learning Mode | `targets.ts` 106 vs 164–182 | chest on maintain: 9 / 12 / 18 and action "increase" | never increase a maintain muscle — **FIXED (2026-11-23)** |
+| A-11 | Per-session cap has a floor of 3 | `analysis.ts` 145 vs rule `todays_share` ("≤ 60 %") | preferred 4 → share 3 (75 %) | document the floor — **FIXED (2026-11-23): floor documented in rule `todays_share`** |
+| A-12 | Status just below the target | `analysis.ts` 140 vs 150 | chest 11.9 / 12: "Target met" but status "on track" | "done" when the rounded remainder is 0 — **FIXED (2026-11-23)** |
+| A-13 | Legacy `analysis.plan` | `analysis.ts` 236–261 | suggested 10 vs today's share 4; nothing reads it | remove — **FIXED (2026-11-23): removed (no reader in src or tests)** |
 
 ### A-14 … A-21 Questionable choices (group A) — OPEN
 | # | What | Alternative |
@@ -143,35 +143,35 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
 | A-20 | Computed end of Learning Mode can be a date before the criteria were met | real date or null |
 | A-21 | Muscle trend summary: a tie reads "progressing" | strict majority |
 
-### B-1 Weekly "progressed / declined" drops an exercise after one excluded session — WRONG → OPEN
+### B-1 Weekly "progressed / declined" drops an exercise after one excluded session — WRONG → FIXED (2026-11-23)
 - Where: `reports.ts` 109–114. The index kind is taken from the week's LAST session; if that session has no index (all
   sets excluded: pain, wrong weight), the exercise disappears from the report.
 - Second check: `kind = all.at(-1)!.indexKind ?? null` → `before` needs `index != null` and `indexKind === null` → empty →
   skipped. Confirmed by reading.
 - Proposed fix: take the kind from the last session of the week that has an index.
 
-### B-2 Deload check treats an excluded session as performance 0 — WRONG → OPEN
+### B-2 Deload check treats an excluded session as performance 0 — WRONG → FIXED (2026-11-23)
 - Where: `reports.ts` 403 (`(index ?? 0) <= (index ?? 0)`).
 - Example (run): two exercises improving slightly; mark the last set of each as pain → "Same performance feels harder: 2 exercises".
 - Proposed fix: representative sessions on one index scale only.
 
-### B-3 Monthly weight note decided by floating-point noise — WRONG → OPEN
+### B-3 Monthly weight note decided by floating-point noise — WRONG → FIXED (2026-11-23)
 - Where: `reports.ts` 480–484 (`dw > 0.3`).
 - Example: 80.3 − 80.0 = 0.29999999999999716 → no note; 80.4 − 80.1 = 0.30000000000001137 → "Weight up…".
 - Proposed fix: round the difference to 0.1 kg first.
 
-### B-4 … B-12 Inconsistencies (group B) — OPEN
+### B-4 … B-12 Inconsistencies (group B) — status per row
 | # | What | Where | Example → actual | Proposed fix |
 |---|---|---|---|---|
-| B-4 | Progress % uses the FIRST session's index kind; rule `index_scale` says the latest | `baseline.ts` 45 | 2 bodyweight dip sessions, then 7 with a belt → "baseline only" for ever | latest kind, baseline from its first 28 days |
-| B-5 | "First check at week 8" vs code (day 56 = week 9) | `baseline.ts` 128, `Reports.tsx` | day 55 (week 8) is still "too early" | say "after 8 weeks" |
-| B-6 | Baseline report ignores `failure: muscular` as RIR 0 | `reports.ts` 277 | known effort 86 % instead of 100 % | use `failureImpliedRir` |
-| B-7 | Outdated weigh-in still feeds the body + belt index | `bodyweight.ts` 74 vs callers | one weigh-in, pull-ups 148 days later → same body weight used | flag or exclude outdated weights |
-| B-8 | Duration cap 600 min (summary) vs 400 min (stored) | `sessionSummary.ts` 45 vs `Logger.tsx` | 08:00 → 15:00: summary 420, stored nothing | one helper (the new training mode uses the shared one) |
-| B-9 | Summary average rest includes drop segments | `sessionSummary.ts` 51 | rests 120, 90, 100 + drop 8 s → 80 instead of 103 | working sets only |
-| B-10 | Weighted dips / pull-ups without `loading` are not HIGH fatigue cost | `fatigue.ts` 27 | dips + 20 kg → not HIGH | derive "weighted" from the performed sets |
-| B-11 | Fatigue classes vs rule text | `exercises.ts` vs `rules.ts` | hack squat HIGH (machine), farmer carry MODERATE | align text or data |
-| B-12 | Session load counts each side as a set | `fatigue.ts` 71 | 2 L + 2 R to failure → 4 sets / 4 failure sets ("heavy") | weight by `sideFactors` |
+| B-4 | Progress % uses the FIRST session's index kind; rule `index_scale` says the latest | `baseline.ts` 45 | 2 bodyweight dip sessions, then 7 with a belt → "baseline only" for ever | latest kind, baseline from its first 28 days — **FIXED (2026-11-23)** |
+| B-5 | "First check at week 8" vs code (day 56 = week 9) | `baseline.ts` 128, `Reports.tsx` | day 55 (week 8) is still "too early" | say "after 8 weeks" — **FIXED (2026-11-23): wording "after 8 weeks"** |
+| B-6 | Baseline report ignores `failure: muscular` as RIR 0 | `reports.ts` 277 | known effort 86 % instead of 100 % | use `failureImpliedRir` — **FIXED (2026-11-23)** |
+| B-7 | Outdated weigh-in still feeds the body + belt index | `bodyweight.ts` 74 vs callers | one weigh-in, pull-ups 148 days later → same body weight used | flag or exclude outdated weights — **FIXED (2026-11-23): outdated weigh-ins excluded from the index and the note** |
+| B-8 | Duration cap 600 min (summary) vs 400 min (stored) | `sessionSummary.ts` 45 vs `Logger.tsx` | 08:00 → 15:00: summary 420, stored nothing | one helper (the new training mode uses the shared one) — **OPEN (the training UI is being rewritten)** |
+| B-9 | Summary average rest includes drop segments | `sessionSummary.ts` 51 | rests 120, 90, 100 + drop 8 s → 80 instead of 103 | working sets only — **FIXED (2026-11-23)** |
+| B-10 | Weighted dips / pull-ups without `loading` are not HIGH fatigue cost | `fatigue.ts` 27 | dips + 20 kg → not HIGH | derive "weighted" from the performed sets — **FIXED (2026-11-23)** |
+| B-11 | Fatigue classes vs rule text | `exercises.ts` vs `rules.ts` | hack squat HIGH (machine), farmer carry MODERATE | align text or data — **OPEN (owner's decision: text or data)** |
+| B-12 | Session load counts each side as a set | `fatigue.ts` 71 | 2 L + 2 R to failure → 4 sets / 4 failure sets ("heavy") | weight by `sideFactors` — **FIXED (2026-11-23)** |
 
 ### B-13, B-14 Questionable (group B) — OPEN
 | # | What | Alternative |
@@ -179,7 +179,7 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
 | B-13 | Baseline weekly distribution counts a partial first week as full (Sunday start: 3, 6, 6 → 5.0) | only weeks fully inside the period |
 | B-14 | A timed same-day weigh-in tagged "before workout" is rejected when the workout has no start time | accept tagged entries either way |
 
-### C-1 An exercise on "pain hold" can still be planned through the "new exercise" path — WRONG → OPEN
+### C-1 An exercise on "pain hold" can still be planned through the "new exercise" path — WRONG → FIXED (2026-11-23)
 - Where: `planner.ts` 382–390 (seed list for a persistent deficit) vs line 344 (normal list, which does apply `painHold`).
 - Example (run by the first reader): pec deck skipped for pain two days ago (14 sessions on record), chest with its own
   target and a persistent deficit → pec deck is planned, 4 sets, labelled "new to you", without the safety line.
@@ -191,7 +191,7 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
   "planned" equals "done". 1 of 3 planned squat sets done → "followed". Used by tests only; no screen reads it.
 - Change (F.2): the planned count comes from the stored target.
 
-### C-3 Volume is cut "with adequate effort" although effort is unknown — WRONG → OPEN
+### C-3 Volume is cut "with adequate effort" although effort is unknown — WRONG → FIXED (2026-11-23)
 - Where: `volumeResponse.ts` 190–195. The decline branch tests `!effortLow` (median logged RIR ≥ 4), not "effort known and adequate".
 - Examples (run): declining trend, baseline 10 sets, NO effort logged → reduce to 8 "with adequate effort" (expected: hold);
   every set "too easy" → same reduce; RIR 5 → "observe" with the false reason "volume changed recently".
@@ -199,15 +199,15 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
 - Why it matters after Part 6: the effort tap is optional, so "no effort logged" becomes common.
 - Proposed fix: reduce only when effort is known and adequate; separate, true messages for unknown and low effort.
 
-### C-4 … C-9 Inconsistencies (group C) — OPEN
+### C-4 … C-9 Inconsistencies (group C) — status per row
 | # | What | Where | Example → actual | Proposed fix |
 |---|---|---|---|---|
-| C-4 | The plan and the first live re-assessment size sets differently | `planner.ts` 283–290, 353 vs 536–542 | squat planned 5 sets (quads open 3); re-assessment with nothing done → 3 | one allocation routine; cap by every muscle with coefficient ≥ 0.75 |
-| C-5 | Usual session size counts left and right separately | `planner.ts` 123 | 3 L + 3 R + 3 → 9, expected 6 | `countedSetCount` |
-| C-6 | "Earlier 4 weeks" is really 2 | `volumeResponse.ts` 32, 93 vs `targets.ts` 113 (last 6 weeks passed) | "more volume did not help" needs 8 weeks to fire as described | pass 8 weeks or correct the comment |
-| C-7 | "Left today" computed three ways | `exerciseChoice.ts` 271 vs `analysis.ts` 209, `prescription.ts` 399 | share 4, done 3.75: analysis 0, choice card "0.5 sets left" | reuse the analysis formula |
-| C-8 | Only the first 3 significant muscles get a state | `exerciseChoice.ts` 267 | biceps loaded yesterday: cable row ACCEPTABLE (biceps 3rd), barbell row GOOD (biceps 4th) | assess all muscles ≥ 0.5 |
-| C-9 | Rule text for the operating modes | `rules.ts` 258 ("with gyms identified") vs code and CLAUDE.md (≥ 80 % of machine exercises linked) | — | reword the rule |
+| C-4 | The plan and the first live re-assessment size sets differently | `planner.ts` 283–290, 353 vs 536–542 | squat planned 5 sets (quads open 3); re-assessment with nothing done → 3 | one allocation routine; cap by every muscle with coefficient ≥ 0.75 — **OPEN (needs a design decision)** |
+| C-5 | Usual session size counts left and right separately | `planner.ts` 123 | 3 L + 3 R + 3 → 9, expected 6 | `countedSetCount` — **FIXED (2026-11-23)** |
+| C-6 | "Earlier 4 weeks" is really 2 | `volumeResponse.ts` 32, 93 vs `targets.ts` 113 (last 6 weeks passed) | "more volume did not help" needs 8 weeks to fire as described | pass 8 weeks or correct the comment — **FIXED (2026-11-23): comment corrected (2 weeks, as passed by the caller)** |
+| C-7 | "Left today" computed three ways | `exerciseChoice.ts` 271 vs `analysis.ts` 209, `prescription.ts` 399 | share 4, done 3.75: analysis 0, choice card "0.5 sets left" | reuse the analysis formula — **FIXED (2026-11-23): choice card uses the analysis formula** |
+| C-8 | Only the first 3 significant muscles get a state | `exerciseChoice.ts` 267 | biceps loaded yesterday: cable row ACCEPTABLE (biceps 3rd), barbell row GOOD (biceps 4th) | assess all muscles ≥ 0.5 — **FIXED (2026-11-23)** |
+| C-9 | Rule text for the operating modes | `rules.ts` 258 ("with gyms identified") vs code and CLAUDE.md (≥ 80 % of machine exercises linked) | — | reword the rule — **FIXED (2026-11-23)** |
 
 ### C-10 … C-16 Questionable choices (group C) — OPEN
 | # | What | Alternative |
@@ -2572,7 +2572,7 @@ Verdict count: CORRECT 17 · CORRECT BUT WEAKLY SUPPORTED 40 · QUESTIONABLE 7 �
 
 ## 5. Changes made after the audit
 
-Only what the owner asked for in Part 6 (F.4, F.7, F.8, and what F.2 / F.3 require). Everything marked OPEN above is untouched.
+Rows 1–10: what the owner asked for in Part 6 (F.4, F.7, F.8, and what F.2 / F.3 require). Rows 11–41 (2026-11-23): the audit findings the owner approved for fixing — each one re-read in the code, reproduced with a failing test (synthetic, hand-computed numbers) and then fixed minimally. Everything still marked OPEN above is untouched.
 
 | # | Formula | Old | New | Why | Test |
 |---|---|---|---|---|---|
@@ -2586,5 +2586,38 @@ Only what the owner asked for in Part 6 (F.4, F.7, F.8, and what F.2 / F.3 requi
 | 8 | First-set rep target (M38, M39) | from the last session at the load | minus the expected rep loss when today's exercise comes after same-muscle work and the reference session was fresh; said in a note ("not a regression") | F.8 | `tests/part6-perception.test.ts` |
 | 9 | Plan in a live session (C-2, C-10) | prepared (planned) set rows per exercise | a TARGET per exercise (sets × load × reps), no rows; re-assessment replaces untouched targets; adherence compares with the target, so "fewer sets" is now reported | F.2 | `tests/part5-planner.test.ts`, `tests/part5-review.test.ts` (expectations changed on purpose) |
 | 10 | Default index drop per pre-loading set | — (new) | 1 % per fractional set, capped at 6 % (Senna 2019: −17 … −25 % reps after five sets ≈ 3–5 % of the index) | F.8 | `tests/part6-perception.test.ts` |
+| 11 | Two-session increase (F-3) | previous top session at any distance in time | the previous top session counts only when ≤ 56 days (the trend window, `TREND_WINDOW_DAYS`) before the last one; otherwise "keep — confirm it next session", with the number of days in the reason | a session months ago is not "two sessions in a row" | `tests/audit-fixes.test.ts` F-3 (259 days → keep; 56 → increase; 57 → keep) |
+| 12 | Second reduce rule (F-4) | in the code only | documented in rule `double_progression` (done with Part 6) and now also in CLAUDE.md §G; no code change | code and documentation agree | `tests/audit-fixes.test.ts` F-4 |
+| 13 | Regional chest emphasis (F-5, M11) | Σ emphasis × chest coefficient × credit × side factor (untapered) | the same × the taper factor the chest credit of that set received (`eff ÷ raw`, 1 below the ceiling) | the emphasis is a share of chest work and cannot exceed it | `tests/audit-fixes.test.ts` F-5 (14 sets: 12.5 and 12.5; 8 sets: unchanged) |
+| 14 | Best of a history (F-6, M17) | highest index over all sessions | highest index among the sessions of the LATEST index kind | reps, belt-only and body + belt indices are different scales | `tests/audit-fixes.test.ts` F-6 |
+| 15 | "New exercise" +12 h (A-1) | any card of a movement not done in 21 days | only when that card has ≥ 1 performed working set | a warm-up or an unticked planned set is not an unfamiliar stimulus | `tests/audit-fixes.test.ts` A-1 (24 h; control 48 h) |
+| 16 | `isIsoDate` (A-2) | pattern + `Date.parse` is a number | additionally the parsed date must print back as the same text | 30 February was accepted (rolled over to 2 March) | `tests/audit-fixes.test.ts` A-2 |
+| 17 | Learning Mode start (A-3) | the EARLIER of the stored date and the first workout | the stored date when there is one, else the first workout | "Restart from today" and any later date typed in Settings had no effect. Side effect: a date stored automatically at the first live workout now also wins over sessions imported LATER with earlier dates (the date can be edited in Settings) | `tests/audit-fixes.test.ts` A-3 |
+| 18 | Trained today (A-4) | a workout dated today exists | a workout dated today has ≥ 1 performed set | opening the logger moved "sessions left" and the weekly status | `tests/audit-fixes.test.ts` A-4 |
+| 19 | Failure sets / novelty coefficients (A-5) | base coefficients of the exercise | `resolveCoefficients` with the logged variation (as the volume and the significance test do) | a decline bench (front delts 0.25) added 12 h to the front delts | `tests/audit-fixes.test.ts` A-5 |
+| 20 | Fail chip when technique gave out (A-7) | `to_failure` + technical failure → RIR 0 (1.0 × 0.7 = 0.70); muscular + technical → unknown (0.75 × 0.7 = 0.53) | both → effort unknown (0.53) unless a RIR was typed; same in the effort distribution, effort coverage and the feel estimate | one event, one credit; CLAUDE.md §H: technical failure does not mean 0 muscular RIR | `tests/audit-fixes.test.ts` A-7 |
+| 21 | Effort recorded (A-8) | RIR, Fail chip, effort, ANY feel, muscular failure | RIR, effort, Fail chip / muscular failure with technique intact | "pain" and "wrong weight" answers carry no effort (those sets are credited the provisional 0.75) | `tests/audit-fixes.test.ts` A-8; `tests/effort-nudge.test.ts` fixture corrected (a feel is stored together with its effort) |
+| 22 | Target confidence text (A-9) | text written before the "< 3 weeks → low" override | override first, then the text | field said low, text said moderate | `tests/audit-fixes.test.ts` A-9 |
+| 23 | "Maintain" after Learning Mode (A-10) | ignored: the muscle could be increased | an "increase" decision is not applied (hold at the own level, with the reason); reductions still apply | maintain must never raise a muscle | `tests/audit-fixes.test.ts` A-10 |
+| 24 | Per-session cap floor (A-11) | undocumented floor of 3 | documented in rule `todays_share`; no code change | documentation | `tests/audit-fixes.test.ts` A-11 |
+| 25 | Weekly status just below the target (A-12) | `done` only when completed ≥ preferred | also `done` when the remainder rounds to 0 half sets | "Target met" next to "on track" (11.9 / 12) | `tests/audit-fixes.test.ts` A-12 |
+| 26 | Legacy `analysis.plan` (A-13) | computed on every analysis; no reader | removed (function, types, field) | dead code with numbers that contradicted today's share | `tests/audit-fixes.test.ts` A-13 |
+| 27 | Weekly progressed / declined (B-1) | index kind from the week's last session | from the week's last session that HAS an index | one all-excluded session hid the exercise | `tests/audit-fixes.test.ts` B-1 |
+| 28 | Deload "feels harder" (B-2) | last 4 sessions; a missing index counted as 0 | last 4 representative sessions of the latest index kind | an excluded session is not performance 0 | `tests/audit-fixes.test.ts` B-2 (+ control) |
+| 29 | Monthly weight / waist note (B-3) | raw difference of two rounded values | difference rounded to 0.1 before comparing | 80.3 − 80.0 and 80.4 − 80.1 gave different answers | `tests/audit-fixes.test.ts` B-3 |
+| 30 | Progress % index kind (B-4) | kind of the FIRST session | kind of the LATEST session; baseline = first 28 days of the sessions of that kind | rule `index_scale`; a switch to a belt left "baseline only" for ever | `tests/audit-fixes.test.ts` B-4 (+2.5 %) |
+| 31 | First combined check (B-5) | "at week 8" / "from week 8" | wording "after 8 weeks" (Reports screen, comment); code unchanged (day 56) | day 55 is in week 8 and still "too early" | — (wording) |
+| 32 | Baseline report: known effort (B-6) | RIR or Fail chip | also a muscular-failure answer with technique intact (`failureImpliedRir`) | same definition as the set credit | `tests/audit-fixes.test.ts` B-6 |
+| 33 | Body + belt index (B-7, M16) | latest weigh-in before the session, however old | only a weigh-in with status ok (≤ 7 days old): `bodyKgForIndex`; estimated system mass and the body-weight sentence likewise | an outdated weigh-in was computed with as if current | `tests/audit-fixes.test.ts` B-7 |
+| 34 | Summary average rest (B-9) | working + drop sets | working sets only | the seconds before a drop segment are not rest | `tests/audit-fixes.test.ts` B-9 (103 s) |
+| 35 | Weighted pull-ups / dips HIGH (B-10) | only `variation.loading = weighted` | also when a performed working set has added load (`fatigueCostOf(def, variation, sets)`) | dips have no `loading` field | `tests/audit-fixes.test.ts` B-10 |
+| 36 | Session load set counts (B-12) | each side = one set | weighted by `sideFactors` (left + right = one set) | 2 L + 2 R to failure read as 4 failure sets ("heavy") | `tests/audit-fixes.test.ts` B-12 |
+| 37 | New-exercise seed list (C-1) | filters: used, excluded, recovering | also pain hold and "avoid"; "new to you" only without sessions on record (else "done before (n sessions)") | safety hold was bypassed | `tests/audit-fixes.test.ts` C-1 (4 tests) |
+| 38 | Volume cut for a decline (C-3) | declining and median RIR not ≥ 4 | declining and effort KNOWN and adequate; unknown effort → hold ("record effort first"); low effort → hold ("closer to failure first") | cut "with adequate effort" although nothing was recorded | `tests/audit-fixes.test.ts` C-3 (4 tests) |
+| 39 | Usual session size (C-5) | working sets counted one by one | `countedSetCount` (left + right = one set) | same pairing as everywhere else | `tests/audit-fixes.test.ts` C-5 |
+| 40 | "Left today" on the choice card (C-7); comment (C-6) | `round((share − done) × 2) / 2` | `leftOfShare` — the analysis formula (< 0.5 → 0, else half sets); C-6: comment says 2 earlier weeks | share 4, done 3.75: Week screen 0, card 0.5 | `tests/audit-fixes.test.ts` C-7 |
+| 41 | Muscle states on the choice card (C-8); rule text (C-9) | first 3 muscles with coefficient ≥ 0.5 | all of them; C-9: rule `planner_modes` says "≥ 80 % of machine exercises linked to a machine" | a 4th synergist loaded yesterday was ignored | `tests/audit-fixes.test.ts` C-8, C-9 |
 
 Six-month reference checks after these changes: 0 failures (one simulated set changed credit: 17.5 kg × 18 logged at RIR 3 before 25 kg × 13 — about 13 reps in reserve by the numbers — now earns no credit; the independent reference computes the same).
+
+After rows 11–41: all unit tests pass (37 files); the six-month reference checks (`tests/six-month*.test.ts`, independent reference in `tests/sim/reference.ts`) pass without any change to the reference. Not fixed, on purpose: A-6, A-14 … A-21, B-8, B-11, B-13, B-14, C-2 (rewritten in Part 6), C-4, C-10 … C-16.

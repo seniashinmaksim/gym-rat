@@ -88,7 +88,7 @@ export const EFFORT_RIR_ESTIMATE: Record<Effort, [number, number | null]> = {
 };
 
 export function estimatedRirRange(s: WorkoutSet): [number, number | null] | null {
-  if (s.rir != null || s.toFailure || !s.effort) return null;
+  if (s.rir != null || (s.toFailure && s.technicalFailure !== true) || !s.effort) return null;
   return EFFORT_RIR_ESTIMATE[s.effort];
 }
 

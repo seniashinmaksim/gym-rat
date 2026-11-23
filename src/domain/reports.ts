@@ -5,8 +5,8 @@ import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { exerciseLabel, type Registry } from './registry';
 import { adviceFor, buildProgression, type ProgressionSeries } from './progression';
-import { failureProfile, type FailureProfile } from './failure';
-import { bodyWeightForSession } from './bodyweight';
+import { failureImpliedRir, failureProfile, type FailureProfile } from './failure';
+import { bodyKgForIndex } from './bodyweight';
 import type { MuscleId, Workout } from './types';
 import { countedSetCount, sideFactors, stripPlanned } from './quality';
 import type { MuscleTarget } from './targets';
@@ -106,11 +106,15 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
     const all = p.sessions.filter((s) => inWeek(s.date));
     if (!all.length) continue;
     // Same index scale only (kg-based vs reps-based are never compared).
-    const kind = all.at(-1)!.indexKind ?? null;
-    const weekSessions = all.filter((s) => (s.indexKind ?? null) === kind);
+    // The kind comes from the week's last session THAT HAS an index: a session whose sets were all excluded
+    // (pain, wrong weight) has none and must not hide the rest of the week.
+    const scoredWeek = all.filter((s) => s.index != null);
+    if (!scoredWeek.length) continue;
+    const kind = scoredWeek.at(-1)!.indexKind ?? null;
+    const weekSessions = scoredWeek.filter((s) => (s.indexKind ?? null) === kind);
     const before = p.sessions.filter((s) => s.date < bucket.range.start && s.index != null && (s.indexKind ?? null) === kind);
     const prevBest = before.length ? Math.max(...before.slice(-4).map((s) => s.index as number)) : null;
-    const wkBest = Math.max(...weekSessions.map((s) => s.index ?? 0));
+    const wkBest = Math.max(...weekSessions.map((s) => s.index as number));
     if (prevBest == null) continue;
     const label = exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId);
     if (wkBest > prevBest * 1.005) progressed.push({ exerciseId: p.exerciseId, scope: p.scopeLabel, evidence: `${label}: index ${wkBest.toFixed(1)} vs recent best ${prevBest.toFixed(1)}` });
@@ -181,7 +185,7 @@ export function weeklySummary(report: WeeklyReport, a: Analysis, progression: Pr
 /** Progression as it stood at the end of a given week (so an old week's report shows that week's calls). */
 export function progressionAsOf(data: AppData, a: Analysis, end: string): ProgressionSeries[] {
   const ws = stripPlanned(data.workouts.filter((w) => w.date <= end));
-  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyWeightForSession(data.body, w).kg);
+  return buildProgression(ws, a.registry, data.equipment, data.exerciseOverrides, data.settings.defaultTargetRir, end, data.settings.quality.useFeelWhenNoRir !== false, data.locations, (w) => bodyKgForIndex(data.body, w));
 }
 
 /** Frozen copy of a finished week, so later target or coefficient changes don't rewrite it. */
@@ -274,7 +278,8 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
         const k = sf.get(s.id) ?? 1;
         totalSets += k;
         if (s.reps != null) st.reps.push(s.reps);
-        const rir = s.rir ?? (s.toFailure ? 0 : null);
+        // Fail chip or a muscular-failure answer with technique intact ≈ RIR 0 (as in the set credit).
+        const rir = s.rir ?? (s.toFailure && s.technicalFailure !== true ? 0 : failureImpliedRir(s));
         if (rir != null) {
           rirKnown += k;
           rirSum += rir * k;
@@ -396,11 +401,15 @@ export function assessDeload(data: AppData, a: Analysis): DeloadAssessment {
   // Effort creep: same/lower performance with lower RIR (sets feel harder).
   let creep = 0;
   for (const p of recent) {
-    const s = p.sessions.slice(-4);
+    // Representative sessions on ONE index scale only: a session without an index (every set excluded) is not
+    // "performance 0", and a kg index is never compared with a reps index.
+    const scored = p.sessions.filter((x) => x.representative && x.index != null);
+    const kind = scored.at(-1)?.indexKind ?? null;
+    const s = scored.filter((x) => (x.indexKind ?? null) === kind).slice(-4);
     if (s.length < 3) continue;
     const r0 = s[0].avgRir;
     const r1 = s[s.length - 1].avgRir;
-    if (r0 != null && r1 != null && r1 < r0 - 0.9 && (s[s.length - 1].index ?? 0) <= (s[0].index ?? 0)) creep++;
+    if (r0 != null && r1 != null && r1 < r0 - 0.9 && (s[s.length - 1].index as number) <= (s[0].index as number)) creep++;
   }
   indicators.push({ label: 'Same performance feels harder', present: creep >= 2, detail: `${creep} exercise(s) show falling RIR without better performance.` });
 
@@ -477,8 +486,9 @@ export function monthlyBodyReport(data: AppData, today: string) {
   const w = rows.find((r) => r.field === 'weightKg')!;
   const waist = rows.find((r) => r.field === 'waistCm')!;
   if (w.current != null && w.previous != null && waist.current != null && waist.previous != null) {
-    const dw = w.current - w.previous;
-    const dwaist = waist.current - waist.previous;
+    // Both values are shown to 0.1; the difference is rounded the same way so 80.3 − 80.0 and 80.4 − 80.1 are both 0.3.
+    const dw = Math.round((w.current - w.previous) * 10) / 10;
+    const dwaist = Math.round((waist.current - waist.previous) * 10) / 10;
     if (dw > 0.3 && dwaist <= 0.5) notes.push('Weight up with a roughly stable waist — consistent with (but not proof of) lean-mass gain.');
     else if (dw > 0.3 && dwaist > 1) notes.push('Weight and waist both rising — some of the gain is likely fat; consider a smaller surplus if that is not intended.');
     else if (dw < -0.3) notes.push('Weight trending down — a calorie deficit makes muscle gain harder for most trained lifters.');

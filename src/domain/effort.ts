@@ -1,13 +1,14 @@
 /**
- * How many of a period's counted working sets carry ANY effort information (RIR, the Fail chip,
- * a failure answer, or how the set felt). Sets without it are credited a provisional 0.75 — fine
+ * How many of a period's counted working sets carry ANY effort information (RIR, the Fail chip or a
+ * muscular-failure answer with technique intact, or an effort answer). "Pain" and "wrong weight" answers say
+ * nothing about effort and do not count. Sets without it are credited a provisional 0.75 — fine
  * occasionally, but if most sets lack it the weekly numbers are mostly guesses, so the Week screen
  * shows a gentle nudge (only when ≥ 50 % are missing and there are at least 6 sets).
  */
 import type { Workout, WorkoutSet } from './types';
 
 export const hasEffortInfo = (s: WorkoutSet): boolean =>
-  s.rir != null || !!s.toFailure || !!s.effort || !!s.feel || (s.failure === 'muscular' && s.technicalFailure !== true);
+  s.rir != null || !!s.effort || ((!!s.toFailure || s.failure === 'muscular') && s.technicalFailure !== true);
 
 export function effortCoverage(workouts: Workout[], range: { start: string; end: string }): { counted: number; missing: number; nudge: boolean } {
   let counted = 0;
@@ -46,7 +47,7 @@ export function effortDistribution(workouts: Workout[], range: { start: string; 
         // A left+right pair is one set: count the left side, skip the paired right sides.
         if (s.side === 'right' && rightSeen++ < pairs) continue;
         d.total++;
-        const rir = s.rir ?? (s.toFailure || (s.failure === 'muscular' && !s.technicalFailure) ? 0 : null);
+        const rir = s.rir ?? ((s.toFailure || s.failure === 'muscular') && !s.technicalFailure ? 0 : null);
         if (s.rir != null) { rirSum += s.rir; rirN++; }
         if (rir == null) d.unknown++;
         // Fractional RIR (e.g. 1.5 from RPE 8.5) goes to the nearest column: ≤0.5 → 0, <1.5 → 1, <2.5 → 2, else 3+.

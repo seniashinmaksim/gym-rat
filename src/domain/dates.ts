@@ -7,7 +7,10 @@
 const DAY = 86_400_000;
 
 export function isIsoDate(s: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const ms = Date.parse(`${s}T00:00:00Z`);
+  // Round trip: an impossible day (30 February) is rolled over by some engines instead of being rejected.
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === s;
 }
 
 /** Date-only → UTC epoch ms at 00:00 (a "virtual" calendar instant). */

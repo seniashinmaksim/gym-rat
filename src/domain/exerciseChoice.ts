@@ -19,7 +19,7 @@ import { muscleName, MUSCLE_BY_ID } from './muscles';
 import { progressionKey } from './progression';
 import { isCounted } from './quality';
 import { movementFamily } from './recovery';
-import { RECOVERY_TOLERANCE_H, type analyze } from './analysis';
+import { leftOfShare, RECOVERY_TOLERANCE_H, type analyze } from './analysis';
 import type { ExerciseDef, FatigueCost, MovementPattern, MuscleId, Variation, Workout, WorkoutExercise } from './types';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -264,11 +264,12 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
 
   const sig = significantMuscles(def, variation, 0.5);
   const primary = sig[0]?.muscle ?? null;
-  const lines: MuscleLine[] = sig.slice(0, 3).map(({ muscle, coef }, idx) => {
+  // Every muscle with coefficient ≥ 0.5 gets a state (a 4th synergist loaded yesterday matters as much as a 3rd).
+  const lines: MuscleLine[] = sig.map(({ muscle, coef }, idx) => {
     const mw = analysis.muscles.find((m) => m.muscle === muscle);
     const pr = analysis.planRecovery[muscle];
     const doneNow = Math.max(mw?.doneToday ?? 0, load?.muscles[muscle] ?? 0);
-    const todayLeft = Math.max(0, Math.round(((mw?.todayShare ?? 0) - doneNow) * 2) / 2);
+    const todayLeft = leftOfShare(mw?.todayShare ?? 0, doneNow);
     const weekLeft = mw?.remainingToPreferred ?? 0;
     let state: MuscleState = 'LIKELY_READY';
     let source: MuscleLine['source'] = null;
@@ -339,7 +340,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     const pending = pendingDoable(workout, exerciseId);
     const blocked = pending.find((e) => {
       const d = registry.get(e.exerciseId);
-      if (!d || fatigueCostOf(d, e.variation) === 'low') return false;
+      if (!d || fatigueCostOf(d, e.variation, e.sets) === 'low') return false;
       const sm = significantMuscles(d, e.variation, 0.5);
       return sm[0]?.muscle !== primary && sm.some((x) => x.muscle === primary);
     });
@@ -496,7 +497,7 @@ function doFirstAlternatives(c: AltCtx, primary: MuscleId | null): ChoiceAlterna
   const out: ChoiceAlternative[] = [];
   for (const e of pending) {
     const d = c.analysis.registry.get(e.exerciseId);
-    if (!d || fatigueCostOf(d, e.variation) === 'low') continue;
+    if (!d || fatigueCostOf(d, e.variation, e.sets) === 'low') continue;
     if (primary && !significantMuscles(d, e.variation, 0.5).some((x) => x.muscle === primary)) continue;
     out.push({ exerciseId: d.id, equipmentId: e.equipmentId, kind: 'do_first', sessions: c.counts.get(d.id) ?? 0, why: `${d.name.en} first (still planned), then this.` });
   }

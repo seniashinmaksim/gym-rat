@@ -49,7 +49,8 @@ export function summarizeSession(w: Workout, all: Workout[], registry: Registry,
   const exs = w.exercises.filter((e) => e.sets.some(performed));
   const sets = exs.flatMap((e) => e.sets.filter(performed));
   const work = sets.filter(isWork);
-  const rests = work.map((s) => s.restSecBefore).filter((r): r is number => r != null && r > 0);
+  // Working sets only: the few seconds before a drop segment are not a rest period.
+  const rests = work.filter((s) => s.type === 'working').map((s) => s.restSecBefore).filter((r): r is number => r != null && r > 0);
   const eff = sessionMuscleEffective({ ...w, exercises: exs.map((e) => ({ ...e, sets: e.sets.filter(performed) })) }, registry, model);
 
   // Records against EARLIER comparable sessions only (same exercise × equipment × configuration).

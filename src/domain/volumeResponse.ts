@@ -5,7 +5,7 @@
  *   increase +1–2  stalled across comparable sessions AND technique / loads consistent AND effort adequate AND
  *                  recovery good AND volume stable ≥ 3 weeks (last change observed) AND history does not show
  *                  that more volume failed to help
- *   reduce −1–2    repeated decline with adequate effort, consistently worse recovery, technique deteriorating,
+ *   reduce −1–2    repeated decline with KNOWN, adequate effort (unknown or low effort → hold with that reason), consistently worse recovery, technique deteriorating,
  *                  or a recent volume increase with no better performance (more fatigue, no benefit) → back to
  *                  the earlier productive level
  *   hold           progressing (keep what works), insufficient evidence, effort too low, or observing a change
@@ -16,6 +16,7 @@
  */
 import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
+import { L } from '../i18n/core';
 import { median, type WeekBucket } from './history';
 import { MUSCLE_BY_ID, muscleName } from './muscles';
 import type { ProgressionSeries } from './progression';
@@ -29,7 +30,10 @@ export type VolumeAction = 'increase' | 'reduce' | 'hold' | 'observe';
 
 export interface VolumeEvidence {
   baseline: number;
-  /** Median weekly effective sets, earlier 4 weeks vs recent 4 weeks (null when < 2 weeks each). */
+  /**
+   * Median weekly effective sets: the recent 4 usable weeks vs the usable weeks before them (null when < 2 weeks
+   * each). The caller passes the last 6 usable weeks, so "earlier" is 2 weeks, not 4.
+   */
   earlierLevel: number | null;
   recentLevel: number | null;
   /** Median performance change per week (%), same windows, of the muscle's direct exercises. */
@@ -187,7 +191,10 @@ export function volumeDecision(inp: {
   if (breakWeeks > 0 && !recoveryPoor && !techniqueBad) return done('observe', baseline, `Back from a training break (${breakWeeks} empty week${breakWeeks === 1 ? '' : 's'} in the last 4) — performance is not comparable yet; volume stays until the response is clear.`);
 
   // ---- reduce
-  if (trend.overall === 'declining' && !effortLow && (stableWeeks >= 2 || moreDidNotHelp)) {
+  // A decline cuts volume only when effort is KNOWN and adequate: with unknown or low effort the decline may
+  // simply come from sets that were too easy (or cannot be judged), and fewer sets would not fix that.
+  const effortOk = effortAdequate === true && !effortLow;
+  if (trend.overall === 'declining' && effortOk && (stableWeeks >= 2 || moreDidNotHelp)) {
     const to = moreDidNotHelp && earlierLevel != null ? earlierLevel : baseline - step;
     return done('reduce', to, moreDidNotHelp
       ? `Performance is declining since volume rose from ~${earlierLevel} to ~${recentLevel} sets/week, with adequate effort — likely more than you recover from: back to ~${earlierLevel}, then watch the next weeks.`
@@ -198,6 +205,18 @@ export function volumeDecision(inp: {
   if (moreDidNotHelp && earlierLevel != null) return done('reduce', earlierLevel, `Volume rose from ~${earlierLevel} to ~${recentLevel} sets/week but performance improved less (${recentSlope} vs ${earlierSlope} %/week) — the extra sets seem to add fatigue, not progress: back to ~${earlierLevel}.`);
 
   // ---- hold
+  if (trend.overall === 'declining' && (effortLow || effortAdequate === false)) {
+    return done('hold', baseline, L(
+      'Performance has declined, but most recent sets stopped well short of failure — take sets closer to failure (RIR 0–3) first; the volume stays.',
+      'Результаты снизились, но большинство недавних подходов заканчивались далеко от отказа — сначала доводите подходы ближе к отказу (RIR 0–3); объём остаётся.',
+    ));
+  }
+  if (trend.overall === 'declining' && effortAdequate == null) {
+    return done('hold', baseline, L(
+      'Performance has declined, but effort (RIR or how sets felt) is not recorded on enough recent sets to tell whether the volume is the reason — the volume stays; record effort first.',
+      'Результаты снизились, но усилие (RIR или ощущение от подхода) записано слишком редко, чтобы понять, в объёме ли причина — объём остаётся; сначала записывайте усилие.',
+    ));
+  }
   if (trend.overall === 'declining') return done('observe', baseline, `Performance has dipped, but the volume changed recently (${stableWeeks} / 2 weeks at this level) — observing before cutting.`);
   if (trend.overall === 'progressing') return done('hold', baseline, `Progressing at this volume — keep it (no reason to add sets while it works).`);
   if (trend.overall === 'unknown') return done('hold', baseline, 'Not enough comparable sessions to judge the response yet — volume stays where you train it.', effortAdequate === true);

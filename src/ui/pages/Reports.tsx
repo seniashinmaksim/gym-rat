@@ -10,6 +10,7 @@ import { computeVolume, qualitySetTotal } from '../../domain/volume';
 import { effortDistribution, weekTotals } from '../../domain/effort';
 import { addDays } from '../../domain/dates';
 import type { Workout } from '../../domain/types';
+import { L } from '../../i18n/core';
 import { store, useData } from '../../lib/store';
 import { IconAlert, IconCheck, IconChevronDown, IconInfo } from '../components/icons';
 import { Badge, Button, Callout, Card, CardTitle, Empty, Page, Segmented, Select, Stat, Table, Td, Why, cx, fmt, toast } from '../components/ui';
@@ -455,7 +456,7 @@ function FailureCard({ f }: { f: FailureProfile }) {
 }
 
 const STATUS_TEXT: Record<HypertrophyStatus, string> = {
-  establishing_baseline: 'BASELINE — weeks 1–4', too_early: 'TOO EARLY — first check at week 8', consistent_positive_signals: 'CONSISTENT POSITIVE SIGNALS',
+  establishing_baseline: 'BASELINE — weeks 1–4', get too_early() { return L('TOO EARLY — first check after 8 weeks', 'РАНО — первая проверка через 8 недель'); }, consistent_positive_signals: 'CONSISTENT POSITIVE SIGNALS',
   mixed_signals: 'MIXED SIGNALS', no_clear_signals: 'NO CLEAR SIGNALS', insufficient_data: 'MORE DATA NEEDED',
 };
 const IND_LABEL: Record<HypertrophyIndicator['id'], string> = { strength: 'Strength', volume: 'Weekly volume', consistency: 'Sessions', effort: 'Effort logged', body_weight: 'Body weight', circumference: 'Waist', photos: 'Photos' };
@@ -501,7 +502,10 @@ function FourWeekCheck() {
         <div className="mt-2 flex flex-wrap gap-1.5">
           {v.assess.indicators.map((i) => <Badge key={i.id} tone={i.signal === 'positive' ? 'good' : i.signal === 'negative' ? 'warn' : 'neutral'}>{IND_LABEL[i.id]} {i.value}</Badge>)}
         </div>
-        <Why label="How"><p>Indirect indicators only — strength trend on each machine, quality sets, sessions, logged effort, 7-day body weight, waist and photos — never a measurement of muscle. Weeks 1–4 build the baseline; from week 8 the indicators are combined; then every 4 weeks. Nothing changes your targets automatically.</p></Why>
+        <Why label="How"><p>{L(
+          'Indirect indicators only — strength trend on each machine, quality sets, sessions, logged effort, 7-day body weight, waist and photos — never a measurement of muscle. Weeks 1–4 build the baseline; after 8 weeks the indicators are combined; then every 4 weeks. Nothing changes your targets automatically.',
+          'Только косвенные признаки — тренд силы на каждом тренажёре, качественные подходы, тренировки, записанное усилие, вес тела за 7 дней, талия и фото — это не измерение мышц. Недели 1–4 задают базовый уровень; через 8 недель признаки оцениваются вместе; затем каждые 4 недели. Цели автоматически не меняются.',
+        )}</p></Why>
       </div>
     </Card>
   );

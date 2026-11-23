@@ -60,3 +60,32 @@
     linear-gradient(to left, rgb(var(--sx-bg)) 30%, rgba(var(--sx-bg), 0)) right center / 24px 100% no-repeat local,
     radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.6), transparent) left center / 10px 100% no-repeat scroll,
     radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.6), transparent) right center / 10px 100% no-repeat scroll; }
+
+/* ---------------------------------------------------------------- Training theme (docs/DESIGN.md §4)
+   Always dark, independent of the app theme; one hot accent chosen in Settings. */
+.train {
+  --t-bg: #0a0a0b; --t-surface: #151518; --t-line: #2a2a30; --t-text: #ffffff; --t-dim: #a1a1aa;
+  --t-accent: #ff5a1f; --t-on-accent: #0a0a0b; --t-good: #4ade80; --t-warn: #fbbf24; --t-danger: #f87171;
+  background: var(--t-bg); color: var(--t-text);
+}
+.train[data-accent='volt'] { --t-accent: #c6f432; }
+.train[data-accent='ice'] { --t-accent: #38bdf8; }
+.train :focus-visible { outline-color: var(--t-accent); }
+.train .t-label { font-size: 0.6875rem; line-height: 1.2; letter-spacing: 0.12em; font-weight: 700; text-transform: uppercase; color: var(--t-dim); }
+.train .t-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+/* Ruler ticks: minor every 14 px, major every 5th. */
+.train .t-ruler-track {
+  background-image:
+    linear-gradient(to right, var(--t-dim) 0 2px, transparent 2px),
+    linear-gradient(to right, var(--t-line) 0 1px, transparent 1px);
+  background-size: 70px 22px, 14px 12px;
+  background-repeat: repeat-x;
+  background-position: left top, left top;
+}
+.train .t-ruler { scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x; }
+.train .t-ruler::-webkit-scrollbar { display: none; }
+@keyframes t-flash { 0% { background-color: var(--t-accent); color: var(--t-on-accent); } 100% { } }
+@keyframes t-flash-good { 0% { background-color: var(--t-good); color: var(--t-on-accent); } 100% { } }
+.train .t-flash { animation: t-flash 0.5s ease-out; }
+.train .t-flash-good { animation: t-flash-good 0.8s ease-out; }
+@media (prefers-reduced-motion: reduce) { .train .t-flash, .train .t-flash-good { animation: none; } }

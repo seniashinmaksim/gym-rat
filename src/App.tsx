@@ -25,7 +25,7 @@ function loadChunk<T>(fn: () => Promise<T>): Promise<T> {
   );
 }
 
-const LoggerPage = lazy(() => loadChunk(() => import('./ui/pages/Logger')).then((m) => ({ default: m.LoggerPage })));
+const LoggerPage = lazy(() => loadChunk(() => import('./ui/pages/Train')).then((m) => ({ default: m.LogPage })));
 const ImportPage = lazy(() => loadChunk(() => import('./ui/pages/Import')).then((m) => ({ default: m.ImportPage })));
 const HistoryPage = lazy(() => loadChunk(() => import('./ui/pages/History')).then((m) => ({ default: m.HistoryPage })));
 const MusclesPage = lazy(() => loadChunk(() => import('./ui/pages/Muscles')).then((m) => ({ default: m.MusclesPage })));

@@ -6,7 +6,8 @@ describe('effort nudge', () => {
   const r = { start: '2026-11-16', end: '2026-11-22' };
   it('nudges only when ≥ 50 % of ≥ 6 counted sets lack any effort info', () => {
     const none = Array.from({ length: 4 }, () => set(40, 10, null));
-    const some = [set(40, 10, 2), set(40, 10, null, { feel: 'just_right' })];
+    // The feel answer as the logger / importer store it: with its effort dimension (a feel WITHOUT effort — pain, wrong weight — is not effort info, audit A-8).
+    const some = [set(40, 10, 2), set(40, 10, null, { feel: 'just_right', effort: 'appropriate' })];
     expect(effortCoverage([workout('2026-11-17', [ex('pec_deck', [...none, ...some])])], r)).toEqual({ counted: 6, missing: 4, nudge: true });
     expect(effortCoverage([workout('2026-11-17', [ex('pec_deck', [...none.slice(0, 2), ...some, set(40, 10, 1), set(40, 10, null, { failure: 'muscular' })])])], r).nudge).toBe(false);
     expect(effortCoverage([workout('2026-11-17', [ex('pec_deck', none)])], r).nudge).toBe(false); // too few sets

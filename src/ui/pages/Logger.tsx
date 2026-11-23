@@ -10,6 +10,7 @@ import type { Effort, Equipment, ExecutionFeedback, FailureStatus, EquipmentKind
 import { sessionMuscleEffective } from '../../domain/volume';
 import { slugId, uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
+import { liveEditors } from '../train/liveEditors';
 import { IconCheck, IconChevronDown, IconEdit, IconPlus, IconSearch, IconTimer, IconTrash } from '../components/icons';
 import { EquipmentPicker } from '../components/EquipmentPicker';
 import { EquipmentForm } from './Equipment';
@@ -42,7 +43,7 @@ export function LoggerPage() {
 
 // ---------------------------------------------------------------- Start
 
-function StartSession() {
+export function StartSession() {
   const data = useData();
   const nav = useNavigate();
   const now = localNowParts(data.settings.timezone);
@@ -124,10 +125,8 @@ function StartSession() {
 
 // ---------------------------------------------------------------- Editor
 
-/** The mounted editor per workout id: an Undo tapped after the editor was re-opened goes to the live one. */
-const liveEditors = new Map<string, (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void>();
 
-function SessionEditor({ initial }: { initial: Workout }) {
+export function SessionEditor({ initial }: { initial: Workout }) {
   const data = useData();
   const a = useAnalysis();
   const nav = useNavigate();
@@ -566,7 +565,7 @@ function SessionEditor({ initial }: { initial: Workout }) {
   );
 }
 
-interface AddOpts {
+export interface AddOpts {
   equipmentId?: string | null;
   variation?: Variation;
   /** Exercise-choice record (Part 5) when the assistant was shown. */
@@ -588,13 +587,13 @@ function dropEmptySettings(e: WorkoutExercise): WorkoutExercise {
   return { ...e, settings: Object.keys(kept).length ? kept : undefined };
 }
 
-function defaultLoadMode(def: ExerciseDef): LoadMode {
+export function defaultLoadMode(def: ExerciseDef): LoadMode {
   if (def.id === 'assisted_pull_up') return 'assisted';
   if (def.equipmentKind === 'bodyweight') return 'bodyweight_plus';
   return 'total';
 }
 
-function lastSessionFor(workouts: Workout[], exerciseId: string, equipmentId: string | null, excludeId: string): WorkoutExercise | null {
+export function lastSessionFor(workouts: Workout[], exerciseId: string, equipmentId: string | null, excludeId: string): WorkoutExercise | null {
   for (let i = workouts.length - 1; i >= 0; i--) {
     const w = workouts[i];
     if (w.id === excludeId) continue;
@@ -606,7 +605,7 @@ function lastSessionFor(workouts: Workout[], exerciseId: string, equipmentId: st
 
 // ---------------------------------------------------------------- Session meta & wellness
 
-function SessionMeta({ w, update }: { w: Workout; update: (fn: (w: Workout) => Workout) => void }) {
+export function SessionMeta({ w, update }: { w: Workout; update: (fn: (w: Workout) => Workout) => void }) {
   const data = useData();
   const [open, setOpen] = useState(false);
   return (
@@ -633,7 +632,7 @@ function SessionMeta({ w, update }: { w: Workout; update: (fn: (w: Workout) => W
   );
 }
 
-function Wellness({ w, update }: { w: Workout; update: (fn: (w: Workout) => Workout) => void }) {
+export function Wellness({ w, update }: { w: Workout; update: (fn: (w: Workout) => Workout) => void }) {
   const well = w.wellness ?? {};
   const set = (k: 'fatigue' | 'energy', v: number | null) => update((x) => ({ ...x, wellness: { ...(x.wellness ?? {}), [k]: v } }));
   return (
@@ -999,7 +998,7 @@ const RECORD_ONLY: Partial<Record<VariationField, string>> = {
 const RANGE_OPTIONS: [NonNullable<Variation['rom']>, string][] = [['full', 'Full'], ['lengthened_partial', 'Lengthened partials'], ['partial', 'Partial']];
 
 /** Range of motion is rarely changed, so it sits behind "More options" (shown open when a value is set). */
-function MoreOptions({ rom, onRom }: { rom: Variation['rom'] | null; onRom: (r: Variation['rom'] | null) => void }) {
+export function MoreOptions({ rom, onRom }: { rom: Variation['rom'] | null; onRom: (r: Variation['rom'] | null) => void }) {
   const [open, setOpen] = useState(!!rom);
   if (!open) return <button type="button" onClick={() => setOpen(true)} className="min-h-[40px] text-left text-xs text-ink-500 underline decoration-dotted underline-offset-2 sm:col-span-4">More options (range of motion)</button>;
   return (
@@ -1025,7 +1024,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /** Touch chips for the variation fields this exercise uses (bench angle, attachment, one side at a time…). */
-function VariationChips({ def, v, onChange, notes, sides, onSides, showSides }: { def: ExerciseDef; v?: Variation; onChange: (p: Partial<Variation>) => void; notes: string[]; sides: SidesMode; onSides: (m: SidesMode) => void; showSides: boolean }) {
+export function VariationChips({ def, v, onChange, notes, sides, onSides, showSides }: { def: ExerciseDef; v?: Variation; onChange: (p: Partial<Variation>) => void; notes: string[]; sides: SidesMode; onSides: (m: SidesMode) => void; showSides: boolean }) {
   // Grip fields appear only where they matter; a value logged earlier is still shown (and editable).
   const fields = [...(def.variationFields ?? []), ...(['grip', 'gripWidth'] as VariationField[]).filter((f) => !def.variationFields?.includes(f) && v?.[f as 'grip' | 'gripWidth'])];
   if (!fields.length && !showSides) return null;
@@ -1074,7 +1073,7 @@ function VariationChips({ def, v, onChange, notes, sides, onSides, showSides }: 
   );
 }
 
-function SettingsEditor({ settings, template, onChange, onSaveDefault }: { settings: Record<string, string>; template: string[]; onChange: (s: Record<string, string>) => void; onSaveDefault?: () => void }) {
+export function SettingsEditor({ settings, template, onChange, onSaveDefault }: { settings: Record<string, string>; template: string[]; onChange: (s: Record<string, string>) => void; onSaveDefault?: () => void }) {
   const [k, setK] = useState('');
   // Template names (seat, arm pad…) are always offered; blank ones are not stored.
   const keys = [...template, ...Object.keys(settings).filter((x) => !template.includes(x))];
@@ -1234,7 +1233,7 @@ function BodyLine({ w, ex, kind, series, repTop }: { w: Workout; ex: WorkoutExer
  * One short line: lowering · lifting · pause. Details on tap. Guidance only — tempo never changes
  * how a set is counted (see src/data/scientific-evidence/tempo.ts and rule `tempo_no_credit`).
  */
-function ExecutionCue({ exerciseId }: { exerciseId: string }) {
+export function ExecutionCue({ exerciseId }: { exerciseId: string }) {
   const [open, setOpen] = useState(false);
   const t = tempoFor(exerciseId);
   if (!t) return null;
@@ -1263,7 +1262,7 @@ function ExecutionCue({ exerciseId }: { exerciseId: string }) {
 // ---------------------------------------------------------------- Today's workout (prescription)
 
 /** The prescription never throws into the UI: on any error the card falls back to the classic hints. */
-function safePrescribe(data: ReturnType<typeof useData>, a: ReturnType<typeof useAnalysis>, workout: Workout, exerciseIndex: number, setCount?: { count: number; reason: string }): Prescription | null {
+export function safePrescribe(data: ReturnType<typeof useData>, a: ReturnType<typeof useAnalysis>, workout: Workout, exerciseIndex: number, setCount?: { count: number; reason: string }): Prescription | null {
   try {
     return prescribe({ data, analysis: a, now: new Date(), workout, exerciseIndex, ...(setCount ? { setCount } : {}) });
   } catch (e) {
@@ -1669,7 +1668,7 @@ function RestTimer({ w }: { w: Workout }) {
 }
 
 /** End-of-workout numbers. One button. */
-function SummaryModal({ s, onDone, onBack }: { s: SessionSummary; onDone: () => void; onBack?: () => void }) {
+export function SummaryModal({ s, onDone, onBack }: { s: SessionSummary; onDone: () => void; onBack?: () => void }) {
   const a = useAnalysis();
   const names = useNames();
   const stat = (k: string, v: string) => <div className="rounded-xl bg-ink-50 px-3 py-2 dark:bg-ink-950"><div className="text-[10px] uppercase tracking-wider text-ink-500">{k}</div><div className="text-lg font-semibold tabular-nums text-ink-900 dark:text-white">{v}</div></div>;
@@ -1743,7 +1742,7 @@ function LiveBar({ w }: { w: Workout }) {
 
 // ---------------------------------------------------------------- Pickers
 
-function ExercisePicker({ open, onClose, onPick, locationId, workout, title = 'Add exercise' }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null; title?: string }) {
+export function ExercisePicker({ open, onClose, onPick, locationId, workout, title = 'Add exercise' }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null; title?: string }) {
   const a = useAnalysis();
   const data = useData();
   const names = useNames();

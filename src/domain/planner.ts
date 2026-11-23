@@ -14,6 +14,7 @@
  */
 import type { AppData } from './appdata';
 import { diffDays, localNowParts } from './dates';
+import { L } from '../i18n/core';
 import { availableEquipment, exerciseSessionCounts, priorWorkouts, safetyLine, usualExerciseCount } from './exerciseChoice';
 import { FATIGUE_RANK, fatigueCostOf, significantMuscles } from './fatigue';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
@@ -120,7 +121,7 @@ export function sessionPatterns(data: AppData, analysis: Analysis, current: Work
   const recent = hist.filter((w) => diffDays(analysis.today, w.date) >= 0 && diffDays(analysis.today, w.date) <= 56);
   return {
     usualCount: usualExerciseCount(hist, analysis.today),
-    usualSets: med(recent.map((w) => w.exercises.reduce((n, e) => n + e.sets.filter((s) => isCounted(s) && s.type === 'working').length, 0)).filter((n) => n > 0)),
+    usualSets: med(recent.map((w) => w.exercises.reduce((n, e) => n + countedSetCount(e.sets, ['working']), 0)).filter((n) => n > 0)),
     medianDurationMin: med(recent.map((w) => w.durationMin ?? 0).filter((d) => d > 0)),
     sessionsPerWeek: analysis.avgSessionsPerWeek,
   };
@@ -380,14 +381,20 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
     const ownTarget = analysis.targets[m].source !== 'reference';
     if ((remaining[m] ?? 0) >= 2 && MAJOR_MUSCLES.includes(m) && ownTarget && persistent(m)) {
       const seed = [...registry.values()]
-        .filter((d) => !usedEx.has(d.id) && !exclude.has(d.id) && (d.contributions[m] ?? 0) >= 1)
+        // The pain hold (safety) and a learned "avoid" apply here exactly as on the familiar path.
+        .filter((d) => !usedEx.has(d.id) && !exclude.has(d.id) && !prefs.painHold.has(d.id) && !avoidHere.has(d.id) && (d.contributions[m] ?? 0) >= 1)
         .filter((d) => !(Object.entries(d.contributions) as [MuscleId, number][]).some(([n, c]) => c >= 0.5 && n !== m && blocked(n)))
         .map((d) => ({ d, av: availableEquipment(data, d, locationId, busy, history) }))
         .filter((x) => x.av.ok && (x.av.known || !MACHINE_KINDS.has(x.d.equipmentKind)))
         .sort((a, b) => Number(b.av.known) - Number(a.av.known) || (counts.get(b.d.id) ?? 0) - (counts.get(a.d.id) ?? 0)
           || (MUSCLE_BY_ID[m].size === 'small' ? Number(a.d.category === 'compound') - Number(b.d.category === 'compound') : Number(b.d.category === 'compound') - Number(a.d.category === 'compound')))[0];
       if (seed) {
-        addItem(seed.d, seed.av.equipmentId, seed.d.defaultVariation as Variation | undefined, null, m, [`${muscleName(m)}: below the lower end of its weekly range for 2 weeks and no familiar exercise available here — new to you, so it starts calibrating.`]);
+        // "New to you" only when it really is: an exercise with sessions on record is named as such.
+        const before = counts.get(seed.d.id) ?? 0;
+        const deficit = L(`${muscleName(m)}: below the lower end of its weekly range for 2 weeks and no familiar exercise available here`, `${muscleName(m)}: две недели ниже нижней границы недельного диапазона, знакомого упражнения здесь нет`);
+        addItem(seed.d, seed.av.equipmentId, seed.d.defaultVariation as Variation | undefined, null, m, [before > 0
+          ? L(`${deficit} — done before (${before} session${before === 1 ? '' : 's'}), but not in this setup, so it starts calibrating.`, `${deficit} — вы уже делали это упражнение (тренировок: ${before}), но не в этом варианте, поэтому оно начинает калибровку.`)
+          : L(`${deficit} — new to you, so it starts calibrating.`, `${deficit} — упражнение для вас новое, поэтому оно начинает калибровку.`)]);
         continue;
       }
     }

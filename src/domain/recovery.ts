@@ -3,7 +3,7 @@ import { addDays, diffDays, sessionEndVirtualMs, type SessionTimeSource } from '
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
 import { isFailureSetForFatigue } from './failure';
 import { sideFactors } from './quality';
-import type { Registry } from './registry';
+import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId } from './types';
 import { computeVolume, sessionMuscleEffective } from './volume';
 
@@ -167,9 +167,13 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     }
     // Sets taken to failure slow recovery by roughly a day (Morán-Navarro 2017); unfamiliar
     // exercises cause more damage than familiar ones (repeated-bout effect, Damas 2016/2018).
-    const hitsM = (exId: string, min: number) => (registry.get(exId)?.contributions[m] ?? 0) >= min;
+    // Coefficients of the variation as logged (bench angle, grip, squat depth) — the same ones the volume uses.
+    const hitsM = (e: (typeof data.workouts)[number]['exercises'][number], min: number) => {
+      const def = registry.get(e.exerciseId);
+      return !!def && (resolveCoefficients(def, e.variation).contributions[m] ?? 0) >= min;
+    };
     // A left + right pair to failure is one set, not two.
-    const failureSets = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.5)).reduce((n, e) => {
+    const failureSets = last.workout.exercises.filter((e) => hitsM(e, 0.5)).reduce((n, e) => {
       const f = sideFactors(e.sets);
       // Fail chip / RIR 0 / muscular failure / technical failure all count as a failure set here.
       return n + e.sets.filter((s) => s.type !== 'warmup' && !s.planned && isFailureSetForFatigue(s)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
@@ -179,7 +183,10 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       factors.push(`${failureSets} sets to failure in that session: +12 h.`);
     }
     const lastDate = last.date;
-    const novel = last.workout.exercises.filter((e) => hitsM(e.exerciseId, 0.75)).filter((e) =>
+    // "New" needs at least one PERFORMED working set: a card holding only a warm-up or an unticked planned set
+    // did not load the muscle in an unfamiliar way.
+    const performedWork = (e: (typeof data.workouts)[number]['exercises'][number]) => e.sets.some((s) => s.type !== 'warmup' && !s.planned);
+    const novel = last.workout.exercises.filter((e) => hitsM(e, 0.75) && performedWork(e)).filter((e) =>
       !data.workouts.some((o) => o.date < lastDate && diffDays(lastDate, o.date) <= 21 && o.exercises.some((x) => sameMovement(x.exerciseId, e.exerciseId))));
     if (novel.length && data.workouts.some((o) => o.date < lastDate)) {
       window += 12;

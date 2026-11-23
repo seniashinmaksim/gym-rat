@@ -279,6 +279,8 @@ export function sessionPerf(w: Workout, ex: WorkoutExercise, useFeel = true, bod
  * with high fatigue or short sleep are set aside for that decision, so one bad day never makes a plateau.
  */
 /** Median of the last 3 sessions this far below the median of the first 3 in the 8-week window → sustained decline (practical heuristic). */
+/** Days the trend looks back; also the longest gap between the two sessions of the two-session increase rule. */
+export const TREND_WINDOW_DAYS = 56;
 export const SUSTAINED_DECLINE = 0.08;
 /** A single latest session this far below the usual level is treated as a bad day, not a trend (practical heuristic). */
 export const SINGLE_DIP = 0.05;
@@ -288,7 +290,7 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   // Only sessions measured on the same scale as the latest one (kg-based vs reps-based index).
   const scored = sessions.filter((s) => s.index != null);
   const kind = scored.at(-1)?.indexKind ?? null;
-  const window = scored.filter((s) => (s.indexKind ?? null) === kind && diffDays(today, s.date) <= 56);
+  const window = scored.filter((s) => (s.indexKind ?? null) === kind && diffDays(today, s.date) <= TREND_WINDOW_DAYS);
   const recent = window.slice(-6);
   if (recent.length < 3) {
     return {
@@ -525,7 +527,12 @@ export function suggestNextLoad(
   // "A little too easy" (≈ 3–4 RIR) is not clearly light on its own — only "too easy" or a logged RIR ≥ target + 2.
   const clearlyLight = (p: SetPoint) => (p.rir != null ? p.rir >= rirTarget + 2 : p.effort === 'very_easy');
   const lastTop = hitsTop(last);
-  const prevTop = prev ? hitsTop(prev) && workLoad(prev) === w : false;
+  // "Two sessions in a row" must be close in time: the previous top session counts only inside the trend window
+  // (a session months ago says little about today's strength) — otherwise the next session confirms it.
+  const prevSame = prev ? hitsTop(prev) && workLoad(prev) === w : false;
+  const gapDays = prev ? diffDays(last.date, prev.date) : 0;
+  const prevStale = prevSame && gapDays > TREND_WINDOW_DAYS;
+  const prevTop = prevSame && !prevStale;
   // One-session shortcut: every set clearly light, on at least TWO sets (one answer is never enough), and the
   // reps did not fall from the first to the last set (a load that is really too light does not fatigue you).
   const lastAt = atLoad(last);
@@ -543,6 +550,12 @@ export function suggestNextLoad(
   }
   if (lastTop && prevTop) {
     return { ...base, action: 'increase', weight: nextLoad, reason: `All working sets reached ${hi} reps in the last two comparable sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) to ${nextLoad} kg and rebuild reps from ~${lo}.${tail}` };
+  }
+  if (lastTop && prevStale) {
+    return { ...base, action: 'hold', weight: w, reason: L(
+      `Top of the range (${hi}) reached at ${w} kg now and ${gapDays} days ago — too far apart to count as two sessions in a row. Confirm it next session before increasing.${tail}`,
+      `Верх диапазона (${hi}) при ${w} кг достигнут сейчас и ${gapDays} дн. назад — перерыв слишком большой, чтобы считать это двумя тренировками подряд. Подтвердите в следующий раз, затем повышайте вес.${tail}`,
+    ) };
   }
   if (lastTop && !prevTop) {
     return { ...base, action: 'hold', weight: w, reason: `Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.${tail}` };
@@ -676,8 +689,11 @@ export function buildProgression(
     const eq = g.equipmentId ? eqById.get(g.equipmentId) : undefined;
     const { step: inc, source: incrementSource } = loadStep(eq, g.locationId ? locById.get(g.locationId) : undefined, def?.equipmentKind, g.loadMode);
     let best: ProgressionSeries['best'] = { e1rm: null, weight: null, reps: null, date: null };
+    // Within the latest index kind only: a reps index (bodyweight), a belt-only index and a body + belt index
+    // are different scales and are never compared (as in the trend and the progress %).
+    const bestKind = scoredAll.length ? (g.sessions.filter((s) => s.index != null).at(-1)?.indexKind ?? null) : null;
     for (const s of g.sessions) {
-      if (s.index != null && (best.e1rm == null || s.index > best.e1rm)) best = { e1rm: s.index, weight: s.topWeight, reps: s.topReps, date: s.date };
+      if (s.index != null && (s.indexKind ?? null) === bestKind && (best.e1rm == null || s.index > best.e1rm)) best = { e1rm: s.index, weight: s.topWeight, reps: s.topReps, date: s.date };
     }
     out.push({
       key,

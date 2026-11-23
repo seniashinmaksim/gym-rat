@@ -60,7 +60,7 @@ function emptyMuscle(m: MuscleId): MuscleVolume {
  * exercise's coefficient for that muscle (no double counting); regional emphasis
  * (upper/lower chest) is tracked separately and never added to the chest total.
  * Within one session, effective volume for a muscle above `sessionCreditCap` is
- * tapered (×`beyondSessionCapCredit`). Planned (not yet performed) sets are ignored.
+ * tapered (×`beyondSessionCapCredit`) — the regional emphasis with it. Planned (not yet performed) sets are ignored.
  */
 export function computeVolume(workouts: Workout[], registry: Registry, model: QualityModel, opts: { minCoef?: number } = {}): VolumeResult {
   const minCoef = opts.minCoef ?? 0;
@@ -99,6 +99,8 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
         }
         const { contributions, regions: reg } = resolveCoefficients(def, ex.variation);
         const q = assessSet(s, model, { rom: ex.variation?.rom, timed: def.repRange[1] <= 1, objective: objective?.get(s.id) });
+        // Share of this set's chest credit that survived the per-session ceiling (1 below the ceiling).
+        let chestTaper = 1;
         for (const [mid, coef] of Object.entries(contributions) as [MuscleId, number][]) {
           const mv = muscles[mid];
           if (!mv || !coef || coef < minCoef) continue;
@@ -110,6 +112,7 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
           const before = running[mid] ?? 0;
           const eff = taperBeyondCap(before, coef * q.credit * k, cap, beyond);
           running[mid] = before + coef * q.credit * k;
+          if (mid === 'chest' && coef * q.credit * k > 0) chestTaper = eff / (coef * q.credit * k);
           mv.effective += eff;
           if (inv === 'direct') mv.effectiveDirect += eff;
           else mv.effectiveIndirect += eff;
@@ -123,7 +126,8 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
         const chestCoef = contributions.chest ?? 0;
         for (const [rid, emph] of Object.entries(reg) as [RegionId, number][]) {
           if (!emph || !chestCoef) continue;
-          regions[rid].effective += emph * chestCoef * q.credit * k;
+          // Emphasis is a share of chest work, so it gets the same taper as the chest credit of this set.
+          regions[rid].effective += emph * chestCoef * q.credit * k * chestTaper;
           regions[rid].sets += k;
         }
       }

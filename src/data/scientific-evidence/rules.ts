@@ -124,7 +124,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'todays_share', area: 'session',
-    rule: "Today's share = remaining weekly sets ÷ sessions likely left, at most ~60 % of the weekly target and ≤ 10 per muscle; never more than what is left; leftovers carry over, never crammed.",
+    rule: "Today's share = remaining weekly sets ÷ sessions likely left, at most ~60 % of the weekly target (but at least 3 sets per session when that much is left, so a small target of 4–5 can exceed 60 %) and ≤ 10 per muscle; never more than what is left; leftovers carry over, never crammed.",
     value: '≤ 60 %, ≤ 10', basis: 'heuristic', confidence: 'low', configurable: null,
     rationale: 'Spreads volume across the week (frequency matters little at equal volume, but very large single-session doses show diminishing returns).', refIds: ['schoenfeld2019_frequency', 'pelland2026_volume_frequency'], implementedIn: 'src/domain/analysis.ts',
   },
@@ -255,7 +255,7 @@ export const RULES: Rule[] = [
   // ---- Planner (Part 5)
   {
     id: 'planner_modes', area: 'planner',
-    rule: 'LEARNING until ≥ 8 well-documented workouts over ≥ 21 days with gyms identified and ≥ 3 frequent exercises calibrated (PROVISIONAL ADAPTIVE); FULL ADAPTIVE after ≥ 10 well-documented workouts over ≥ 28 days with calibrated familiar exercises covering ≥ 80 % of the major muscles\' weekly targets. Never by calendar alone.',
+    rule: 'LEARNING until ≥ 8 well-documented workouts over ≥ 21 days with ≥ 80 % of machine exercises linked to a machine and ≥ 3 frequent exercises calibrated (PROVISIONAL ADAPTIVE); FULL ADAPTIVE after ≥ 10 well-documented workouts over ≥ 28 days with calibrated familiar exercises covering ≥ 80 % of the major muscles\' weekly targets. Never by calendar alone.',
     value: '8 / 21 d → 10 / 28 d + 80 %', basis: 'heuristic', confidence: 'low', configurable: null,
     rationale: 'Personal prescriptions need comparable, well-logged exposures per exercise and machine; badly logged sessions do not count.',
     refIds: [], implementedIn: 'src/domain/readiness.ts',

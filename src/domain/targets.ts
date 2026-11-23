@@ -1,6 +1,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
 import { cv, median, type WeekBucket } from './history';
+import { L } from '../i18n/core';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import type { ProgressionSeries } from './progression';
 import { roundHalf } from './quality';
@@ -27,9 +28,9 @@ export const MIN_LEARNING_SESSIONS = 6;
 export function learningState(data: AppData, today: string, weeks: WeekBucket[]): LearningState {
   const { learning } = data.settings;
   const firstWorkout = data.workouts.length ? data.workouts.reduce((m, w) => (w.date < m ? w.date : m), data.workouts[0].date) : null;
-  // Learning starts with the earliest workout on record — imported earlier sessions count too — and
-  // never later than the stored start date.
-  const startDate = learning.startDate && firstWorkout ? (firstWorkout < learning.startDate ? firstWorkout : learning.startDate) : learning.startDate ?? firstWorkout;
+  // A stored start date wins (Settings → Start date, "Restart from today"); without one, Learning starts with
+  // the earliest workout on record.
+  const startDate = learning.startDate ?? firstWorkout;
   const sessions = startDate ? data.workouts.filter((w) => w.date >= startDate).length : 0;
   const completeWeeks = weeks.filter((w) => w.complete && w.workouts.length > 0).length;
   if (!startDate) {
@@ -173,13 +174,20 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
       preferred = Math.min(ref.max, baseline + step);
       rationale.push(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`);
     }
+    // "Maintain" never raises a muscle: an evidence-based increase is not applied (reductions still are).
+    let action = decision.action;
+    if (data.settings.priorities[m] === 'maintain' && action === 'increase') {
+      action = 'hold';
+      preferred = baseline;
+      rationale.push(L('Marked "maintain": the volume is not raised — it stays at your level.', 'Отмечено «поддерживать»: объём не повышается — остаётся на вашем уровне.'));
+    }
     preferred = roundHalf(preferred);
     const min = roundHalf(Math.max(0, Math.min(preferred, preferred * 0.75)));
     const max = roundHalf(Math.max(ref.max, preferred + 4));
     if (data.settings.priorities[m]) rationale.push(`Priority: ${data.settings.priorities[m]}.`);
-    rationale.push(`Confidence ${confidence}: ${conf.join(', ')}.`);
     if (usable.length < 3) confidence = 'low';
-    out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale, volumeAction: decision.action, evidence: decision.evidence };
+    rationale.push(`Confidence ${confidence}: ${conf.join(', ')}.`);
+    out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale, volumeAction: action, evidence: decision.evidence };
   }
   if (deload) {
     // Deload = reduced volume (≈ half the sets) with moderate effort, not full rest (Bell 2023 consensus;

@@ -71,7 +71,7 @@ export interface SessionBodyWeight {
   approximate: boolean;
 }
 
-/** Older than this, the weigh-in is shown as outdated (still shown, never silently treated as current). */
+/** Older than this, the weigh-in is shown as outdated (still shown, never silently treated as current, never used in the body + belt index). */
 export const BODY_WEIGHT_MAX_AGE_DAYS = 7;
 
 /**
@@ -98,6 +98,15 @@ export function bodyWeightForSession(body: BodyMeasurement[], w: Pick<Workout, '
     status: days > BODY_WEIGHT_MAX_AGE_DAYS ? 'outdated' : 'ok',
     kg: best.kg, date: best.date, time: best.time, gapHours: Math.max(0, Math.round(gapMin / 6) / 10), approximate,
   };
+}
+
+/**
+ * Body weight that may enter a CALCULATION (the body + belt strength index, estimated system mass): only a
+ * current weigh-in (status ok). An outdated one is still shown with its date, but never computed with.
+ */
+export function bodyKgForIndex(body: BodyMeasurement[], w: Pick<Workout, 'date' | 'startTime'>): number | null {
+  const b = bodyWeightForSession(body, w);
+  return b.status === 'ok' ? b.kg : null;
 }
 
 /** Duplicate tap guard: same weight at the same measured date + time already saved. */
@@ -146,7 +155,7 @@ export function bodyLoadSessions(series: ProgressionSeries, workouts: Workout[],
       workoutId: s.workoutId, date: s.date, body: b, externalKg: ext,
       bestReps: atTop.length ? Math.max(...atTop.map((p) => p.reps as number)) : null,
       totalReps: pts.reduce((n, p) => n + (p.reps ?? 0), 0), sets: pts.length,
-      estSystemKg: kind === 'system' && sys != null && b.status !== 'unavailable' ? Math.round(Math.max(0, sys) * 10) / 10 : null,
+      estSystemKg: kind === 'system' && sys != null && b.status === 'ok' ? Math.round(Math.max(0, sys) * 10) / 10 : null,
       ...(assisted ? { assisted: true } : {}),
     };
   });
@@ -158,7 +167,8 @@ export function bodyLoadSessions(series: ProgressionSeries, workouts: Workout[],
  * while body weight drops is not the whole story. Never claims strength was lost or gained by itself.
  */
 export function bodyWeightNote(sessions: BodyLoadSession[], kind: 'system' | 'context'): string | null {
-  const known = sessions.filter((s) => s.body.kg != null && s.body.status !== 'unavailable');
+  // Only current weigh-ins (status ok): an outdated one says nothing about the body weight at that session.
+  const known = sessions.filter((s) => s.body.kg != null && s.body.status === 'ok');
   if (known.length < 2) return sessions.length >= 2 ? 'Body weight not recorded around these sessions — log it to see how it affects this exercise.' : null;
   const a = known[0];
   const b = known[known.length - 1];
