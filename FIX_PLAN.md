@@ -505,3 +505,166 @@ Operating mode on each synthetic history; sessions needed for reliable personali
 - Verified sources only (systematic reviews, longitudinal hypertrophy trials, biomechanics; EMG labelled indirect). Per important classification: evidence, rationale, quality, confidence, limitations; insufficient evidence → marked uncertain.
 - Coefficients: exercise-specific values where justified (not automatically 0.5); one source of truth (registry → volume, remaining sets, recovery, planner, choice assistant, reports, importer); changes recompute history from raw sets without touching stored workouts.
 - Independent tests with hand-derived expected values + a regression test per corrected mapping. Report: total audited, verified, corrected, uncertain, coefficient fixes, tests, limitations.
+
+---
+
+# PART 6 — Training focus mode, log-after-the-set flow, Russian, and formulas that survive human error (requested 2026-11-23, after the owner's FIRST real gym session; commit 812e25f is live)
+
+Status: PLANNED — nothing below is implemented yet. Parts 1–5 and the UX audit (CLAUDE.md §K) are live; do not redo them. Where this part contradicts §K (planned set rows, "Next set" marker, RIR chips, + Warm-up / + Drop buttons, +30 on the timer), THIS PART WINS and CLAUDE.md must be updated.
+
+## F.0 The owner's feedback (condensed, numbered as sent)
+1. Does not like the overall UI/UX; the training session must look and feel more aggressive / motivating.
+2. Having to set up the NEXT set makes no sense (reps are unknown before the set). A set is always entered AFTER it is done.
+3. Remove drop sets and warm-ups from the UI. Warm-ups are simply the first sets; the formulas must still treat them as warm-ups wherever that matters.
+4. Entering a set automatically starts a 2:30 rest timer, adjustable by +15 / −15 s at any time.
+5. A gorgeous, distraction-free focus mode during the workout: the exercise, the timer, and a small overall workout timer that starts with the first logged set.
+6. The numbers under weight and reps (the RIR chips 0–5+) are not understood → remove unless needed.
+7. Always pre-set the weight from the last set, or from the last workout — never re-enter it.
+8. Some weights cannot be chosen (half-kilo problem with the stepper).
+9. Translate the WHOLE app to Russian; a language switch at the top next to the dark/light toggle.
+10. A much bigger rest timer: a large circle in the centre, readable on a phone held low while standing.
+11. Check the first workout and analyse the formulas: human perception of a set is unreliable ("the brain might lie") — the formulas must be robust to that.
+12. Within-session fatigue: the second chest exercise after incline press will be weaker than if done fresh — the formulas must account for it.
+13. (empty in the message) → added afterwards: in the session view (History → a workout) every set row says "Working" — noise; remove it.
+14. Write this plan, rework the app, and give a prompt to send after compacting the session.
+15. (added afterwards) The "Done" button sits too close to "Next exercise" — easy to hit the wrong one mid-workout. The UX/UI must be reworked so it is reasonable and outstanding, not patched.
+16. (added afterwards) Closely analyse ALL formulas the app uses, report the findings, do not change them in that step, double-check anything that looks wrong, and keep the findings in a file (see F.14).
+
+### How the unclear points are read (the owner can correct any of these in the post-compact prompt)
+- #3 "drop downs" = DROP SETS (the "+ Drop" button), not dropdown menus.
+- #6 "numbers under weight and reps" = the RIR chip row (0 1 2 3 4 5+).
+- #8 = the ± stepper only moves in the machine's step (defaults: machine 5 kg, cable / barbell 2.5 kg, dumbbell 2 kg), so values such as 7.5 or 22.5 cannot be reached with the buttons. Fixed for both possible readings (see F.3).
+- #11: the app's data is encrypted in the owner's browser — Claude cannot read the first workout. See F.9.
+
+## F.1 Principles (apply to everything below)
+- Never lose stored data. Existing workouts (planned sets, warm-up / drop types, RIR, feel, failure fields) stay valid and readable; import schema v1.4 is NOT changed (drop / warm-up types remain importable). All new fields optional, absent = unknown.
+- One engine: build on analyze() / prescribe() / progression / exerciseChoice / planner / ruleChecks. No second calculation path.
+- Honest motivation only: comparisons with the owner's own numbers ("+1 rep vs last time", "new best on this machine"). No fake praise, no invented targets, never a growth claim.
+- Warnings never block. Everything stays editable and undoable (§K rules stay).
+- Every new numeric rule goes into `rules.ts` with basis / confidence / sources; research is verified at development time (PMID in PubMed + DOI in Crossref), never cited from memory.
+- Security invariants unchanged (no network, CSP untouched, nothing personal in the repo).
+
+## F.2 New live flow: log AFTER the set (feedback 2, 6, 7)
+- **No pre-created set rows in a live session.** A set exists only once it was done and logged. `buildExercise` / `workoutFromPlan` stop creating `planned: true` sets; the plan becomes a TARGET line ("Today: 3 × 60 kg × 12–14"). Old data with `planned` sets keeps working (still ignored by formulas, still dropped at Finish).
+- **Entry for the set just done:** WEIGHT and REPS, one big button **LOG SET**.
+  - Weight pre-filled: last set of this exercise in THIS session → else last workout's weight for that set number on the same exercise × machine × configuration (or the prescribed load when an increase / reduction is due — shown as "last 60 → today 62.5", one tap to use either).
+  - Reps pre-filled with the same set's reps from last time (else the previous set's reps) — only a starting value for ±; nothing counts until LOG SET.
+- **Re-assessment (E.9) without planned rows:** targets for exercises not started are recomputed by `prescribe()` from what was actually done; `replanPending` / `applyPendingUpdate` / `plannedCount` are reduced to target recalculation (keep the public behaviour and tests: untouched plans update, owner edits never overwritten).
+- **Effort, one optional tap AFTER the set (replaces the RIR chips, the failure question and the 8-option feel grid in live mode):** `EASY` (3+ reps left) · `GOOD` (1–2 left) · `HARD` (0–1 left) · `FAILED` (could not finish the rep). "More" opens: form broke · wrong weight · pain (+ area) · note · exact reps-in-reserve number. Mapping to existing fields: effort / feel / failure / technique / rir (exact number only when given). Skippable; the timer never waits for it. RIR stays in the data model, imports and History → Edit.
+- A logged set is edited by tapping it (weight, reps, effort, remove with Undo). Double-tap guard on LOG SET (1.5 s).
+
+## F.3 Weights that can always be chosen (feedback 8)
+- Stepper step = the machine's real step when known; otherwise a **step chooser** on the weight control (0.5 · 1 · 1.25 · 2 · 2.5 · 5 kg), remembered per machine (and per gym for dumbbells) after one tap — this also fills `incrementsKg` / `freeWeightIncrementsKg` for the prescriptions.
+- Typing always works (numeric keypad with a decimal key; comma and dot accepted); a typed value is never snapped or rejected. Stepping from an off-grid value moves to the next real step (40 → 42.5 → 45, 41 → 42.5).
+- Tests: every value k × 0.25 kg from 0 to 300 can be entered; the stepper reaches every multiple of the chosen step; RU keyboard comma.
+
+## F.4 Warm-ups and drop sets (feedback 3)
+- UI: remove the set-type button, "+ Warm-up" and "+ Drop" from live mode. One kind of set is logged.
+- **Warm-ups are credited by how far from failure they were, not by a label** (revised 2026-11-23 after the owner asked whether removing them from volume is scientifically correct). What the evidence supports is not "warm-up = 0" but "stimulus falls as a set gets further from failure"; the volume research counts hard sets only, and the app already has that gradient (RIR 0-3 = 1.0, 4 = 0.6, 5 = 0.3, 6-7 = 0.15, 8+ = 0). So:
+  - Every logged set without an effort answer or RIR gets an ESTIMATED reserve from the numbers (F.7): reps possible at this load, from the best set of the same exercise in this session (else the recent level on that machine), minus reps done. That estimate goes through the SAME credit table. A light ramp set (40 x 5 before 60 x 12: about 28 reps in reserve) gets 0; a heavy last ramp set that was nearly a working set (55 x 11: about 5 in reserve) gets partial credit; a pyramid of hard sets counts in full. No hard 80 % cut-off decides credit.
+  - An effort answer (GOOD / HARD / FAILED) or a logged RIR always beats the estimate, subject to the F.7 cross-check.
+  - The "W" tag (`type: 'warmup'`, `typeSource: 'auto'`) is only the DISPLAY of a set that comes before the best set and has estimated credit 0; it is written so the existing formulas that read `type` keep working. An owner correction (tap the tag) writes `typeSource: 'owner'` and is never changed automatically. Sets with partial credit stay working sets and are counted as "uncertain volume".
+  - Same-load and bodyweight exercises never get auto warm-ups from load alone. Lighter sets AFTER the best set are back-off sets, credited by their own estimated reserve.
+  - Everywhere else warm-ups behave as before: never a progression benchmark, they count as "already warmed up" for later exercises, they are listed in the summary. Tonnage (weight x reps) still includes them and says so.
+  - Rule `warmup_by_reserve` in `rules.ts`: basis research-informed heuristic, confidence low-moderate (the estimate uses Epley, which is rough at high reps); sources verified in the research step (proximity-to-failure dose-response, how volume studies count sets). Stated limit: the estimate cannot see a set that was hard for another reason (bad day, short rest) - the one-tap effort answer exists for that.
+- Prescription still SUGGESTS warm-up loads as text ("Warm-up: 30 × 8 → 45 × 5"), no rows.
+- Drop sets: no button. Existing / imported `drop` sets keep their ×0.5 credit.
+- **No "Working" label anywhere** (feedback 13; today `History.tsx` prints the type on every set row): a normal set shows only its number, weight × reps and result. A tag appears only for the exceptions — warm-up ("W"), drop set, left / right — in the session view, the training mode, the summary and the Workout check. The import review keeps its type selector (needed to correct an import) but shows it only when a set is not a normal one or on tap.
+- Tests (hand-computed credit): classic ramp (20×10, 40×5, 60×12 → 0, 0, 1), heavy last ramp set (55×11 before 60×12 → partial), pyramid of hard sets with effort answers (all 1), back-off sets, bodyweight, owner override survives re-classification, an effort answer beats the estimate, history recomputation identical for old workouts.
+
+## F.5 Rest timer (feedback 4, 10)
+- LOG SET starts a rest of **2:30** (`settings.restDefaultSec = 150`, editable in Settings) — every set, warm-ups included.
+- **Full-screen circle in the centre**: remaining time in very large digits (readable at arm's length, phone held low), ring shrinking, colour change + vibration (+ optional beep) at 0, then "GO" and counting up.
+- **−15 / +15** large buttons either side, usable any time (also below 0); Pause; "Skip rest". An adjustment sticks for that exercise for the rest of the session.
+- Survives reload, app switch and vault lock exactly as today (computed from the set's completion time). Measured rest is still stored per set (`restSecBefore`, source timer).
+- Supersedes the personal rest target for the TIMER; the prescription's rest advice stays as text in "Why".
+
+## F.6 Focus mode + aggressive training look (feedback 1, 5, 10)
+- A dedicated full-screen **training mode** for a live session: no bottom navigation, no app header, no remaining-sets strip, no cards with secondary text.
+  - Top line (small): leave (←, back to the workout overview) · overall workout clock (starts at the first logged set) · exercise n / N.
+  - Centre: exercise name (very large, one line), machine (small, tap to change), `LAST TIME 60 × 12 · 11 · 10` and `TODAY 3 × 60 × 12–14`.
+  - Logged sets as large chips (`1  60 × 13`), each with its honest delta vs last time (`+1`, `=`, `−2`, `BEST`).
+  - Bottom (thumb zone): WEIGHT and REPS steppers with huge numerals, then the full-width LOG SET button.
+  - After LOG SET: the rest screen (F.5) with the effort tap (F.2) under the circle and "NEXT SET"; when the exercise's target is reached: "NEXT EXERCISE" (plan order, or the picker) and "ONE MORE SET".
+  - Overview (one tap away): the exercise list with done / left, reorder, Later, Machine busy, Replace, Change exercise, Skip, Finish — all existing real-gym controls and Undo stay here.
+- **Look:** dark-first training theme independent of the app theme — near-black background, one hot accent, heavy condensed uppercase labels, tabular oversized numerals, strong contrast, large hit areas (≥ 56 px for the main actions), minimal motion (ring, a short flash on a new best). Accent as a setting with three presets (default "Ember" red-orange; "Volt" lime; "Ice" blue) via CSS variables. WCAG contrast ≥ 4.5 for text. Screen wake lock while a rest runs (where the browser supports it).
+- **Action hierarchy (feedback 15) — a design rule for every training screen, checked by tests:**
+  - ONE primary action per screen, full width in the thumb zone (LOG SET → NEXT SET → NEXT EXERCISE). Nothing else shares its row.
+  - Today's card footer ("Next exercise · Done · Skip · ↑ ↓" side by side) is removed. "Done" disappears as a separate button: an exercise is done when the next one starts. Skip, Later, Replace, Machine busy, Change exercise and reorder live in the overview or behind one "⋯" on the exercise — never beside the primary action.
+  - **Finish workout** exists only in the overview, at the very end of the list, visually different from the primary action (outline, not filled), ≥ 24 px away from any other control, and opens the summary with "Back to workout" (already built). It is never on the set-entry or rest screen. The delete-workout icon moves out of the header next to Finish into the overview's "⋯".
+  - Two neighbouring controls never have opposite consequences (continue vs end, log vs remove). Minimum gap between any two tap targets 12 px; primary ≥ 56 px high, secondary ≥ 48 px.
+  - E2E asserts: on every training-mode state exactly one primary button; Finish and any removing control are not within 24 px of it; no control overlaps another's 48 px hit area.
+- **Whole-product redesign, not a patch (feedback 1, 15):** before coding the screens, write a one-page design spec in `docs/DESIGN.md` — type scale, spacing scale, colour tokens (app light / dark + training theme accents), button hierarchy (primary / secondary / quiet / destructive), states, motion, the rules above — and build shared components from it (`ui.tsx`) so every screen follows the same system. Then restyle screen by screen in the F.10 order. Show the owner screenshots of the training mode and the Week screen FIRST (both languages, iPhone 13) in the block's report before restyling the remaining screens.
+- The rest of the app gets the same typographic system (bigger numbers, less text) but keeps light / dark.
+- History → Edit keeps the detailed editor (all fields, audit trail).
+- Layout: iPhone 13 first; 375 / 430 / desktop; landscape; no overflow (existing audit script), nothing behind the keyboard.
+
+## F.7 Formulas robust to unreliable perception (feedback 11)
+Problem: effort answers (and RIR) are subjective; one "felt heavy" or "felt easy" must not swing credit or progression.
+- **Objective cross-check per set** (`perception.ts`, rules `perception_check`, `perception_bias`):
+  - implied reserve from the owner's own recent level on the same exercise × machine × configuration: reps-to-failure estimate at this load from the median index of the last ≤ 3 comparable sessions (Epley inverse) minus reps done — itself noisy, so it is used only as a band (clearly easy ≥ 5, clearly hard ≤ 1);
+  - within-session evidence (the strongest): at the same load and normal rest, reps holding or rising on the NEXT set means the previous set had reserve; a drop of ≥ 2 reps means it was close to the limit.
+- **Credit:** the reported effort is used when it agrees with the numbers or the numbers are inconclusive. Clear disagreement (reported EASY but reps collapse on the next set; reported HARD / FAILED on set 1 but set 2 matches or beats it at the same load) → the set is credited by the objective band and flagged "felt X, numbers say Y" (counted as uncertain volume, never silently rewritten: the owner's answer stays stored). No effort answer → objective band when clear, else the existing 0.75 provisional credit.
+- **Progression decisions rest on objective performance first:** increase needs reps at the top of the range in two consecutive sessions (unchanged); the one-session "too easy" shortcut additionally needs no rep drop across the sets; "reduce" for technique / too heavy needs reps under the bottom of the range in the same session OR the same report in two consecutive sessions. A single subjective answer alone never changes the load.
+- **Personal bias:** over ≥ 12 sets with both a report and a clear objective band, the app measures the owner's average over- / under-rating and shows it (Settings → Rules of thumb vs your data: "you tend to rate sets about one rep easier than the numbers suggest"). It widens the uncertainty band; it never rewrites entries.
+- Research to verify first (RIR / reps-to-failure prediction accuracy: scoping review + meta-analysis, effect of proximity to failure, load, set number, experience); record in `references-perception.ts`; thresholds stay labelled heuristics.
+- Tests: synthetic sessions for each disagreement pattern with hand-computed credit; six-month reference checks stay at 0 failures; property test — changing one effort answer never changes a load decision by itself.
+
+## F.8 Within-session fatigue between exercises (feedback 12)
+Problem: pec deck after incline press is weaker than pec deck done first; today that can read as a decline, block a progression or suggest a wrong load.
+- **Context on every session of a history** (`preload.ts`): effective sets already performed in that session, in the order actually done (tick times; list order for imports), for the exercise's primary muscles (earlier exercises with coefficient ≥ 0.5). Buckets: FRESH (< 2 sets) / PRE-LOADED (≥ 2). Stored nowhere — derived from raw sets.
+- **Comparisons like with like** (progression.ts): trend, plateau, decline, baseline %, double progression and "new best" compare sessions of the same bucket when that bucket has ≥ 3 sessions; otherwise the index is context-adjusted: index × (1 + d × preload sets), d = the owner's own measured drop per pre-loading set once enough data exist (same statistics as `ruleChecks` order check), else a default from the verified order literature, capped, basis "research-informed heuristic", low confidence. The history key does NOT split (no fragmentation); the UI says which context a number comes from.
+- **Prescription for exercise B after A:** load from B's history in the same context; with only fresh history → same load with the rep target lowered by the expected drop (or one step down when the expected reps fall under the range) and the line "after incline press: expect ~1–2 reps fewer — not a regression". Never REDUCE or call a decline from a pre-loaded session compared with fresh ones; never INCREASE just because a fresh session followed pre-loaded ones.
+- Planner and exercise-choice assistant use the same expectation (order advice already exists).
+- Tests: A→B vs B→A synthetic histories (no false decline, no false plateau, no false increase; correct expected reps), eight-week planner run unchanged where order never varies, rule registered with sources.
+
+## F.9 Checking the owner's first workout (feedback 11)
+- Claude cannot read the encrypted data. Two ways, both to be offered:
+  1. **In-app "Workout check"** (History → a workout → Check): every number of that session step by step — per set: type (auto warm-up or working), effort answer, objective band, credit; per muscle: coefficient × credit sums; per exercise: index, context (fresh / pre-loaded), decision and why. Everything from the same engine, so the owner can verify the formulas on real data without sharing it.
+  2. Optional: the owner pastes the workout export (Settings → Export unencrypted JSON) into the chat. It is analysed in the chat only and NEVER written to the repository, tests, commits or CLAUDE.md; findings are turned into SYNTHETIC regression tests.
+- Whatever is found wrong becomes a failing test first, then a fix.
+
+## F.10 Russian + language switch (feedback 9)
+- `settings.language: 'en' | 'ru'` (migration: 'ru' when `exerciseNames` was 'ru', else the browser language if Russian, else 'en'). Toggle **EN / RU** in the mobile header and the desktop sidebar next to the theme button; also on the lock screen (stored outside the vault — a language code is not personal data).
+- i18n layer `src/i18n/`: `en.ts` is the source of keys, `ru.ts` is typed against it (a missing key fails `tsc`), `t(key, params)`, Russian plural rules (1 / 2–4 / 5+), numbers and dates through `Intl` with the chosen locale, decimal comma accepted everywhere on input.
+- Scope = the WHOLE app, in this order: training mode and overview → Week / Next workout → History, Strength, Body, Recovery, Muscles, Reports, Periodization → Equipment, Exercises, Import, Settings, lock screen, toasts and dialogs → engine texts (reasons, "Why", notes, warnings: the domain returns message keys + parameters, rendered by the UI; no English sentences built inside `src/domain`) → Science page and the evidence library texts. Exercise and muscle names already exist in Russian.
+- Glossary fixed up front (подход, повторения, отдых, разминочный подход, запас повторов, отказ, тренажёр, рабочий вес …) and used consistently.
+- Tests: key parity EN ↔ RU; no missing / unused keys; plural forms; a scan of the main screens in RU for leftover Latin text (whitelist: units, brand, exercise ids); the 32-screen layout audit × 4 viewports ALSO in Russian (longer words) with 0 overflow; existing English e2e specs keep running in EN.
+- CLAUDE.md, FIX_PLAN.md and code comments stay in English.
+
+## F.14 Formula audit — FIRST block, read-only (added 2026-11-23: "analyze all used formulas, report findings, do not change them, double check")
+- **Scope: every formula and numeric rule the app uses**, taken from the code (not from the docs): set-quality credit (RIR table, unknown-RIR 0.75, feel → RIR ranges, drop ×0.5, partial ROM, < 5 reps, technique ×0.7), fractional coefficients and variation rules, per-session ceiling (taper above ~11), L/R pairing, quality-set totals, weekly targets and learning mode, today's share (÷ sessions left, 60 % cap, ≤ 10), recovery windows and modifiers, session end time, Epley / RIR-adjusted index, bodyweight and system index, trend / plateau / decline / sustained-decline thresholds, double progression and the one-session shortcut, reduce rule, load steps and snapping, warm-up suggestion, rest attribution, measured rest (≈ 3 s per rep), baseline and progress %, growth signals, body-weight averages and trend, deload assessment, fatigue cost and session load, exercise-choice states, readiness modes and calibration levels, planner budget and allocation, returning-after-break step-down, individual volume decision, rule checks, mapping spread, rounding.
+- **Per formula record:** where it lives (file:function), the exact formula as coded, what it is meant to compute, units and edge cases (zero, null, one session, very high reps, bodyweight, assisted), the source (verified reference id / heuristic), a hand-computed example checked against the code, and a verdict: CORRECT · CORRECT BUT WEAKLY SUPPORTED (heuristic, say so) · QUESTIONABLE (plausible but arguable — give the alternative) · WRONG (code does not do what it claims, or contradicts its own source) · INCONSISTENT (two places compute the same thing differently, or code ≠ CLAUDE.md / rules.ts).
+- **Double check before calling anything wrong:** every QUESTIONABLE / WRONG / INCONSISTENT verdict is re-derived a second way (independent hand calculation or an independent review agent given only the code and the claim), and the source is re-read (PMID / DOI verified, never from memory). Only what survives is reported as a finding.
+- **No formula is changed in this block.** No code edits in `src/domain` or `src/data`, no test expectation edits. Output only:
+  - `docs/FORMULA_AUDIT.md` — the working file for Claude: the full inventory table, each finding with evidence, the second check, severity, and a PROPOSED fix (not applied). Synthetic numbers only; nothing from the owner's data.
+  - a short report to the owner in chat: how many formulas, how many per verdict, the findings in plain words, what each would change in practice.
+- **After the report:** the changes the owner already asked for in this part (F.4 warm-up credit, F.7 perception, F.8 within-session fatigue) proceed as planned and must take the audit's findings into account. Any OTHER confirmed error is fixed only after the owner says so — until then it stays listed as open in `docs/FORMULA_AUDIT.md` and in the final report. When a formula is later changed, its audit entry is updated (old → new, why, test).
+
+## F.11 Work order (commit after each block; never leave the app broken)
+1. Baseline: typecheck, vitest, build, e2e smoke; read this part and CLAUDE.md §G–§K. Then the **formula audit (F.14)** — read-only, report to the owner, commit `docs/FORMULA_AUDIT.md`.
+2. Research for F.7 / F.8 (verified references only) → `references-perception.ts`, rules.
+3. Domain, tests first: F.2 data flow (no planned rows), F.3 steps, F.4 auto warm-ups, F.5 rest default, F.7 perception, F.8 preload context. Six-month reference checks at 0 failures after each.
+4. `docs/DESIGN.md` (design system + action hierarchy), shared components, then the training mode UI (F.5, F.6) + overview; migrate the real-gym controls and Undo; History → Edit unchanged.
+5. F.9 Workout check screen; analyse the owner's export if provided (chat only).
+6. i18n infrastructure, then Russian screen by screen (F.10).
+7. E2E on 4 WebKit viewports: a full first-workout journey in training mode in EN and RU (log after the set, auto timer, ±15, auto warm-up, effort tap, edit / undo, reload / lock / resume, finish), the mistakes-and-recovery journey adapted, responsive audit EN + RU, six-month journeys, landscape. Screenshots before / after.
+8. Six-month simulation over all functions with the new flow (advice, logs and analytics appear when expected; graphs readable).
+9. CLAUDE.md: update §C, §D, §G, §H, §I, §K and add §L (Part 6); architecture list.
+10. Independent review agent on the diff → fix every confirmed finding with a regression test.
+11. Typecheck, vitest, build, commit, push, verify the live bundle hash and console.
+
+## F.12 Acceptance (the owner's list, testable)
+- A live workout can be done end to end touching only: exercise → weight (pre-filled) → reps → LOG SET → (optional effort tap) → next set. No set has to be prepared in advance; no warm-up / drop buttons; no RIR chips.
+- Logging a set starts 2:30 in a centred circle readable from standing height; −15 / +15 always work.
+- Training mode shows only the exercise, the entry, the timer and a small workout clock.
+- Every weight (… 7.5, 22.5, 41.25 …) can be entered; the stepper follows the machine's real step.
+- Sets clearly far from failure (true warm-ups) are recognised automatically and get no volume credit; borderline sets get partial credit by estimated reserve; the owner can correct the tag or answer the effort tap.
+- No set row in any screen is labelled "Working"; only warm-up / drop / side tags are shown.
+- Every training screen has exactly one primary action; Finish workout is only in the overview, far from it; no "Done" beside "Next exercise".
+- The whole app is available in Russian, switchable at the top; 0 layout overflow in both languages on 4 viewports.
+- One wrong effort answer never changes a load decision; a second chest exercise after incline press is not reported as a decline and gets a realistic target.
+- Stored data from before Part 6 is intact; six-month reference checks 0 failures; all earlier specs pass.
+
+## F.13 Final report owed
+The formula audit (F.14): counts per verdict, findings, which were fixed and which are still open; what changed per feedback point; before / after screenshots (EN and RU); the formulas of F.7 / F.8 in plain words with their confidence; what the Workout check showed; references verified; test totals; what is still not possible; what needs a real-iPhone check (wake lock, vibration, keyboard, safe areas, swipe-back).
