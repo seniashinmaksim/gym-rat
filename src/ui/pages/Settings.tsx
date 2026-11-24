@@ -177,7 +177,7 @@ function BackupCard() {
           <div className="mb-2 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Restore from backup', 'Восстановить из копии')}</div>
           <label className="flex min-h-[44px] cursor-pointer items-center rounded-xl border border-dashed border-ink-300 bg-white px-3 text-sm text-ink-600 active:bg-ink-100 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300">
             <input type="file" accept=".json,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
-            <span className="truncate">{file ? file.name : L('Choose backup file…', 'Выберите файл копии…')}</span>
+            <span className="min-w-0 break-all">{file ? file.name : L('Choose backup file…', 'Выберите файл копии…')}</span>
           </label>
           <div className="mt-2 flex gap-2">
             <Input type="password" placeholder={L('Backup password', 'Пароль копии')} value={rpw} onChange={(e) => setRpw(e.target.value)} />
@@ -218,14 +218,14 @@ function PlannerCard() {
       <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Muscles', 'Мышцы')}</h3>
       <ul className="mt-1 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
         {r.muscles.filter((m) => m.directSessions8w > 0 || m.level !== 'INSUFFICIENT_DATA').map((m) => (
-          <li key={m.muscle} className="flex items-center justify-between gap-2 py-1.5 text-sm"><span className="truncate">{muscleName(m.muscle, getLang())}</span><Badge tone={LEVEL_TONE[m.level]}>{LEVEL_LABEL[m.level]}</Badge></li>
+          <li key={m.muscle} className="flex items-center justify-between gap-2 py-1.5 text-sm"><span className="min-w-0 break-words">{muscleName(m.muscle, getLang())}</span><Badge tone={LEVEL_TONE[m.level]}>{LEVEL_LABEL[m.level]}</Badge></li>
         ))}
       </ul>
       <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Exercises and machines', 'Упражнения и тренажёры')}</h3>
       <ul className="mt-1 divide-y divide-ink-100 dark:divide-ink-800">
         {(all ? keys : keys.slice(0, 6)).map((k) => (
           <li key={k.key} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-            <span className="min-w-0 flex-1"><span className="block truncate">{k.label}</span><span className="block text-xs text-ink-500">{L(`${k.comparable} comparable session${k.comparable === 1 ? '' : 's'} in 8 weeks${k.frequent ? ' · regular' : ''}`, `${k.comparable} ${ruPlural(k.comparable, 'сопоставимая тренировка', 'сопоставимые тренировки', 'сопоставимых тренировок')} за 8 недель${k.frequent ? ' · регулярно' : ''}`)}</span></span>
+            <span className="min-w-0 flex-1"><span className="block break-words">{k.label}</span><span className="block text-xs text-ink-500">{L(`${k.comparable} comparable session${k.comparable === 1 ? '' : 's'} in 8 weeks${k.frequent ? ' · regular' : ''}`, `${k.comparable} ${ruPlural(k.comparable, 'сопоставимая тренировка', 'сопоставимые тренировки', 'сопоставимых тренировок')} за 8 недель${k.frequent ? ' · регулярно' : ''}`)}</span></span>
             <Badge tone={LEVEL_TONE[k.level]}>{LEVEL_LABEL[k.level]}</Badge>
           </li>
         ))}

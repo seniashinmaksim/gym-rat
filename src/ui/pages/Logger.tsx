@@ -71,7 +71,7 @@ export function StartSession() {
         <Link to={`/log/${active.id}`} className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-accent-500/40 bg-accent-500/10 px-4 py-3">
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-ink-900 dark:text-white">{L('Workout in progress', 'Тренировка идёт')}</span>
-            <span className="block truncate text-xs text-ink-500">{L(`Started ${active.startTime ?? ''} · ${active.exercises.length} exercise${active.exercises.length === 1 ? '' : 's'}`, `Начата ${active.startTime ?? ''} · ${active.exercises.length} ${ruPlural(active.exercises.length, 'упражнение', 'упражнения', 'упражнений')}`)}</span>
+            <span className="min-w-0 block text-xs text-ink-500 break-words">{L(`Started ${active.startTime ?? ''} · ${active.exercises.length} exercise${active.exercises.length === 1 ? '' : 's'}`, `Начата ${active.startTime ?? ''} · ${active.exercises.length} ${ruPlural(active.exercises.length, 'упражнение', 'упражнения', 'упражнений')}`)}</span>
           </span>
           <span className="flex h-11 shrink-0 items-center rounded-xl bg-accent-500 px-4 text-sm font-semibold text-ink-950">{L('Resume', 'Продолжить')}</span>
         </Link>
@@ -613,7 +613,7 @@ function ExerciseCard({ index, w, ex, update, onComplete, undoable, onChange }: 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-xs font-semibold text-ink-600 dark:bg-ink-800 dark:text-ink-300">{index + 1}</span>
-            <h3 className="truncate text-base font-semibold text-ink-900 dark:text-white">{names.ex(def, ex.exerciseNameRaw ?? ex.exerciseId)}</h3>
+            <h3 className="min-w-0 text-base font-semibold text-ink-900 dark:text-white break-words">{names.ex(def, ex.exerciseNameRaw ?? ex.exerciseId)}</h3>
           </div>
           {names.exSub(def) && <div className="ml-8 text-xs text-ink-400">{names.exSub(def)}</div>}
           {resolved && (
@@ -642,7 +642,7 @@ function ExerciseCard({ index, w, ex, update, onComplete, undoable, onChange }: 
       <div className="mt-3 grid grid-cols-1 gap-2 px-4 sm:grid-cols-[1fr_auto] sm:px-5">
         <button type="button" onClick={() => setPickEq(true)}
           className={cx('flex min-h-[44px] min-w-0 items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-sm dark:bg-ink-900', needsMachine && !ex.equipmentId ? 'border-amber-500/60' : 'border-ink-200 dark:border-ink-700')}>
-          <span className="min-w-0 truncate">
+          <span className="min-w-0 break-words">
             {eq ? <><span className="font-medium text-ink-900 dark:text-white">{eq.name}</span>{eq.manufacturer ? <span className="text-ink-500"> · {eq.manufacturer}</span> : null}{eq.locationId && eq.locationId !== w.locationId ? <span className="text-amber-600">{L(' · other gym', ' · другой зал')}</span> : null}</>
               : <span className="text-ink-500">{needsMachine ? L('Which machine? (not identified)', 'Какой тренажёр? (не указан)') : L('Free weights / no specific equipment', 'Свободные веса / без конкретного оборудования')}</span>}
           </span>
@@ -653,7 +653,7 @@ function ExerciseCard({ index, w, ex, update, onComplete, undoable, onChange }: 
       {needsMachine && !ex.equipmentId && <p className="px-4 pt-1.5 text-[11px] text-amber-700 dark:text-amber-300 sm:px-5">{L('Different machines are tracked separately, and their loads are never compared. Pick or add this machine to keep its history clean.', 'Разные тренажёры учитываются отдельно, их веса никогда не сравниваются. Выберите или добавьте этот тренажёр, чтобы его история оставалась чистой.')}</p>}
       {!showVar && (setupSummary.length > 0 || (def?.variationFields?.length ?? 0) > 0 || (def?.settingTemplate?.length ?? 0) > 0) && (
         <button type="button" onClick={() => setShowVar(true)} className="mx-4 mt-1.5 flex min-h-[40px] max-w-full items-center gap-1.5 text-left text-xs text-ink-500 sm:mx-5">
-          {setupSummary.length ? <span className="truncate"><span className="font-medium text-ink-700 dark:text-ink-200">{L('Setup:', 'Настройка:')}</span> {setupSummary.join(' · ')}</span>
+          {setupSummary.length ? <span className="min-w-0 break-words"><span className="font-medium text-ink-700 dark:text-ink-200">{L('Setup:', 'Настройка:')}</span> {setupSummary.join(' · ')}</span>
             : <span className="underline decoration-dotted underline-offset-2">{L('Set', 'Указать:')} {[def?.variationFields?.includes('angle') ? L('bench angle', 'угол скамьи') : null, def?.variationFields?.includes('unilateral') ? L('one side / both', 'одна сторона / обе') : null, def?.settingTemplate?.length ? def.settingTemplate.slice(0, 2).join(', ') : null].filter(Boolean).join(', ') || L('variation', 'вариант')}</span>}
         </button>
       )}
@@ -831,7 +831,7 @@ export function SettingsEditor({ settings, template, onChange, onSaveDefault }: 
         {keys.map((key) => (
           <label key={key} className="min-w-0">
             <span className="flex items-center justify-between text-[11px] text-ink-500">
-              <span className="truncate">{key}</span>
+              <span className="min-w-0 break-words">{key}</span>
               {!template.includes(key) && <button type="button" className="h-6 px-1.5 text-ink-400 active:text-rose-500" onClick={() => { const n = { ...settings }; delete n[key]; onChange(n); }} aria-label={L(`Remove ${key}`, `Удалить «${key}»`)}>×</button>}
             </span>
             <input className="mt-0.5 h-10 w-full rounded-lg border border-ink-200 bg-white px-2 text-sm outline-none focus:border-accent-500 dark:border-ink-700 dark:bg-ink-900" value={settings[key] ?? ''} placeholder="—"
@@ -910,7 +910,7 @@ function SetRow({ s, n, inc, pair, sideToggle, onChange, onRemove, onComplete }:
               className="flex h-11 min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ink-100 px-2 text-xs font-semibold text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200">{s.side === 'right' ? L('Right', 'Правая') : s.side === 'left' ? L('Left', 'Левая') : L('Both', 'Обе')}</button>
           )}
           {!warm && (
-            <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="min-h-[44px] truncate text-left underline decoration-dotted underline-offset-2">
+            <button type="button" onClick={() => setInfo(!info)} aria-expanded={info} className="min-w-0 min-h-[44px] text-left underline decoration-dotted underline-offset-2 break-words">
               {planned ? L('Not counted — tap ✓', 'Не засчитан — нажмите ✓') : L(`counts ${Math.round(q.credit * pair * 100) / 100}${pair < 1 ? ' (L+R pair)' : ''}${s.rir == null && !s.toFailure ? ' · RIR not set' : ''}`, `в зачёт ${num(Math.round(q.credit * pair * 100) / 100)}${pair < 1 ? ' (пара Л+П)' : ''}${s.rir == null && !s.toFailure ? ' · RIR не указан' : ''}`)}
             </button>
           )}
@@ -991,7 +991,7 @@ export function ExecutionCue({ exerciseId }: { exerciseId: string }) {
     <div className="px-4 sm:px-5">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-1.5 flex min-h-[36px] max-w-full items-center gap-1.5 text-left text-xs text-ink-600 dark:text-ink-300">
         <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500 dark:bg-ink-800">{L('Form', 'Техника')}</span>
-        <span className="truncate tabular-nums">{[ecc, con, pause].filter(Boolean).join(' · ')}</span>
+        <span className="min-w-0 tabular-nums break-words">{[ecc, con, pause].filter(Boolean).join(' · ')}</span>
       </button>
       {open && (
         <div className="mt-1 space-y-1 rounded-lg bg-ink-50 p-2.5 text-xs leading-relaxed text-ink-600 dark:bg-ink-950 dark:text-ink-300">
@@ -1093,7 +1093,7 @@ function SetFeedback({ s, onChange }: { s: WorkoutSet; onChange: (p: Partial<Wor
           {sel.title}{s.pain?.area ? ` · ${painArea(s.pain.area)}` : ''}{s.intendedWeightKg != null ? L(` · meant ${fmt(s.intendedWeightKg, 2)} kg`, ` · планировали ${fmt(s.intendedWeightKg, 2)} кг`) : ''} <span className="text-[10px] opacity-70">{L('change', 'изменить')}</span>
         </button>
         {est && <span className="text-ink-500">RIR ≈ {formatRirRange(est)} {L('(estimate)', '(оценка)')}</span>}
-        {s.notes && <span className="truncate text-ink-500">“{s.notes}”</span>}
+        {s.notes && <span className="min-w-0 text-ink-500 break-words">“{s.notes}”</span>}
       </div>
     );
   }
@@ -1265,7 +1265,7 @@ export function SummaryModal({ s, onDone, onBack }: { s: SessionSummary; onDone:
         <div className="mt-4">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Effective sets', 'Эффективные подходы')}</div>
           <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm tabular-nums">
-            {s.muscles.map((m) => <li key={m.muscle} className="flex justify-between gap-2"><span className="truncate">{names.muscle(m.muscle)}</span><b className="font-semibold">+{fmt(m.effective, 2)}</b></li>)}
+            {s.muscles.map((m) => <li key={m.muscle} className="flex justify-between gap-2"><span className="min-w-0 break-words">{names.muscle(m.muscle)}</span><b className="font-semibold">+{fmt(m.effective, 2)}</b></li>)}
           </ul>
         </div>
       )}
@@ -1379,8 +1379,8 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
               <div className="flex min-w-0 items-center gap-2">
                 {(() => { const b = badge(d); return b ? <ChoiceDot a={b} /> : null; })()}
                 <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{names.ex(d)}</div>
-                <div className="truncate text-xs text-ink-500">{L(d.name.ru, d.name.en)} · {Object.entries(d.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</div>
+                <div className="min-w-0 text-sm font-medium break-words">{names.ex(d)}</div>
+                <div className="min-w-0 text-xs text-ink-500 break-words">{L(d.name.ru, d.name.en)} · {Object.entries(d.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</div>
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">

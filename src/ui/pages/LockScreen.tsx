@@ -71,7 +71,7 @@ export function LockScreen() {
               <span className="mb-1.5 block font-medium">{L("Optional: restore an encrypted backup (use the backup's password)", 'Необязательно: восстановить зашифрованную копию (введите пароль этой копии)')}</span>
               <label className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-300 px-3 text-sm text-ink-600 active:bg-ink-50 dark:border-ink-700 dark:text-ink-300 dark:active:bg-ink-800">
                 <input type="file" accept=".json,application/json" onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)} className="sr-only" />
-                <span className="truncate">{restoreFile ? restoreFile.name : L('Choose backup file…', 'Выбрать файл копии…')}</span>
+                <span className="min-w-0 break-all">{restoreFile ? restoreFile.name : L('Choose backup file…', 'Выбрать файл копии…')}</span>
                 {restoreFile && <button type="button" onClick={(e) => { e.preventDefault(); setRestoreFile(null); }} className="ml-auto h-9 shrink-0 rounded-lg px-2 text-xs text-ink-500">{L('Clear', 'Убрать')}</button>}
               </label>
             </div>

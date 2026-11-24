@@ -187,11 +187,11 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
         <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-xs font-semibold text-ink-600 dark:bg-ink-800 dark:text-ink-300">{n}</span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{name}</span>
+            <span className="min-w-0 text-sm font-semibold text-ink-900 dark:text-white break-words">{name}</span>
             {mark}
             {it.safety && <Badge tone="bad">{L('pain', 'боль')}</Badge>}
           </span>
-          {(eqName || variant) && <span className="block truncate text-xs text-ink-500">{[eqName, variant].filter(Boolean).join(' · ')}</span>}
+          {(eqName || variant) && <span className="min-w-0 block text-xs text-ink-500 break-words">{[eqName, variant].filter(Boolean).join(' · ')}</span>}
           <span className="block text-xs tabular-nums text-ink-700 dark:text-ink-200">
             {p.warmups.length > 0 && <span className="text-ink-500">{L(`${p.warmups.length} warm-up${p.warmups.length === 1 ? '' : 's'}`, `${p.warmups.length} разм.`)} · </span>}
             <b className="font-semibold">{sets} × {kg == null ? (p.loadMode === 'bodyweight_plus' ? L('BW', 'свой вес') : `? ${KG()}`) : `${fmt(kg, 2)} ${KG()}`} × {reps}</b>

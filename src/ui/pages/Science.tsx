@@ -284,7 +284,7 @@ function MuscleLibrary() {
               <button type="button" onClick={() => setOpen(isOpen ? null : m)} aria-expanded={isOpen} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left">
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-ink-900 dark:text-white">{names.muscle(m)}</span>
-                  <span className="block truncate text-xs text-ink-500">{e.summary}</span>
+                  <span className="block break-words text-xs text-ink-500">{e.summary}</span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   <Badge tone={LEVEL_TONE[e.evidenceLevel]}>{LEVEL_LABEL[e.evidenceLevel]}</Badge>

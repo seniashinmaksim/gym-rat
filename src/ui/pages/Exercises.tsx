@@ -125,8 +125,8 @@ export function ExercisesPage() {
                 className="group flex w-full min-w-0 flex-col rounded-2xl border border-ink-200 bg-white p-4 text-left transition hover:border-accent-500/60 hover:shadow-md dark:border-ink-800 dark:bg-ink-900 dark:hover:border-accent-500/50">
                 <div className="flex w-full min-w-0 items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold text-ink-900 dark:text-white">{L(d.name.en, d.name.ru)}</div>
-                    <div className="truncate text-xs text-ink-500 dark:text-ink-400">{L(d.name.ru, d.name.en)}</div>
+                    <div className="break-words font-semibold text-ink-900 dark:text-white">{L(d.name.en, d.name.ru)}</div>
+                    <div className="break-words text-xs text-ink-500 dark:text-ink-400">{L(d.name.ru, d.name.en)}</div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <Badge tone={d.category === 'compound' ? 'info' : 'neutral'}>{pretty(d.category)}</Badge>
@@ -291,7 +291,7 @@ function ExerciseDetail({ def, seed, override, usage, defaultRir, onClose }: {
           <div className="space-y-1">
             {series.map((s) => (
               <div key={s.key} className="flex items-center justify-between gap-2 rounded-xl border border-ink-100 px-3 py-2 text-xs dark:border-ink-800">
-                <span className="truncate text-ink-700 dark:text-ink-200">{s.scopeLabel}</span>
+                <span className="min-w-0 break-words text-ink-700 dark:text-ink-200">{s.scopeLabel}</span>
                 <span className="shrink-0 tabular-nums text-ink-500">
                   {s.current?.topWeight != null ? `${fmt(s.current.topWeight)} ${KG()} × ${s.current.topReps ?? '?'}` : '—'} · <TrendBadge cls={s.trend.cls} />
                 </span>

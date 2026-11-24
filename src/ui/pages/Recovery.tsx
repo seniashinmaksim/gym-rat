@@ -216,7 +216,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
             const v = log.soreness?.[m];
             return (
               <div key={m} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-0.5">
-                <span className="min-w-[6rem] flex-1 truncate text-sm text-ink-700 dark:text-ink-200">{names.muscle(m)}</span>
+                <span className="min-w-[6rem] flex-1 text-sm text-ink-700 dark:text-ink-200 break-words">{names.muscle(m)}</span>
                 <div className="flex shrink-0 gap-1">
                   {[0, 1, 2, 3, 4].map((n) => (
                     <button key={n} type="button" onClick={() => setSore(m, n)} aria-label={L(`${names.muscle(m)} soreness ${n}`, `${names.muscle(m)}: крепатура ${n}`)}

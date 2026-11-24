@@ -140,7 +140,7 @@ function LocationCard({ loc, sessions, equipment, totalEq, sessionsOnEq, exName,
             {loc ? <IconMapPin size={20} /> : <IconAlert size={20} />}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-ink-900 dark:text-white">{loc ? loc.name : L('Unassigned equipment', 'Оборудование без зала')}</h2>
+            <h2 className="min-w-0 text-base font-semibold text-ink-900 dark:text-white break-words">{loc ? loc.name : L('Unassigned equipment', 'Оборудование без зала')}</h2>
             <p className="text-xs text-ink-500 dark:text-ink-400">
               {loc ? <>{loc.address ? `${loc.address} · ` : ''}{L(`${sessions} session${sessions === 1 ? '' : 's'} · ${totalEq} item${totalEq === 1 ? '' : 's'}`, `${sessions} ${ruPlural(sessions, 'тренировка', 'тренировки', 'тренировок')} · ${totalEq} шт.`)} · id <code className="text-[10px]">{loc.id}</code></> : L('Not linked to a gym — assign a location so Claude can match it.', 'Не привязано к залу — укажите зал, чтобы Claude мог его сопоставить.')}
             </p>
@@ -165,7 +165,7 @@ function LocationCard({ loc, sessions, equipment, totalEq, sessionsOnEq, exName,
                     <Badge>{pretty(e.kind)}</Badge>
                     {!e.identified && <Badge tone="warn">{L('Unknown — identify later', 'Неизвестно — уточнить позже')}</Badge>}
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-ink-500 dark:text-ink-400">
+                  <div className="min-w-0 mt-0.5 text-xs text-ink-500 dark:text-ink-400 break-words">
                     {[e.manufacturer, e.model].filter(Boolean).join(' ') || L('Make/model not recorded', 'Марка и модель не указаны')}
                     {e.incrementsKg.length ? L(` · steps ${e.incrementsKg.join('/')} kg`, ` · шаг ${e.incrementsKg.map((x) => num(x)).join('/')} кг`) : ''}
                     {e.exerciseIds.length ? ` · ${e.exerciseIds.slice(0, 3).map(exName).join(', ')}${e.exerciseIds.length > 3 ? '…' : ''}` : ''}

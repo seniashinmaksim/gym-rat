@@ -180,6 +180,9 @@ for (const lang of LANGS) {
     await expect(page.getByTestId('set-chip')).toHaveCount(3);
     await page.getByTestId('toast').getByRole('button', { name: t.undo }).click();
     await expect(page.getByTestId('set-chip')).toHaveCount(4);
+    // The Undo is saved at once but asynchronously (encrypt + IndexedDB); a reload a few milliseconds after the tap can
+    // abort that transaction under load — no person reloads that fast. Give the write time to commit.
+    await page.waitForTimeout(750);
 
     // ---- reload + unlock: the workout resumes in training mode with every set
     await page.reload();

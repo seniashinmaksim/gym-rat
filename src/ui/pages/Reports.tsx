@@ -416,7 +416,7 @@ function Mini({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-xl bg-ink-50 p-2.5 dark:bg-ink-950">
       <div className="text-[10px] font-medium uppercase tracking-wide text-ink-500">{label}</div>
-      <div className="mt-0.5 truncate text-base font-semibold tabular-nums text-ink-900 dark:text-white">{value}</div>
+      <div className="min-w-0 mt-0.5 text-base font-semibold tabular-nums text-ink-900 dark:text-white break-words">{value}</div>
     </div>
   );
 }

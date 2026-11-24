@@ -44,8 +44,8 @@ export function EquipmentPicker({ open, onClose, locationId, def, currentId, onP
     <li key={c.eq.id} className="flex items-center gap-1">
       <button type="button" onClick={() => onPick(c.eq)}
         className={cx('flex min-h-[52px] min-w-0 flex-1 flex-col justify-center rounded-lg px-2 py-2 text-left active:bg-ink-100 dark:active:bg-ink-800', currentId === c.eq.id && 'bg-accent-500/10')}>
-        <span className="truncate text-sm font-medium text-ink-900 dark:text-white">{c.eq.name}</span>
-        <span className="truncate text-xs text-ink-500">
+        <span className="min-w-0 text-sm font-medium text-ink-900 dark:text-white break-words">{c.eq.name}</span>
+        <span className="min-w-0 text-xs text-ink-500 break-words">
           {[c.eq.manufacturer, c.eq.model].filter(Boolean).join(' ') || L('make unknown', 'производитель неизвестен')}
           {c.lastUsed ? L(` · used ${formatDate(c.lastUsed, { day: 'numeric', month: 'short' })}`, ` · последний раз ${formatDate(c.lastUsed, { day: 'numeric', month: 'short' })}`) : L(' · not used yet', ' · ещё не использовался')}
           {c.gymName && c.eq.locationId !== locationId ? ` · ${c.gymName}` : ''}

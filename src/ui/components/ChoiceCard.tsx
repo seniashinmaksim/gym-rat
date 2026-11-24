@@ -30,7 +30,7 @@ export function ChoiceCard({ a, name, altName, onContinue, onAlternative }: {
   return (
     <div className="rounded-2xl border border-ink-200 bg-white p-3.5 dark:border-ink-700 dark:bg-ink-900" data-testid="choice-card">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-semibold text-ink-900 dark:text-white">{name}</span>
+        <span className="min-w-0 text-sm font-semibold text-ink-900 dark:text-white break-words">{name}</span>
         <Badge tone={STATUS_TONE[a.status]}>{choiceLabelText(a.label)}</Badge>
       </div>
       <ul className="mt-2 space-y-0.5 text-xs tabular-nums text-ink-600 dark:text-ink-300">
@@ -42,7 +42,7 @@ export function ChoiceCard({ a, name, altName, onContinue, onAlternative }: {
       <div className="mt-3 flex flex-wrap gap-2">
         {a.alternatives.map((alt) => (
           <Button key={alt.exerciseId} size="md" variant="primary" className="min-w-0 max-w-full" onClick={() => onAlternative(alt)}>
-            <span className="truncate">{alt.kind === 'do_first' ? L('First: ', 'Сначала: ') : L('Use ', 'Взять: ')}{altName(alt.exerciseId)}</span>
+            <span className="min-w-0 break-words">{alt.kind === 'do_first' ? L('First: ', 'Сначала: ') : L('Use ', 'Взять: ')}{altName(alt.exerciseId)}</span>
           </Button>
         ))}
         <Button size="md" onClick={onContinue}>{L('Continue', 'Продолжить')}</Button>

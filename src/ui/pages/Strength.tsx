@@ -107,7 +107,7 @@ function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: bool
       className={cx('flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl border bg-white px-3.5 py-2.5 text-left transition dark:bg-ink-900',
         active ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-ink-200 dark:border-ink-800')}>
       <span className="min-w-0">
-        <span className="block truncate text-xs text-ink-500">{p.scopeLabel}</span>
+        <span className="min-w-0 block text-xs text-ink-500 break-words">{p.scopeLabel}</span>
         <span className="block text-sm tabular-nums text-ink-900 dark:text-white">
           {cur ? <>{bw || cur.topWeight == null ? '' : `${fmt(cur.topWeight, 2)} ${KG()} × `}{cur.topReps ?? '?'}{bw ? ` ${REPS()}` : ''}</> : '—'}
           {cur && <span className="text-xs text-ink-400"> · {formatDate(cur.date, { day: 'numeric', month: 'short' })}</span>}
@@ -244,7 +244,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-4 py-2.5 text-left sm:px-5">
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-ink-900 dark:text-white">{title}</span>
-          {hint && <span className="block truncate text-[11px] text-ink-500">{hint}</span>}
+          {hint && <span className="min-w-0 block text-[11px] text-ink-500 break-words">{hint}</span>}
         </span>
         <IconChevronDown size={16} className={cx('shrink-0 text-ink-400 transition', open && 'rotate-180')} />
       </button>
@@ -270,7 +270,7 @@ function FeedbackTable({ p }: { p: ProgressionSeries }) {
               <td className="px-4 py-1.5 sm:px-0">{i === 0 ? formatDate(s.date, { day: 'numeric', month: 'short' }) : ''}</td>
               <td>{x.side ? `${x.side === 'left' ? L('L', 'Л') : L('R', 'П')} ` : ''}{x.weight != null ? fmt(x.weight, 2) : BW()}</td>
               <td>{x.reps ?? '?'}</td>
-              <td className="max-w-[120px] truncate" title={x.excluded ? L(`Not a benchmark: ${exclusionLabel(x.excluded)}`, `Не для сравнения: ${exclusionLabel(x.excluded)}`) : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
+              <td className="min-w-0 max-w-[120px] break-words" title={x.excluded ? L(`Not a benchmark: ${exclusionLabel(x.excluded)}`, `Не для сравнения: ${exclusionLabel(x.excluded)}`) : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
               <td className="pr-4 text-right sm:pr-0">{x.rir != null ? x.rir : x.effort ? <span className="text-ink-400">≈{formatRirRange(EFFORT_RIR_ESTIMATE[x.effort])}</span> : '—'}</td>
             </tr>
           ))}
@@ -386,7 +386,7 @@ function ProgressTable() {
           return (
             <li key={p.key} className="flex items-center justify-between gap-3 px-4 py-2 sm:px-5">
               <div className="min-w-0">
-                <div className="truncate text-sm text-ink-900 dark:text-white">{names.ex(a.registry.get(p.exerciseId), p.exerciseId)}{where ? <span className="text-ink-400"> · {where}</span> : null}</div>
+                <div className="min-w-0 text-sm text-ink-900 dark:text-white break-words">{names.ex(a.registry.get(p.exerciseId), p.exerciseId)}{where ? <span className="text-ink-400"> · {where}</span> : null}</div>
                 <div className="text-xs tabular-nums text-ink-500">{val(p, s.baseline?.topWeight, s.baseline?.index)} → {s.current ? val(p, s.current.topWeight, s.current.index) : '—'}</div>
               </div>
               <div className="shrink-0 text-right">

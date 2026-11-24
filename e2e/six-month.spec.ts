@@ -2,26 +2,21 @@
  * Six-month audit journeys on WebKit (iPhone 13, 375, 430, desktop). A synthetic 26-week history is
  * restored through the app's own encrypted backup/restore, the browser clock is set to the last day of
  * the simulation, and the real screens are checked: numbers, units, labels, overflow. Screenshots go to
- * test-artifacts/six-month-audit/<journey>/<viewport>/. Synthetic data, throwaway passwords.
+ * test-artifacts/six-month-audit/<journey>/<viewport>/. Synthetic data, throwaway passwords. English only.
+ * The live workout (journeys 2 and 8) runs in the training mode: set logged after it was done, rest screen,
+ * overview, Finish → summary.
  */
 import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateSixMonths } from '../tests/sim/sixMonth';
 import { createBackup } from '../src/lib/backup';
-
-/** Part 5: picking an exercise may first show the exercise-choice card (advice, never blocking) — answer "Continue". */
-async function continueChoice(page: import('@playwright/test').Page) {
-  await page.waitForTimeout(250);
-  const cc = page.getByTestId('choice-card');
-  if (await cc.count()) await cc.getByRole('button', { name: 'Continue' }).click();
-}
+import { audit, createVault, logSet, pick, restoreBackup, toOverview, unlock, useLang } from './helpers';
 
 const VAULT_PW = 'synthetic-e2e-vault-03';
 const BACKUP_PW = 'synthetic-e2e-backup-03';
 const OUT = path.join('test-artifacts', 'six-month-audit');
 const BACKUP = path.join(OUT, 'synthetic-26-weeks.gymrat-backup.json');
-const AUDIT = fs.readFileSync('scripts/layout-audit.js', 'utf8');
 const overflow: Record<string, number> = {};
 
 test.beforeAll(async () => {
@@ -37,24 +32,17 @@ async function shot(page: Page, journey: string, project: string, name: string) 
   fs.mkdirSync(dir, { recursive: true });
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(dir, `${name}.png`) });
-  const res = (await page.evaluate(AUDIT)) as { findings: unknown[] };
+  const res = await audit(page);
   overflow[`${journey}/${name}`] = res.findings.length;
 }
 
 async function setupAndRestore(page: Page) {
+  await useLang(page, 'en');
   // Last evening of the simulation (Sunday of week 26), clock running from there.
   await page.clock.install({ time: new Date('2026-11-22T17:30:00Z') });
   page.on('dialog', (d) => void d.accept());
-  await page.goto('/');
-  await page.getByPlaceholder('Choose a password').fill(VAULT_PW);
-  await page.getByPlaceholder('Repeat password').fill(VAULT_PW);
-  await page.getByRole('button', { name: /Set password/ }).click();
-  await page.getByPlaceholder('Choose a password').waitFor({ state: 'detached', timeout: 60_000 });
-  await page.goto('/#/settings');
-  await page.locator('input[type=file][accept*=".json"]').setInputFiles(BACKUP);
-  await page.getByPlaceholder('Backup password').nth(1).fill(BACKUP_PW);
-  await page.getByRole('button', { name: /^Restore$/ }).click();
-  await expect(page.getByText(/Restored \d+ workouts/)).toBeVisible({ timeout: 60_000 });
+  await createVault(page, VAULT_PW);
+  await restoreBackup(page, BACKUP, BACKUP_PW);
 }
 
 test('six-month journeys: dashboard, progression, weekly summary, body weight, gyms, decline, correction, resume', async ({ page }, info) => {
@@ -147,48 +135,48 @@ test('six-month journeys: dashboard, progression, weekly summary, body weight, g
   expect(tb.x + tb.width).toBeLessThanOrEqual(page.viewportSize()!.width - 8);
   await shot(page, 'j6-body-pullups', P, '04-weighted-pull-up-body-context');
 
-  // ---- Journey 2: return to a known gym; machine from the dropdown; history loads; sets + timer + summary
+  // ---- Journey 2: return to a known gym in the training mode; machine pre-selected from this gym; history and
+  // today's target load; a set is logged after it was done; rest screen; summary
   await page.goto('/#/log');
-  await page.locator('main select').first().selectOption({ label: 'Synthetic Gym A' }).catch(async () => page.locator('main select').first().selectOption('gym_a'));
+  await page.locator('main select').first().selectOption({ label: 'Synthetic Gym A' });
   await page.getByRole('button', { name: /Start session/ }).click();
-  await expect(page.getByText('Workout in progress')).toBeVisible();
-  await page.getByRole('button', { name: /^Add exercise$/ }).click();
-  await page.locator('[role=dialog] input').first().fill('pec deck');
-  await page.locator('[role=dialog] button', { hasText: /^Pec deck/ }).first().click();
-  await continueChoice(page);
-  const card = page.locator('section, .rounded-2xl').filter({ has: page.locator('h3', { hasText: /^Pec deck$/ }) }).first();
-  await expect(card).toContainText('Pec deck A'); // pre-selected: the machine used here before
-  await expect(card).toContainText(/seat 4/);
-  await card.getByRole('button', { name: /Pec deck A/ }).click();
+  const train = page.getByTestId('train');
+  await expect(train).toBeVisible();
+  await pick(page, 'pec deck', /^Pec deck/);
+  await expect(train).toHaveAttribute('data-view', 'set');
+  await expect(page.getByTestId('machine-line')).toContainText('Pec deck A'); // pre-selected: the machine used here before
+  await expect(page.getByTestId('machine-line')).toContainText(/seat 4/);
+  await expect(page.getByTestId('last-time')).toContainText(/\d+ × \d+/); // history of THIS machine
+  await expect(page.getByTestId('today-target')).toBeVisible(); // today's prescription as a target line
+  await page.getByTestId('machine-line').click();
   const picker = page.locator('[role=dialog]');
   await expect(picker).toContainText('Pec deck A');
   await expect(picker).not.toContainText('Pec deck B'); // other gym's machine hidden unless searched
   await shot(page, 'j2-known-gym', P, '01-equipment-dropdown');
   await page.keyboard.press('Escape');
-  await shot(page, 'j2-known-gym', P, '02-active-workout-prescription');
-  const row = card.locator('[id^="set-"]').first();
-  const w0 = await row.locator('input[aria-label="weight"]').inputValue();
-  expect(Number(w0) % 5).toBe(0); // Pec deck A moves in 5 kg steps
-  await row.locator('input[aria-label="reps"]').fill('12');
-  await row.getByRole('button', { name: '1', exact: true }).click();
-  await row.getByRole('button', { name: 'Complete set' }).click();
-  await expect(page.locator('.fixed', { hasText: /REST/i })).toBeVisible();
-  await shot(page, 'j2-known-gym', P, '03-set-logged-rest-timer');
+  await expect(picker).toHaveCount(0);
+  await shot(page, 'j2-known-gym', P, '02-set-entry-target');
+  const w0 = (await page.getByTestId('weight-value').innerText()).trim();
+  expect(Number(w0) % 5).toBe(0); // pre-filled on Pec deck A's 5 kg steps
+  await logSet(page, null, '12', 1);
+  await expect(page.getByTestId('rest-ring')).toBeVisible();
+  await shot(page, 'j2-known-gym', P, '03-set-logged-rest');
 
   // ---- Journey 8: interrupted workout — reload, unlock, resume, nothing lost or duplicated
+  await page.waitForTimeout(600);
   await page.reload();
-  await page.getByPlaceholder('Password', { exact: true }).fill(VAULT_PW);
-  await page.getByRole('button', { name: /Unlock/ }).click();
-  await page.getByPlaceholder('Password', { exact: true }).waitFor({ state: 'detached', timeout: 60_000 });
-  await expect(page.getByText('Workout in progress')).toBeVisible();
-  await expect(card.locator('button[aria-label="Set completed"]')).toHaveCount(1);
+  await unlock(page, VAULT_PW);
+  await expect(train).toBeVisible({ timeout: 60_000 });
+  await toOverview(page);
+  await expect(page.getByTestId('ov-row')).toHaveCount(1);
+  await expect(page.getByText(/^1 set$/)).toBeVisible(); // top bar: one working set
   await shot(page, 'j8-interrupted', P, '01-resumed');
-  await page.getByRole('button', { name: /^Finish$/ }).click();
+  await page.getByTestId('finish').click();
   const sum = page.locator('[role=dialog]', { hasText: 'Workout saved' });
   await expect(sum).toBeVisible();
   const st = (await sum.textContent()) ?? '';
   expect(st).toMatch(/Sets\s*1/i);
-  expect(st).toMatch(new RegExp(`Tonnage\\s*${Number(w0) * 12} kg`, 'i'));
+  expect(st).toMatch(new RegExp(`Tonnage\\s*${(Number(w0) * 12).toLocaleString('en-US')} kg`, 'i'));
   await shot(page, 'j2-known-gym', P, '04-workout-summary');
   await sum.getByRole('button', { name: 'Done' }).click();
 

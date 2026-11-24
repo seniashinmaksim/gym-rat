@@ -1,20 +1,28 @@
 /**
- * Part 5 journeys on WebKit (iPhone 13, 375, 430, desktop): planner card (mode badge, Replace / Edit / Start),
- * live workout with real-gym controls (Later, Machine busy, Replace, re-check after a set), the exercise-choice
- * badge + card in the picker, and Settings → Planner readiness. Synthetic 26-week history restored through the
- * app's own encrypted backup; throwaway passwords. Screenshots: test-artifacts/part5/<project>/.
+ * Part 5 journeys on WebKit (iPhone 13, 375, 430, desktop), now through the training mode (Part 6):
+ *  planner card (mode badge, rows "sets × kg × reps", RIR, item open → One set more → Replace) → Start → the
+ *  plan arrives as TARGET lines in the training-mode overview (one row per planned item) → real-gym actions in
+ *  the overview ⋯ menu: Later (moves to the end, Undo offered), Machine busy (marks the machine, opens the
+ *  alternatives sheet with the reason pre-set), Replace (familiar alternative, Undo offered), Up / Down →
+ *  order changed in real life: Pec deck done before a not-started incline press → the press is re-assessed
+ *  ("Adjusted" note in the overview) → exercise picker: choice dots + the compact choice card (never blocking)
+ *  → Settings → Planner readiness.
+ * Dropped with the old card logger: planned set rows pre-filled from the prescription and ticking them (✓) —
+ * training mode has no prepared rows; a set exists only once it is logged (the target line replaces them).
+ * Synthetic 26-week history restored through the app's own encrypted backup; throwaway passwords.
+ * English only. Screenshots + layout audit: test-artifacts/part5/<project>/.
  */
 import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateSixMonths } from '../tests/sim/sixMonth';
 import { createBackup } from '../src/lib/backup';
+import { audit, createVault, logSet, nextSet, ovMenu, pick, restoreBackup, toOverview, undoToast, useLang } from './helpers';
 
 const VAULT_PW = 'synthetic-e2e-vault-05';
 const BACKUP_PW = 'synthetic-e2e-backup-05';
 const OUT = path.join('test-artifacts', 'part5');
 const BACKUP = path.join(OUT, 'synthetic-26-weeks.gymrat-backup.json');
-const AUDIT = fs.readFileSync('scripts/layout-audit.js', 'utf8');
 const overflow: Record<string, number> = {};
 const details: Record<string, unknown> = {};
 
@@ -29,35 +37,28 @@ async function shot(page: Page, project: string, name: string) {
   fs.mkdirSync(dir, { recursive: true });
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: false });
-  const res = (await page.evaluate(AUDIT)) as { findings: unknown[] };
+  const res = await audit(page);
   overflow[name] = res.findings.length;
   if (res.findings.length) details[name] = res.findings;
 }
 
-async function setupAndRestore(page: Page) {
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const rowNames = async (page: Page) => (await page.getByTestId('ov-row').locator('span.min-w-0 > span.font-display').allInnerTexts()).map((s) => s.trim().toLowerCase());
+
+test('part 5: planner card → start → overview real-gym actions → re-assessment → choice assistant → readiness', async ({ page }, info) => {
+  test.setTimeout(300_000);
+  page.setDefaultTimeout(20_000);
+  const P = info.project.name;
+  const train = page.getByTestId('train');
+  await useLang(page, 'en');
   // Tuesday afternoon after the 26 simulated weeks (last session Sunday evening): muscles recovered, nothing logged this week.
   await page.clock.install({ time: new Date('2026-11-24T16:00:00Z') });
   page.on('dialog', (d) => void d.accept());
-  await page.goto('/');
-  await page.getByPlaceholder('Choose a password').fill(VAULT_PW);
-  await page.getByPlaceholder('Repeat password').fill(VAULT_PW);
-  await page.getByRole('button', { name: /Set password/ }).click();
-  await page.getByPlaceholder('Choose a password').waitFor({ state: 'detached', timeout: 60_000 });
-  await page.goto('/#/settings');
-  await page.locator('input[type=file][accept*=".json"]').setInputFiles(BACKUP);
-  await page.getByPlaceholder('Backup password').nth(1).fill(BACKUP_PW);
-  await page.getByRole('button', { name: /^Restore$/ }).click();
-  await expect(page.getByText(/Restored \d+ workouts/)).toBeVisible({ timeout: 120_000 });
-}
-
-test('part 5: planner card → start → real-gym controls → choice assistant → readiness', async ({ page }, info) => {
-  test.setTimeout(300_000);
-  const P = info.project.name;
-  await setupAndRestore(page);
+  await createVault(page, VAULT_PW);
+  await restoreBackup(page, BACKUP, BACKUP_PW);
 
   // ---- 1. Dashboard: YOUR NEXT WORKOUT (adaptive after 26 well-logged weeks)
   await page.goto('/#/');
-  const card = page.locator('section, div').filter({ has: page.getByRole('heading', { name: 'Your next workout' }) }).last();
   await expect(page.getByRole('heading', { name: 'Your next workout' })).toBeVisible();
   await expect(page.getByText('ADAPTIVE', { exact: true })).toBeVisible();
   const list = page.getByTestId('next-workout-list');
@@ -70,96 +71,130 @@ test('part 5: planner card → start → real-gym controls → choice assistant 
   await page.getByRole('heading', { name: 'Your next workout' }).scrollIntoViewIfNeeded();
   await shot(page, P, '01-next-workout-card');
 
-  // Open an item: why + edit + replace
+  // Open an item: edit + replace inside the card
   await list.locator('> li').nth(1).locator('button').first().click();
   await page.getByRole('button', { name: 'One set more' }).click();
   await page.getByRole('button', { name: /^Replace$/ }).click();
   await expect(page.getByTestId('replace-options')).toBeVisible();
   await shot(page, P, '02-item-open-replace');
   const opts = page.getByTestId('replace-options').locator('button');
-  const replaced = (await opts.count()) > 0;
-  if (replaced) await opts.first().click();
-  details.replacedInCard = replaced;
+  // Optional: whether a familiar alternative exists depends on the synthetic history; both outcomes are valid.
+  details.replacedInCard = (await opts.count()) > 0;
+  if (details.replacedInCard) await opts.first().click();
 
-  // Start → live workout with planned sets carrying the prescription
+  // ---- 2. Start → training mode; the plan arrives as target lines (no prepared set rows)
   await page.getByRole('button', { name: /^Start$/ }).click();
-  await expect(page.getByText('Workout in progress')).toBeVisible();
-  await shot(page, P, '03-live-from-plan');
-  const cards = page.locator('main [data-testid="pending-actions"]');
-  await expect(cards.first()).toBeVisible();
-  const nCards = await cards.count();
-  expect(nCards).toBe(n0);
-  const firstName = await page.locator('main h3').first().innerText();
+  await expect(train).toBeVisible();
+  await expect(page.getByTestId('set-chip')).toHaveCount(0);
+  await toOverview(page);
+  await expect(page.getByTestId('ov-row')).toHaveCount(n0);
+  await expect(page.getByTestId('ov-row').first()).toContainText(/\d+ × .*\d/); // "3 × 40 kg × 8–12"
+  await shot(page, P, '03-overview-from-plan');
+  const names0 = await rowNames(page);
 
-  // ---- 2. Later: the first exercise moves to the end, nothing lost
-  await cards.first().getByRole('button', { name: /^Later$/ }).click();
-  await expect(page.locator('main h3').last()).toHaveText(firstName);
-  await expect(page.getByText(/Later — postponed/)).toBeVisible();
+  // ---- 3. Later: the first exercise moves to the end, nothing lost, Undo offered
+  await (await ovMenu(page, new RegExp(esc(names0[0]), 'i'))).getByRole('button', { name: /^Later/ }).click();
+  await expect(page.getByTestId('ov-row')).toHaveCount(n0);
+  expect((await rowNames(page)).at(-1)).toBe(names0[0]);
+  await expect(page.getByTestId('ov-row').last()).toContainText('later');
+  await expect(undoToast(page)).toBeVisible();
   await shot(page, P, '04-later-moved-to-end');
 
-  // ---- 3. Machine busy (on the first card that has a machine) → alternatives with available equipment
-  const busyBtn = page.getByRole('button', { name: 'Machine busy' }).first();
-  if (await busyBtn.count()) {
-    await busyBtn.click();
-    await expect(page.getByTestId('replace-sheet')).toBeVisible();
-    await expect(page.getByText(/Machine busy: pick an alternative/)).toBeVisible();
-    await page.getByText(/Machine busy: pick an alternative/).scrollIntoViewIfNeeded();
-    await shot(page, P, '05-machine-busy-alternatives');
-    details.busyUsed = true;
+  // ---- 4. Machine busy: on the first exercise that has a machine → alternatives sheet (reason pre-set)
+  let busyName: string | null = null;
+  for (const n of await rowNames(page)) {
+    const menu = await ovMenu(page, new RegExp(esc(n), 'i'));
+    const b = menu.getByRole('button', { name: /^Machine busy$/ });
+    if (await b.count()) { await b.click(); busyName = n; break; }
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('ov-actions')).toHaveCount(0);
   }
+  expect(busyName, 'the synthetic plan has at least one machine exercise').not.toBeNull();
+  const sheet = page.getByTestId('replace-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'Machine busy' })).toHaveAttribute('aria-pressed', 'true');
+  const alts = sheet.locator('button.flex-col');
+  details.busyAlternatives = await alts.count();
+  if (!(await alts.count())) await expect(sheet).toContainText(/No familiar alternative/);
+  await shot(page, P, '05-machine-busy-alternatives');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByTestId('ov-row').filter({ hasText: new RegExp(esc(busyName as string), 'i') }).first()).toContainText('machine busy');
 
-  // ---- 4. Do a set on whatever is first now (any order) → remaining exercises are re-checked
-  const first = page.locator('main [id^="set-"]').first();
-  await first.scrollIntoViewIfNeeded();
-  await page.getByRole('button', { name: 'Complete set' }).first().click();
-  await page.waitForTimeout(600);
-  await shot(page, P, '06-after-first-set');
-  details.adjustedNotes = await page.getByTestId('adjusted-note').count();
+  // ---- 5. Replace a not-started exercise with a familiar alternative (Undo offered)
+  const target = (await rowNames(page)).find((n) => n !== busyName) as string;
+  await (await ovMenu(page, new RegExp(esc(target), 'i'))).getByRole('button', { name: /^Replace$/ }).click();
+  await expect(sheet).toBeVisible();
+  const ropts = sheet.locator('button.flex-col');
+  details.replaceOptions = await ropts.count();
+  if (await ropts.count()) {
+    await ropts.first().click();
+    await expect(undoToast(page)).toBeVisible();
+    expect(await rowNames(page)).not.toContain(target);
+  } else {
+    // No familiar alternative here: the sheet says so and offers "Do it later instead".
+    await expect(sheet).toContainText(/No familiar alternative/);
+    await page.keyboard.press('Escape');
+  }
+  await expect(page.getByTestId('ov-row')).toHaveCount(n0);
+  await shot(page, P, '06-replaced');
 
-  // ---- 5. Picker: choice dots + compact card (never blocking)
-  await page.getByRole('button', { name: /Add exercise/ }).click();
+  // ---- 6. Up / Down
+  const before = await rowNames(page);
+  const up = await ovMenu(page, new RegExp(esc(before[1]), 'i'));
+  await up.getByRole('button', { name: 'Move up' }).click();
+  await page.keyboard.press('Escape');
+  expect((await rowNames(page)).slice(0, 2)).toEqual([before[1], before[0]]);
+  const down = await ovMenu(page, new RegExp(esc(before[1]), 'i'));
+  await down.getByRole('button', { name: 'Move down' }).click();
+  await page.keyboard.press('Escape');
+  expect(await rowNames(page)).toEqual(before);
+
+  // ---- 7. Order changed in real life: Pec deck done BEFORE a not-started incline press → the press is re-assessed
+  if (!(await rowNames(page)).includes('incline dumbbell press')) {
+    await page.getByTestId('add-exercise').click();
+    await pick(page, 'incline dumbbell', /^Incline dumbbell press/);
+    await toOverview(page);
+  }
+  await page.getByTestId('add-exercise').click();
+  await pick(page, 'pec deck', /^Pec deck/);
+  await expect(train).toHaveAttribute('data-view', 'set');
+  for (let i = 0; i < 3; i++) {
+    if (i) await nextSet(page);
+    await logSet(page, null, '12', 1); // weight pre-filled from last time on this machine
+  }
+  await toOverview(page);
+  const note = page.getByTestId('ov-row').filter({ hasText: /incline dumbbell press/i }).getByTestId('adjusted-note');
+  await expect(note).toBeVisible({ timeout: 5000 });
+  details.adjustedText = await note.innerText();
+  await note.scrollIntoViewIfNeeded();
+  await shot(page, P, '07-reassessed-after-order-change');
+
+  // ---- 8. Picker: choice dots + compact card (never blocking)
+  await page.getByTestId('add-exercise').click();
   const dlg = page.locator('[role=dialog]');
   await expect(dlg.locator('[role=img]').first()).toBeVisible();
-  await shot(page, P, '07-picker-badges');
+  await shot(page, P, '08-picker-badges');
   await dlg.getByPlaceholder(/Search in English or Russian/).fill('straight bar');
   await dlg.getByRole('button', { name: /Triceps pushdown \(straight bar\)/ }).first().click();
   const choice = page.getByTestId('choice-card');
-  if (await choice.count()) {
+  await page.waitForTimeout(400);
+  // Optional by design: the card appears only when the choice deserves a comment.
+  details.choiceCard = (await choice.count()) > 0;
+  if (details.choiceCard) {
     await expect(choice.getByRole('button', { name: 'Continue' })).toBeVisible();
-    await shot(page, P, '08-choice-card');
+    await shot(page, P, '09-choice-card');
     await choice.getByRole('button', { name: 'Continue' }).click();
-    details.choiceCard = true;
-  } else details.choiceCard = false;
-  await expect(page.locator('main h3', { hasText: 'Triceps pushdown (straight bar)' }).last()).toBeVisible();
-
-  // ---- 5b. Order changed in real life: Pec deck done BEFORE the planned incline press → the press is re-prescribed
-  const incline = page.locator('main [data-testid="pending-actions"]').locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]').filter({ has: page.locator('h3', { hasText: 'Incline dumbbell press' }) });
-  if (await page.locator('main h3', { hasText: /^Incline dumbbell press$/ }).count()) {
-    await page.getByRole('button', { name: /Add exercise/ }).click();
-    await page.locator('[role=dialog]').getByPlaceholder(/Search in English or Russian/).fill('pec deck');
-    await page.locator('[role=dialog]').getByRole('button', { name: /(^|\s)Pec deck Пек/ }).first().click();
-    if (await page.getByTestId('choice-card').count()) await page.getByTestId('choice-card').getByRole('button', { name: 'Continue' }).click();
-    const pec = page.locator('main h3', { hasText: /^Pec deck$/ }).last().locator('xpath=ancestor::*[.//button[@aria-label="Complete set"]][1]');
-    for (let i = 0; i < 6; i++) {
-      const b = pec.getByRole('button', { name: 'Complete set' });
-      if (!(await b.count())) break;
-      await b.first().click();
-      await page.waitForTimeout(400);
-    }
-    await expect(page.getByTestId('adjusted-note').first()).toBeVisible({ timeout: 5000 });
-    await page.getByTestId('adjusted-note').first().scrollIntoViewIfNeeded();
-    details.adjustedNotes = await page.getByTestId('adjusted-note').count();
-    details.adjustedText = await page.getByTestId('adjusted-note').first().innerText();
-    await shot(page, P, '08b-reassessed-after-order-change');
   }
-  void incline;
+  await expect(train).toHaveAttribute('data-view', 'set');
+  await expect(page.getByTestId('exercise-name')).toHaveText(/triceps pushdown \(straight bar\)/i);
 
-  // ---- 6. Settings → Planner readiness
+  // ---- 9. Settings → Planner readiness (leave training mode: the workout stays open)
   await page.goto('/#/settings');
   await expect(page.getByText('Planner readiness')).toBeVisible();
   await page.getByText('Planner readiness').scrollIntoViewIfNeeded();
   await expect(page.getByTestId('readiness-areas').locator('li')).toHaveCount(7);
-  await shot(page, P, '09-settings-planner');
+  await shot(page, P, '10-settings-planner');
 
   fs.writeFileSync(path.join(OUT, `overflow-${P}.json`), JSON.stringify({ overflow, details }, null, 2));
   const total = Object.values(overflow).reduce((a, b) => a + b, 0);
