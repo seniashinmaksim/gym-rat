@@ -1,5 +1,6 @@
 import type { AppData } from '../domain/appdata';
 import { fromB64, openWithPassword, sealWithPassword, toB64 } from './crypto';
+import { L } from '../i18n/core';
 
 /**
  * Encrypted backup file format (".gymrat-backup.json"):
@@ -43,12 +44,12 @@ export async function readBackup(text: string, password: string): Promise<{ data
   try {
     file = JSON.parse(text);
   } catch {
-    throw new Error('Not a backup file (invalid JSON).');
+    throw new Error(L('Not a backup file (invalid JSON).', 'Это не файл резервной копии (некорректный JSON).'));
   }
-  if (file.format !== 'gymrat-backup' || file.version !== 1) throw new Error('Unsupported backup format.');
+  if (file.format !== 'gymrat-backup' || file.version !== 1) throw new Error(L('Unsupported backup format.', 'Формат резервной копии не поддерживается.'));
   const bytes = await openWithPassword(password, file);
   const payload = JSON.parse(new TextDecoder().decode(bytes)) as BackupPayload;
-  if (!payload?.data?.settings || !Array.isArray(payload.data.workouts)) throw new Error('Backup content is malformed.');
+  if (!payload?.data?.settings || !Array.isArray(payload.data.workouts)) throw new Error(L('Backup content is malformed.', 'Содержимое резервной копии повреждено.'));
   return { data: payload.data, photos: payload.photos.map((p) => ({ id: p.id, bytes: fromB64(p.b64) })) };
 }
 

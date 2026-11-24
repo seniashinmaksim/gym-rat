@@ -12,13 +12,15 @@
  * - AAD binds each ciphertext to its table+id so blobs cannot be swapped between records.
  */
 
+import { L } from '../i18n/core';
+
 export const KDF_ITERATIONS = 600_000; // OWASP 2023 guidance for PBKDF2-HMAC-SHA256
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 function subtle(): SubtleCrypto {
   const c = globalThis.crypto;
-  if (!c?.subtle) throw new Error('Web Crypto is unavailable. Use a modern browser over HTTPS or localhost.');
+  if (!c?.subtle) throw new Error(L('Web Crypto is unavailable. Use a modern browser over HTTPS or localhost.', 'Web Crypto недоступен. Откройте приложение в современном браузере по HTTPS или на localhost.'));
   return c.subtle;
 }
 
@@ -50,7 +52,7 @@ function buf(u: Uint8Array): Uint8Array<ArrayBuffer> {
 }
 
 export async function deriveKek(password: string, salt: Uint8Array, iterations = KDF_ITERATIONS): Promise<CryptoKey> {
-  if (password.length < 1) throw new Error('Empty password');
+  if (password.length < 1) throw new Error(L('Empty password', 'Пустой пароль'));
   const base = await subtle().importKey('raw', buf(enc.encode(password.normalize('NFKC'))), 'PBKDF2', false, ['deriveKey']);
   return subtle().deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt: buf(salt), iterations },
@@ -132,7 +134,7 @@ export async function createVault(password: string, iterations = KDF_ITERATIONS)
 
 export class WrongPasswordError extends Error {
   constructor() {
-    super('Incorrect password');
+    super(L('Incorrect password', 'Неверный пароль'));
     this.name = 'WrongPasswordError';
   }
 }
@@ -198,6 +200,6 @@ export function passwordStrength(pw: string): { score: 0 | 1 | 2 | 3 | 4; hint: 
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score++;
   if (pw.split(/\s+/).length >= 4 && pw.length >= 20) score = 4;
-  const hints = ['Too short', 'Weak', 'Fair', 'Good', 'Strong'];
+  const hints = [L('Too short', 'Слишком короткий'), L('Weak', 'Слабый'), L('Fair', 'Средний'), L('Good', 'Хороший'), L('Strong', 'Надёжный')];
   return { score: Math.min(score, 4) as 0 | 1 | 2 | 3 | 4, hint: hints[Math.min(score, 4)] };
 }

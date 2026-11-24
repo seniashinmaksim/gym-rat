@@ -8,6 +8,7 @@ import { FEEL_BY_ID } from './feedback';
 import { failureConsistency } from './failure';
 import type { Confidence, Equipment, FailureStatus, Location, MuscleId, Workout, WorkoutExercise, WorkoutSet } from './types';
 import { uid } from '../lib/id';
+import { L, num } from '../i18n/core';
 
 /**
  * Workout import contract — schema "gymrat.workout", version 1.x.
@@ -158,12 +159,12 @@ export function parseImportJson(text: string): ParseResult {
   try {
     raw = JSON.parse(stripFences(text));
   } catch (e) {
-    return { ok: false, workouts: [], errors: [`Not valid JSON: ${(e as Error).message}`] };
+    return { ok: false, workouts: [], errors: [L(`Not valid JSON: ${(e as Error).message}`, `Некорректный JSON: ${(e as Error).message}`)] };
   }
   const isEnvelope = typeof raw === 'object' && raw !== null && 'workouts' in raw;
   if (isEnvelope) {
     const v = (raw as { schema_version?: unknown }).schema_version;
-    if (v != null && !String(v).startsWith('1')) return { ok: false, workouts: [], errors: [`Unsupported schema_version ${String(v)} (this app reads 1.x)`] };
+    if (v != null && !String(v).startsWith('1')) return { ok: false, workouts: [], errors: [L(`Unsupported schema_version ${String(v)} (this app reads 1.x)`, `schema_version ${String(v)} не поддерживается (приложение читает 1.x)`)] };
     const r = Envelope.safeParse(raw);
     if (!r.success) return { ok: false, workouts: [], errors: formatZod(r.error) };
     return { ok: true, workouts: r.data.workouts, errors: [] };
@@ -185,7 +186,22 @@ function stripFences(t: string): string {
 }
 
 function formatZod(err: z.ZodError): string[] {
-  return err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+  return err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${schemaMessage(i.message)}`);
+}
+
+/**
+ * The schema's own messages are fixed English texts (the schema is built once, when the module loads);
+ * this gives their Russian twin at the moment they are shown. Messages produced by zod itself stay as they are.
+ */
+function schemaMessage(en: string): string {
+  switch (en) {
+    case 'Use HH:mm (24h)': return L(en, 'Формат времени — ЧЧ:мм (24 ч)');
+    case 'Each exercise needs at least one set': return L(en, 'В каждом упражнении должен быть хотя бы один подход');
+    case 'Provide exercise_id or exercise_name_raw': return L(en, 'Укажите exercise_id или exercise_name_raw');
+    case 'date must be YYYY-MM-DD': return L(en, 'date должна быть в формате ГГГГ-ММ-ДД');
+    case 'A workout needs at least one exercise': return L(en, 'В тренировке должно быть хотя бы одно упражнение');
+    default: return en.startsWith('Soreness keys must be muscle ids: ') ? L(en, en.replace('Soreness keys must be muscle ids: ', 'Ключи soreness должны быть id мышц: ')) : en;
+  }
 }
 
 // ---------------------------------------------------------------- Resolution
@@ -319,7 +335,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
   const loc = matchLocation(data.locations, input.location?.location_id ?? input.location_id, input.location?.name_hint);
   const locationHint = input.location?.name_hint ?? input.location_id ?? null;
   if (!loc.id) {
-    issues.push({ level: 'warning', path: 'location', message: locationHint ? `Gym "${locationHint}" is not a known location — choose one or create it.` : 'Gym not specified — choose a location or leave it unknown.' });
+    issues.push({ level: 'warning', path: 'location', message: locationHint ? L(`Gym "${locationHint}" is not a known location — choose one or create it.`, `Зал «${locationHint}» не найден среди ваших залов — выберите зал или создайте новый.`) : L('Gym not specified — choose a location or leave it unknown.', 'Зал не указан — выберите зал или оставьте его неизвестным.') });
   }
   const reported = input.location?.confidence;
   const locationConfidence: Confidence = loc.id ? (reported && reported !== 'confirmed' ? reported : loc.conf) : 'unknown';
@@ -347,7 +363,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
         exConf = 'probable';
       } else {
         exConf = 'uncertain';
-        issues.push({ level: 'error', path: `exercises[${i}]`, message: `Exercise "${q}" not recognised — pick the matching exercise or create a custom one.` });
+        issues.push({ level: 'error', path: `exercises[${i}]`, message: L(`Exercise "${q}" not recognised — pick the matching exercise or create a custom one.`, `Упражнение «${q}» не распознано — выберите подходящее или создайте своё.`) });
       }
     }
     const eqHint = ex.equipment ?? null;
@@ -355,15 +371,15 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
     const def = exerciseId ? registry.get(exerciseId) : undefined;
     const needsMachine = def && ['machine', 'cable', 'plate_loaded', 'smith'].includes(def.equipmentKind);
     if (!eq.id && needsMachine) {
-      issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `${def!.name.en}: machine not identified. Loads on different machines are not comparable — select or create the equipment instance.` });
+      issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: L(`${def!.name.en}: machine not identified. Loads on different machines are not comparable — select or create the equipment instance.`, `${def!.name.ru}: тренажёр не определён. Веса на разных тренажёрах несравнимы — выберите тренажёр или создайте новый.`) });
     }
     if (eq.id && eq.conf === 'probable') {
       const e = data.equipment.find((x) => x.id === eq.id);
-      issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `${def?.name.en ?? 'Exercise'}: assumed machine "${e?.name ?? eq.id}" (the only one at this gym linked to it). Confirm or change it before saving.` });
+      issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: L(`${def?.name.en ?? 'Exercise'}: assumed machine "${e?.name ?? eq.id}" (the only one at this gym linked to it). Confirm or change it before saving.`, `${def?.name.ru ?? 'Упражнение'}: предположительно тренажёр «${e?.name ?? eq.id}» (единственный в этом зале, связанный с упражнением). Подтвердите или измените перед сохранением.`) });
     }
     if (eq.id && loc.id) {
       const e = data.equipment.find((x) => x.id === eq.id);
-      if (e?.locationId && e.locationId !== loc.id) issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: `Equipment "${e.name}" belongs to a different gym than this workout.` });
+      if (e?.locationId && e.locationId !== loc.id) issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: L(`Equipment "${e.name}" belongs to a different gym than this workout.`, `Оборудование «${e.name}» относится к другому залу, а не к залу этой тренировки.`) });
     }
 
     const sets: WorkoutSet[] = [];
@@ -393,11 +409,11 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
     sets.forEach((s, k) => {
       const fc = failureConsistency(s);
       if (fc) issues.push({ level: 'info', path: `exercises[${i}].sets[${k}]`, message: fc });
-      if (s.type !== 'warmup' && s.reps == null) issues.push({ level: 'warning', path: `exercises[${i}].sets[${k}]`, message: 'Reps missing — set kept, but its stimulus is uncertain.' });
-      if (s.rir != null && s.rir > 5 && s.type === 'working') issues.push({ level: 'info', path: `exercises[${i}].sets[${k}]`, message: `RIR ${s.rir} is far from failure — counts as little or no effective volume. Was it a warm-up?` });
+      if (s.type !== 'warmup' && s.reps == null) issues.push({ level: 'warning', path: `exercises[${i}].sets[${k}]`, message: L('Reps missing — set kept, but its stimulus is uncertain.', 'Повторения не указаны — подход сохранён, но его стимул под вопросом.') });
+      if (s.rir != null && s.rir > 5 && s.type === 'working') issues.push({ level: 'info', path: `exercises[${i}].sets[${k}]`, message: L(`RIR ${s.rir} is far from failure — counts as little or no effective volume. Was it a warm-up?`, `RIR ${num(s.rir)} — далеко от отказа: эффективного объёма мало или нет. Это была разминка?`) });
     });
     if (sets.every((s) => s.rir == null) && sets.some((s) => s.type !== 'warmup')) {
-      issues.push({ level: 'info', path: `exercises[${i}]`, message: 'No RIR recorded — effective volume will be marked uncertain.' });
+      issues.push({ level: 'info', path: `exercises[${i}]`, message: L('No RIR recorded — effective volume will be marked uncertain.', 'RIR не записан — эффективный объём будет помечен как неточный.') });
     }
 
     // Plausibility vs history on the same equipment.
@@ -405,7 +421,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
       const prevTop = lastTopWeight(data.workouts, exerciseId, eq.id);
       const top = Math.max(0, ...sets.filter((s) => s.type === 'working').map((s) => s.weightKg ?? 0));
       if (prevTop && top && (top > prevTop * 1.3 || top < prevTop * 0.6)) {
-        issues.push({ level: 'warning', path: `exercises[${i}]`, message: `Top load ${top} kg differs a lot from last time on this machine (${prevTop} kg). Typo, different machine, or per-side vs total?` });
+        issues.push({ level: 'warning', path: `exercises[${i}]`, message: L(`Top load ${top} kg differs a lot from last time on this machine (${prevTop} kg). Typo, different machine, or per-side vs total?`, `Максимальный вес ${num(top)} кг сильно отличается от прошлого раза на этом тренажёре (${num(prevTop)} кг). Опечатка, другой тренажёр или вес на сторону вместо общего?`) });
       }
     }
 
@@ -464,12 +480,12 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
   const dupByRef = input.client_ref ? data.workouts.find((w) => w.clientRef === input.client_ref)?.id ?? null : null;
   const duplicateOf = dupByHash ?? dupByRef;
   const likelyDuplicateOf = duplicateOf ? null : findLikelyDuplicate(workout, data.workouts);
-  if (duplicateOf) issues.unshift({ level: 'error', path: '(root)', message: 'This workout has already been imported (identical content or client_ref). Import blocked to prevent duplicates.' });
+  if (duplicateOf) issues.unshift({ level: 'error', path: '(root)', message: L('This workout has already been imported (identical content or client_ref). Import blocked to prevent duplicates.', 'Эта тренировка уже импортирована (то же содержимое или client_ref). Импорт заблокирован, чтобы не было дубликатов.') });
   else if (likelyDuplicateOf) {
-    issues.unshift({ level: 'warning', path: '(root)', message: 'Looks like a workout you already have: same date, gym and working sets (weight × reps × RIR) as a saved session, even if the exercise names differ. Check it is not the same session before saving.' });
+    issues.unshift({ level: 'warning', path: '(root)', message: L('Looks like a workout you already have: same date, gym and working sets (weight × reps × RIR) as a saved session, even if the exercise names differ. Check it is not the same session before saving.', 'Похоже на уже сохранённую тренировку: та же дата, зал и рабочие подходы (вес × повторения × RIR), даже если названия упражнений отличаются. Перед сохранением проверьте, что это не та же тренировка.') });
   } else {
     const sameDay = data.workouts.filter((w) => w.date === input.date && (w.locationId ?? null) === (loc.id ?? null));
-    if (sameDay.length) issues.push({ level: 'warning', path: 'date', message: `You already have ${sameDay.length} workout(s) on ${input.date} at this location. Make sure this is not the same session.` });
+    if (sameDay.length) issues.push({ level: 'warning', path: 'date', message: L(`You already have ${sameDay.length} workout(s) on ${input.date} at this location. Make sure this is not the same session.`, `За ${input.date} в этом зале уже есть тренировки: ${sameDay.length}. Убедитесь, что это не та же тренировка.`) });
   }
   workout.importHash = hash;
   return { key: uid('draft'), input, workout, locationSuggestions: loc.suggestions, locationHint, exercises: resolutions, issues, hash, duplicateOf, likelyDuplicateOf };
@@ -539,9 +555,9 @@ function lastTopWeight(workouts: Workout[], exerciseId: string, equipmentId: str
 /** Blocking problems that must be resolved before saving. */
 export function draftBlockers(d: ImportDraft): string[] {
   const out: string[] = [];
-  if (d.duplicateOf) out.push('Duplicate workout');
+  if (d.duplicateOf) out.push(L('Duplicate workout', 'Дубликат тренировки'));
   d.workout.exercises.forEach((e, i) => {
-    if (e.exerciseId.startsWith('unresolved:')) out.push(`Exercise ${i + 1} is not matched to the library`);
+    if (e.exerciseId.startsWith('unresolved:')) out.push(L(`Exercise ${i + 1} is not matched to the library`, `Упражнение ${i + 1} не сопоставлено с библиотекой`));
   });
   return out;
 }

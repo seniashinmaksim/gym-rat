@@ -21,6 +21,7 @@ import type { Registry } from './registry';
 import { resolveCoefficients } from './registry';
 import type { MuscleId, Workout } from './types';
 import { sessionMuscleEffective } from './volume';
+import { L, num } from '../i18n/core';
 
 export type RuleVerdict = 'supports' | 'no_clear_difference' | 'contradicts' | 'insufficient';
 export interface RuleCheck {
@@ -142,21 +143,45 @@ export function ruleChecks(data: AppData, registry: Registry, progression: Progr
   const rv = verdictOf(rec.affected, rec.fresh);
   const ov = verdictOf(ord.affected, ord.fresh);
   const side = (xs: number[]) => ({ n: xs.length, medianPct: pct(median(xs)) });
-  const sign = (x: number | null) => (x == null ? '—' : `${x > 0 ? '+' : ''}${x} %`);
+  const sign = (x: number | null) => (x == null ? '—' : `${x > 0 ? '+' : ''}${L(String(x), num(x))} %`);
   const recText: Record<RuleVerdict, string> = {
-    supports: `Lifts done while a main muscle was still inside the window were ${sign(pct(median(rec.affected)))} vs your recent level, after the window ${sign(pct(median(rec.fresh)))}. Your data agree with the rule.`,
-    no_clear_difference: `No clear difference (${sign(pct(median(rec.affected)))} inside vs ${sign(pct(median(rec.fresh)))} after the window). The window may be cautious for you; it stays a rule of thumb.`,
-    contradicts: `You performed better inside the window (${sign(pct(median(rec.affected)))}) than after it (${sign(pct(median(rec.fresh)))}). Observational data, not proof — but the window may be too cautious for you.`,
-    insufficient: `Not enough comparable sessions yet (${rec.affected.length} inside the window, ${rec.fresh.length} after; ${RULE_CHECK_MIN_N} each needed). The planner rarely puts you inside a window, so this fills slowly.`,
+    supports: L(
+      `Lifts done while a main muscle was still inside the window were ${sign(pct(median(rec.affected)))} vs your recent level, after the window ${sign(pct(median(rec.fresh)))}. Your data agree with the rule.`,
+      `Упражнения, сделанные, пока основная мышца ещё была внутри окна: ${sign(pct(median(rec.affected)))} к вашему недавнему уровню; после окна: ${sign(pct(median(rec.fresh)))}. Ваши данные согласуются с правилом.`,
+    ),
+    no_clear_difference: L(
+      `No clear difference (${sign(pct(median(rec.affected)))} inside vs ${sign(pct(median(rec.fresh)))} after the window). The window may be cautious for you; it stays a rule of thumb.`,
+      `Явной разницы нет (${sign(pct(median(rec.affected)))} внутри окна против ${sign(pct(median(rec.fresh)))} после него). Возможно, окно для вас с запасом; оно остаётся практическим правилом.`,
+    ),
+    contradicts: L(
+      `You performed better inside the window (${sign(pct(median(rec.affected)))}) than after it (${sign(pct(median(rec.fresh)))}). Observational data, not proof — but the window may be too cautious for you.`,
+      `Внутри окна результат был лучше (${sign(pct(median(rec.affected)))}), чем после него (${sign(pct(median(rec.fresh)))}). Это наблюдение, а не доказательство — но окно может быть для вас слишком осторожным.`,
+    ),
+    insufficient: L(
+      `Not enough comparable sessions yet (${rec.affected.length} inside the window, ${rec.fresh.length} after; ${RULE_CHECK_MIN_N} each needed). The planner rarely puts you inside a window, so this fills slowly.`,
+      `Пока мало сравнимых тренировок (${rec.affected.length} внутри окна, ${rec.fresh.length} после; нужно по ${RULE_CHECK_MIN_N}). Планировщик редко ставит упражнение внутрь окна, поэтому данные копятся медленно.`,
+    ),
   };
   const ordText: Record<RuleVerdict, string> = {
-    supports: `Lifts done after another exercise had already worked the same muscle were ${sign(pct(median(ord.affected)))} vs your recent level, done fresh ${sign(pct(median(ord.fresh)))}. Your data agree: order protects performance.`,
-    no_clear_difference: `No clear difference (${sign(pct(median(ord.affected)))} after a pre-loading exercise vs ${sign(pct(median(ord.fresh)))} fresh). Order matters little for you on these lifts.`,
-    contradicts: `Lifts done after a pre-loading exercise were better (${sign(pct(median(ord.affected)))}) than fresh (${sign(pct(median(ord.fresh)))}) — likely other factors (warm-up, exercise mix). Treat the order rule as optional for you.`,
-    insufficient: `Not enough comparable sessions yet (${ord.affected.length} after a pre-loading exercise, ${ord.fresh.length} fresh; ${RULE_CHECK_MIN_N} each needed).`,
+    supports: L(
+      `Lifts done after another exercise had already worked the same muscle were ${sign(pct(median(ord.affected)))} vs your recent level, done fresh ${sign(pct(median(ord.fresh)))}. Your data agree: order protects performance.`,
+      `Упражнения, сделанные после другого упражнения на ту же мышцу: ${sign(pct(median(ord.affected)))} к вашему недавнему уровню; на свежие силы: ${sign(pct(median(ord.fresh)))}. Ваши данные согласуются: порядок бережёт результат.`,
+    ),
+    no_clear_difference: L(
+      `No clear difference (${sign(pct(median(ord.affected)))} after a pre-loading exercise vs ${sign(pct(median(ord.fresh)))} fresh). Order matters little for you on these lifts.`,
+      `Явной разницы нет (${sign(pct(median(ord.affected)))} после нагрузки против ${sign(pct(median(ord.fresh)))} на свежие силы). В этих упражнениях порядок для вас мало что меняет.`,
+    ),
+    contradicts: L(
+      `Lifts done after a pre-loading exercise were better (${sign(pct(median(ord.affected)))}) than fresh (${sign(pct(median(ord.fresh)))}) — likely other factors (warm-up, exercise mix). Treat the order rule as optional for you.`,
+      `После нагрузки результат был лучше (${sign(pct(median(ord.affected)))}), чем на свежие силы (${sign(pct(median(ord.fresh)))}) — вероятно, из-за других причин (разминка, набор упражнений). Правило порядка для вас можно считать необязательным.`,
+    ),
+    insufficient: L(
+      `Not enough comparable sessions yet (${ord.affected.length} after a pre-loading exercise, ${ord.fresh.length} fresh; ${RULE_CHECK_MIN_N} each needed).`,
+      `Пока мало сравнимых тренировок (${ord.affected.length} после нагрузки, ${ord.fresh.length} на свежие силы; нужно по ${RULE_CHECK_MIN_N}).`,
+    ),
   };
   return [
-    { id: 'recovery_window', title: 'Recovery windows', rule: 'A muscle needs 24–72 h after a significant session (base window by sets; checked here without the +12 h modifiers).', verdict: rv.verdict, affected: side(rec.affected), fresh: side(rec.fresh), diffPct: rv.diff, text: recText[rv.verdict] },
-    { id: 'exercise_order', title: 'Exercise order', rule: 'Demanding lifts first; an exercise done after others that used the same muscle loses some reps.', verdict: ov.verdict, affected: side(ord.affected), fresh: side(ord.fresh), diffPct: ov.diff, text: ordText[ov.verdict] },
+    { id: 'recovery_window', title: L('Recovery windows', 'Окна восстановления'), rule: L('A muscle needs 24–72 h after a significant session (base window by sets; checked here without the +12 h modifiers).', 'Мышце нужно 24–72 ч после значимой тренировки (базовое окно по числу подходов; здесь проверяется без надбавок +12 ч).'), verdict: rv.verdict, affected: side(rec.affected), fresh: side(rec.fresh), diffPct: rv.diff, text: recText[rv.verdict] },
+    { id: 'exercise_order', title: L('Exercise order', 'Порядок упражнений'), rule: L('Demanding lifts first; an exercise done after others that used the same muscle loses some reps.', 'Сначала самые тяжёлые упражнения; упражнение после других на ту же мышцу теряет несколько повторений.'), verdict: ov.verdict, affected: side(ord.affected), fresh: side(ord.fresh), diffPct: ov.diff, text: ordText[ov.verdict] },
   ];
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatDate, formatDuration } from '../../domain/dates';
-import { FEEL_BY_ID, formatRirRange, EFFORT_RIR_ESTIMATE } from '../../domain/feedback';
+import { FEEL_BY_ID, formatRirRange, EFFORT_RIR_ESTIMATE, exclusionLabel } from '../../domain/feedback';
 import { adviceFor, adviceLabel, progressionKey, loadMap, loadMapNote, warmupFor, type AdviceKind, type ProgressionSeries, type SetPoint } from '../../domain/progression';
 import { loadUnitLabel } from '../../domain/registry';
 import { store, useData } from '../../lib/store';
@@ -18,14 +18,8 @@ import type { ExerciseDef } from '../../domain/types';
 
 const REPS = () => L('reps', 'повт.');
 const BW = () => L('BW', 'свой вес');
-/** `loadUnitLabel()` gives the English unit; the Russian twin is looked up by it. */
 const unitLabel = (def: ExerciseDef | undefined, mode: string | undefined): string => {
-  const en = loadUnitLabel(def, mode);
-  const ru: Record<string, string> = {
-    'kg assistance': 'кг помощи', 'kg added': 'кг доп. веса', 'kg per side': 'кг на сторону', 'kg per dumbbell': 'кг одна гантель',
-    'kg total': 'кг всего', 'kg on stack': 'кг на блоке', 'kg plates': 'кг дисков', kg: 'кг',
-  };
-  return L(en, ru[en] ?? 'кг');
+  return loadUnitLabel(def, mode); // already in the current language
 };
 
 /**
@@ -276,7 +270,7 @@ function FeedbackTable({ p }: { p: ProgressionSeries }) {
               <td className="px-4 py-1.5 sm:px-0">{i === 0 ? formatDate(s.date, { day: 'numeric', month: 'short' }) : ''}</td>
               <td>{x.side ? `${x.side === 'left' ? L('L', 'Л') : L('R', 'П')} ` : ''}{x.weight != null ? fmt(x.weight, 2) : BW()}</td>
               <td>{x.reps ?? '?'}</td>
-              <td className="max-w-[120px] truncate" title={x.excluded ? L(`Not a benchmark: ${x.excluded}`, `Не для сравнения: ${x.excluded}`) : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
+              <td className="max-w-[120px] truncate" title={x.excluded ? L(`Not a benchmark: ${exclusionLabel(x.excluded)}`, `Не для сравнения: ${exclusionLabel(x.excluded)}`) : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
               <td className="pr-4 text-right sm:pr-0">{x.rir != null ? x.rir : x.effort ? <span className="text-ink-400">≈{formatRirRange(EFFORT_RIR_ESTIMATE[x.effort])}</span> : '—'}</td>
             </tr>
           ))}

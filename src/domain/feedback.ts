@@ -1,4 +1,5 @@
 import type { Effort, SetCorrection, SetFeel, Technique, WeightAccuracy, Workout, WorkoutSet } from './types';
+import { L, byLang, num, ruPlural } from '../i18n/core';
 
 /**
  * Per-set feedback ("How did this set feel?").
@@ -22,23 +23,41 @@ export interface FeelOption {
   technique?: Technique;
 }
 
-export const FEEL_OPTIONS: FeelOption[] = [
-  { id: 'too_easy', label: 'Too easy', title: 'Too easy', description: 'Weight felt clearly too light — several more reps were possible.', effort: 'very_easy', weightAccuracy: 'correct' },
-  { id: 'bit_easy', label: 'Bit easy', title: 'A little too easy', description: 'Comfortable; more reps in reserve than intended. The weight could probably go up.', effort: 'easy', weightAccuracy: 'correct' },
-  { id: 'just_right', label: 'Just right', title: 'Just right', description: 'Challenging, intended reps done, technique controlled.', effort: 'appropriate', weightAccuracy: 'correct', technique: 'good' },
-  { id: 'hard_good', label: 'Hard, good form', title: 'Very hard, but good technique', description: 'Close to failure with proper technique, range of motion and control.', effort: 'near_max', weightAccuracy: 'correct', technique: 'good' },
-  { id: 'too_heavy_form', label: 'Too heavy', title: 'Too heavy, technique compromised', description: 'Reps done as best as possible, but with momentum, shortened range or other muscles compensating.', effort: 'hard', weightAccuracy: 'correct', technique: 'compromised' },
-  { id: 'wrong_light', label: 'Wrong: light', title: 'Wrong weight — too light', description: 'Picked a much lighter weight than intended by accident. Saved, but not used as a progression benchmark.', weightAccuracy: 'too_light' },
-  { id: 'wrong_heavy', label: 'Wrong: heavy', title: 'Wrong weight — too heavy', description: 'Picked a heavier weight than intended by accident. Saved, but not used as a progression benchmark.', weightAccuracy: 'too_heavy' },
-  { id: 'pain', label: 'Pain', title: 'Pain or unusual discomfort', description: 'Pain or unusual discomfort — not ordinary muscular effort or burning.' },
-];
+export const FEEL_OPTIONS: FeelOption[] = byLang((): FeelOption[] => [
+  { id: 'too_easy', label: L('Too easy', 'Слишком легко'), title: L('Too easy', 'Слишком легко'), description: L('Weight felt clearly too light — several more reps were possible.', 'Вес был явно слишком лёгким — можно было сделать ещё несколько повторений.'), effort: 'very_easy', weightAccuracy: 'correct' },
+  { id: 'bit_easy', label: L('Bit easy', 'Легковато'), title: L('A little too easy', 'Немного легко'), description: L('Comfortable; more reps in reserve than intended. The weight could probably go up.', 'Комфортно; повторов в запасе больше, чем задумано. Вес, вероятно, можно повысить.'), effort: 'easy', weightAccuracy: 'correct' },
+  { id: 'just_right', label: L('Just right', 'В самый раз'), title: L('Just right', 'В самый раз'), description: L('Challenging, intended reps done, technique controlled.', 'Непросто, намеченные повторения сделаны, техника под контролем.'), effort: 'appropriate', weightAccuracy: 'correct', technique: 'good' },
+  { id: 'hard_good', label: L('Hard, good form', 'Тяжело, чисто'), title: L('Very hard, but good technique', 'Очень тяжело, но техника хорошая'), description: L('Close to failure with proper technique, range of motion and control.', 'Близко к отказу при правильной технике, полной амплитуде и контроле.'), effort: 'near_max', weightAccuracy: 'correct', technique: 'good' },
+  { id: 'too_heavy_form', label: L('Too heavy', 'Слишком тяжело'), title: L('Too heavy, technique compromised', 'Слишком тяжело, техника нарушена'), description: L('Reps done as best as possible, but with momentum, shortened range or other muscles compensating.', 'Повторения сделаны как получилось: с инерцией, укороченной амплитудой или с помощью других мышц.'), effort: 'hard', weightAccuracy: 'correct', technique: 'compromised' },
+  { id: 'wrong_light', label: L('Wrong: light', 'Ошибка: лёгкий'), title: L('Wrong weight — too light', 'Не тот вес — слишком лёгкий'), description: L('Picked a much lighter weight than intended by accident. Saved, but not used as a progression benchmark.', 'Случайно взят вес намного легче задуманного. Подход сохранён, но для оценки прогрессии не используется.'), weightAccuracy: 'too_light' },
+  { id: 'wrong_heavy', label: L('Wrong: heavy', 'Ошибка: тяжёлый'), title: L('Wrong weight — too heavy', 'Не тот вес — слишком тяжёлый'), description: L('Picked a heavier weight than intended by accident. Saved, but not used as a progression benchmark.', 'Случайно взят вес тяжелее задуманного. Подход сохранён, но для оценки прогрессии не используется.'), weightAccuracy: 'too_heavy' },
+  { id: 'pain', label: L('Pain', 'Боль'), title: L('Pain or unusual discomfort', 'Боль или необычный дискомфорт'), description: L('Pain or unusual discomfort — not ordinary muscular effort or burning.', 'Боль или необычный дискомфорт — не обычное мышечное усилие или жжение.') },
+]);
 
-export const FEEL_BY_ID: Record<SetFeel, FeelOption> = Object.fromEntries(FEEL_OPTIONS.map((o) => [o.id, o])) as Record<SetFeel, FeelOption>;
+export const FEEL_BY_ID: Record<SetFeel, FeelOption> = byLang(() => Object.fromEntries(FEEL_OPTIONS.map((o) => [o.id, o])) as Record<SetFeel, FeelOption>);
 
-export const EFFORT_LABEL: Record<Effort, string> = { very_easy: 'Very easy', easy: 'Easy', appropriate: 'Appropriate', hard: 'Hard', near_max: 'Near max' };
-export const ACCURACY_LABEL: Record<WeightAccuracy, string> = { correct: 'Correct weight', too_light: 'Accidentally too light', too_heavy: 'Accidentally too heavy', unknown: 'Unknown' };
-export const TECHNIQUE_LABEL: Record<Technique, string> = { good: 'Good', slightly_degraded: 'Slightly degraded', compromised: 'Significantly compromised', failed: 'Unable to complete correctly', not_assessed: 'Not assessed' };
+export const EFFORT_LABEL: Record<Effort, string> = byLang(() => ({ very_easy: L('Very easy', 'Очень легко'), easy: L('Easy', 'Легко'), appropriate: L('Appropriate', 'В меру'), hard: L('Hard', 'Тяжело'), near_max: L('Near max', 'Почти предел') }));
+export const ACCURACY_LABEL: Record<WeightAccuracy, string> = byLang(() => ({ correct: L('Correct weight', 'Верный вес'), too_light: L('Accidentally too light', 'Случайно слишком лёгкий'), too_heavy: L('Accidentally too heavy', 'Случайно слишком тяжёлый'), unknown: L('Unknown', 'Неизвестно') }));
+export const TECHNIQUE_LABEL: Record<Technique, string> = byLang(() => ({ good: L('Good', 'Хорошая'), slightly_degraded: L('Slightly degraded', 'Немного хуже'), compromised: L('Significantly compromised', 'Заметно нарушена'), failed: L('Unable to complete correctly', 'Не удалось выполнить правильно'), not_assessed: L('Not assessed', 'Не оценена') }));
+/** STORED values (a set's `pain.area`) — never translate these; show them with `painAreaLabel`. */
 export const PAIN_AREAS = ['Shoulder', 'Elbow', 'Wrist', 'Neck', 'Upper back', 'Lower back', 'Hip', 'Knee', 'Ankle', 'Other'];
+
+/** Display text of a stored pain area (free text and unknown values are shown as they are). */
+export function painAreaLabel(area: string): string {
+  switch (area) {
+    case 'Shoulder': return L('Shoulder', 'Плечо');
+    case 'Elbow': return L('Elbow', 'Локоть');
+    case 'Wrist': return L('Wrist', 'Запястье');
+    case 'Neck': return L('Neck', 'Шея');
+    case 'Upper back': return L('Upper back', 'Верх спины');
+    case 'Lower back': return L('Lower back', 'Поясница');
+    case 'Hip': return L('Hip', 'Бедро');
+    case 'Knee': return L('Knee', 'Колено');
+    case 'Ankle': return L('Ankle', 'Голеностоп');
+    case 'Other': return L('Other', 'Другое');
+    default: return area;
+  }
+}
 
 /**
  * The patch one tap applies. Choosing a feel replaces the derived dimensions (so switching
@@ -114,16 +133,32 @@ export function benchmarkExclusion(s: WorkoutSet): string | null {
   return null;
 }
 
+/**
+ * Display text of a `benchmarkExclusion()` value. The value itself is a CODE (it is stored on session points
+ * and compared in `progression.ts`), so it stays English; this is what a person reads. Unknown → the code itself.
+ */
+export function exclusionLabel(code: string): string {
+  switch (code) {
+    case 'wrong weight (too light by accident)': return L('wrong weight (too light by accident)', 'не тот вес (случайно слишком лёгкий)');
+    case 'wrong weight (too heavy by accident)': return L('wrong weight (too heavy by accident)', 'не тот вес (случайно слишком тяжёлый)');
+    case 'pain or unusual discomfort': return L('pain or unusual discomfort', 'боль или необычный дискомфорт');
+    case 'technique compromised': return L('technique compromised', 'техника нарушена');
+    case 'could not complete correctly': return L('could not complete correctly', 'не удалось выполнить правильно');
+    case 'technical failure (technique gave out)': return L('technical failure (technique gave out)', 'отказ по технике (подвела техника)');
+    default: return code;
+  }
+}
+
 /** Quality status shown per set and counted per muscle (derived, never stored). */
 export type SetStatus = 'good' | 'easy' | 'compromised' | 'pain' | 'uncertain';
 
-export const STATUS_LABEL: Record<SetStatus, string> = {
-  good: 'Good quality',
-  easy: 'Too easy',
-  compromised: 'Technique compromised',
-  pain: 'Pain flagged',
-  uncertain: 'Effort unknown',
-};
+export const STATUS_LABEL: Record<SetStatus, string> = byLang(() => ({
+  good: L('Good quality', 'Качественный'),
+  easy: L('Too easy', 'Слишком легко'),
+  compromised: L('Technique compromised', 'Техника нарушена'),
+  pain: L('Pain flagged', 'Отмечена боль'),
+  uncertain: L('Effort unknown', 'Усилие неизвестно'),
+}));
 
 // ---------------------------------------------------------------- Corrections audit
 
@@ -170,12 +205,15 @@ export function withCorrections(original: Workout, current: Workout, at: string,
     const o = original.exercises.find((x) => x.id === e.id);
     if (!o) continue;
     const n = e.sets.filter((s) => !s.planned).length;
-    if (o.exerciseId !== e.exerciseId) notes.push({ at, note: `Exercise corrected: ${describe(o.exerciseId)} → ${describe(e.exerciseId)} (${n} set${n === 1 ? '' : 's'})` });
-    if ((o.equipmentId ?? null) !== (e.equipmentId ?? null)) notes.push({ at, note: `Machine corrected on ${describe(e.exerciseId)}: ${o.equipmentId ?? 'none'} → ${e.equipmentId ?? 'none'}` });
+    if (o.exerciseId !== e.exerciseId) notes.push({ at, note: L(`Exercise corrected: ${describe(o.exerciseId)} → ${describe(e.exerciseId)} (${n} set${n === 1 ? '' : 's'})`, `Упражнение исправлено: ${describe(o.exerciseId)} → ${describe(e.exerciseId)} (${n} ${ruPlural(n, 'подход', 'подхода', 'подходов')})`) });
+    if ((o.equipmentId ?? null) !== (e.equipmentId ?? null)) notes.push({ at, note: L(`Machine corrected on ${describe(e.exerciseId)}: ${o.equipmentId ?? 'none'} → ${e.equipmentId ?? 'none'}`, `Тренажёр исправлен (${describe(e.exerciseId)}): ${o.equipmentId ?? 'нет'} → ${e.equipmentId ?? 'нет'}`) });
   }
   for (const e of original.exercises) for (const s of e.sets) {
     if (seen.has(s.id) || s.planned) continue;
-    notes.push({ at, note: `Removed ${s.type} set from ${describe(e.exerciseId)}: ${s.weightKg ?? '?'} kg × ${s.reps ?? '?'}${s.rir != null ? ` @ RIR ${s.rir}` : ''}` });
+    notes.push({ at, note: L(
+      `Removed ${s.type} set from ${describe(e.exerciseId)}: ${s.weightKg ?? '?'} kg × ${s.reps ?? '?'}${s.rir != null ? ` @ RIR ${s.rir}` : ''}`,
+      `Удалён ${s.type === 'warmup' ? 'разминочный подход' : s.type === 'drop' ? 'подход дроп-сета' : 'рабочий подход'} (${describe(e.exerciseId)}): ${s.weightKg != null ? num(s.weightKg) : '?'} кг × ${s.reps ?? '?'}${s.rir != null ? ` @ RIR ${num(s.rir)}` : ''}`,
+    ) });
   }
   const audit = [...(original.audit ?? []), ...notes];
   return { ...current, exercises, audit: audit.length ? audit : undefined };

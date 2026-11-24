@@ -90,12 +90,7 @@ function pickCurrent(w: Workout): string | null {
 }
 
 const unitLabel = (def: ExerciseDef | undefined, mode: LoadMode): string => {
-  const en = loadUnitLabel(def, mode);
-  const ru: Record<string, string> = {
-    'kg assistance': 'кг помощи', 'kg added': 'кг доп. веса', 'kg per side': 'кг на сторону', 'kg per dumbbell': 'кг одна гантель',
-    'kg total': 'кг всего', 'kg on stack': 'кг на блоке', 'kg plates': 'кг дисков', kg: 'кг',
-  };
-  return L(en, ru[en] ?? 'кг');
+  return loadUnitLabel(def, mode); // already in the current language
 };
 
 type View = 'set' | 'rest' | 'overview';

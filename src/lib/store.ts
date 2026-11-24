@@ -9,6 +9,7 @@ import { createVault, rewrapVault, unlockVault, type VaultHeader } from './crypt
 import * as db from './db';
 import type { RecordKind } from './db';
 import { uid } from './id';
+import { L } from '../i18n/core';
 
 export type VaultStatus = 'loading' | 'new' | 'locked' | 'unlocked' | 'unsupported';
 
@@ -58,7 +59,7 @@ class Store {
 
   async init() {
     if (!globalThis.crypto?.subtle || typeof indexedDB === 'undefined') {
-      this.set({ status: 'unsupported', error: 'This browser lacks Web Crypto or IndexedDB (private mode may block it).' });
+      this.set({ status: 'unsupported', error: L('This browser lacks Web Crypto or IndexedDB (private mode may block it).', 'В этом браузере нет Web Crypto или IndexedDB (их может блокировать приватный режим).') });
       return;
     }
     try {
@@ -161,7 +162,7 @@ class Store {
   }
 
   private requireKey(): CryptoKey {
-    if (!this.key || !this.state.data) throw new Error('Vault is locked');
+    if (!this.key || !this.state.data) throw new Error(L('Vault is locked', 'Хранилище заблокировано'));
     return this.key;
   }
 
@@ -312,6 +313,6 @@ export function useStore(): StoreState {
 
 export function useData(): AppData {
   const s = useStore();
-  if (!s.data) throw new Error('Vault locked');
+  if (!s.data) throw new Error(L('Vault locked', 'Хранилище заблокировано'));
   return s.data;
 }

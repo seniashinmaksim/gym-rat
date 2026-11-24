@@ -12,6 +12,7 @@
  *   "body + belt" figure is labelled an estimate.
  */
 import { addDays, diffDays } from './dates';
+import { L, num } from '../i18n/core';
 import type { BodyMeasurement, Workout } from './types';
 import type { ProgressionSeries } from './progression';
 
@@ -23,6 +24,8 @@ export interface WeighIn {
   condition: BodyMeasurement['condition'] | null;
 }
 
+/** A number (or "—") for a Russian sentence: decimal comma. */
+const nn = (x: number | null | undefined): string => (x == null ? '—' : num(x));
 const hhmm = (t: string | null | undefined) => (t && /^\d{2}:\d{2}$/.test(t) ? t : null);
 const sortKey = (w: { date: string; time: string | null }) => `${w.date}T${w.time ?? '00:00'}`;
 
@@ -169,20 +172,25 @@ export function bodyLoadSessions(series: ProgressionSeries, workouts: Workout[],
 export function bodyWeightNote(sessions: BodyLoadSession[], kind: 'system' | 'context'): string | null {
   // Only current weigh-ins (status ok): an outdated one says nothing about the body weight at that session.
   const known = sessions.filter((s) => s.body.kg != null && s.body.status === 'ok');
-  if (known.length < 2) return sessions.length >= 2 ? 'Body weight not recorded around these sessions — log it to see how it affects this exercise.' : null;
+  if (known.length < 2) return sessions.length >= 2 ? L('Body weight not recorded around these sessions — log it to see how it affects this exercise.', 'Вес тела рядом с этими тренировками не записан — записывайте его, чтобы видеть, как он влияет на это упражнение.') : null;
   const a = known[0];
   const b = known[known.length - 1];
   const dBody = Math.round(((b.body.kg as number) - (a.body.kg as number)) * 10) / 10;
-  if (Math.abs(dBody) < 0.5) return `Body weight stable (${a.body.kg} → ${b.body.kg} kg) — changes here reflect performance.`;
-  if (kind === 'context') return `Body weight ${a.body.kg} → ${b.body.kg} kg over these sessions — context only; it is never added to the bar.`;
+  if (Math.abs(dBody) < 0.5) return L(`Body weight stable (${a.body.kg} → ${b.body.kg} kg) — changes here reflect performance.`, `Вес тела стабилен (${nn(a.body.kg)} → ${nn(b.body.kg)} кг) — изменения здесь отражают результат.`);
+  if (kind === 'context') return L(`Body weight ${a.body.kg} → ${b.body.kg} kg over these sessions — context only; it is never added to the bar.`, `Вес тела ${nn(a.body.kg)} → ${nn(b.body.kg)} кг за эти тренировки — только контекст; к весу штанги он никогда не прибавляется.`);
   const dReps = (b.bestReps ?? 0) - (a.bestReps ?? 0);
-  if (a.assisted || b.assisted) return `Body weight ${a.body.kg} → ${b.body.kg} kg; assistance ${a.externalKg ?? '—'} → ${b.externalKg ?? '—'} kg; estimated lifted mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`;
+  if (a.assisted || b.assisted) return L(`Body weight ${a.body.kg} → ${b.body.kg} kg; assistance ${a.externalKg ?? '—'} → ${b.externalKg ?? '—'} kg; estimated lifted mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`,
+    `Вес тела ${nn(a.body.kg)} → ${nn(b.body.kg)} кг; помощь ${nn(a.externalKg)} → ${nn(b.externalKg)} кг; поднимаемая масса ${nn(a.estSystemKg)} → ${nn(b.estSystemKg)} кг (оценка).`);
   const dExt = (b.externalKg ?? 0) - (a.externalKg ?? 0);
   const lighter = dBody < 0;
-  if (dExt === 0 && dReps > 0 && lighter) return `Reps +${dReps} at the same added load while body weight fell ${Math.abs(dBody)} kg — part of the gain may come from being lighter.`;
-  if (dExt === 0 && dReps < 0 && !lighter) return `Reps ${dReps} while body weight rose ${dBody} kg — being heavier makes bodyweight reps harder; not necessarily lost strength.`;
-  if (dExt > 0 && lighter) return `Added load +${dExt} kg while body weight fell ${Math.abs(dBody)} kg — estimated system mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`;
-  return `Body weight ${a.body.kg} → ${b.body.kg} kg; estimated system mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`;
+  if (dExt === 0 && dReps > 0 && lighter) return L(`Reps +${dReps} at the same added load while body weight fell ${Math.abs(dBody)} kg — part of the gain may come from being lighter.`,
+    `Повторения +${dReps} при том же дополнительном весе, а вес тела снизился на ${num(Math.abs(dBody))} кг — часть прибавки может объясняться меньшим весом тела.`);
+  if (dExt === 0 && dReps < 0 && !lighter) return L(`Reps ${dReps} while body weight rose ${dBody} kg — being heavier makes bodyweight reps harder; not necessarily lost strength.`,
+    `Повторения ${dReps}, а вес тела вырос на ${num(dBody)} кг — с большим весом тела повторения с собственным весом даются тяжелее; это не обязательно потеря силы.`);
+  if (dExt > 0 && lighter) return L(`Added load +${dExt} kg while body weight fell ${Math.abs(dBody)} kg — estimated system mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`,
+    `Дополнительный вес +${num(dExt)} кг, а вес тела снизился на ${num(Math.abs(dBody))} кг — масса системы ${nn(a.estSystemKg)} → ${nn(b.estSystemKg)} кг (оценка).`);
+  return L(`Body weight ${a.body.kg} → ${b.body.kg} kg; estimated system mass ${a.estSystemKg ?? '—'} → ${b.estSystemKg ?? '—'} kg (estimate).`,
+    `Вес тела ${nn(a.body.kg)} → ${nn(b.body.kg)} кг; масса системы ${nn(a.estSystemKg)} → ${nn(b.estSystemKg)} кг (оценка).`);
 }
 
 /** Bodyweight pull-ups: is it time to add a belt? (top of the rep range with reps to spare in the last 2 sessions) */
@@ -191,7 +199,8 @@ export function pullUpLoadingAdvice(series: ProgressionSeries, repTop: number): 
   const last2 = series.sessions.filter((s) => s.index != null).slice(-2);
   if (last2.length < 2) return null;
   const ready = last2.every((s) => s.sets.length > 0 && s.sets.every((p) => (p.reps ?? 0) >= repTop && (p.rir ?? 0) >= 1));
-  return ready ? `All sets reached ${repTop}+ reps with reps to spare twice — consider weighted pull-ups (start with ~2.5–5 kg on the belt; a separate history).` : null;
+  return ready ? L(`All sets reached ${repTop}+ reps with reps to spare twice — consider weighted pull-ups (start with ~2.5–5 kg on the belt; a separate history).`,
+    `Дважды все подходы дошли до ${repTop}+ повторений с запасом — попробуйте подтягивания с отягощением (начните с ~2,5–5 кг на поясе; у них отдельная история).`) : null;
 }
 
 export const daysBetween = (a: string, b: string) => diffDays(a, b);

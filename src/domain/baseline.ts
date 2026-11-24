@@ -22,6 +22,7 @@ import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
 import { comparableSessions, type ProgressionSeries } from './progression';
 import { rollingAverage } from './bodyweight';
+import { L, num } from '../i18n/core';
 import type { MuscleId, Workout } from './types';
 
 export const BASELINE_DAYS = 28;
@@ -134,19 +135,19 @@ export function hypertrophyAssessment(input: {
   const up = ok.filter((p) => (p.pct ?? 0) >= 2).length;
   const down = ok.filter((p) => (p.pct ?? 0) <= -2).length;
   // Mostly up (more than half, and at least 3 ups per down): one or two declining exercises don't cancel a broad trend.
-  ind.push({ id: 'strength', value: ok.length ? `${up}/${ok.length} up${down ? `, ${down} down` : ''}` : '—', signal: !ok.length ? 'unknown' : up > ok.length / 2 && up >= 3 * down ? 'positive' : down > up ? 'negative' : 'neutral' });
+  ind.push({ id: 'strength', value: ok.length ? L(`${up}/${ok.length} up${down ? `, ${down} down` : ''}`, `${up}/${ok.length} вверх${down ? `, ${down} вниз` : ''}`) : '—', signal: !ok.length ? 'unknown' : up > ok.length / 2 && up >= 3 * down ? 'positive' : down > up ? 'negative' : 'neutral' });
   // Volume vs the weekly targets (both summed over muscles, so the ratio is meaningful; the sum itself is not shown).
   const volRatio = targetPerWeek > 0 ? current.totalWeeklyEffective / targetPerWeek : null;
-  ind.push({ id: 'volume', value: volRatio == null ? '—' : `${Math.round(volRatio * 100)}% of targets`, signal: volRatio == null ? 'unknown' : volRatio >= 0.8 ? 'positive' : volRatio >= 0.5 ? 'neutral' : 'negative' });
-  ind.push({ id: 'consistency', value: `${current.sessionsPerWeek}/wk`, signal: current.sessionsPerWeek >= 2 ? 'positive' : current.sessionsPerWeek >= 1 ? 'neutral' : 'negative' });
-  ind.push({ id: 'effort', value: effortKnownShare == null ? '—' : `${Math.round(effortKnownShare * 100)}% logged`, signal: effortKnownShare == null ? 'unknown' : effortKnownShare >= 0.6 ? 'positive' : 'neutral' });
+  ind.push({ id: 'volume', value: volRatio == null ? '—' : L(`${Math.round(volRatio * 100)}% of targets`, `${Math.round(volRatio * 100)}% от целей`), signal: volRatio == null ? 'unknown' : volRatio >= 0.8 ? 'positive' : volRatio >= 0.5 ? 'neutral' : 'negative' });
+  ind.push({ id: 'consistency', value: L(`${current.sessionsPerWeek}/wk`, `${num(current.sessionsPerWeek)}/нед.`), signal: current.sessionsPerWeek >= 2 ? 'positive' : current.sessionsPerWeek >= 1 ? 'neutral' : 'negative' });
+  ind.push({ id: 'effort', value: effortKnownShare == null ? '—' : L(`${Math.round(effortKnownShare * 100)}% logged`, `${Math.round(effortKnownShare * 100)}% записано`), signal: effortKnownShare == null ? 'unknown' : effortKnownShare >= 0.6 ? 'positive' : 'neutral' });
   const bw = current.bodyWeight7d != null && previous?.bodyWeight7d != null ? Math.round((current.bodyWeight7d - previous.bodyWeight7d) * 10) / 10 : null;
   // Body weight is context, not proof: slowly rising or stable is compatible with growth; it never decides alone.
-  ind.push({ id: 'body_weight', value: bw == null ? '—' : `${bw > 0 ? '+' : ''}${bw} kg / 4 wk`, signal: bw == null ? 'unknown' : bw >= -0.5 ? 'neutral' : 'negative' });
+  ind.push({ id: 'body_weight', value: bw == null ? '—' : L(`${bw > 0 ? '+' : ''}${bw} kg / 4 wk`, `${bw > 0 ? '+' : ''}${num(bw)} кг / 4 нед.`), signal: bw == null ? 'unknown' : bw >= -0.5 ? 'neutral' : 'negative' });
   const waist = current.waistCm != null && previous?.waistCm != null ? Math.round((current.waistCm - previous.waistCm) * 10) / 10 : null;
-  ind.push({ id: 'circumference', value: waist == null ? '—' : `waist ${waist > 0 ? '+' : ''}${waist} cm`, signal: 'unknown' });
+  ind.push({ id: 'circumference', value: waist == null ? '—' : L(`waist ${waist > 0 ? '+' : ''}${waist} cm`, `талия ${waist > 0 ? '+' : ''}${num(waist)} см`), signal: 'unknown' });
   const photos = data.photos.filter((p) => p.kind === 'progress' && (p.takenAt ?? '').slice(0, 10) >= addDays(today, -35)).length;
-  ind.push({ id: 'photos', value: `${photos} in 5 wk`, signal: photos > 0 ? 'neutral' : 'unknown' });
+  ind.push({ id: 'photos', value: L(`${photos} in 5 wk`, `${photos} за 5 нед.`), signal: photos > 0 ? 'neutral' : 'unknown' });
 
   let status: HypertrophyStatus;
   if (phase === 'baseline') status = 'establishing_baseline';

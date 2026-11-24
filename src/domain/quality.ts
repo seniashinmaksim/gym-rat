@@ -1,6 +1,6 @@
-import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, type SetStatus } from './feedback';
+import { EFFORT_LABEL, FEEL_BY_ID, estimatedRirRange, formatRirRange, hasPain, painAreaLabel, type SetStatus } from './feedback';
 import { failureImpliedRir, techniqueWithFailure } from './failure';
-import { L } from '../i18n/core';
+import { L, num } from '../i18n/core';
 import { creditForRir, crossCheck, type Disagreement, type Objective } from './perception';
 import type { QualityModel, Rom, Workout, WorkoutSet } from './types';
 
@@ -49,7 +49,7 @@ export interface SetContext {
  * this returns only the effort/quality multiplier; muscle coefficients are applied later.
  */
 export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}): SetQuality {
-  if (set.type === 'warmup') return { credit: 0, tier: 'warmup', uncertain: false, status: 'warmup', reasons: ['Warm-up set (not counted)'] };
+  if (set.type === 'warmup') return { credit: 0, tier: 'warmup', uncertain: false, status: 'warmup', reasons: [L('Warm-up set (not counted)', 'Разминочный подход (не засчитывается)')] };
 
   const reasons: string[] = [];
   let credit: number;
@@ -95,7 +95,10 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     credit = m.rirCredit[idx];
     tier = 'high_effort';
     effortSource = 'failure_status';
-    reasons.push(`No RIR logged; muscular failure recorded ≈ RIR 0 (from the failure status) → credit ${credit} (same as RIR 1–3: failure earns no extra credit)`);
+    reasons.push(L(
+      `No RIR logged; muscular failure recorded ≈ RIR 0 (from the failure status) → credit ${credit} (same as RIR 1–3: failure earns no extra credit)`,
+      `RIR не записан; отмечен мышечный отказ ≈ RIR 0 (по отметке об отказе) → зачёт ${num(credit)} (как при RIR 1–3: отказ не даёт дополнительного зачёта)`,
+    ));
   } else if (rir == null && est) {
     // No RIR logged, but the owner said how it felt: use the CONSERVATIVE end of the estimated
     // RIR range through the same evidence-based RIR table. Marked as an estimate.
@@ -106,72 +109,81 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     uncertain = true;
     estimated = true;
     effortSource = 'feel';
-    reasons.push(`No RIR logged. Felt "${EFFORT_LABEL[set.effort!]}" ≈ RIR ${formatRirRange(est)} (estimate, not measured) → credit ${credit}`);
+    reasons.push(L(
+      `No RIR logged. Felt "${EFFORT_LABEL[set.effort!]}" ≈ RIR ${formatRirRange(est)} (estimate, not measured) → credit ${credit}`,
+      `RIR не записан. Ощущение «${EFFORT_LABEL[set.effort!]}» ≈ RIR ${formatRirRange(est)} (оценка, не измерение) → зачёт ${num(credit)}`,
+    ));
   } else if (rir == null) {
     credit = m.unknownRirCredit;
     tier = 'unknown';
     uncertain = true;
     effortSource = 'none';
-    reasons.push(`Effort unknown (no RIR) → provisional credit ${m.unknownRirCredit}`);
-    if (set.failure === 'none') reasons.push('Stopped before failure (no RIR) — at least 1 rep in reserve, exact effort unknown');
-    else if (set.failure === 'uncertain') reasons.push('Not sure whether failure was reached — effort stays unknown');
+    reasons.push(L(`Effort unknown (no RIR) → provisional credit ${m.unknownRirCredit}`, `Усилие неизвестно (нет RIR) → предварительный зачёт ${num(m.unknownRirCredit)}`));
+    if (set.failure === 'none') reasons.push(L('Stopped before failure (no RIR) — at least 1 rep in reserve, exact effort unknown', 'Остановка до отказа (без RIR) — в запасе не меньше 1 повторения, точное усилие неизвестно'));
+    else if (set.failure === 'uncertain') reasons.push(L('Not sure whether failure was reached — effort stays unknown', 'Неясно, был ли отказ — усилие остаётся неизвестным'));
   } else {
     const idx = Math.max(0, Math.min(Math.round(rir), m.rirCredit.length - 1));
     credit = m.rirCredit[idx];
     tier = rir <= 1 ? 'high_effort' : rir <= 3 ? 'working' : 'low_effort';
     effortSource = set.rir != null ? 'rir' : 'to_failure';
-    reasons.push(`RIR ${rir} → credit ${credit}`);
+    reasons.push(L(`RIR ${rir} → credit ${credit}`, `RIR ${num(rir)} → зачёт ${num(credit)}`));
     if (set.rirSource === 'inferred') {
       uncertain = true;
-      reasons.push('RIR was inferred, not reported');
+      reasons.push(L('RIR was inferred, not reported', 'RIR выведен из описания, а не указан прямо'));
     }
   }
 
   if (set.reps == null) {
     uncertain = true;
-    reasons.push('Reps not recorded');
+    reasons.push(L('Reps not recorded', 'Повторения не записаны'));
   } else if (set.reps < m.minRepsForCredit) {
     credit = 0;
-    reasons.push('No completed reps');
+    reasons.push(L('No completed reps', 'Нет выполненных повторений'));
   } else if (set.reps < m.lowRepThreshold && !ctx.timed) {
     credit *= m.lowRepCredit;
-    reasons.push(`Very low reps (<${m.lowRepThreshold}) ×${m.lowRepCredit}`);
+    reasons.push(L(`Very low reps (<${m.lowRepThreshold}) ×${m.lowRepCredit}`, `Очень мало повторений (<${m.lowRepThreshold}) ×${num(m.lowRepCredit)}`));
   }
 
   if (set.type === 'drop') {
     credit *= m.dropSetCredit;
-    reasons.push(`Drop-set segment ×${m.dropSetCredit}`);
+    reasons.push(L(`Drop-set segment ×${m.dropSetCredit}`, `Часть дроп-сета ×${num(m.dropSetCredit)}`));
   }
   const rom = set.rom ?? ctx.rom ?? null;
   if (rom === 'partial') {
     credit *= m.partialRomCredit;
-    reasons.push(`Partial ROM ×${m.partialRomCredit}`);
+    reasons.push(L(`Partial ROM ×${m.partialRomCredit}`, `Неполная амплитуда ×${num(m.partialRomCredit)}`));
   } else if (rom === 'lengthened_partial') {
     credit *= m.lengthenedPartialCredit;
-    reasons.push(`Lengthened partials ×${m.lengthenedPartialCredit}`);
+    reasons.push(L(`Lengthened partials ×${m.lengthenedPartialCredit}`, `Частичные повторения в растянутом положении ×${num(m.lengthenedPartialCredit)}`));
   }
-  if (rir != null && set.feel && FEEL_BY_ID[set.feel]?.effort) reasons.push(`Feel: ${FEEL_BY_ID[set.feel].title} (logged RIR is used for effort)`);
+  if (rir != null && set.feel && FEEL_BY_ID[set.feel]?.effort) reasons.push(L(`Feel: ${FEEL_BY_ID[set.feel].title} (logged RIR is used for effort)`, `Ощущение: ${FEEL_BY_ID[set.feel].title} (усилие берётся по записанному RIR)`));
   // Technical failure (technique gave out) counts as compromised technique unless technique was explicitly good.
   const technique = techniqueWithFailure(set);
   if (set.technicalFailure === true) {
     reasons.push(technique === 'good'
-      ? 'Technical failure recorded although technique is marked good — please check'
-      : 'Technical failure: technique gave out — not a clean muscular-failure set');
+      ? L('Technical failure recorded although technique is marked good — please check', 'Отмечен отказ по технике, хотя техника оценена как хорошая — проверьте')
+      : L('Technical failure: technique gave out — not a clean muscular-failure set', 'Отказ по технике: подвела техника — это не чистый подход до мышечного отказа'));
   }
   if (technique === 'compromised' || technique === 'failed') {
     credit *= m.compromisedTechniqueCredit;
-    reasons.push(`${technique === 'failed' ? 'Could not complete correctly' : 'Technique compromised'} — less certain the target muscle did the work ×${m.compromisedTechniqueCredit}`);
+    reasons.push(L(
+      `${technique === 'failed' ? 'Could not complete correctly' : 'Technique compromised'} — less certain the target muscle did the work ×${m.compromisedTechniqueCredit}`,
+      `${technique === 'failed' ? 'Не удалось выполнить правильно' : 'Техника нарушена'} — меньше уверенности, что работала целевая мышца ×${num(m.compromisedTechniqueCredit)}`,
+    ));
     if (technique === 'failed') uncertain = true;
   } else if (technique === 'slightly_degraded') {
-    reasons.push('Technique slightly degraded (no reduction)');
+    reasons.push(L('Technique slightly degraded (no reduction)', 'Техника немного хуже (без снижения зачёта)'));
   }
   const pain = hasPain(set);
   if (pain) {
     uncertain = true;
-    reasons.push(`Pain / unusual discomfort${set.pain?.area ? ` (${set.pain.area})` : ''} — kept, but not counted as a high-confidence quality set`);
+    reasons.push(L(
+      `Pain / unusual discomfort${set.pain?.area ? ` (${set.pain.area})` : ''} — kept, but not counted as a high-confidence quality set`,
+      `Боль / необычный дискомфорт${set.pain?.area ? ` (${painAreaLabel(set.pain.area)})` : ''} — подход сохранён, но не считается надёжно качественным`,
+    ));
   }
   if (set.weightAccuracy === 'too_light' || set.weightAccuracy === 'too_heavy') {
-    reasons.push('Wrong weight picked by accident — counts for volume by its effort, but is not a progression benchmark');
+    reasons.push(L('Wrong weight picked by accident — counts for volume by its effort, but is not a progression benchmark', 'Вес взят по ошибке — в объём идёт по усилию, но для оценки прогрессии не используется'));
   }
 
   const status: SetStatus = pain ? 'pain'

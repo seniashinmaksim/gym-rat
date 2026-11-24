@@ -9,6 +9,7 @@ import { countedSetCount } from './quality';
 import type { Registry } from './registry';
 import type { MuscleId, QualityModel, Workout, WorkoutSet } from './types';
 import { sessionMuscleEffective } from './volume';
+import { L, num } from '../i18n/core';
 
 export interface SessionRecord {
   exerciseId: string;
@@ -70,13 +71,13 @@ export function summarizeSession(w: Workout, all: Workout[], registry: Registry,
     const top = Math.max(...mine.map((s) => s.weightKg as number));
     const prevTop = Math.max(...prev.map((s) => s.weightKg as number));
     if (top > prevTop) {
-      records.push({ exerciseId: e.exerciseId, kind: 'weight', text: `${top} kg (was ${prevTop})` });
+      records.push({ exerciseId: e.exerciseId, kind: 'weight', text: L(`${top} kg (was ${prevTop})`, `${num(top)} кг (было ${num(prevTop)})`) });
       continue;
     }
     const repsAt = (xs: WorkoutSet[], wt: number) => Math.max(0, ...xs.filter((s) => s.weightKg === wt).map((s) => s.reps as number));
     const r = repsAt(mine, top);
     const pr = repsAt(prev, top);
-    if (pr > 0 && r > pr) records.push({ exerciseId: e.exerciseId, kind: 'reps', text: `${r} reps at ${top} kg (was ${pr})` });
+    if (pr > 0 && r > pr) records.push({ exerciseId: e.exerciseId, kind: 'reps', text: L(`${r} reps at ${top} kg (was ${pr})`, `${r} повт. с ${num(top)} кг (было ${pr})`) });
   }
 
   return {

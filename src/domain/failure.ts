@@ -3,6 +3,7 @@ import { techniqueOf } from './feedback';
 import { buildRegistry, type Registry } from './registry';
 import { isCounted, sideFactors } from './quality';
 import type { ExerciseDef, FailureStatus, MuscleId, Technique, Workout, WorkoutSet } from './types';
+import { L, byLang, num, ruPlural } from '../i18n/core';
 
 /**
  * Failure status ("Did you reach muscular failure?") — kept SEPARATE from RIR.
@@ -36,12 +37,12 @@ export interface EffectiveFailure {
   label: string;
 }
 
-export const FAILURE_LABEL: Record<EffectiveFailureStatus, string> = {
-  muscular: 'Muscular failure',
-  none: 'Stopped before failure',
-  uncertain: 'Not sure if failure',
-  unknown: 'Failure not recorded',
-};
+export const FAILURE_LABEL: Record<EffectiveFailureStatus, string> = byLang(() => ({
+  muscular: L('Muscular failure', 'Мышечный отказ'),
+  none: L('Stopped before failure', 'Остановка до отказа'),
+  uncertain: L('Not sure if failure', 'Неясно, был ли отказ'),
+  unknown: L('Failure not recorded', 'Отказ не отмечен'),
+}));
 
 /**
  * The failure status used by analysis: the failure field if set, else `toFailure` true →
@@ -50,9 +51,9 @@ export const FAILURE_LABEL: Record<EffectiveFailureStatus, string> = {
  */
 export function effectiveFailure(s: WorkoutSet): EffectiveFailure {
   const technical = s.technicalFailure === true;
-  if (s.failure) return { status: s.failure, source: 'recorded', technical, label: FAILURE_LABEL[s.failure] + (technical ? ' (technique gave out)' : '') };
-  if (s.toFailure) return { status: 'muscular', source: 'to_failure', technical, label: 'Muscular failure (reported via Fail / to_failure)' };
-  if (technical) return { status: 'unknown', source: 'none', technical, label: 'Technical failure' };
+  if (s.failure) return { status: s.failure, source: 'recorded', technical, label: FAILURE_LABEL[s.failure] + (technical ? L(' (technique gave out)', ' (подвела техника)') : '') };
+  if (s.toFailure) return { status: 'muscular', source: 'to_failure', technical, label: L('Muscular failure (reported via Fail / to_failure)', 'Мышечный отказ (отмечен кнопкой «Отказ» / to_failure)') };
+  if (technical) return { status: 'unknown', source: 'none', technical, label: L('Technical failure', 'Отказ по технике') };
   return { status: 'unknown', source: 'none', technical, label: FAILURE_LABEL.unknown };
 }
 
@@ -96,16 +97,22 @@ export function failureConsistency(s: WorkoutSet): string | null {
   if (s.type === 'warmup') return null;
   const rir = s.rir;
   if (s.failure === 'muscular' && s.technicalFailure === true) {
-    return 'Technique gave out before the muscle — counted as technical failure, not a clean failure set.';
+    return L('Technique gave out before the muscle — counted as technical failure, not a clean failure set.', 'Техника подвела раньше мышцы — подход засчитан как отказ по технике, а не как чистый отказ.');
   }
   if (s.failure === 'muscular' && rir != null && rir >= 2) {
-    return `Marked as muscular failure, but RIR ${rir} is logged. Failure usually means about 0 RIR — your RIR is kept as entered; check which one is right.`;
+    return L(
+      `Marked as muscular failure, but RIR ${rir} is logged. Failure usually means about 0 RIR — your RIR is kept as entered; check which one is right.`,
+      `Отмечен мышечный отказ, но записан RIR ${num(rir)}. Отказ обычно означает RIR около 0 — ваш RIR оставлен как введён; проверьте, что из двух верно.`,
+    );
   }
   if (s.failure === 'none' && (rir === 0 || s.toFailure)) {
-    return `Marked as stopped before failure, but ${s.toFailure && rir == null ? '"Fail"' : 'RIR 0'} is logged. Stopping early usually means at least 1 rep in reserve — check which one is right.`;
+    return L(
+      `Marked as stopped before failure, but ${s.toFailure && rir == null ? '"Fail"' : 'RIR 0'} is logged. Stopping early usually means at least 1 rep in reserve — check which one is right.`,
+      `Отмечена остановка до отказа, но записано ${s.toFailure && rir == null ? '«Отказ»' : 'RIR 0'}. Остановка до отказа обычно означает хотя бы 1 повторение в запасе — проверьте, что из двух верно.`,
+    );
   }
   if (s.technicalFailure === true && s.failure == null && (rir === 0 || s.toFailure)) {
-    return 'Technique gave out — the muscle may still have had a rep or two left, so RIR 0 may overstate how close to muscular failure this was.';
+    return L('Technique gave out — the muscle may still have had a rep or two left, so RIR 0 may overstate how close to muscular failure this was.', 'Подвела техника — у мышцы могло оставаться одно-два повторения, поэтому RIR 0 может завышать близость к мышечному отказу.');
   }
   return null;
 }
@@ -259,8 +266,13 @@ function failureFlags(t: FailureCounts, exercises: ExerciseFailureRow[]): Failur
   if (t.recorded < FAILURE_MIN_RECORDED) {
     return [{
       id: 'not_enough_data',
-      text: t.recorded ? `Failure status recorded on only ${t.recorded} set${t.recorded === 1 ? '' : 's'} — not enough to see a pattern.` : 'No failure status recorded yet.',
-      why: `At least ${FAILURE_MIN_RECORDED} sets with "Did you reach failure?" answered are needed before describing how often you train to failure.`,
+      text: t.recorded
+        ? L(`Failure status recorded on only ${t.recorded} set${t.recorded === 1 ? '' : 's'} — not enough to see a pattern.`, `Отказ отмечен только в ${num(t.recorded)} ${ruPlural(t.recorded, 'подходе', 'подходах', 'подходах')} — этого мало, чтобы увидеть закономерность.`)
+        : L('No failure status recorded yet.', 'Отказ пока нигде не отмечен.'),
+      why: L(
+        `At least ${FAILURE_MIN_RECORDED} sets with "Did you reach failure?" answered are needed before describing how often you train to failure.`,
+        `Чтобы описать, как часто вы работаете до отказа, нужно не меньше ${FAILURE_MIN_RECORDED} подходов с ответом на вопрос «Отказ?».`,
+      ),
     }];
   }
   const flags: FailureFlag[] = [];
@@ -268,14 +280,20 @@ function failureFlags(t: FailureCounts, exercises: ExerciseFailureRow[]): Failur
   if (share >= 0.5) {
     flags.push({
       id: 'frequently_to_failure',
-      text: `${Math.round(share * 100)}% of recorded sets reached muscular failure.`,
-      why: 'Stopping 1–3 reps short gives similar muscle growth in current studies (Refalo 2023/2024, Robinson 2024) with less fatigue and longer-lasting performance across sets. Failure is fine occasionally, mainly on stable machine or cable isolation work — it is not required.',
+      text: L(`${Math.round(share * 100)}% of recorded sets reached muscular failure.`, `${Math.round(share * 100)}% подходов с отметкой дошли до мышечного отказа.`),
+      why: L(
+        'Stopping 1–3 reps short gives similar muscle growth in current studies (Refalo 2023/2024, Robinson 2024) with less fatigue and longer-lasting performance across sets. Failure is fine occasionally, mainly on stable machine or cable isolation work — it is not required.',
+        'По текущим исследованиям (Refalo 2023/2024, Robinson 2024) остановка за 1–3 повторения до отказа даёт похожий рост мышц при меньшей усталости, и результат лучше держится от подхода к подходу. Отказ иногда уместен, в основном в изолирующих упражнениях в тренажёре или на блоке, — но он не обязателен.',
+      ),
     });
   } else if (share <= 0.2) {
     flags.push({
       id: 'usually_rir',
-      text: `Most sets stopped short of failure (${Math.round(share * 100)}% at failure).`,
-      why: 'That is fine for hypertrophy as long as sets end close to failure (about 0–3 reps in reserve). Keep logging RIR honestly so the effort credit stays accurate.',
+      text: L(`Most sets stopped short of failure (${Math.round(share * 100)}% at failure).`, `Большинство подходов закончены до отказа (до отказа — ${Math.round(share * 100)}%).`),
+      why: L(
+        'That is fine for hypertrophy as long as sets end close to failure (about 0–3 reps in reserve). Keep logging RIR honestly so the effort credit stays accurate.',
+        'Для гипертрофии этого достаточно, если подходы заканчиваются близко к отказу (примерно 0–3 повторения в запасе). Записывайте RIR честно, чтобы зачёт усилия оставался точным.',
+      ),
     });
   }
   const iso = exercises.filter((e) => e.category === 'stable_isolation' || e.category === 'isolation');
@@ -288,23 +306,32 @@ function failureFlags(t: FailureCounts, exercises: ExerciseFailureRow[]): Failur
     const risky = comp.filter((e) => e.category === 'technique_first_compound' && e.muscular > 0).map((e) => e.exerciseId);
     flags.push({
       id: 'failure_often_compounds',
-      text: `Failure is common on compound lifts (${Math.round((compFail / compRec) * 100)}% of their recorded sets).`,
-      why: `On free-weight compounds${risky.length ? ' such as squats, RDLs and presses' : ''} technique tends to break before the target muscle fails, and recovery takes longer. Stopping about 1–2 reps short there usually keeps the same stimulus with less risk; save failure for machines and isolation work if you want it.`,
+      text: L(`Failure is common on compound lifts (${Math.round((compFail / compRec) * 100)}% of their recorded sets).`, `В базовых упражнениях отказ случается часто (${Math.round((compFail / compRec) * 100)}% их подходов с отметкой).`),
+      why: L(
+        `On free-weight compounds${risky.length ? ' such as squats, RDLs and presses' : ''} technique tends to break before the target muscle fails, and recovery takes longer. Stopping about 1–2 reps short there usually keeps the same stimulus with less risk; save failure for machines and isolation work if you want it.`,
+        `В базовых упражнениях со свободным весом${risky.length ? ' (приседания, румынская тяга, жимы)' : ''} техника обычно ломается раньше, чем отказывает целевая мышца, а восстановление идёт дольше. Остановка за 1–2 повторения до отказа обычно даёт тот же стимул с меньшим риском; отказ, если он нужен, лучше оставить для тренажёров и изолирующих упражнений.`,
+      ),
       exerciseIds: risky.length ? risky : comp.filter((e) => e.muscular > 0).map((e) => e.exerciseId),
     });
   } else if (isoFail > 0 && isoFail >= compFail * 2 && isoFail / (isoFail + compFail) >= 0.67) {
     flags.push({
       id: 'failure_mostly_isolation',
-      text: 'Failure sets are mostly on isolation exercises.',
-      why: 'That is the lower-risk place for them: stable machine or cable isolation lets the target muscle fail before technique does, with less systemic fatigue.',
+      text: L('Failure sets are mostly on isolation exercises.', 'Подходы до отказа — в основном в изолирующих упражнениях.'),
+      why: L(
+        'That is the lower-risk place for them: stable machine or cable isolation lets the target muscle fail before technique does, with less systemic fatigue.',
+        'Там для них меньше риска: в устойчивом тренажёре или на блоке целевая мышца отказывает раньше техники, а общая усталость меньше.',
+      ),
     });
   }
   const techFirst = exercises.filter((e) => e.recorded >= 3 && e.technical > 0 && e.technical >= e.muscular).map((e) => e.exerciseId);
   if (techFirst.length) {
     flags.push({
       id: 'technical_before_muscular',
-      text: `Technique often gives out before the muscle on ${techFirst.length} exercise${techFirst.length === 1 ? '' : 's'}.`,
-      why: 'Reps after form breaks mostly shift work to other muscles and are not counted as clean progress. Ending the set when form starts to slip (or choosing a slightly lighter load) gives cleaner, comparable sets.',
+      text: L(`Technique often gives out before the muscle on ${techFirst.length} exercise${techFirst.length === 1 ? '' : 's'}.`, `Техника часто подводит раньше мышцы в ${techFirst.length} ${ruPlural(techFirst.length, 'упражнении', 'упражнениях', 'упражнениях')}.`),
+      why: L(
+        'Reps after form breaks mostly shift work to other muscles and are not counted as clean progress. Ending the set when form starts to slip (or choosing a slightly lighter load) gives cleaner, comparable sets.',
+        'Повторения после срыва техники в основном перекладывают работу на другие мышцы и не считаются чистым прогрессом. Если заканчивать подход, когда техника начинает плыть (или взять вес чуть легче), подходы получаются чище и сравнимее.',
+      ),
       exerciseIds: techFirst,
     });
   }
@@ -314,6 +341,6 @@ function failureFlags(t: FailureCounts, exercises: ExerciseFailureRow[]): Failur
 function failureLine(t: FailureCounts, flags: FailureFlag[]): string | null {
   if (!t.workingSets) return null;
   const f = flags.find((x) => x.id !== 'not_enough_data') ?? flags[0];
-  if (!f) return t.recorded ? `${t.muscular} of ${t.recorded} recorded sets reached muscular failure.` : null;
+  if (!f) return t.recorded ? L(`${t.muscular} of ${t.recorded} recorded sets reached muscular failure.`, `${num(t.muscular)} из ${num(t.recorded)} подходов с отметкой дошли до мышечного отказа.`) : null;
   return f.text;
 }

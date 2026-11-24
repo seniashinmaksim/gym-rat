@@ -3,7 +3,7 @@
  * training timezone, so week membership is pure calendar arithmetic. "Now" is
  * resolved in the configured timezone via Intl.
  */
-import { locale } from '../i18n/core';
+import { L, locale } from '../i18n/core';
 
 const DAY = 86_400_000;
 
@@ -126,7 +126,7 @@ export function formatDuration(sec: number | null | undefined): string {
   const s = Math.round(sec);
   const m = Math.floor(s / 60);
   const r = s % 60;
-  return m > 0 ? `${m}:${String(r).padStart(2, '0')}` : `${r}s`;
+  return m > 0 ? `${m}:${String(r).padStart(2, '0')}` : L(`${r}s`, `${r} с`);
 }
 
 export function listTimezones(): string[] {

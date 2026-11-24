@@ -1,5 +1,6 @@
 import { SEED_EXERCISES } from '../data/exercises';
 import type { ExerciseDef, ExerciseOverride, MuscleId, RegionId, Variation } from './types';
+import { L, num } from '../i18n/core';
 
 export type Registry = Map<string, ExerciseDef>;
 
@@ -22,8 +23,8 @@ export function buildRegistry(custom: ExerciseDef[], overrides: ExerciseOverride
   return map;
 }
 
-export function exerciseLabel(def: ExerciseDef | undefined, lang: 'en' | 'ru' | 'both', fallback = 'Unknown exercise'): string {
-  if (!def) return fallback;
+export function exerciseLabel(def: ExerciseDef | undefined, lang: 'en' | 'ru' | 'both', fallback?: string): string {
+  if (!def) return fallback ?? L('Unknown exercise', 'Неизвестное упражнение');
   if (lang === 'ru') return def.name.ru;
   if (lang === 'both') return def.name.en;
   return def.name.en;
@@ -51,16 +52,16 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
       regions.lower_chest = 1;
       delete regions.upper_chest;
       if (!isFly && (contributions.front_delts ?? 0) > 0.25) contributions.front_delts = 0.25;
-      notes.push(`Decline ${angle}°: lower-chest emphasis, reduced front-delt demand (heuristic).`);
+      notes.push(L(`Decline ${angle}°: lower-chest emphasis, reduced front-delt demand (heuristic).`, `Отрицательный наклон ${num(angle)}°: акцент на низ груди, меньше нагрузки на передние дельты (эвристика).`));
     } else if (angle < 10) {
       regions.lower_chest = 0.5;
       delete regions.upper_chest;
-      notes.push(`Flat (${angle}°): whole-pec loading (heuristic).`);
+      notes.push(L(`Flat (${angle}°): whole-pec loading (heuristic).`, `Горизонтально (${num(angle)}°): нагрузка на всю грудную мышцу (эвристика).`));
     } else if (angle <= 45) {
       regions.upper_chest = 1;
       delete regions.lower_chest;
       if (!isFly) contributions.front_delts = Math.max(contributions.front_delts ?? 0, 0.5);
-      notes.push(`Incline ${angle}°: upper-chest (clavicular) emphasis; front delts at least 0.5 (heuristic — 15°, 30° and 45° are treated alike).`);
+      notes.push(L(`Incline ${angle}°: upper-chest (clavicular) emphasis; front delts at least 0.5 (heuristic — 15°, 30° and 45° are treated alike).`, `Наклон ${num(angle)}°: акцент на верх груди (ключичная часть); передние дельты не меньше 0,5 (эвристика — 15°, 30° и 45° считаются одинаково).`));
     } else {
       regions.upper_chest = 0.5;
       delete regions.lower_chest;
@@ -68,21 +69,21 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
         contributions.front_delts = 0.75;
         contributions.chest = Math.min(contributions.chest ?? 1, 0.75);
       }
-      notes.push(`Steep incline ${angle}°: approaches an overhead press — chest credit reduced, front delts increased (heuristic).`);
+      notes.push(L(`Steep incline ${angle}°: approaches an overhead press — chest credit reduced, front delts increased (heuristic).`, `Крутой наклон ${num(angle)}°: близко к жиму над головой — зачёт груди снижен, передних дельт повышен (эвристика).`));
     }
   }
   // Underhand grip on a PULL with elbow flexion (pulldowns, chin-ups). Not on straight-arm pulldowns
   // (isolation, elbows locked) — a grip there does not make the biceps work (audit 2026-11-22).
   if (variation?.grip === 'supinated' && def.pattern === 'vertical_pull' && def.category === 'compound') {
     contributions.biceps = Math.max(contributions.biceps ?? 0, 0.75);
-    notes.push('Supinated grip: higher biceps contribution.');
+    notes.push(L('Supinated grip: higher biceps contribution.', 'Обратный хват: вклад бицепса выше.'));
   }
   // Squat depth (Kubo 2019): glute and adductor growth came from FULL-depth squats; above parallel they are
   // credited as ordinary secondaries (0.5) instead of 0.75.
   if ((def.id === 'back_squat' || def.id === 'smith_squat') && variation?.depth === 'above_parallel') {
     if ((contributions.glutes ?? 0) > 0.5) contributions.glutes = 0.5;
     if ((contributions.adductors ?? 0) > 0.5) contributions.adductors = 0.5;
-    notes.push('Above-parallel squat: glutes and adductors credited 0.5 (their extra growth was shown for full-depth squats).');
+    notes.push(L('Above-parallel squat: glutes and adductors credited 0.5 (their extra growth was shown for full-depth squats).', 'Присед выше параллели: ягодицам и приводящим засчитывается 0,5 (их дополнительный рост показан для приседаний на полную глубину).'));
   }
   return { contributions, regions, notes };
 }
@@ -92,15 +93,15 @@ export function resolveCoefficients(def: ExerciseDef, variation?: Variation): Re
  * Dumbbells: ONE dumbbell. Barbells: the total you report (bar weight never assumed).
  */
 export function loadUnitLabel(def: ExerciseDef | undefined, loadMode: string | undefined): string {
-  if (loadMode === 'assisted') return 'kg assistance';
-  if (loadMode === 'bodyweight_plus') return 'kg added';
-  if (loadMode === 'per_side') return 'kg per side';
+  if (loadMode === 'assisted') return L('kg assistance', 'кг помощи');
+  if (loadMode === 'bodyweight_plus') return L('kg added', 'кг доп. веса');
+  if (loadMode === 'per_side') return L('kg per side', 'кг на сторону');
   switch (def?.equipmentKind) {
-    case 'dumbbell': case 'kettlebell': return 'kg per dumbbell';
-    case 'barbell': case 'smith': return 'kg total';
-    case 'machine': case 'cable': return 'kg on stack';
-    case 'plate_loaded': return 'kg plates';
-    default: return 'kg';
+    case 'dumbbell': case 'kettlebell': return L('kg per dumbbell', 'кг одна гантель');
+    case 'barbell': case 'smith': return L('kg total', 'кг всего');
+    case 'machine': case 'cable': return L('kg on stack', 'кг на блоке');
+    case 'plate_loaded': return L('kg plates', 'кг дисков');
+    default: return L('kg', 'кг');
   }
 }
 

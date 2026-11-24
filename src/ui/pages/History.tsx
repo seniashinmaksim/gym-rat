@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { addDays, dayOfWeek, formatDate, formatDuration } from '../../domain/dates';
 import { workoutToExport, IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION } from '../../domain/importer';
 import { humanize } from '../../domain/progression';
-import { FEEL_BY_ID } from '../../domain/feedback';
+import { FEEL_BY_ID, painAreaLabel } from '../../domain/feedback';
 import { assessSet, countedSetCount, sideFactors, type EffortTier } from '../../domain/quality';
 import type { Confidence, MuscleId, Rom, Workout, WorkoutSource } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
@@ -345,7 +345,7 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
                             <td className="px-2 py-1.5">{k + 1}</td>
                             <td className="px-2 py-1.5">
                               {tags.length > 0 && <span className="capitalize">{tags.join(' · ')}</span>}
-                              {s.feel && <span className="block text-[10px] text-ink-500">{FEEL_BY_ID[s.feel].title}{s.pain?.area ? ` · ${s.pain.area}` : ''}{s.intendedWeightKg != null ? L(` · meant ${fmt(s.intendedWeightKg, 2)} kg`, ` · планировалось ${fmt(s.intendedWeightKg, 2)} кг`) : ''}</span>}
+                              {s.feel && <span className="block text-[10px] text-ink-500">{FEEL_BY_ID[s.feel].title}{s.pain?.area ? ` · ${painAreaLabel(s.pain.area)}` : ''}{s.intendedWeightKg != null ? L(` · meant ${fmt(s.intendedWeightKg, 2)} kg`, ` · планировалось ${fmt(s.intendedWeightKg, 2)} кг`) : ''}</span>}
                               {s.notes && <span className="block text-[10px] italic text-ink-500">“{s.notes}”</span>}
                               {s.corrections?.length ? <span className="block text-[10px] text-amber-700 dark:text-amber-300">{L('corrected: ', 'исправлено: ')}{s.corrections.map((c) => `${CORR_LABEL[c.field]} ${c.from ?? '—'} → ${c.to ?? '—'}`).join(', ')}</span> : null}
                             </td>

@@ -1,9 +1,9 @@
 import { diffDays } from './dates';
 import type { Registry } from './registry';
-import { benchmarkExclusion, techniqueOf } from './feedback';
+import { benchmarkExclusion, exclusionLabel, techniqueOf } from './feedback';
 import { failureImpliedRir } from './failure';
 import { loadStep, type IncrementSource } from './increments';
-import { L } from '../i18n/core';
+import { L, byLang, num as nf, ruPlural } from '../i18n/core';
 import { measuredDrop, preloadFactor, preloadFor, PRELOAD_DEFAULT_DROP, SAME_CONTEXT_MIN, type CompareBasis, type PreloadBucket } from './preload';
 import type { Effort, Equipment, EquipmentKind, ExerciseDef, ExerciseOverride, FailureStatus, Location, SetFeel, Side, Technique, Variation, Workout, WorkoutExercise } from './types';
 
@@ -22,11 +22,16 @@ function baseKey(ex: WorkoutExercise, w: Workout, def: ExerciseDef | undefined):
   return `${ex.exerciseId}::unidentified@${w.locationId ?? 'unknown'}`;
 }
 
-const VALUE_LABEL: Record<string, string> = {
-  straight_bar: 'straight bar', rope: 'rope', v_bar: 'V-bar', single_handle: 'single handle', cuff: 'ankle/wrist cuff',
-  standing: 'standing', seated: 'seated', straight: 'straight legs', bent: 'bent knees', shoulder: 'shoulder-width', wide: 'wide', narrow: 'narrow',
-  pronated: 'pronated grip', supinated: 'supinated grip', neutral: 'neutral grip', mixed: 'mixed grip',
-};
+const VALUE_LABEL: Record<string, string> = byLang(() => ({
+  straight_bar: L('straight bar', 'прямая рукоять'), rope: L('rope', 'канат'), v_bar: L('V-bar', 'V-рукоять'), single_handle: L('single handle', 'одиночная рукоять'), cuff: L('ankle/wrist cuff', 'манжета'),
+  standing: L('standing', 'стоя'), seated: L('seated', 'сидя'), straight: L('straight legs', 'прямые ноги'), bent: L('bent knees', 'согнутые колени'), shoulder: L('shoulder-width', 'на ширине плеч'), wide: L('wide', 'широкий'), narrow: L('narrow', 'узкий'),
+  pronated: L('pronated grip', 'хват сверху'), supinated: L('supinated grip', 'хват снизу'), neutral: L('neutral grip', 'нейтральный хват'), mixed: L('mixed grip', 'разнохват'),
+  simultaneous: L('simultaneous', 'одновременно'), alternating: L('alternating', 'поочерёдно'),
+  above_parallel: L('above parallel', 'выше параллели'), parallel: L('parallel', 'до параллели'), below_parallel: L('below parallel', 'ниже параллели'),
+  high_bar: L('high bar', 'гриф высоко'), low_bar: L('low bar', 'гриф низко'),
+}));
+/** A load for a Russian sentence: decimal comma, "?" when unknown. */
+const ruKg = (x: number | null | undefined): string => (x == null ? '?' : nf(x));
 export const humanize = (v: string) => VALUE_LABEL[v] ?? v.replace(/_/g, ' ');
 
 /**
@@ -44,16 +49,16 @@ export function variationParts(v: Variation | undefined, def: ExerciseDef | unde
   const parts: { key: string; label: string }[] = [];
   if (def?.angleSensitive && v.benchAngleDeg != null && Number.isFinite(v.benchAngleDeg)) {
     const a = Math.round(v.benchAngleDeg);
-    parts.push({ key: `angle=${a}`, label: a === 0 ? 'flat' : `${a}°` });
+    parts.push({ key: `angle=${a}`, label: a === 0 ? L('flat', 'горизонтально') : `${a}°` });
   }
   if (v.attachment) parts.push({ key: `att=${v.attachment}`, label: humanize(v.attachment) });
-  if (v.unilateral && def?.variationFields?.includes('unilateral')) parts.push({ key: 'uni', label: 'one side at a time' });
+  if (v.unilateral && def?.variationFields?.includes('unilateral')) parts.push({ key: 'uni', label: L('one side at a time', 'по одной стороне') });
   if (v.position) parts.push({ key: `pos=${v.position}`, label: humanize(v.position) });
   if (v.legs) parts.push({ key: `legs=${v.legs}`, label: humanize(v.legs) });
   // Pull-ups (v1.4): bodyweight vs weighted and grip width each start their own history (owner's request).
   // Only exercises that offer these choices; entries logged before keep the "not recorded" history.
-  if (v.loading && def?.variationFields?.includes('loading')) parts.push({ key: `load=${v.loading}`, label: v.loading === 'weighted' ? 'weighted' : 'bodyweight' });
-  if (v.gripWidth && def?.variationFields?.includes('loading') && def.variationFields.includes('gripWidth')) parts.push({ key: `gw=${v.gripWidth}`, label: `${humanize(v.gripWidth)} grip` });
+  if (v.loading && def?.variationFields?.includes('loading')) parts.push({ key: `load=${v.loading}`, label: v.loading === 'weighted' ? L('weighted', 'с отягощением') : L('bodyweight', 'свой вес') });
+  if (v.gripWidth && def?.variationFields?.includes('loading') && def.variationFields.includes('gripWidth')) parts.push({ key: `gw=${v.gripWidth}`, label: L(`${humanize(v.gripWidth)} grip`, v.gripWidth === 'shoulder' ? 'хват на ширине плеч' : `${humanize(v.gripWidth)} хват`) });
   return parts;
 }
 
@@ -295,7 +300,7 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   if (recent.length < 3) {
     return {
       cls: 'insufficient_data',
-      evidence: `${recent.length} comparable session(s) in the last 8 weeks; at least 3 are needed before classifying a trend.`,
+      evidence: L(`${recent.length} comparable session(s) in the last 8 weeks; at least 3 are needed before classifying a trend.`, `Сопоставимых тренировок за последние 8 недель: ${recent.length}; для оценки тренда нужно минимум 3.`),
       relSlopePerSession: null,
       sessionsUsed: recent.length,
     };
@@ -312,7 +317,7 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
       const prior = classifyTrend(sessions.filter((s) => s !== recent[n - 1]), today);
       const drop = Math.round((1 - ys[n - 1] / usual) * 1000) / 10;
       const cls: TrendClass = prior.cls === 'progressing' || prior.cls === 'insufficient_data' ? 'stable' : prior.cls;
-      return { ...prior, cls, evidence: `Latest session ${drop}% below your usual level (${ys[n - 1]} vs ${usual}) — one session is not a trend; judged on the sessions before it. ${prior.evidence}` };
+      return { ...prior, cls, evidence: L(`Latest session ${drop}% below your usual level (${ys[n - 1]} vs ${usual}) — one session is not a trend; judged on the sessions before it. ${prior.evidence}`, `Последняя тренировка на ${nf(drop)}% ниже вашего обычного уровня (${nf(ys[n - 1])} против ${nf(usual)}) — одна тренировка ещё не тренд; оценка по предыдущим. ${prior.evidence}`) };
     }
   }
   const xm = (n - 1) / 2;
@@ -329,15 +334,18 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   const last = ys[n - 1];
   const span = diffDays(recent[n - 1].date, recent[0].date);
   const pct = (rel * 100).toFixed(1);
-  const base = `Performance index ${first} → ${last} over ${n} sessions (${span} days), trend ${rel >= 0 ? '+' : ''}${pct}% per session.`;
+  const base = L(
+    `Performance index ${first} → ${last} over ${n} sessions (${span} days), trend ${rel >= 0 ? '+' : ''}${pct}% per session.`,
+    `Индекс результата ${nf(first)} → ${nf(last)} за ${n} ${ruPlural(n, 'тренировку', 'тренировки', 'тренировок')} (${span} дн.), тренд ${rel >= 0 ? '+' : ''}${pct.replace('.', ',')}% за тренировку.`,
+  );
 
-  if (rel >= 0.01 && last >= first) return { cls: 'progressing', evidence: `${base} Consistent upward trend.`, relSlopePerSession: rel, sessionsUsed: n };
+  if (rel >= 0.01 && last >= first) return { cls: 'progressing', evidence: L(`${base} Consistent upward trend.`, `${base} Устойчивый рост.`), relSlopePerSession: rel, sessionsUsed: n };
   const clean = recent.filter((s) => !s.fatigued);
   const setAside = n - clean.length;
   // A decline needs the last TWO sessions below the first one: one bad day is not a trend.
   if (rel <= -0.015 && last < first && ys[n - 2] < first) {
     const tired = recent.slice(-2).some((s) => s.fatigued);
-    return { cls: 'declining', evidence: `${base} Recent sessions are below earlier ones — ${tired ? 'the latest session(s) were logged with high fatigue or short sleep, so this may be temporary; ' : ''}check fatigue, sleep, rest periods or exercise order before changing the load.`, relSlopePerSession: rel, sessionsUsed: n };
+    return { cls: 'declining', evidence: L(`${base} Recent sessions are below earlier ones — ${tired ? 'the latest session(s) were logged with high fatigue or short sleep, so this may be temporary; ' : ''}check fatigue, sleep, rest periods or exercise order before changing the load.`, `${base} Последние тренировки слабее предыдущих — ${tired ? 'последние записаны при сильной усталости или коротком сне, так что это может быть временно; ' : ''}прежде чем менять вес, проверьте усталость, сон, отдых между подходами и порядок упражнений.`), relSlopePerSession: rel, sessionsUsed: n };
   }
   // Sustained decline: across the 8-week window (≥ 6 sessions) the median of the last 3 sessions is
   // ≥ 8 % below the median of the first 3, and every one of the last 3 is below all of the first 3.
@@ -349,7 +357,7 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
     if (ref > 0 && medianOf(last3) <= ref * (1 - SUSTAINED_DECLINE) && Math.max(...last3) < Math.min(...first3)) {
       const drop = Math.round((1 - medianOf(last3) / ref) * 1000) / 10;
       const tired = window.slice(-3).some((s) => s.fatigued);
-      return { cls: 'declining', evidence: `Performance index ${ref} (first 3 of ${window.length} sessions in 8 weeks) → ${medianOf(last3)} (last 3): −${drop}%. ${tired ? 'Some of these sessions were logged with high fatigue or short sleep. ' : ''}Check fatigue, sleep, rest periods, technique and exercise order before changing the load.`, relSlopePerSession: rel, sessionsUsed: window.length };
+      return { cls: 'declining', evidence: L(`Performance index ${ref} (first 3 of ${window.length} sessions in 8 weeks) → ${medianOf(last3)} (last 3): −${drop}%. ${tired ? 'Some of these sessions were logged with high fatigue or short sleep. ' : ''}Check fatigue, sleep, rest periods, technique and exercise order before changing the load.`, `Индекс результата ${nf(ref)} (первые 3 из ${window.length} тренировок за 8 недель) → ${nf(medianOf(last3))} (последние 3): −${nf(drop)}%. ${tired ? 'Часть этих тренировок записана при сильной усталости или коротком сне. ' : ''}Прежде чем менять вес, проверьте усталость, сон, отдых между подходами, технику и порядок упражнений.`), relSlopePerSession: rel, sessionsUsed: window.length };
     }
   }
   if (clean.length >= 4) {
@@ -360,13 +368,13 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
     if (cspan >= 21 && bestLate <= bestEarlier) {
       return {
         cls: 'plateau',
-        evidence: `${base} No new best in the last 2 comparable sessions across ≥ 3 weeks${setAside ? ` (${setAside} session(s) with high fatigue or short sleep set aside)` : ''} — a possible plateau, not yet certain. Before adding volume or changing the exercise, check the working weight, rest periods, technique, effort (RIR) and recovery.`,
+        evidence: L(`${base} No new best in the last 2 comparable sessions across ≥ 3 weeks${setAside ? ` (${setAside} session(s) with high fatigue or short sleep set aside)` : ''} — a possible plateau, not yet certain. Before adding volume or changing the exercise, check the working weight, rest periods, technique, effort (RIR) and recovery.`, `${base} В 2 последних сопоставимых тренировках за ≥ 3 недели нет нового рекорда${setAside ? ` (тренировки при сильной усталости или коротком сне не учитывались: ${setAside})` : ''} — возможно, плато, но это ещё не точно. Прежде чем добавлять объём или менять упражнение, проверьте рабочий вес, отдых между подходами, технику, усилие (RIR) и восстановление.`),
         relSlopePerSession: rel,
         sessionsUsed: clean.length,
       };
     }
   }
-  return { cls: 'stable', evidence: `${base} Performance is broadly stable${setAside ? ` (${setAside} fatigued session(s) noted)` : ''}.`, relSlopePerSession: rel, sessionsUsed: n };
+  return { cls: 'stable', evidence: L(`${base} Performance is broadly stable${setAside ? ` (${setAside} fatigued session(s) noted)` : ''}.`, `${base} Результат в целом стабилен${setAside ? ` (тренировок при усталости: ${setAside})` : ''}.`), relSlopePerSession: rel, sessionsUsed: n };
 }
 
 export function defaultIncrement(kind: EquipmentKind | undefined, loadMode?: string): number {
@@ -417,7 +425,7 @@ export function restInsight(sessions: SessionPerf[]): string | null {
   for (const p of last.sets.slice(1)) {
     if (!p.benchmark || p.weight !== first.weight || p.reps == null || p.restSec == null || p.restSec <= 0) continue;
     if (first.reps! - p.reps >= 2 && p.restSec < typical * 0.7) {
-      return `Reps fell from ${first.reps} to ${p.reps} at ${p.weight} kg after a shorter rest (${p.restSec} s vs your usual ~${Math.round(typical)} s) — likely the short rest, not a weight that is too heavy.`;
+      return L(`Reps fell from ${first.reps} to ${p.reps} at ${p.weight} kg after a shorter rest (${p.restSec} s vs your usual ~${Math.round(typical)} s) — likely the short rest, not a weight that is too heavy.`, `Повторения упали с ${first.reps} до ${p.reps} при ${ruKg(p.weight)} кг после более короткого отдыха (${p.restSec} с против обычных ~${Math.round(typical)} с) — вероятно, дело в коротком отдыхе, а не в слишком большом весе.`);
     }
   }
   return null;
@@ -427,9 +435,10 @@ export function restInsight(sessions: SessionPerf[]): string | null {
  * Next-session suggestion (double progression with the owner's set feedback):
  * - Representative (benchmark) sets only: accidental wrong weights, pain and broken technique are
  *   kept in the history but never prove progress.
- * - INCREASE when all working sets at the working load reach the top of the rep range with effort
- *   recorded (RIR or feel) in TWO consecutive sessions — or in ONE session when every set was clearly
- *   too light (RIR ≥ target + 2, or felt "too easy"/"a little too easy").
+ * - INCREASE when all working sets at the working load reach the top of the rep range in TWO
+ *   consecutive sessions no more than 56 days apart (since Part 6, F.7, the reps are the evidence — no
+ *   effort answer is needed) — or in ONE session when every set (at least two) was clearly too light
+ *   (RIR ≥ target + 2, or felt "too easy"; "a little too easy" alone is not enough).
  * - REDUCE when technique broke down on at least half of the last session's sets at the working load
  *   (not because a set was merely hard: "very hard, good technique" is a good set), or when most sets
  *   fell below the range while the trend is declining.
@@ -446,7 +455,7 @@ export function suggestNextLoad(
   const [lo, hi] = repRange;
   const base = { repTarget: repRange, rirTarget, increment };
   const lastAny = sessions[sessions.length - 1];
-  if (!lastAny) return { ...base, action: 'calibrate', weight: null, reason: 'No history on this equipment yet. Pick a load you can lift for the rep range with ~2–3 RIR and record RIR (or how the set felt) to calibrate.' };
+  if (!lastAny) return { ...base, action: 'calibrate', weight: null, reason: L('No history on this equipment yet. Pick a load you can lift for the rep range with ~2–3 RIR and record RIR (or how the set felt) to calibrate.', 'На этом оборудовании пока нет истории. Выберите вес, с которым выполните диапазон повторений с запасом ~2–3 повтора (RIR), и записывайте RIR (или ощущение от подхода) для калибровки.') };
   const assisted = loadMode === 'assisted';
   const step = assisted ? -increment : increment;
   const loadOf = (pts: SetPoint[]): number | null => {
@@ -479,11 +488,11 @@ export function suggestNextLoad(
       const reach = Math.abs(step) * 1.5;
       const closerClean = cleanLoad != null && (assisted ? cleanLoad > brokeAt && cleanLoad - brokeAt <= reach : cleanLoad < brokeAt && brokeAt - cleanLoad <= reach);
       const to = closerClean ? (cleanLoad as number) : oneStep;
-      return { ...base, action: 'reduce', weight: to, reason: `Technique broke down on ${broken.length} of ${intended.length} set${intended.length === 1 ? '' : 's'} last time (at ${brokeAt} kg). Those sets are kept but don't prove progress. ${assisted ? 'Use more assistance' : 'Go back'} to ${to} kg, keep full range and control, and rebuild reps from ~${lo}. (A set that is very hard but clean is fine — this is about technique, not difficulty.)` };
+      return { ...base, action: 'reduce', weight: to, reason: L(`Technique broke down on ${broken.length} of ${intended.length} set${intended.length === 1 ? '' : 's'} last time (at ${brokeAt} kg). Those sets are kept but don't prove progress. ${assisted ? 'Use more assistance' : 'Go back'} to ${to} kg, keep full range and control, and rebuild reps from ~${lo}. (A set that is very hard but clean is fine — this is about technique, not difficulty.)`, `В прошлый раз техника нарушилась в ${broken.length} из ${intended.length} подх. (на ${nf(brokeAt)} кг). Эти подходы сохранены, но прогрессом не считаются. ${assisted ? `Увеличьте помощь до ${nf(to)} кг` : `Вернитесь к ${nf(to)} кг`}, держите полную амплитуду и контроль и набирайте повторения заново с ~${lo}. (Очень тяжёлый, но чистый подход — это нормально: речь о технике, а не о тяжести.)`) };
     }
     brokeNote = L(
       `${brokeAt} kg broke your technique on ${broken.length} set${broken.length === 1 ? '' : 's'} — not counted as progress yet${broken.length >= Math.ceil(intended.length / 2) ? '; if it happens again next session, the load goes one step down' : ''}.`,
-      `На ${brokeAt} кг техника нарушилась в ${broken.length} подх. — пока не считается прогрессом${broken.length >= Math.ceil(intended.length / 2) ? '; если повторится в следующий раз, вес снизится на один шаг' : ''}.`,
+      `На ${nf(brokeAt)} кг техника нарушилась в ${broken.length} подх. — пока не считается прогрессом${broken.length >= Math.ceil(intended.length / 2) ? '; если повторится в следующий раз, вес снизится на один шаг' : ''}.`,
     );
   }
 
@@ -492,26 +501,29 @@ export function suggestNextLoad(
   const last = rep[rep.length - 1];
   const notes: string[] = [];
   if (lastAny !== last) {
-    const why = [...new Set(lastAny.sets.map((p) => p.excluded).filter(Boolean))].join(', ');
-    notes.push(`Last session (${lastAny.date}) is saved but not used as a benchmark (${why || 'not representative'}).`);
+    const why = [...new Set(lastAny.sets.map((p) => p.excluded).filter(Boolean))].map((c) => exclusionLabel(c as string)).join(', ');
+    notes.push(L(
+      `Last session (${lastAny.date}) is saved but not used as a benchmark (${why || 'not representative'}).`,
+      `Последняя тренировка (${lastAny.date}) сохранена, но не используется для сравнения (${why || 'не показательна'}).`,
+    ));
   }
   const painLast = lastAny.sets.some((p) => p.excluded === 'pain or unusual discomfort');
   if (painLast) {
-    notes.push('Pain or unusual discomfort was flagged — do not push the load on a painful movement; if it repeats, stop that movement and consider getting it checked.');
+    notes.push(L('Pain or unusual discomfort was flagged — do not push the load on a painful movement; if it repeats, stop that movement and consider getting it checked.', 'Отмечена боль или необычный дискомфорт — не повышайте вес в болезненном движении; если это повторится, прекратите это движение и подумайте о том, чтобы показаться специалисту.'));
   }
   if (brokeNote) notes.push(brokeNote);
   const rest = restInsight(rep);
   if (rest) notes.push(rest);
   const tail = notes.length ? ` ${notes.join(' ')}` : '';
   if (!last) {
-    return { ...base, action: 'calibrate', weight: null, reason: `No representative session yet on this equipment.${tail}` };
+    return { ...base, action: 'calibrate', weight: null, reason: L(`No representative session yet on this equipment.${tail}`, `На этом оборудовании пока нет показательной тренировки.${tail}`) };
   }
   const prev = rep[rep.length - 2];
   const benchPts = (s: SessionPerf) => s.sets.filter((p) => p.benchmark);
   const workLoad = (s: SessionPerf): number | null => loadOf(benchPts(s)) ?? s.topWeight;
   const w = workLoad(last);
   if (w == null || (loadMode === 'bodyweight_plus' && w === 0)) {
-    return { ...base, action: 'hold', weight: w, reason: `Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.${tail}` };
+    return { ...base, action: 'hold', weight: w, reason: L(`Bodyweight-based: aim to add reps (top set ${last.topReps ?? '?'} reps). Add load once all sets exceed ${hi} reps.${tail}`, `Со своим весом: старайтесь добавлять повторения (лучший подход — ${last.topReps ?? '?'} повт.). Добавляйте отягощение, когда во всех подходах будет больше ${hi} повт.${tail}`) };
   }
   const atLoad = (s: SessionPerf) => benchPts(s).filter((p) => p.weight === workLoad(s));
   // Effort is "recorded" with a RIR, a feel, or a definite failure answer (muscular / stopped before failure).
@@ -540,34 +552,34 @@ export function suggestNextLoad(
   const nextLoad = stepLoad(w, step, increment);
 
   if (painLast) {
-    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg (no increase after a session with pain).${tail}` };
+    return { ...base, action: 'hold', weight: w, reason: L(`Keep ${w} kg (no increase after a session with pain).${tail}`, `Оставьте ${nf(w)} кг (после тренировки с болью вес не повышается).${tail}`) };
   }
   if (assisted && w <= 0 && lastTop) {
-    return { ...base, action: 'hold', weight: 0, reason: `All sets reached ${hi} reps with no assistance. Switch to the unassisted (or weighted) version of the exercise.${tail}` };
+    return { ...base, action: 'hold', weight: 0, reason: L(`All sets reached ${hi} reps with no assistance. Switch to the unassisted (or weighted) version of the exercise.${tail}`, `Все подходы достигли ${hi} повт. без помощи. Переходите к варианту без помощи (или с отягощением).${tail}`) };
   }
   if (tooEasy) {
-    return { ...base, action: 'increase', weight: nextLoad, reason: `Every set at ${w} kg reached ${hi} reps and was clearly too light (${rirTarget + 2}+ reps in reserve, or felt too easy) — those sets earn reduced effort credit. ${assisted ? 'Reduce assistance' : 'Add the smallest increment'} (${increment} kg) to ${nextLoad} kg now and rebuild reps from ~${lo}.${tail}` };
+    return { ...base, action: 'increase', weight: nextLoad, reason: L(`Every set at ${w} kg reached ${hi} reps and was clearly too light (${rirTarget + 2}+ reps in reserve, or felt too easy) — those sets earn reduced effort credit. ${assisted ? 'Reduce assistance' : 'Add the smallest increment'} (${increment} kg) to ${nextLoad} kg now and rebuild reps from ~${lo}.${tail}`, `Каждый подход с ${nf(w)} кг достиг ${hi} повт. и был явно слишком лёгким (${rirTarget + 2}+ повторов в запасе или ощущение «слишком легко») — такие подходы засчитываются с пониженным усилием. ${assisted ? 'Уменьшите помощь' : 'Добавьте минимальный шаг'} (${nf(increment)} кг) — до ${nf(nextLoad)} кг уже сейчас — и набирайте повторения заново с ~${lo}.${tail}`) };
   }
   if (lastTop && prevTop) {
-    return { ...base, action: 'increase', weight: nextLoad, reason: `All working sets reached ${hi} reps in the last two comparable sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) to ${nextLoad} kg and rebuild reps from ~${lo}.${tail}` };
+    return { ...base, action: 'increase', weight: nextLoad, reason: L(`All working sets reached ${hi} reps in the last two comparable sessions at ${w} kg. ${assisted ? 'Reduce assistance' : 'Add the smallest available increment'} (${increment} kg) to ${nextLoad} kg and rebuild reps from ~${lo}.${tail}`, `Все рабочие подходы достигли ${hi} повт. в двух последних сопоставимых тренировках с ${nf(w)} кг. ${assisted ? 'Уменьшите помощь' : 'Добавьте минимальный доступный шаг'} (${nf(increment)} кг) — до ${nf(nextLoad)} кг — и набирайте повторения заново с ~${lo}.${tail}`) };
   }
   if (lastTop && prevStale) {
     return { ...base, action: 'hold', weight: w, reason: L(
       `Top of the range (${hi}) reached at ${w} kg now and ${gapDays} days ago — too far apart to count as two sessions in a row. Confirm it next session before increasing.${tail}`,
-      `Верх диапазона (${hi}) при ${w} кг достигнут сейчас и ${gapDays} дн. назад — перерыв слишком большой, чтобы считать это двумя тренировками подряд. Подтвердите в следующий раз, затем повышайте вес.${tail}`,
+      `Верх диапазона (${hi}) при ${nf(w)} кг достигнут сейчас и ${gapDays} дн. назад — перерыв слишком большой, чтобы считать это двумя тренировками подряд. Подтвердите в следующий раз, затем повышайте вес.${tail}`,
     ) };
   }
   if (lastTop && !prevTop) {
-    return { ...base, action: 'hold', weight: w, reason: `Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.${tail}` };
+    return { ...base, action: 'hold', weight: w, reason: L(`Top of the range (${hi}) reached once at ${w} kg. Confirm it next session before increasing — one good session is not enough evidence.${tail}`, `Верх диапазона (${hi}) достигнут один раз при ${nf(w)} кг. Подтвердите в следующий раз, затем повышайте вес — одной удачной тренировки недостаточно.${tail}`) };
   }
   const belowLo = benchPts(last).filter((p) => (p.reps ?? 0) < lo).length;
   if (belowLo > benchPts(last).length / 2 && trend.cls === 'declining' && !rest) {
-    return { ...base, action: 'reduce', weight: stepLoad(w, -step, increment), reason: `Most sets fell below ${lo} reps and the trend is declining across comparable sessions. A one-step reduction (or checking recovery and rest) may restore quality reps.${tail}` };
+    return { ...base, action: 'reduce', weight: stepLoad(w, -step, increment), reason: L(`Most sets fell below ${lo} reps and the trend is declining across comparable sessions. A one-step reduction (or checking recovery and rest) may restore quality reps.${tail}`, `В большинстве подходов меньше ${lo} повт., и тренд по сопоставимым тренировкам снижается. Снижение на один шаг (или проверка восстановления и отдыха) может вернуть качественные повторения.${tail}`) };
   }
   if (benchPts(last).every((p) => !effortKnown(p))) {
-    return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and aim for +1 rep per set; the load goes up once every set reaches ${hi} reps in two sessions in a row.${tail}` };
+    return { ...base, action: 'hold', weight: w, reason: L(`Keep ${w} kg and aim for +1 rep per set; the load goes up once every set reaches ${hi} reps in two sessions in a row.${tail}`, `Оставьте ${nf(w)} кг и старайтесь добавлять по 1 повторению в подходе; вес повысится, когда каждый подход достигнет ${hi} повт. в двух тренировках подряд.${tail}`) };
   }
-  return { ...base, action: 'hold', weight: w, reason: `Keep ${w} kg and add reps toward ${hi} on every working set (last top set: ${last.topReps ?? '?'} reps${last.topRir != null ? ` @ RIR ${last.topRir}` : ''}).${tail}` };
+  return { ...base, action: 'hold', weight: w, reason: L(`Keep ${w} kg and add reps toward ${hi} on every working set (last top set: ${last.topReps ?? '?'} reps${last.topRir != null ? ` @ RIR ${last.topRir}` : ''}).${tail}`, `Оставьте ${nf(w)} кг и добавляйте повторения до ${hi} в каждом рабочем подходе (лучший подход в прошлый раз: ${last.topReps ?? '?'} повт.${last.topRir != null ? ` при RIR ${last.topRir}` : ''}).${tail}`) };
 }
 
 /** The one recommendation shown per exercise. */
@@ -577,18 +589,18 @@ export interface Advice {
   label: string;
   text: string;
 }
-export const ADVICE_LABEL: Record<AdviceKind, string> = { increase: 'Increase weight', keep: 'Keep weight', reduce: 'Reduce weight', plateau: 'Possible plateau', not_enough_data: 'Not enough data' };
+export const ADVICE_LABEL: Record<AdviceKind, string> = byLang(() => ({ increase: L('Increase weight', 'Повысить вес'), keep: L('Keep weight', 'Оставить вес'), reduce: L('Reduce weight', 'Снизить вес'), plateau: L('Possible plateau', 'Возможное плато'), not_enough_data: L('Not enough data', 'Мало данных') }));
 
 export function adviceFor(p: Pick<ProgressionSeries, 'next' | 'trend' | 'sessions'>): Advice {
   const n = p.next;
   const from = p.sessions.filter((s) => s.representative).slice(-1)[0];
   const fromW = from ? from.sets.filter((x) => x.benchmark && x.weight != null).reduce<number | null>((m, x) => (m == null || (x.weight as number) > m ? (x.weight as number) : m), null) : null;
-  if (n.action === 'increase') return { kind: 'increase', label: ADVICE_LABEL.increase, text: `${fromW != null && n.weight != null ? `${fromW} → ${n.weight} kg. ` : ''}${n.reason}` };
+  if (n.action === 'increase') return { kind: 'increase', label: ADVICE_LABEL.increase, text: L(`${fromW != null && n.weight != null ? `${fromW} → ${n.weight} kg. ` : ''}${n.reason}`, `${fromW != null && n.weight != null ? `${nf(fromW)} → ${nf(n.weight)} кг. ` : ''}${n.reason}`) };
   if (n.action === 'reduce') return { kind: 'reduce', label: ADVICE_LABEL.reduce, text: n.reason };
   if (n.action === 'calibrate' || p.trend.cls === 'insufficient_data') {
-    return { kind: 'not_enough_data', label: ADVICE_LABEL.not_enough_data, text: `${p.trend.sessionsUsed} comparable session(s) so far — more are needed for a reliable trend. Meanwhile: ${n.reason}` };
+    return { kind: 'not_enough_data', label: ADVICE_LABEL.not_enough_data, text: L(`${p.trend.sessionsUsed} comparable session(s) so far — more are needed for a reliable trend. Meanwhile: ${n.reason}`, `Сопоставимых тренировок пока ${p.trend.sessionsUsed} — для надёжного тренда нужно больше. А пока: ${n.reason}`) };
   }
-  if (p.trend.cls === 'plateau') return { kind: 'plateau', label: ADVICE_LABEL.plateau, text: `${p.trend.evidence} For now: ${n.reason}` };
+  if (p.trend.cls === 'plateau') return { kind: 'plateau', label: ADVICE_LABEL.plateau, text: L(`${p.trend.evidence} For now: ${n.reason}`, `${p.trend.evidence} Пока: ${n.reason}`) };
   return { kind: 'keep', label: ADVICE_LABEL.keep, text: n.reason };
 }
 
@@ -660,7 +672,7 @@ export function buildProgression(
       if (!g) {
         const eq = ex.equipmentId ? eqById.get(ex.equipmentId) : undefined;
         const base = baseKey(ex, w, def);
-        const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? 'Bodyweight' : 'Free weights') : 'Unidentified equipment';
+        const scope = eq ? eq.name : base.endsWith('::free') ? (def?.equipmentKind === 'bodyweight' ? L('Bodyweight', 'Свой вес') : L('Free weights', 'Свободные веса')) : L('Unidentified equipment', 'Неопознанное оборудование');
         const parts = variationParts(effectiveVariation(ex, def), def);
         g = { exerciseId: ex.exerciseId, equipmentId: ex.equipmentId, loadMode: ex.sets.find((s) => s.type === 'working')?.loadMode ?? 'total', sessions: [], src: [], scope, variant: parts.length ? parts.map((p) => p.label).join(' · ') : null, locationId: null };
         groups.set(key, g);
@@ -753,32 +765,32 @@ export function warmupFor(
   increment: number,
   priorSameMuscleSets: number,
 ): WarmupPlan {
-  if (!def) return { sets: [], reason: 'Unknown exercise.' };
+  if (!def) return { sets: [], reason: L('Unknown exercise.', 'Неизвестное упражнение.') };
   if (workingWeight == null || workingWeight <= 0) {
-    return { sets: [{ weight: null, reps: 8 }], reason: 'Bodyweight or unknown load: one easy set of ~8 reps to rehearse the movement.' };
+    return { sets: [{ weight: null, reps: 8 }], reason: L('Bodyweight or unknown load: one easy set of ~8 reps to rehearse the movement.', 'Свой вес или вес неизвестен: один лёгкий подход на ~8 повторений, чтобы отработать движение.') };
   }
   const r = (p: number) => Math.max(increment || 1, roundToIncrement(workingWeight * p, increment));
   const heavyPattern = ['squat', 'hinge', 'horizontal_push', 'incline_push', 'vertical_push'].includes(def.pattern);
   if (def.category === 'compound') {
     if (priorSameMuscleSets >= 2) {
-      return { sets: [{ weight: r(0.7), reps: 4 }], reason: `Target muscles already warm from ${priorSameMuscleSets} earlier sets — one feeler set at ~70% to groove this movement.` };
+      return { sets: [{ weight: r(0.7), reps: 4 }], reason: L(`Target muscles already warm from ${priorSameMuscleSets} earlier sets — one feeler set at ~70% to groove this movement.`, `Целевые мышцы уже разогреты (подходов до этого: ${priorSameMuscleSets}) — один пробный подход на ~70%, чтобы настроиться на движение.`) };
     }
     if (heavyPattern && def.equipmentKind !== 'machine' && def.equipmentKind !== 'plate_loaded') {
-      return { sets: [{ weight: r(0.5), reps: 8 }, { weight: r(0.7), reps: 4 }, { weight: r(0.85), reps: 2 }], reason: 'First free-weight compound for these muscles: ramp 50% → 70% → 85% with decreasing reps to prepare without fatigue.' };
+      return { sets: [{ weight: r(0.5), reps: 8 }, { weight: r(0.7), reps: 4 }, { weight: r(0.85), reps: 2 }], reason: L('First free-weight compound for these muscles: ramp 50% → 70% → 85% with decreasing reps to prepare without fatigue.', 'Первое многосуставное упражнение со свободным весом для этих мышц: подводка 50% → 70% → 85% с убывающим числом повторений — подготовиться, не утомляясь.') };
     }
-    return { sets: [{ weight: r(0.5), reps: 8 }, { weight: r(0.75), reps: 3 }], reason: 'Stable machine compound: two ramp-up sets are usually enough.' };
+    return { sets: [{ weight: r(0.5), reps: 8 }, { weight: r(0.75), reps: 3 }], reason: L('Stable machine compound: two ramp-up sets are usually enough.', 'Многосуставное упражнение в тренажёре: двух подводящих подходов обычно достаточно.') };
   }
-  if (priorSameMuscleSets >= 2) return { sets: [], reason: `No warm-up needed — this muscle already did ${priorSameMuscleSets} sets this session.` };
-  return { sets: [{ weight: r(0.6), reps: 8 }], reason: 'Isolation exercise: one moderate set at ~60% to rehearse range of motion.' };
+  if (priorSameMuscleSets >= 2) return { sets: [], reason: L(`No warm-up needed — this muscle already did ${priorSameMuscleSets} sets this session.`, `Разминка не нужна — эта мышца уже выполнила ${priorSameMuscleSets} ${ruPlural(priorSameMuscleSets, 'подход', 'подхода', 'подходов')} за эту тренировку.`) };
+  return { sets: [{ weight: r(0.6), reps: 8 }], reason: L('Isolation exercise: one moderate set at ~60% to rehearse range of motion.', 'Изолирующее упражнение: один умеренный подход на ~60%, чтобы отработать амплитуду.') };
 }
 
 /** One-line summary of the load map, e.g. "Feels right: 25 kg · too easy: 22 kg · too heavy: 30 kg". */
 export function loadMapNote(m: LoadFeel[]): string | null {
-  const by = (v: LoadFeel['verdict']) => m.filter((x) => x.verdict === v).map((x) => `${x.weight} kg`);
+  const by = (v: LoadFeel['verdict']) => m.filter((x) => x.verdict === v).map((x) => L(`${x.weight} kg`, `${nf(x.weight)} кг`));
   const parts = [
-    by('right').length ? `Feels right: ${by('right').join(', ')}` : null,
-    by('too_easy').length ? `too easy: ${by('too_easy').join(', ')}` : null,
-    by('too_heavy').length ? `too heavy: ${by('too_heavy').join(', ')}` : null,
+    by('right').length ? L(`Feels right: ${by('right').join(', ')}`, `В самый раз: ${by('right').join(', ')}`) : null,
+    by('too_easy').length ? L(`too easy: ${by('too_easy').join(', ')}`, `слишком легко: ${by('too_easy').join(', ')}`) : null,
+    by('too_heavy').length ? L(`too heavy: ${by('too_heavy').join(', ')}`, `слишком тяжело: ${by('too_heavy').join(', ')}`) : null,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
@@ -789,16 +801,16 @@ export function adviceLabel(p: ProgressionSeries, kind: AdviceKind): string {
   const w = p.next.weight;
   const cur = p.current?.topWeight ?? null;
   const bw = p.loadMode === 'bodyweight_plus' && (w ?? 0) === 0;
-  const kg = (x: number | null) => (x == null ? '' : bw ? 'BW' : `${n(x)} KG`);
+  const kg = (x: number | null) => (x == null ? '' : bw ? L('BW', 'СВОЙ ВЕС') : L(`${n(x)} KG`, `${nf(x)} КГ`));
   if (p.loadMode === 'assisted') {
     // Assistance: less assistance = harder. Say it in those words, never "increase 20 kg".
-    if (kind === 'increase') return w != null && cur != null && w < cur ? `LESS ASSIST −${n(cur - w)} → ${n(w)} KG` : `ASSIST ${kg(w)}`.trim();
-    if (kind === 'reduce') return `MORE ASSIST → ${kg(w)}`.trim();
-    if (kind === 'keep') return `KEEP ASSIST ${kg(w ?? cur)}`.trim();
+    if (kind === 'increase') return w != null && cur != null && w < cur ? L(`LESS ASSIST −${n(cur - w)} → ${n(w)} KG`, `МЕНЬШЕ ПОМОЩИ −${nf(cur - w)} → ${nf(w)} КГ`) : L(`ASSIST ${kg(w)}`, `ПОМОЩЬ ${kg(w)}`).trim();
+    if (kind === 'reduce') return L(`MORE ASSIST → ${kg(w)}`, `БОЛЬШЕ ПОМОЩИ → ${kg(w)}`).trim();
+    if (kind === 'keep') return L(`KEEP ASSIST ${kg(w ?? cur)}`, `ОСТАВИТЬ ПОМОЩЬ ${kg(w ?? cur)}`).trim();
   }
-  if (kind === 'increase') return w != null && cur != null && w > cur && !bw ? `INCREASE +${n(w - cur)} KG` : `INCREASE ${kg(w)}`.trim();
-  if (kind === 'keep') return `KEEP ${kg(w ?? cur)}`.trim();
-  if (kind === 'reduce') return `REDUCE TO ${kg(w)}`.trim();
-  if (kind === 'plateau') return `PLATEAU — ${p.trend.sessionsUsed} SESSIONS`;
-  return 'MORE DATA NEEDED';
+  if (kind === 'increase') return w != null && cur != null && w > cur && !bw ? L(`INCREASE +${n(w - cur)} KG`, `ПОВЫСИТЬ +${nf(w - cur)} КГ`) : L(`INCREASE ${kg(w)}`, `ПОВЫСИТЬ ${kg(w)}`).trim();
+  if (kind === 'keep') return L(`KEEP ${kg(w ?? cur)}`, `ОСТАВИТЬ ${kg(w ?? cur)}`).trim();
+  if (kind === 'reduce') return L(`REDUCE TO ${kg(w)}`, `СНИЗИТЬ ДО ${kg(w)}`).trim();
+  if (kind === 'plateau') return L(`PLATEAU — ${p.trend.sessionsUsed} SESSIONS`, `ПЛАТО — ${p.trend.sessionsUsed} ТРЕН.`);
+  return L('MORE DATA NEEDED', 'НУЖНО БОЛЬШЕ ДАННЫХ');
 }

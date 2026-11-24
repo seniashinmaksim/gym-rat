@@ -1,4 +1,4 @@
-import type { ChoiceAssessment, ChoiceStatus } from '../../domain/exerciseChoice';
+import { choiceLabelText, type ChoiceAssessment, type ChoiceStatus } from '../../domain/exerciseChoice';
 import type { ExerciseDef } from '../../domain/types';
 import { Badge, Button, cx, Why } from './ui';
 import { L } from '../../i18n';
@@ -13,7 +13,7 @@ const DOT: Record<ChoiceStatus, string> = { good: 'bg-emerald-500', acceptable: 
 
 /** Small status dot for picker rows (with an accessible label). */
 export function ChoiceDot({ a }: { a: Pick<ChoiceAssessment, 'status' | 'label'> }) {
-  return <span role="img" aria-label={a.label} title={a.label} className={cx('inline-block h-2.5 w-2.5 shrink-0 rounded-full', DOT[a.status])} />;
+  return <span role="img" aria-label={choiceLabelText(a.label)} title={choiceLabelText(a.label)} className={cx('inline-block h-2.5 w-2.5 shrink-0 rounded-full', DOT[a.status])} />;
 }
 
 /**
@@ -31,7 +31,7 @@ export function ChoiceCard({ a, name, altName, onContinue, onAlternative }: {
     <div className="rounded-2xl border border-ink-200 bg-white p-3.5 dark:border-ink-700 dark:bg-ink-900" data-testid="choice-card">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="min-w-0 truncate text-sm font-semibold text-ink-900 dark:text-white">{name}</span>
-        <Badge tone={STATUS_TONE[a.status]}>{a.label}</Badge>
+        <Badge tone={STATUS_TONE[a.status]}>{choiceLabelText(a.label)}</Badge>
       </div>
       <ul className="mt-2 space-y-0.5 text-xs tabular-nums text-ink-600 dark:text-ink-300">
         {a.muscles.map((m) => <li key={m.muscle}>{m.text}</li>)}

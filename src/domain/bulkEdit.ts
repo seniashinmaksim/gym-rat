@@ -2,6 +2,7 @@
  * One-time bulk corrections (with an audit entry on every workout they touch — never silent).
  */
 import type { Workout } from './types';
+import { L, num } from '../i18n/core';
 
 /**
  * Give a bench angle to earlier sessions of one exercise (on one equipment entry) that were logged
@@ -26,7 +27,7 @@ export function assignBenchAngle(
       return { ...e, variation: { ...(e.variation ?? {}), benchAngleDeg: angleDeg } };
     });
     if (!n) continue;
-    out.push({ ...w, exercises, audit: [...(w.audit ?? []), { at, note: `Bench angle set to ${angleDeg}° for ${target.exerciseName} (not recorded before) — bulk correction from the Strength page.` }] });
+    out.push({ ...w, exercises, audit: [...(w.audit ?? []), { at, note: L(`Bench angle set to ${angleDeg}° for ${target.exerciseName} (not recorded before) — bulk correction from the Strength page.`, `Угол скамьи ${num(angleDeg)}° задан для упражнения «${target.exerciseName}» (раньше не был записан) — массовое исправление со страницы «Сила».`) }] });
   }
   return out;
 }
