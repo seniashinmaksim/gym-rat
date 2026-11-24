@@ -415,6 +415,8 @@ export interface AddOpts {
   ackKey?: string;
   /** Answered forward warning (Part 8, "Keep today"): not repeated for this exercise today. */
   forwardAck?: string;
+  /** Part 8 #13: what the kept warning was about (learned only from that session's result). */
+  forwardKept?: { affectsExerciseId: string; date: string; muscle: MuscleId };
 }
 
 function newSet(type: SetType, weight: number | null, reps: number | null, loadMode: LoadMode = 'total', planned = false): WorkoutSet {
@@ -1353,7 +1355,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
           <div className="mb-3">
             {!prompt && <p className="mb-1.5 text-sm font-semibold text-ink-900 break-words dark:text-white">{names.ex(card.def)}</p>}
             <ForwardWarning findings={card.fwd} moveDate={card.move?.date ?? null} clean={card.move?.clean ?? false}
-              onMove={() => void moveLater(card)} onKeep={() => onPick(card.def, { forwardAck: card.fwdKey, ...(prompt ? { choice: record(card.a, 'continued'), ackKey: card.a.key } : {}) })} />
+              onMove={() => void moveLater(card)} onKeep={() => onPick(card.def, { forwardAck: card.fwdKey, ...(card.fwd.find((f) => f.check === 'interference') ? { forwardKept: (({ affectsExerciseId, date, muscle }) => ({ affectsExerciseId, date, muscle }))(card.fwd.find((f) => f.check === 'interference')!) } : {}), ...(prompt ? { choice: record(card.a, 'continued'), ackKey: card.a.key } : {}) })} />
           </div>
         )}
         {prompt && <ChoiceCard a={card.a} name={names.ex(card.def)} altName={(id) => names.ex(a.registry.get(id))}

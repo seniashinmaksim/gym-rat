@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate, localNowParts } from '../../domain/dates';
-import { bestMoveDay, forwardChecks } from '../../domain/sequence';
+import { bestMoveDay, forwardChecks, movePartners } from '../../domain/sequence';
 import type { MuscleId } from '../../domain/types';
 import { ForwardWarning } from './ForwardWarning';
 import { generateWorkout, replacementOptions, workoutFromPlan, type GeneratedWorkout, type ItemEdit, type PlanItem } from '../../domain/planner';
@@ -69,12 +69,20 @@ export function NextWorkoutCard() {
   const moveItem = async (it: PlanItem, w: { f: { text: string }[]; move: { date: string } | null }) => {
     if (!w.move) return;
     const before = data.settings.plannedMoves ?? [];
-    const mv = { id: uid(), exerciseId: it.exerciseId, equipmentId: it.equipmentId, ...(it.variation ? { variation: it.variation } : {}), sets: it.setCount, fromDate: a.today, date: w.move.date, reason: w.f.map((x) => x.text).join(' '), createdAt: new Date().toISOString() };
-    await store.saveSettings({ plannedMoves: [...before.filter((x) => x.exerciseId !== it.exerciseId), mv] });
-    setExclude((x) => [...x, it.exerciseId]);
-    undoToast(L(`${names.ex(a.registry.get(it.exerciseId))} moved to ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`, `${names.ex(a.registry.get(it.exerciseId))}: перенесено на ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`), async () => {
+    const date = w.move.date;
+    // Part 8 #10: the exercises usually done with it move too, unless moving them would create a conflict of their own.
+    const partners = movePartners(data, a, it.exerciseId, items.map((x) => x.exerciseId), date).map((id) => items.find((x) => x.exerciseId === id)!).filter(Boolean);
+    const group = [it, ...partners];
+    const reason = w.f.map((x) => x.text).join(' ');
+    const moves = group.map((g) => ({ id: uid(), exerciseId: g.exerciseId, equipmentId: g.equipmentId, ...(g.variation ? { variation: g.variation } : {}), sets: g.setCount, fromDate: a.today, date, reason, createdAt: new Date().toISOString() }));
+    const ids = group.map((g) => g.exerciseId);
+    await store.saveSettings({ plannedMoves: [...before.filter((x) => !ids.includes(x.exerciseId)), ...moves] });
+    setExclude((x) => [...x, ...ids]);
+    const label = group.map((g) => names.ex(a.registry.get(g.exerciseId))).join(' + ');
+    const day = formatDate(date, { weekday: 'short', day: 'numeric' });
+    undoToast(L(`${label} moved to ${day}`, `${label}: перенесено на ${day}`), async () => {
       await store.saveSettings({ plannedMoves: before });
-      setExclude((x) => x.filter((y) => y !== it.exerciseId));
+      setExclude((x) => x.filter((y) => !ids.includes(y)));
     });
   };
   if (activeWorkout(data.workouts)) return null;

@@ -161,6 +161,11 @@ export interface Variation {
 export type VariationField = 'angle' | 'attachment' | 'position' | 'execution' | 'unilateral' | 'legs' | 'depth' | 'barPosition' | 'stance' | 'grip' | 'gripWidth' | 'loading';
 
 export interface WorkoutExercise {
+  /**
+   * Part 8: the owner chose "Keep today" on a forward warning for this exercise: which upcoming exercise it was about
+   * (and on which day). Used only to learn whether that session held up; it never changes any number.
+   */
+  forwardKept?: { affectsExerciseId: string; date: string; muscle: MuscleId };
   id: string;
   order: number;
   exerciseId: string;

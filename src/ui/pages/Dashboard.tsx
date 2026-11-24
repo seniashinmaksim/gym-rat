@@ -18,7 +18,7 @@ import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
 import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
-import { activeMoves } from '../../domain/sequence';
+import { activeMoves, forwardHabit } from '../../domain/sequence';
 import { KG, L, num, ruPlural } from '../../i18n';
 
 /**
@@ -28,6 +28,15 @@ import { KG, L, num, ruPlural } from '../../i18n';
  * Everything else (body map, statistics, last week) is one tap away under "More details".
  * All numbers come from the domain layer (analysis.ts / progression.ts) — nothing is computed here.
  */
+/** Part 8 #13: one quiet line about a conflict kept >= 3 times — what happened to the affected exercise. Not a popup. */
+function HabitLine() {
+  const data = useData();
+  const a = useAnalysis();
+  const h = useMemo(() => forwardHabit(data, a), [data, a]);
+  if (!h) return null;
+  return <p className="px-1 text-xs text-ink-500 break-words dark:text-ink-400" data-testid="habit-line">{h.text}</p>;
+}
+
 /** Part 8: exercises moved to a later day — kept in the plan until done; Cancel only on the owner's tap (with Undo). */
 function MovedCard() {
   const data = useData();
@@ -134,6 +143,7 @@ export function DashboardPage() {
       <NextWorkoutCard />
       <ExtraSessionCard />
       <MovedCard />
+      <HabitLine />
 
       <Card padded={false}>
         <div className="flex items-end justify-between gap-3 border-b border-ink-100 px-4 pb-3 pt-4 dark:border-ink-800 sm:px-5" data-testid="week-head">

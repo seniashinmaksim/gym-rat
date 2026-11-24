@@ -153,7 +153,7 @@ function TrainSession({ initial }: { initial: Workout }) {
     };
     // Today's target (a plan line, never set rows).
     const p = safePrescribe(data, a, { ...base, exercises: [...base.exercises, draft] }, base.exercises.length);
-    return { ...draft, ...(p ? { target: targetFromPrescription(p) } : {}), ...(opts.choice ? { choice: opts.choice } : {}) };
+    return { ...draft, ...(p ? { target: targetFromPrescription(p) } : {}), ...(opts.choice ? { choice: opts.choice } : {}), ...(opts.forwardKept ? { forwardKept: opts.forwardKept } : {}) };
   };
   const addExercise = (def: ExerciseDef, opts: AddOpts = {}) => {
     setPicker(null);

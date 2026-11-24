@@ -367,8 +367,10 @@ Rules specific to these movements:
 - One or two short sentences next to the exercise, [Move to …] / [Keep today]; never blocks. "Keep today" is not asked again that day and never changes the recovery windows (they always follow the sessions actually done).
 - A move (`Settings.plannedMoves`) keeps the exercise with a date: never skipped, never done, never deleted silently; it stays open until performed after the day it was moved from (or the owner cancels it, with Undo), listed on the Week screen. The day = the earliest upcoming usual day where it raises no new conflict, else the best feasible one marked "still overlaps". Scheduling day ≠ execution order: on the new day the planner places it by the normal order rules (after the compounds that use its muscles), first only when its primary muscle is the owner's priority.
 - Frequency, volume, recovery, direct / indirect involvement, interference and order are separate considerations; "frequency hardly matters with equal volume" never makes order and fatigue management unimportant.
-- Not yet built (FIX_PLAN H.3): moving usual pairs together (#10), softening after repeated "Keep today" with no performance drop (#13), the quiet habit line.
-- Tests: `tests/part8-sequence.test.ts`, `tests/part8-ui.test.ts`.
+- **Pairs (H.3 #10):** exercises usually done together (adjacent in ≥ 70 % of the ≥ 3 sessions holding both, AND related: a shared muscle ≥ 0.5 in both, or both mainly arm muscles) move together from the plan card (one Undo); a partner stays when its move would create a conflict of its own.
+- **Learning from "Keep today" (H.3 #13):** the kept warning is recorded on the exercise (`forwardKept`: affected exercise, day, muscle — never used for any number). After ≥ 3 kept conflicts, if the affected exercise held up (index ≥ 97 % of its previous comparable session) in ≥ 2 of the last 3, that interference warning shows as a tip instead of a limit; recovery windows, hours left and every number are unchanged; recovery checks are never softened. One quiet Week-screen line says what happened (held up / lower k of 3), while the latest kept conflict is within 4 weeks.
+- **Usual days** follow the last 4 full weeks (a new routine is picked up within about 3 weeks).
+- Tests: `tests/part8-sequence.test.ts`, `tests/part8-ui.test.ts`, `tests/part8-review.test.ts`, `tests/part8-habits.test.ts`.
 
 ## Developer notes
 

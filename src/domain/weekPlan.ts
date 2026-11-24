@@ -22,8 +22,8 @@ import { baseWindowHours } from './recovery';
 export const USUAL_MIN_WEEKS = 3;
 /** A weekday is usual when trained in at least this share of those weeks. */
 export const USUAL_DAY_SHARE = 0.5;
-/** How many recent complete weeks are looked at. */
-export const USUAL_LOOKBACK_WEEKS = 8;
+/** How many recent complete weeks are looked at (4: a new routine is picked up within about 3 weeks). */
+export const USUAL_LOOKBACK_WEEKS = 4;
 /** An extra session is suggested only when it gains at least this much on one muscle … */
 export const EXTRA_MIN_ONE = 2;
 /** … or at least this much over all muscles together. */

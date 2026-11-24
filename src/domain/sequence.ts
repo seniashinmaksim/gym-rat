@@ -19,7 +19,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays, formatDate } from './dates';
 import { FATIGUE_RANK, fatigueCostOf } from './fatigue';
-import { L, getLang } from '../i18n/core';
+import { L, getLang, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, muscleName } from './muscles';
 import { RECOVERY_TOLERANCE_H, type analyze } from './analysis';
 import { buildRegistry, resolveCoefficients } from './registry';
@@ -188,7 +188,134 @@ export function forwardChecks(input: ForwardInput): ForwardFinding[] {
     added[m] = (input.extraDone?.[m] ?? 0) + input.sets * (co[m] ?? 0);
     load[m] = (done[m] ?? 0) + added[m]!;
   }
-  return checksFrom(input, sessions, input.analysis.today, load, direct, added).map((f) => ({ ...f, text: findingText(input.analysis, f) }));
+  return checksFrom(input, sessions, input.analysis.today, load, direct, added).map((f) => {
+    // H.3 #13: an interference the owner kept >= 3 times while the affected exercise held up becomes a tip, not a limit.
+    // Only the message changes: windows, hours left and every number stay the same.
+    const soft = f.check === 'interference' && f.severity === 'limit' && keptOutcome(input.data, input.analysis, input.exerciseId, f.affectsExerciseId).softened;
+    const g = soft ? { ...f, severity: 'recommendation' as const } : f;
+    return { ...g, text: findingText(input.analysis, g) };
+  });
+}
+
+// ---------------------------------------------------------------- learning from "Keep today" (H.3 #13)
+
+/** A kept conflict counts as "held up" when the affected exercise's index was at least this share of its previous one. */
+export const KEPT_NOT_LOWER = 0.97;
+/** Kept conflicts needed before anything is learned (the last 3 are used; >= 2 held up -> softened). */
+export const KEPT_MIN_OBSERVATIONS = 3;
+
+export interface KeptOutcome { observations: number; notLower: number; lower: number; softened: boolean; lastDate: string | null }
+
+/**
+ * The last 3 times the owner kept exercise X although it was flagged against upcoming exercise P: did P's session (on
+ * that day, or within 2 days after) hold up, i.e. index >= 97 % of its previous comparable session? Like choice_learning.
+ */
+export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: string, affectsId: string): KeptOutcome {
+  const kept = [...data.workouts].sort((a, b) => a.date.localeCompare(b.date))
+    .flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId && e.forwardKept?.affectsExerciseId === affectsId).map((e) => e.forwardKept!));
+  const obs: boolean[] = [];
+  let lastDate: string | null = null;
+  for (const k of kept) {
+    for (const series of analysis.progression.filter((p) => p.exerciseId === affectsId)) {
+      const i = series.sessions.findIndex((x) => x.date >= k.date && diffDays(x.date, k.date) <= 2);
+      if (i < 0) continue;
+      const cur = series.sessions[i];
+      const prev = [...series.sessions.slice(0, i)].reverse().find((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind);
+      if (cur.indexRaw == null || !prev || prev.indexRaw == null) continue;
+      obs.push(cur.indexRaw >= prev.indexRaw * KEPT_NOT_LOWER);
+      lastDate = k.date;
+      break;
+    }
+  }
+  const last = obs.slice(-KEPT_MIN_OBSERVATIONS);
+  const notLower = last.filter(Boolean).length;
+  return { observations: last.length, notLower, lower: last.length - notLower, softened: last.length >= KEPT_MIN_OBSERVATIONS && notLower >= 2, lastDate };
+}
+
+/**
+ * One quiet Week-screen line when a conflict was kept >= 3 times (the latest within 4 weeks): what happened to the
+ * affected exercise. Not a popup; null when there is nothing to say.
+ */
+export function forwardHabit(data: AppData, analysis: Analysis): { text: string; exerciseId: string; affectsExerciseId: string; softened: boolean } | null {
+  const pairs = new Map<string, [string, string]>();
+  for (const w of data.workouts) for (const e of w.exercises) if (e.forwardKept) pairs.set(`${e.exerciseId}|${e.forwardKept.affectsExerciseId}`, [e.exerciseId, e.forwardKept.affectsExerciseId]);
+  let best: { text: string; exerciseId: string; affectsExerciseId: string; softened: boolean; date: string } | null = null;
+  for (const [x, p] of pairs.values()) {
+    const o = keptOutcome(data, analysis, x, p);
+    if (o.observations < KEPT_MIN_OBSERVATIONS || !o.lastDate || diffDays(analysis.today, o.lastDate) > 28) continue;
+    if (best && best.date >= o.lastDate) continue;
+    const X = exName(analysis, x);
+    const P = exName(analysis, p).toLowerCase();
+    const n = o.observations;
+    const times = ruPlural(n, 'раз', 'раза', 'раз');
+    const text = o.softened
+      ? L(`${X} kept before ${P} ${n} times; ${P} held up — fine to keep.`, `${X}: оставлено перед «${P}» ${n} ${times}; результат не снизился — можно оставить.`)
+      : L(`${X} kept before ${P} ${n} times; ${P} was lower ${o.lower} of ${n} times — moving ${X.toLowerCase()} is worth a try.`, `${X}: оставлено перед «${P}» ${n} ${times}; результат был ниже ${o.lower} из ${n} — стоит попробовать перенос.`);
+    best = { text, exerciseId: x, affectsExerciseId: p, softened: o.softened, date: o.lastDate };
+  }
+  return best ? { text: best.text, exerciseId: best.exerciseId, affectsExerciseId: best.affectsExerciseId, softened: best.softened } : null;
+}
+
+// ---------------------------------------------------------------- pairs (H.3 #10)
+
+/** Two exercises are a usual pair when they were adjacent in at least this share of the sessions holding both (>= 3). */
+export const PAIR_ADJACENT_SHARE = 0.7;
+export const PAIR_MIN_SESSIONS = 3;
+
+const ARM = new Set<MuscleId>(['biceps', 'triceps', 'forearms']);
+/**
+ * A training relationship, not mere adjacency: both use a muscle at >= 0.5, or both mainly train arm muscles (curls +
+ * pushdowns supersets). Chest work that happens to precede curls is not a pair. (A practical rule of the app.)
+ */
+function related(analysis: Analysis, a: string, b: string): boolean {
+  const ca = analysis.registry.get(a)?.contributions ?? {};
+  const cb = analysis.registry.get(b)?.contributions ?? {};
+  if ((Object.keys(ca) as MuscleId[]).some((m) => (ca[m] ?? 0) >= 0.5 && (cb[m] ?? 0) >= 0.5)) return true;
+  const primary = (c: Partial<Record<MuscleId, number>>) => (Object.entries(c) as [MuscleId, number][]).sort((x, y) => y[1] - x[1])[0]?.[0];
+  const pa = primary(ca);
+  const pb = primary(cb);
+  return !!pa && !!pb && ARM.has(pa) && ARM.has(pb);
+}
+
+/** Number of forward findings if the exercise were done on `date` (its direct muscles still held from today count as one). */
+function issuesIfDoneOn(input: ForwardInput, sessions: UpcomingSession[], date: string): number {
+  const def = input.analysis.registry.get(input.exerciseId);
+  if (!def) return 1;
+  const co = resolveCoefficients(def, input.variation ?? undefined).contributions;
+  const direct = (Object.entries(co) as [MuscleId, number][]).filter(([, c]) => c >= DIRECT_COEF).map(([m]) => m);
+  const done = doneToday(input);
+  const gap = 24 * diffDays(date, input.analysis.today);
+  const held = direct.some((m) => gap < sessionWindowH((done[m] ?? 0) + (input.extraDone?.[m] ?? 0), MUSCLE_BY_ID[m].size === 'large') - RECOVERY_TOLERANCE_H);
+  const load: Partial<Record<MuscleId, number>> = {};
+  for (const m of direct) load[m] = input.sets * (co[m] ?? 0);
+  return (held ? 1 : 0) + checksFrom(input, sessions.filter((x) => x.date > date), date, load, direct).length;
+}
+
+/**
+ * Exercises of today's plan that usually go with `exerciseId` (adjacent in >= 70 % of the >= 3 sessions holding both) and
+ * can move to `date` with it without a conflict of their own there. A partner whose move would create one stays.
+ */
+export function movePartners(data: AppData, analysis: Analysis, exerciseId: string, todayIds: string[], date: string, sets?: number): string[] {
+  void sets;
+  const sessions = upcomingSessions(data, analysis);
+  const past = data.workouts.filter((w) => w.date < analysis.today);
+  const out: string[] = [];
+  for (const other of todayIds) {
+    if (other === exerciseId) continue;
+    let both = 0;
+    let adjacent = 0;
+    for (const w of past) {
+      const ids = w.exercises.filter((e) => !e.skipped && e.sets.some((x) => !x.planned)).map((e) => e.exerciseId);
+      const a = ids.indexOf(exerciseId);
+      const b = ids.indexOf(other);
+      if (a < 0 || b < 0) continue;
+      both++;
+      if (Math.abs(a - b) === 1) adjacent++;
+    }
+    if (both < PAIR_MIN_SESSIONS || adjacent / both < PAIR_ADJACENT_SHARE || !related(analysis, exerciseId, other)) continue;
+    if (issuesIfDoneOn({ data, analysis, workout: null, exerciseId: other, sets: usualSetCount(data.workouts, other) }, sessions, date) === 0) out.push(other);
+  }
+  return out;
 }
 
 /**
