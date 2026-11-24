@@ -79,13 +79,13 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
     if (o.estRir != null) {
       const capped = chk.capAtProvisional && table > credit;
       reasons.push(L(
-        `By the numbers: about ${o.possibleReps} reps were possible at this load (from the best set of this exercise today), ${set.reps} done → ≈ ${o.estRir} in reserve → credit ${credit}${capped ? ' (no effort answer: not above the provisional credit)' : ''}`,
-        `По цифрам: с этим весом было возможно около ${o.possibleReps} повторений (по лучшему подходу упражнения сегодня), сделано ${set.reps} → ≈ ${o.estRir} в запасе → зачёт ${credit}${capped ? ' (без оценки усилия: не выше предварительного зачёта)' : ''}`,
+        `By the numbers: about ${o.possibleReps} reps were possible at this load (an estimate from the best set of this exercise today, the lower of two standard equations), ${set.reps} done → ≈ ${o.estRir} in reserve → credit ${credit}${capped ? ' (no effort answer: not above the provisional credit)' : ''}`,
+        `По цифрам: с этим весом было возможно около ${o.possibleReps} повторений (оценка по лучшему подходу упражнения сегодня, меньшая из двух стандартных формул), сделано ${set.reps} → ≈ ${o.estRir} в запасе → зачёт ${credit}${capped ? ' (без оценки усилия: не выше предварительного зачёта)' : ''}`,
       ));
     } else {
       reasons.push(L(
-        `By the numbers: reps fell by 2 or more on the next set at the same load → this set was close to the limit → credit ${credit}`,
-        `По цифрам: в следующем подходе с тем же весом повторений стало меньше на 2 и более → этот подход был близок к пределу → зачёт ${credit}`,
+        `By the numbers: reps fell by 2 or more on the next set at the same load after a normal rest → this set was likely close to the limit (a rule of thumb) → credit ${credit}`,
+        `По цифрам: в следующем подходе с тем же весом после обычного отдыха повторений стало меньше на 2 и более → этот подход, вероятно, был близок к пределу (практическое правило) → зачёт ${credit}`,
       ));
     }
     if (chk.disagreement === 'felt_harder') reasons.push(L('You rated it harder than the numbers show — your answer is kept; the credit follows the numbers', 'Вы оценили подход тяжелее, чем показывают цифры — ответ сохранён; зачёт идёт по цифрам'));
@@ -100,11 +100,12 @@ export function assessSet(set: WorkoutSet, m: QualityModel, ctx: SetContext = {}
       `RIR не записан; отмечен мышечный отказ ≈ RIR 0 (по отметке об отказе) → зачёт ${num(credit)} (как при RIR 1–3: отказ не даёт дополнительного зачёта)`,
     ));
   } else if (rir == null && est) {
-    // No RIR logged, but the owner said how it felt: use the CONSERVATIVE end of the estimated
-    // RIR range through the same evidence-based RIR table. Marked as an estimate.
+    // No RIR logged, but the owner said how it felt: the AVERAGE of the evidence-based RIR table over the
+    // estimated range (owner's decision 2026-11-24: EASY 3–4 → (1.0 + 0.6) ÷ 2 = 0.8, so an answer is never
+    // worth less than no answer; "5+" → 5). Marked as an estimate. The tier still follows the range's higher end.
     const r = est[1] ?? est[0];
-    const idx = Math.max(0, Math.min(r, m.rirCredit.length - 1));
-    credit = m.rirCredit[idx];
+    const at = (x: number) => m.rirCredit[Math.max(0, Math.min(x, m.rirCredit.length - 1))];
+    credit = round2((at(est[0]) + at(r)) / 2);
     tier = r <= 1 ? 'high_effort' : r <= 3 ? 'working' : 'low_effort';
     uncertain = true;
     estimated = true;

@@ -217,11 +217,12 @@ describe('final review fixes', () => {
   });
 
   it('#5 left / right: the back-off fatigue allowance counts only sets of the same side', () => {
-    // Left: best 50 × 10 (Epley 66.67); at 25 (50 %): possible = 30 × (66.67 / 25 − 1) = 50; − 20 − 1 (one LEFT set since the best) = 29.
-    const sets = [bare(50, 10, { side: 'left' }), bare(50, 10, { side: 'right' }), bare(25, 20, { side: 'left' }), bare(25, 20, { side: 'right' })];
+    // Left: best 50 × 10; at 25 (50 %): Epley 50, Brzycki 37 − 27 × 0.5 = 23.5 → 23.5 possible (> 20; 10 ≤ 11.75);
+    // − 10 − 1 (one LEFT set since the best) = 12.5. Counting the right side's set too would give 11.5.
+    const sets = [bare(50, 10, { side: 'left' }), bare(50, 10, { side: 'right' }), bare(25, 10, { side: 'left' }), bare(25, 10, { side: 'right' })];
     const o = objectiveForSets(sets);
-    expect(o.get(sets[2].id)).toMatchObject({ kind: 'backoff', estRir: 29 });
-    expect(o.get(sets[3].id)).toMatchObject({ kind: 'backoff', estRir: 29 });
+    expect(o.get(sets[2].id)).toMatchObject({ kind: 'backoff', estRir: 12.5 });
+    expect(o.get(sets[3].id)).toMatchObject({ kind: 'backoff', estRir: 12.5 });
   });
 
   it('#11 a pain flag without an area survives export → import', async () => {
@@ -248,11 +249,14 @@ describe('owner decision 2026-11-24: a back-off set without an answer is judged 
     expect(objectiveForSets(sets).get(sets[1].id)?.kind).toBe('none');
     expect(credit(sets, 1).credit).toBe(0.75);
   });
-  it('100 × 6, then 50 × 20 (50 %, clearly very light) → still judged from the heavy set: 0', () => {
-    // Epley 100 × 6 = 120; possible at 50 = 30 × (120 / 50 − 1) = 42; − 20 − 1 = 21 in reserve → credit 0.
-    const sets = [bare(100, 6), bare(50, 20)];
-    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'backoff', estRir: 21 });
+  it('100 × 6, then 50 × 10 (50 %, clearly very light) → still judged from the heavy set: 0; 50 × 20 → too long to judge', () => {
+    // Part 7: possible = the lower of Epley 30 × (120/50 − 1) = 42 and Brzycki 37 − 31 × 0.5 = 21.5 → 21.5 (> 20).
+    // 50 × 10: 10 ≤ 10.75 → 21.5 − 10 − 1 = 10.5 in reserve → credit 0. 50 × 20: 20 > 10.75 → nothing decided → 0.75.
+    const sets = [bare(100, 6), bare(50, 10)];
+    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'backoff', estRir: 10.5 });
     expect(credit(sets, 1).credit).toBe(0);
+    const far = [bare(100, 6), bare(50, 20)];
+    expect(credit(far, 1).credit).toBe(0.75);
   });
   it('a back-off set at 70 % followed by a clear rep drop still counts as a hard set', () => {
     const sets = [bare(100, 6), bare(70, 12), bare(70, 9)];

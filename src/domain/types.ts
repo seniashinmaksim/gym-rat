@@ -519,6 +519,10 @@ export interface QualityModel {
 }
 
 export interface Settings {
+  /** Formula revision the stored settings were migrated to (7 = Part 7, 2026-11-24). */
+  formulaRevision?: number;
+  /** Week start (YYYY-MM-DD) for which the owner dismissed the extra-session suggestion ("not this week"). */
+  extraSessionDismissedWeek?: string | null;
   id: 'settings';
   timezone: string;
   weekStartsOn: number; // 0 = Sunday, 1 = Monday ...

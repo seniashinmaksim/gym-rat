@@ -175,7 +175,8 @@ export function WorkoutCheckPage() {
                   <div className="text-xs tabular-nums text-ink-500">
                     {m.parts.map((p) => `${names.ex(a.registry.get(p.exerciseId), p.exerciseId)} ${num(p.effective)}`).join(' + ')}
                     {m.parts.length > 1 || m.tapered ? ` = ${num(m.sum)}` : ''}
-                    {m.tapered && check.ceiling != null ? L(` → counted ${num(m.counted)}: above ${num(check.ceiling)} effective sets in one workout, further sets count half`, ` → в зачёт ${num(m.counted)}: сверх ${num(check.ceiling)} эффективных подходов за тренировку дальнейшие считаются наполовину`) : ''}
+                    {m.tapered && check.ceiling != null ? L(` → counted ${num(m.counted)}: above ${num(check.ceiling)} effective sets in one workout, further sets count less (your setting)`, ` → в зачёт ${num(m.counted)}: сверх ${num(check.ceiling)} эффективных подходов за тренировку дальнейшие считаются меньше (ваша настройка)`) : ''}
+                    {!m.tapered && check.ceiling != null && m.sum > check.ceiling ? L(` · more than ~${num(check.ceiling)} effective sets in one workout: each extra set likely adds less (a rule of thumb — still counted in full)`, ` · больше ~${num(check.ceiling)} эффективных подходов за тренировку: каждый следующий, вероятно, даёт меньше (практическое правило — засчитывается полностью)`) : ''}
                   </div>
                 </li>
               ))}

@@ -9,6 +9,8 @@ export interface WeekBucket {
   workouts: Workout[];
   volume: VolumeResult;
   complete: boolean;
+  /** The first week of the history, begun mid-week: not a full week for averages, medians or usual days. */
+  partial?: boolean;
 }
 
 /** All weeks from the first workout until the current week (inclusive), oldest first. */
@@ -23,7 +25,8 @@ export function weeklyHistory(data: AppData, registry: Registry, today: string):
   while (r.start <= current.start && guard++ < 1000) {
     const range = r;
     const wk = data.workouts.filter((w) => w.date >= range.start && w.date <= range.end);
-    buckets.push({ range, workouts: wk, volume: computeVolume(wk, registry, data.settings.quality), complete: range.end < today });
+    // The week holding the very first workout is only part of a week unless that workout was on its first day (Part 7 G.1 #11).
+    buckets.push({ range, workouts: wk, volume: computeVolume(wk, registry, data.settings.quality), complete: range.end < today, partial: first > range.start });
     r = weekOf(addDays(range.end, 1), ws);
   }
   return buckets;

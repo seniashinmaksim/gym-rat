@@ -16,9 +16,9 @@ import { NextWorkoutCard } from '../components/NextWorkout';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
-import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, VolumeBar, Why } from '../components/ui';
+import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
-import { KG, L, ruPlural } from '../../i18n';
+import { KG, L, num, ruPlural } from '../../i18n';
 
 /**
  * Main screen — deliberately simple. It answers two questions:
@@ -27,6 +27,36 @@ import { KG, L, ruPlural } from '../../i18n';
  * Everything else (body map, statistics, last week) is one tap away under "More details".
  * All numbers come from the domain layer (analysis.ts / progression.ts) — nothing is computed here.
  */
+/**
+ * Part 7 #14: one optional extra short session when the usual days cannot finish the week. A suggestion with Why,
+ * never a requirement; "Not this week" hides it until next week (with Undo).
+ */
+function ExtraSessionCard() {
+  const a = useAnalysis();
+  const data = useData();
+  const names = useNames();
+  const [why, setWhy] = useState(false);
+  const x = a.extraSession;
+  if (!x) return null;
+  const day = formatDate(x.date, { weekday: 'long' });
+  const list = x.muscles.map((m) => `${names.muscle(m.muscle as MuscleId).toLowerCase()} ${num(m.sets)}`).join(', ');
+  const dismiss = async () => {
+    const before = data.settings.extraSessionDismissedWeek ?? null;
+    await store.saveSettings({ extraSessionDismissedWeek: a.week.start });
+    undoToast(L('Hidden for this week', 'Скрыто до следующей недели'), () => store.saveSettings({ extraSessionDismissedWeek: before }));
+  };
+  return (
+    <Callout tone="info" title={L(`Short session on ${day}?`, `Короткая тренировка: ${day}?`)}>
+      <span data-testid="extra-session">{L(`${list} — otherwise the week ends about ${x.shortWithout} sets short. Optional.`, `${list} — иначе неделя закончится примерно на ${num(x.shortWithout)} подх. меньше. По желанию.`)}</span>
+      <span className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => setWhy(!why)} aria-expanded={why}>{L('Why', 'Почему')}</Button>
+        <Button size="sm" onClick={() => void dismiss()} data-testid="extra-dismiss">{L('Not this week', 'Не на этой неделе')}</Button>
+      </span>
+      {why && <span className="mt-2 block text-sm">{x.why}</span>}
+    </Callout>
+  );
+}
+
 export function DashboardPage() {
   const a = useAnalysis();
   const data = useData();
@@ -74,6 +104,7 @@ export function DashboardPage() {
       )}
 
       <NextWorkoutCard />
+      <ExtraSessionCard />
 
       <Card padded={false}>
         <div className="flex items-end justify-between gap-3 border-b border-ink-100 px-4 pb-3 pt-4 dark:border-ink-800 sm:px-5" data-testid="week-head">

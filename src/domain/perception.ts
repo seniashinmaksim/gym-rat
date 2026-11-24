@@ -34,6 +34,17 @@ export const RAMP_OVERRIDE_GAP = 3;
 export const NEXT_SET_DROP = 2;
 /** A rest shorter than this before the next set explains a rep drop by itself (no evidence about effort). */
 export const SHORT_REST_SEC = 60;
+/**
+ * A rest shorter than this share of the exercise's usual rest in the session (median of its measured rests, ≥ 3 of
+ * them) also explains a rep drop (Part 7 G.1 #5) — the same 70 % as `rest_attribution` (practical heuristic).
+ */
+export const SHORT_REST_RATIO = 0.7;
+/**
+ * Reps-possible estimates longer than this are not used as a number (Part 7 G.1 #2): prediction from repetitions
+ * worsens as reps rise (reynolds2006_rm_prediction). Above it the numbers decide only when the set did at most
+ * half of the possible reps (clearly far from failure, whatever the exact error).
+ */
+export const POSSIBLE_RELIABLE_MAX = 20;
 /** Reps of fatigue allowed per earlier hard set when estimating a back-off set. */
 export const BACKOFF_ALLOWANCE = 1;
 /** Reported reserve at or above this counts as "reported easy". */
@@ -97,6 +108,12 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
     if (!b || e > b.e + 1e-9) bestBySide.set(k, { i, e });
   });
 
+  // The usual rest of this exercise today: median of its measured rests (needs ≥ 3 to say what "usual" is).
+  const rests = sets.map((o) => o.restSecBefore).filter((r): r is number => r != null && r > 0).sort((a, b) => a - b);
+  const usualRest = rests.length >= 3 ? (rests.length % 2 ? rests[rests.length >> 1] : (rests[rests.length / 2 - 1] + rests[rests.length / 2]) / 2) : null;
+  // Unknown rest (older imports) is treated as a normal rest, as before (training mode always records it).
+  const restExplains = (r: number | null | undefined) => r != null && r > 0 && (r < SHORT_REST_SEC || (usualRest != null && r < SHORT_REST_RATIO * usualRest));
+
   sets.forEach((s, i) => {
     const b0 = bestBySide.get(s.side ?? '');
     const best = b0 ? b0.i : -1;
@@ -106,7 +123,7 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
     const j = sets.findIndex((o, k) => k > i && (o.side ?? null) === (s.side ?? null));
     const n = j >= 0 ? sets[j] : null;
     if (n && s.reps != null && n.reps != null && s.type !== 'drop' && n.type !== 'drop' && n.weightKg === s.weightKg && n.loadMode === s.loadMode
-      && !(n.restSecBefore != null && n.restSecBefore > 0 && n.restSecBefore < SHORT_REST_SEC)) {
+      && !restExplains(n.restSecBefore)) {
       // A drop proves the earlier set was near its limit only if the next set was not stopped early on purpose.
       const nextReport = reportedRir(n);
       const nextFree = nextReport != null && nextReport >= NEXT_SET_FREE_RIR;
@@ -117,7 +134,11 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
     if (best >= 0 && i !== best && loadComparable(s)) {
       const w = s.weightKg as number;
       const bw = sets[best].weightKg as number;
-      const possible = 30 * (bestE / w - 1);
+      // Reps possible at this load: the LOWER of Epley and Brzycki (they diverge at high reps; the lower one is
+      // the cautious side — it removes less credit). Brzycki: 37 − (37 − best reps) × load ÷ best load.
+      const br = sets[best].reps as number;
+      const possible = Math.min(30 * (bestE / w - 1), br < 37 ? 37 - (37 - br) * (w / bw) : Infinity);
+      if (possible > POSSIBLE_RELIABLE_MAX && (s.reps as number) > possible / 2) { out.set(s.id, next); return; }
       if (i < best) {
         const est = Math.max(0, r1(possible - (s.reps as number)));
         out.set(s.id, { kind: 'ramp', estRir: est, band: bandOf(est), possibleReps: r1(possible), loadRatio: w / bw });

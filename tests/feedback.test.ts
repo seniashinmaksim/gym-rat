@@ -77,7 +77,7 @@ describe('effect on volume', () => {
   });
   it('too easy without RIR counts as a low-effort set (estimated RIR 5+ through the RIR table)', () => {
     expect(q(fb(set(20, 12, null), 'too_easy'))).toMatchObject({ credit: 0.3, status: 'easy', estimated: true });
-    expect(q(fb(set(20, 12, null), 'bit_easy'))).toMatchObject({ credit: 0.6, status: 'easy' });
+    expect(q(fb(set(20, 12, null), 'bit_easy'))).toMatchObject({ credit: 0.8, status: 'easy' }); // 3–4 → (1.0 + 0.6) ÷ 2 (Part 7)
   });
   it('can be switched off: without the feel estimate, no-RIR sets use the provisional 0.75', () => {
     expect(assessSet(fb(set(20, 12, null), 'too_easy'), { ...DEFAULT_QUALITY, useFeelWhenNoRir: false }).credit).toBe(0.75);

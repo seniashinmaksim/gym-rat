@@ -43,6 +43,8 @@ export function refRirCredit(rir: number): number {
  * one tap: EASY = easy, GOOD = appropriate, HARD = near max, FAILED = near max + muscular failure.
  */
 const REF_EFFORT_RESERVE: Record<string, number> = { very_easy: 5, easy: 4, appropriate: 3, hard: 2, near_max: 1 };
+/** §G (Part 7, owner 2026-11-24): the LOWER end of each answer's range; the credit is the average of the table at both ends. */
+const REF_EFFORT_LOW: Record<string, number> = { very_easy: 5, easy: 3, appropriate: 1, hard: 1, near_max: 0 };
 /** The reserve a set was REPORTED with (RIR, failure = 0, else the effort answer's higher end); null = no report. */
 export function refReported(s: WorkoutSet): number | null {
   if (s.rir != null) return s.rir;
@@ -60,7 +62,8 @@ export function refReported(s: WorkoutSet): number | null {
  * when the reserve is ≥ 5, ≥ 3 reps above the report AND the set's load is ≤ 75 % of the best set's load;
  * without a report the reserve decides, capped at the provisional 0.75. A lighter set AFTER the best set loses
  * one more rep of reserve per set since the best one (only without a report). At the same load, reps falling by
- * ≥ 2 on the next set (rest not under 60 s) mark the set as hard — unless that next set was itself reported with
+ * ≥ 2 on the next set (rest not under 60 s, and not under 70 % of the exercise's usual rest that day — the median of its
+ * measured rests when there are at least 3) mark the set as hard — unless that next set was itself reported with
  * ≥ 3 in reserve: full credit when nothing or "easy" (reported ≥ 4) was reported. Returns the reserve to use for
  * the credit table, or null = no change.
  */
@@ -76,16 +79,20 @@ function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: 
   const report = refReported(s);
   const round1 = (n: number) => Math.round(n * 10) / 10;
   if (b >= 0 && i !== b && loaded(s)) {
-    const possible = 30 * (score(pool[b]) / (s.weightKg as number) - 1);
+    // §L (Part 7): the lower of Epley and Brzycki (37 − (37 − best reps) × load ÷ best load); above 20 possible reps,
+    // only a set that did at most half of them is judged at all.
+    const bestReps = pool[b].reps as number;
+    const possible = Math.min(30 * (score(pool[b]) / (s.weightKg as number) - 1), bestReps < 37 ? 37 - (37 - bestReps) * ((s.weightKg as number) / (pool[b].weightKg as number)) : Infinity);
+    const tooLong = possible > 20 && (s.reps as number) > possible / 2;
     const ratio = (s.weightKg as number) / (pool[b].weightKg as number);
-    if (i < b) {
+    if (i < b && !tooLong) {
       const reserve = Math.max(0, round1(possible - (s.reps as number)));
       if (report == null) return { reserve, cap: true };
       if (reserve >= 5 && reserve - report >= 3 && ratio <= 0.75) return { reserve, cap: false };
       return null;
     }
     // Back-off (owner's decision 2026-11-24): only a clearly very light set — at most 60 % of the best set's load.
-    if ((s.weightKg as number) < (pool[b].weightKg as number) && report == null && ratio <= 0.6) {
+    if (!tooLong && (s.weightKg as number) < (pool[b].weightKg as number) && report == null && ratio <= 0.6) {
       const sinceBest = pool.slice(b + 1, i).filter((x) => side(x) === side(s)).length + 1; // same-side sets only
       const reserve = Math.max(0, round1(possible - (s.reps as number) - sinceBest));
       const nxt = pool.slice(i + 1).find((x) => side(x) === side(s));
@@ -93,10 +100,15 @@ function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: 
       if (reserve >= 5 || !sameLoadNext) return { reserve, cap: true };
     }
   }
+  // Part 7 G.1 #5: the usual rest = median of the measured rests of the exercise's sets (needs 3).
+  const measured = pool.map((x) => x.restSecBefore).filter((r): r is number => r != null && r > 0).sort((a, b) => a - b);
+  const mid = measured.length / 2;
+  const usual = measured.length < 3 ? null : measured.length % 2 ? measured[Math.floor(mid)] : (measured[mid - 1] + measured[mid]) / 2;
+  const shortRest = (r: number | null | undefined) => r != null && r > 0 && (r < 60 || (usual != null && r < 0.7 * usual)); // unknown rest: treated as normal
   const next = pool.slice(i + 1).find((x) => side(x) === side(s));
   const nextReport = next ? refReported(next) : null;
   if (next && s.type !== 'drop' && next.type !== 'drop' && s.reps != null && next.reps != null && next.weightKg === s.weightKg && next.loadMode === s.loadMode
-    && !(next.restSecBefore != null && next.restSecBefore > 0 && next.restSecBefore < 60) && s.reps - next.reps >= 2 && (report == null || report >= 4)
+    && !shortRest(next.restSecBefore) && s.reps - next.reps >= 2 && (report == null || report >= 4)
     && !(nextReport != null && nextReport >= 3)) {
     return { reserve: 1, cap: false };
   }
@@ -112,7 +124,7 @@ export function refSetCredit(s: WorkoutSet, sets: WorkoutSet[] = [s]): number {
   else if (s.rir != null) c = refRirCredit(s.rir);
   else if (s.toFailure) c = 1;
   else if (s.failure === 'muscular' && !s.technicalFailure) c = 1; // §H: ≈ RIR 0, same credit as RIR 1–3
-  else if (s.effort) c = refRirCredit(refReported(s) as number); // §G: the answer's higher end through the table
+  else if (s.effort) c = Math.round(((refRirCredit(REF_EFFORT_LOW[s.effort]) + refRirCredit(refReported(s) as number)) / 2) * 100) / 100; // §G (Part 7): average of the table over the answer's range
   else c = 0.75; // unknown effort (failure 'none' / 'uncertain' without RIR stays unknown)
   if (s.reps != null && s.reps < 5) c *= 0.8;
   if (s.type === 'drop') c *= 0.5;
@@ -134,8 +146,8 @@ function sideWeights(sets: WorkoutSet[]): Map<string, number> {
   return m;
 }
 
-/** Effective sets per muscle for a list of workouts, with the per-session taper (> 11 → ×0.5). */
-export function refEffective(workouts: Workout[], cap = 11, beyond = 0.5): Record<string, number> {
+/** Effective sets per muscle for a list of workouts. §C (Part 7, owner): every set counts (×1 above ~11 in a session); a lower multiplier only when set. */
+export function refEffective(workouts: Workout[], cap = 11, beyond = 1): Record<string, number> {
   const out: Record<string, number> = {};
   for (const w of workouts) {
     const run: Record<string, number> = {};

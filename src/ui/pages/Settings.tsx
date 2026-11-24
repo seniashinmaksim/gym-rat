@@ -319,8 +319,8 @@ function QualityCard() {
         {row(L('Lengthened partials', 'Частичные в растяжении'), 'lengthenedPartialCredit')}
         {row(L('Compromised technique', 'Нарушенная техника'), 'compromisedTechniqueCredit')}
         {row(L('Low-rep credit', 'Зачёт при малых повт.'), 'lowRepCredit', L(`Applies below ${q.lowRepThreshold} reps`, `Если повторений меньше ${q.lowRepThreshold}`))}
-        {row(L('Per-session ceiling', 'Потолок за тренировку'), 'sessionCreditCap', L('Effective sets per muscle in one session before tapering', 'Эффективных подходов на мышцу за тренировку до снижения зачёта'))}
-        {row(L('Credit above ceiling', 'Зачёт выше потолка'), 'beyondSessionCapCredit', L('Multiplier for sets past the ceiling', 'Множитель для подходов сверх потолка'))}
+        {row(L('Per-session ceiling', 'Потолок за тренировку'), 'sessionCreditCap', L('Effective sets per muscle in one session above which a note appears (a rule of thumb)', 'Эффективных подходов на мышцу за тренировку, после которых появляется пометка (практическое правило)'))}
+        {row(L('Credit above ceiling', 'Зачёт выше потолка'), 'beyondSessionCapCredit', L('Multiplier for sets past it — 1 = every set counts (default; no study supports a lower number)', 'Множитель для подходов сверх него — 1 = засчитывается каждый (по умолчанию; меньшее число исследованиями не подтверждено)'))}
       </div>
       <div className="mt-3">
         <Toggle checked={q.useFeelWhenNoRir !== false} onChange={(v) => set({ useFeelWhenNoRir: v })}

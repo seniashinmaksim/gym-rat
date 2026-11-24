@@ -76,6 +76,8 @@ export interface SessionBodyWeight {
 
 /** Older than this, the weigh-in is shown as outdated (still shown, never silently treated as current, never used in the body + belt index). */
 export const BODY_WEIGHT_MAX_AGE_DAYS = 7;
+/** The body + belt strength index still uses a weigh-in up to this old (an estimate after 7 days). */
+export const BODY_WEIGHT_INDEX_MAX_AGE_DAYS = 28;
 
 /**
  * Body weight for a session: the latest weigh-in taken BEFORE the session started. Same-day
@@ -109,7 +111,10 @@ export function bodyWeightForSession(body: BodyMeasurement[], w: Pick<Workout, '
  */
 export function bodyKgForIndex(body: BodyMeasurement[], w: Pick<Workout, 'date' | 'startTime'>): number | null {
   const b = bodyWeightForSession(body, w);
-  return b.status === 'ok' ? b.kg : null;
+  if (b.status === 'ok') return b.kg;
+  // Part 7 G.1 #9: up to 28 days the latest weigh-in still stands in (an estimate — body weight changes slowly);
+  // switching single sessions to a belt-only index broke the trend, and belt-only ranks sets wrongly.
+  return b.status === 'outdated' && b.date != null && diffDays(w.date, b.date) <= BODY_WEIGHT_INDEX_MAX_AGE_DAYS ? b.kg : null;
 }
 
 /** Duplicate tap guard: same weight at the same measured date + time already saved. */

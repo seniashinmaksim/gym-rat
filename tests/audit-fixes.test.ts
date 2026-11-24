@@ -240,8 +240,9 @@ describe('F-4 the second reduce rule is documented', () => {
 
 describe('F-5 regional chest emphasis follows the per-session ceiling', () => {
   it('14 incline dumbbell press sets in one session: chest 12.5 and upper-chest emphasis 12.5 (not 14)', () => {
-    // Ceiling 11: 11 + 3 × 0.5 = 12.5. The emphasis is a share of chest work, so it can never exceed it.
-    const v = computeVolume([workout('2026-11-16', [ex('incline_dumbbell_press', many(14, 25, 10, 1))])], reg, Q);
+    // Ceiling 11 with the taper SET to ×0.5 (Part 7: the default is ×1 — every set counts; the mechanism stays as a setting):
+    // 11 + 3 × 0.5 = 12.5. The emphasis is a share of chest work, so it can never exceed it.
+    const v = computeVolume([workout('2026-11-16', [ex('incline_dumbbell_press', many(14, 25, 10, 1))])], reg, { ...Q, beyondSessionCapCredit: 0.5 });
     expect(v.muscles.chest.effective).toBe(12.5);
     expect(v.regions.upper_chest.effective).toBe(12.5);
     expect(v.regions.upper_chest.sets).toBe(14);

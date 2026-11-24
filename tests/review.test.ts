@@ -97,10 +97,11 @@ describe('recovery calibration', () => {
 });
 
 describe('volume calibration', () => {
-  it('tapers credit beyond ~11 effective sets per muscle in one session (×0.5)', () => {
+  it('tapers credit beyond ~11 effective sets per muscle in one session when the taper is set (×0.5); default ×1 counts all', () => {
     expect(taperBeyondCap(10, 2, 11, 0.5)).toBe(1.5);
     const w = workout('2026-11-16', [ex('pec_deck', Array.from({ length: 15 }, () => set(40, 12, 1)))]);
-    expect(computeVolume([w], reg, DEFAULT_QUALITY).muscles.chest.effective).toBe(13);
+    expect(computeVolume([w], reg, { ...DEFAULT_QUALITY, beyondSessionCapCredit: 0.5 }).muscles.chest.effective).toBe(13); // 11 + 4 × 0.5
+    expect(computeVolume([w], reg, DEFAULT_QUALITY).muscles.chest.effective).toBe(15); // Part 7 (owner): every set counts
   });
   it('applies the exercise-level ROM from the logger setup', () => {
     const w = workout('2026-11-16', [ex('leg_extension', [set(50, 12, 2)], null, { variation: { rom: 'partial' } })]);

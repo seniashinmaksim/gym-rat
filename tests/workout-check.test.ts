@@ -24,8 +24,9 @@ describe('F.9 workout check', () => {
 
   it('per set: what the numbers say and the credit', () => {
     const [a, b, d] = c.exercises[0].sets;
-    // 12.5 × 10 before the best set 22.5 × 12: Epley 22.5 × 1.4 = 31.5; possible at 12.5 = 30 × (31.5 / 12.5 − 1) = 45.6 → 35.6 in reserve → credit 0.
-    expect(a.objective).toMatchObject({ kind: 'ramp', estRir: 35.6 });
+    // 12.5 × 10 before the best set 22.5 × 12: Epley 30 × (31.5 / 12.5 − 1) = 45.6; Brzycki 37 − 25 × 12.5/22.5 = 23.11 → the lower,
+    // 23.11 (> 20, but 10 ≤ half of it) → 13.1 in reserve → credit 0 (Part 7).
+    expect(a.objective).toMatchObject({ kind: 'ramp', estRir: 13.1 });
     expect(a.quality.credit).toBe(0);
     // 22.5 × 12 @ RIR 2 → 1; the next set lost 2 reps, which agrees with "close to the limit".
     expect(b.quality.credit).toBe(1);
@@ -68,12 +69,14 @@ describe('F.9 workout check', () => {
   });
 
   it('the per-session ceiling is shown as a difference between the sum and the counted number', () => {
-    // 14 pec-deck sets at RIR 1: sum 14; above 11 the credit is halved → 11 + 3 × 0.5 = 12.5.
+    // 14 pec-deck sets at RIR 1: sum 14. With the taper set to ×0.5: 11 + 3 × 0.5 = 12.5. Default (Part 7): ×1 → 14, a note only.
     const many = workout('2026-11-24', [ex('pec_deck', Array.from({ length: 14 }, () => set(45, 12, 1)), 'pd_a')]);
-    const chest = workoutCheck(many, reg, m).muscles.find((x) => x.muscle === 'chest')!;
+    const chest = workoutCheck(many, reg, { ...m, beyondSessionCapCredit: 0.5 }).muscles.find((x) => x.muscle === 'chest')!;
     expect(chest.sum).toBe(14);
     expect(chest.counted).toBe(12.5);
     expect(chest.tapered).toBe(true);
+    const plain = workoutCheck(many, reg, m).muscles.find((x) => x.muscle === 'chest')!;
+    expect([plain.counted, plain.tapered]).toEqual([14, false]);
   });
 
   it('left + right count as one set; planned rows and unknown exercises are handled', () => {

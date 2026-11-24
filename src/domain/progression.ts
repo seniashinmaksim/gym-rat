@@ -365,7 +365,12 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
     const cspan = diffDays(clean[clean.length - 1].date, clean[0].date);
     const bestEarlier = Math.max(...cy.slice(0, cy.length - 2));
     const bestLate = Math.max(cy[cy.length - 1], cy[cy.length - 2]);
-    if (cspan >= 21 && bestLate <= bestEarlier) {
+    // A higher working load in the last two sessions is progress (double progression did its job), even when the
+    // index has not caught up yet (Epley rates 52.5 × 10 like 50 × 12). Assistance loads are left out (lower = harder).
+    const loads = clean.map((s) => (s.indexKind === 'load' ? s.topWeight : null));
+    const earlierTop = Math.max(...loads.slice(0, -2).map((x) => x ?? -Infinity));
+    const loadUp = loads.slice(-2).some((x) => x != null && x > earlierTop);
+    if (cspan >= 21 && bestLate <= bestEarlier && !loadUp) {
       return {
         cls: 'plateau',
         evidence: L(`${base} No new best in the last 2 comparable sessions across ≥ 3 weeks${setAside ? ` (${setAside} session(s) with high fatigue or short sleep set aside)` : ''} — a possible plateau, not yet certain. Before adding volume or changing the exercise, check the working weight, rest periods, technique, effort (RIR) and recovery.`, `${base} В 2 последних сопоставимых тренировках за ≥ 3 недели нет нового рекорда${setAside ? ` (тренировки при сильной усталости или коротком сне не учитывались: ${setAside})` : ''} — возможно, плато, но это ещё не точно. Прежде чем добавлять объём или менять упражнение, проверьте рабочий вес, отдых между подходами, технику, усилие (RIR) и восстановление.`),
@@ -686,9 +691,14 @@ export function buildProgression(
   for (const [key, g] of groups) {
     const def = registry.get(g.exerciseId);
     const ov = ovById.get(g.exerciseId);
-    // F.7: one index basis per history. RIR is added only when every scored session has it on its top set.
+    // F.7: one index basis per history. RIR is added only when every scored session the TREND uses (last ≤ 6 within
+    // 56 days, Part 7 G.1 #3) has it on its top set — an old session without RIR no longer switches the whole history.
+    // With an RIR basis, an older session without RIR gets no index (it is on another scale and is never compared).
     const scoredAll = g.sessions.filter((s) => s.index != null);
-    const indexBasis: 'rir' | 'reps' = scoredAll.length > 0 && scoredAll.every((s) => s.topRir != null) ? 'rir' : 'reps';
+    const inWindow = scoredAll.filter((s) => diffDays(today, s.date) <= TREND_WINDOW_DAYS).slice(-6);
+    const basisPool = inWindow.length ? inWindow : scoredAll;
+    const indexBasis: 'rir' | 'reps' = basisPool.length > 0 && basisPool.every((s) => s.topRir != null) ? 'rir' : 'reps';
+    if (indexBasis === 'rir') g.sessions = g.sessions.map((s) => (s.index != null && s.topRir == null ? { ...s, index: null, indexRaw: null, e1rm: null, indexKind: null } : s));
     if (indexBasis === 'reps') {
       g.sessions = g.sessions.map((s, i) => {
         const again = sessionPerf(g.src[i].w, g.src[i].ex, useFeel, g.src[i].body, 'reps');

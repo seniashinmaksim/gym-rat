@@ -36,6 +36,26 @@ const MAX_SETS = { isolation: 4, compound: 5 } as const;
 export const MIN_OPEN = 1.5;
 /** Fewest working sets for a planned exercise (one set alone is rarely worth the setup). */
 export const MIN_ITEM_SETS = 2;
+
+/**
+ * ONE set-allocation routine for the plan and the live re-plan (Part 7 G.1 #10, audit C-4). The target muscle is the
+ * directly trained one (coefficient ≥ 0.75, else ≥ 0.5) with the largest open need ÷ coefficient; sets = need ÷
+ * coefficient (0 when that is under half a set), at most `maxSets`, then fewer while any directly trained muscle (or the
+ * target) would go more than half a set over its open share. The caller subtracts sets × coefficient from `open`.
+ */
+export function allocateSets(contributions: Partial<Record<MuscleId, number>>, open: Partial<Record<MuscleId, number>>, maxSets: number): { sets: number; target: MuscleId | null } {
+  const all = (Object.entries(contributions) as [MuscleId, number][]).filter(([, c]) => (c ?? 0) > 0);
+  const direct = all.filter(([, c]) => c >= 0.75);
+  const pool = direct.length ? direct : all.filter(([, c]) => c >= 0.5);
+  if (!pool.length) return { sets: 0, target: null };
+  let [target, coef] = pool[0];
+  for (const [m, c] of pool) if ((open[m] ?? 0) / c > (open[target] ?? 0) / coef + 1e-9) { target = m; coef = c; }
+  const need = open[target] ?? 0;
+  let n = need / coef < 0.5 ? 0 : Math.max(1, Math.min(maxSets, Math.round(need / coef)));
+  const over = (k: number) => all.some(([m, c]) => (c >= 0.75 || m === target) && k * c > (open[m] ?? 0) + 0.5);
+  while (n > 1 && over(n)) n--;
+  return { sets: n, target };
+}
 const MACHINE_KINDS = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
 
 // ---------------------------------------------------------------- personal library + patterns
@@ -411,7 +431,26 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
   const priority = (it: (typeof items)[number]) => !!it.primary && data.settings.priorities[it.primary] === 'high';
   const posOf = (it: (typeof items)[number]) => library.find((e) => e.key === it.key)?.medianPosition ?? 0.5;
   const sizeRank = (m: MuscleId | null) => (m ? { large: 0, medium: 1, small: 2 }[MUSCLE_BY_ID[m].size] : 3);
-  const ordered = [...items].sort((a, b) => Number(priority(b)) - Number(priority(a)) || FATIGUE_RANK[a.fatigueCost] - FATIGUE_RANK[b.fatigueCost] || posOf(a) - posOf(b) || sizeRank(a.primary) - sizeRank(b.primary));
+  const sortedItems = [...items].sort((a, b) => Number(priority(b)) - Number(priority(a)) || FATIGUE_RANK[a.fatigueCost] - FATIGUE_RANK[b.fatigueCost] || posOf(a) - posOf(b) || sizeRank(a.primary) - sizeRank(b.primary));
+  // Part 7 G.1 #10: the set counts are re-allocated in the FINAL order with the same routine the live re-plan uses,
+  // so a plan started with nothing done keeps its numbers. Never more than chosen above (session size); an item the
+  // earlier ones already covered is dropped.
+  const openFinal: Partial<Record<MuscleId, number>> = { ...budget };
+  const ordered = sortedItems.flatMap((it) => {
+    const def = registry.get(it.exerciseId);
+    if (!def) return [it];
+    const { contributions } = resolveCoefficients(def, it.variation);
+    const maxSets = def.category === 'compound' ? MAX_SETS.compound : MAX_SETS.isolation;
+    const sets = Math.min(it.setCount, allocateSets(contributions, openFinal, maxSets).sets);
+    if (sets <= 0) return [];
+    const contributes: Partial<Record<MuscleId, number>> = {};
+    for (const [m, c] of Object.entries(contributions) as [MuscleId, number][]) {
+      if (c <= 0) continue;
+      contributes[m] = Math.round(sets * c * 100) / 100;
+      openFinal[m] = Math.max(0, (openFinal[m] ?? 0) - sets * c);
+    }
+    return [{ ...it, setCount: sets, contributes }];
+  });
 
   // ---- prescriptions in that order, with session-level set counts; earlier items count as done for warm-ups.
   const draft: Workout = {
@@ -545,14 +584,13 @@ export function replanPending(data: AppData, analysis: Analysis, w: Workout, now
     if (e.skipped || performed(e)) return;
     const def = registry.get(e.exerciseId);
     if (!def) return;
-    const sig = significantMuscles(def, e.variation, 0.5);
-    const primary = sig[0];
-    if (!primary) return;
     const maxSets = def.category === 'compound' ? MAX_SETS.compound : MAX_SETS.isolation;
-    const need = open[primary.muscle] ?? 0;
-    let n = need / primary.coef < 0.5 ? 0 : Math.max(1, Math.min(maxSets, Math.round(need / primary.coef)));
-    while (n > 1 && n * primary.coef > need + 0.5) n--;
     const { contributions } = resolveCoefficients(def, e.variation);
+    // Part 7 G.1 #10: the same routine as the plan.
+    const alloc = allocateSets(contributions, open, maxSets);
+    if (!alloc.target) return;
+    const primary = { muscle: alloc.target };
+    const n = alloc.sets;
     for (const [m, c] of Object.entries(contributions) as [MuscleId, number][]) open[m] = Math.max(0, (open[m] ?? 0) - n * c);
     const doneTxt = Object.entries(doneHere).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => L(`${muscleName(m as MuscleId).toLowerCase()} ${fmt(v as number)}`, `${muscleName(m as MuscleId, 'ru').toLowerCase()} ${num(v as number, 1)}`)).join(', ');
     const reason = n === 0

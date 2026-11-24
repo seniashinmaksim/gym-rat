@@ -81,21 +81,22 @@ describe('F.3 weights: every weight can be entered', () => {
 
 describe('F.4 what the numbers say about each set', () => {
   it('classic ramp 20×10, 40×5, 60×12: both light sets are far from failure', () => {
-    // Best set 60×12 → 60 × (1 + 12/30) = 84. At 20 kg: 30 × (84/20 − 1) = 96 possible → 86 in reserve.
-    // At 40 kg: 30 × (84/40 − 1) = 33 possible → 28 in reserve.
+    // Best set 60×12. Part 7: reps possible = the lower of Epley (60 × 1.4 = 84 → 30 × (84/w − 1)) and Brzycki
+    // (37 − 25 × w/60). At 20 kg: Epley 96, Brzycki 28.67 → 28.67 (> 20, but 10 ≤ half of it) → 18.7 in reserve.
+    // At 40 kg: Epley 33, Brzycki 20.33 → 20.33 (> 20; 5 ≤ 10.2) → 15.3 in reserve.
     const s = [bare(20, 10), bare(40, 5), bare(60, 12)];
     const o = objectiveForSets(s);
-    expect(o.get(s[0].id)).toMatchObject({ kind: 'ramp', estRir: 86, band: 'easy' });
-    expect(o.get(s[1].id)).toMatchObject({ kind: 'ramp', estRir: 28, band: 'easy', possibleReps: 33 });
+    expect(o.get(s[0].id)).toMatchObject({ kind: 'ramp', estRir: 18.7, band: 'easy' });
+    expect(o.get(s[1].id)).toMatchObject({ kind: 'ramp', estRir: 15.3, band: 'easy', possibleReps: 20.3 });
     expect(o.get(s[2].id)).toMatchObject({ kind: 'none' });
-    expect(creditForRir(28, m)).toBe(0);
+    expect(creditForRir(15.3, m)).toBe(0);
   });
-  it('a heavy last ramp set 55×11 before 60×12 is partly a working set', () => {
-    // 30 × (84/55 − 1) = 15.82 possible → 4.8 in reserve → table index 5 → 0.3.
+  it('a heavy last ramp set 55×11 before 60×12 is a working set (Part 7: Brzycki 3.1 in reserve; Epley alone said 4.8)', () => {
+    // Epley 30 × (84/55 − 1) = 15.82; Brzycki 37 − 25 × 55/60 = 14.08 → 14.1 possible → 3.1 in reserve → table index 3 → 1.0.
     const s = [bare(55, 11), bare(60, 12)];
     const o = objectiveForSets(s).get(s[0].id)!;
-    expect(o).toMatchObject({ kind: 'ramp', estRir: 4.8, possibleReps: 15.8 });
-    expect(creditForRir(o.estRir!, m)).toBe(0.3);
+    expect(o).toMatchObject({ kind: 'ramp', estRir: 3.1, possibleReps: 14.1 });
+    expect(creditForRir(o.estRir!, m)).toBe(1);
   });
   it('same load: reps that collapse on the next set mark the earlier set as hard; reps that hold mean reserve', () => {
     const s = [bare(60, 12), bare(60, 10), bare(60, 9)];
@@ -111,9 +112,12 @@ describe('F.4 what the numbers say about each set', () => {
     expect(objectiveForSets(s).get(s[0].id)).toMatchObject({ kind: 'none' });
   });
   it('a clearly lighter set after the best set is a back-off set (less certain: one rep of fatigue per earlier set)', () => {
-    // 60×12 → 84. At 30 kg (50 %): 30 × (84/30 − 1) = 54 possible; 54 − 20 − 1 = 33 in reserve.
-    const s = [bare(60, 12), bare(30, 20)];
-    expect(objectiveForSets(s).get(s[1].id)).toMatchObject({ kind: 'backoff', estRir: 33, band: 'easy' });
+    // 60×12. At 30 kg (50 %): Epley 54, Brzycki 37 − 12.5 = 24.5 → 24.5 possible (> 20). 30 × 10: 10 ≤ 12.25 →
+    // 24.5 − 10 − 1 = 13.5 in reserve. 30 × 20: 20 > 12.25 → too long an extrapolation → nothing decided (Part 7).
+    const s = [bare(60, 12), bare(30, 10)];
+    expect(objectiveForSets(s).get(s[1].id)).toMatchObject({ kind: 'backoff', estRir: 13.5, band: 'easy' });
+    const far = [bare(60, 12), bare(30, 20)];
+    expect(objectiveForSets(far).get(far[1].id)?.kind).toBe('none');
     // At 50 kg (83 % of the best load) no estimate is made from the best set (owner's decision 2026-11-24).
     const h = [bare(60, 12), bare(50, 12)];
     expect(objectiveForSets(h).get(h[1].id)?.kind).toBe('none');
@@ -140,12 +144,12 @@ describe('F.4 / F.7 credit: the numbers and the report together', () => {
   };
   it('ramp without effort answers: 20×10, 40×5 → 0; 55×11 → 0.3; best set stays provisional 0.75', () => {
     expect(credit([bare(20, 10), bare(40, 5), bare(60, 12)])).toEqual([0, 0, 0.75]);
-    expect(credit([bare(55, 11), bare(60, 12)])).toEqual([0.3, 0.75]);
+    expect(credit([bare(55, 11), bare(60, 12)])).toEqual([0.75, 0.75]); // 3.1 in reserve → 1.0, capped at 0.75 without an answer
   });
   it('an estimate without a report never earns more than the provisional credit', () => {
-    // Pyramid 50×12, 55×10, 60×8. Best = 60×8 → 76. 50 kg: 15.6 possible → 3.6 → index 4 → 0.6.
-    // 55 kg: 11.45 possible → 1.5 → index 2 → 1.0, capped at 0.75.
-    expect(credit([bare(50, 12), bare(55, 10), bare(60, 8)])).toEqual([0.6, 0.75, 0.75]);
+    // Pyramid 50×12, 55×10, 60×8. Best = 60×8. 50 kg: Epley 15.6, Brzycki 37 − 29 × 50/60 = 12.83 → 0.8 in reserve → 1.0,
+    // capped at 0.75. 55 kg: Epley 11.45, Brzycki 10.42 → 0.4 → 1.0, capped at 0.75. (Epley alone gave 3.6 → 0.6 for 50 kg.)
+    expect(credit([bare(50, 12), bare(55, 10), bare(60, 8)])).toEqual([0.75, 0.75, 0.75]);
   });
   it('pyramid of hard sets WITH effort answers counts in full', () => {
     const hard = (w: number, r: number) => bare(w, r, { ...effortTapPatch(bare(w, r), 'hard') });
@@ -161,16 +165,16 @@ describe('F.4 / F.7 credit: the numbers and the report together', () => {
     expect(good.effort).toBe('appropriate'); // the answer itself is never rewritten
   });
   it('an effort answer beats a borderline estimate (55×11 rated GOOD before 60×12 → full credit)', () => {
-    const good = bare(55, 11, { ...effortTapPatch(bare(55, 11), 'good') }); // reported ≤ 3, estimate 4.8: gap < 3
+    const good = bare(55, 11, { ...effortTapPatch(bare(55, 11), 'good') }); // reported ≤ 3, estimate 3.1: gap < 3
     expect(credit([good, bare(60, 12)])[0]).toBe(1);
   });
   it('rated EASY but reps collapsed on the next set → credited as a hard set, flagged', () => {
     const easy = bare(60, 12, { ...effortTapPatch(bare(60, 12), 'easy') });
     const sets = [easy, bare(60, 9)];
     const q = assessSet(easy, m, { objective: objectiveForSets(sets).get(easy.id) });
-    expect(q.credit).toBe(1); // alone it would be 0.6
+    expect(q.credit).toBe(1); // alone it would be 0.8 (EASY = average of the table over 3–4, Part 7)
     expect(q.disagreement).toBe('felt_easier');
-    expect(assessSet(easy, m).credit).toBe(0.6);
+    expect(assessSet(easy, m).credit).toBe(0.8);
   });
   it('rated FAILED on set 1 but set 2 matched it → credit unchanged, flagged', () => {
     const failed = bare(60, 10, { ...effortTapPatch(bare(60, 10), 'failed') });
@@ -309,7 +313,7 @@ describe('F.2 log after the set', () => {
     const cleared = { ...good, ...effortTapPatch(good, 'good') };
     expect(cleared.effort).toBeUndefined();
     expect(effortTapOf(cleared)).toBeNull();
-    expect((['easy', 'good', 'hard', 'failed'] as const).map((t) => assessSet({ ...s0, technique: undefined, ...effortTapPatch(s0, t) }, m).credit)).toEqual([0.6, 1, 1, 1]);
+    expect((['easy', 'good', 'hard', 'failed'] as const).map((t) => assessSet({ ...s0, technique: undefined, ...effortTapPatch(s0, t) }, m).credit)).toEqual([0.8, 1, 1, 1]); // EASY 3–4 → (1.0 + 0.6) ÷ 2 (Part 7)
   });
   it('honest comparison with the same set last time', () => {
     let cur = ex('pec_deck', [], 'pd_a');

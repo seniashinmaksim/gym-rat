@@ -146,7 +146,7 @@ export function failureCategory(def: ExerciseDef | undefined, exerciseId: string
 export interface FailureCounts {
   /** Working + drop sets performed (left/right pairs count once). */
   workingSets: number;
-  /** Sets with failure information (failure field, Fail / to_failure, or technical failure). */
+  /** Sets with failure information (failure field, Fail / to_failure, technical failure, or — inferred — RIR ≥ 1 / an EASY, GOOD or HARD answer). */
   recorded: number;
   muscular: number;
   none: number;
@@ -198,11 +198,25 @@ export const FAILURE_MIN_RECORDED = 6;
 
 const emptyCounts = (): FailureCounts => ({ workingSets: 0, recorded: 0, muscular: 0, none: 0, uncertain: 0, technical: 0, shareAtFailure: null });
 
+/**
+ * A set without a failure status that still says it stopped short of failure: a logged RIR ≥ 1, or a one-tap
+ * answer other than MAX (EASY / GOOD / HARD mean 3+, 1–2 and ~1 rep left). Counted as "stopped before failure"
+ * in the failure share (inferred, Part 7 G.1 #12); the set itself is not changed. RIR 0 alone stays unknown.
+ */
+export function stoppedBeforeFailureInferred(s: WorkoutSet): boolean {
+  if (s.failure || s.toFailure || s.technicalFailure) return false;
+  if (s.rir != null) return s.rir >= 1;
+  return s.effort === 'very_easy' || s.effort === 'easy' || s.effort === 'appropriate' || s.effort === 'hard' || s.effort === 'near_max';
+}
+
 function add(c: FailureCounts, s: WorkoutSet, k: number) {
   c.workingSets += k;
   const f = effectiveFailure(s);
   if (f.technical) c.technical += k;
-  if (f.status === 'unknown' && !f.technical) return;
+  if (f.status === 'unknown' && !f.technical) {
+    if (stoppedBeforeFailureInferred(s)) { c.recorded += k; c.none += k; }
+    return;
+  }
   c.recorded += k;
   if (f.status === 'muscular' && !f.technical) c.muscular += k;
   else if (f.status === 'none') c.none += k;

@@ -112,7 +112,7 @@ function referenceFor(m: MuscleId, data: AppData) {
 export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget> {
   const { data, weeks, learning, progression, recovery, registry } = inp;
   const out = {} as Record<MuscleId, MuscleTarget>;
-  const usable = weeks.filter((w) => w.complete && w.workouts.length > 0).slice(-6);
+  const usable = weeks.filter((w) => w.complete && !w.partial && w.workouts.length > 0).slice(-6);
 
   // Data-quality inputs shared across muscles.
   let setsWithRir = 0;

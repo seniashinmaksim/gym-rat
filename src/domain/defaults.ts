@@ -14,10 +14,11 @@ export const DEFAULT_QUALITY: QualityModel = {
   lowRepThreshold: 5,
   lowRepCredit: 0.8,
   minRepsForCredit: 1,
-  // Remmert 2025 (preprint): no detectable extra hypertrophy beyond ~11 fractional sets per muscle
-  // per session. Sets past that still count, at half credit (tapered, not zeroed).
+  // Per-session note (owner's decision 2026-11-24, Part 7 G.1 #1): every set counts (×1). Above ~11 effective sets
+  // per muscle in one session the app shows a note only — no PubMed-indexed study of a per-session ceiling exists
+  // (the earlier ×0.5 rested on an unindexed preprint). Both numbers stay editable in Settings.
   sessionCreditCap: 11,
-  beyondSessionCapCredit: 0.5,
+  beyondSessionCapCredit: 1,
   // Practical assumption (not a study value): when no RIR was logged, the owner's "how did it feel"
   // maps to an estimated RIR range, and its higher-RIR end (5 for "5+") goes through the RIR table above.
   useFeelWhenNoRir: true,
@@ -55,10 +56,14 @@ export function defaultSettings(): Settings {
 export function migrateSettings(s: Partial<Settings> | undefined): Settings {
   const d = defaultSettings();
   if (!s) return d;
+  const quality = { ...d.quality, ...(s.quality ?? {}) };
+  // Part 7 (owner 2026-11-24): the old default taper ×0.5 becomes ×1 once; a value chosen later is kept.
+  if ((s.formulaRevision ?? 0) < 7 && quality.beyondSessionCapCredit === 0.5) quality.beyondSessionCapCredit = 1;
   return {
     ...d,
     ...s,
-    quality: { ...d.quality, ...(s.quality ?? {}) },
+    formulaRevision: 7,
+    quality,
     learning: { ...d.learning, ...(s.learning ?? {}) },
     targetOverrides: s.targetOverrides ?? {},
     priorities: s.priorities ?? {},
