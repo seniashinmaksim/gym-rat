@@ -42,7 +42,7 @@ describe('the map is backed by the code', () => {
     const layers = new Set((Object.values(NODES) as { layer: string }[]).map((n) => n.layer));
     expect([...layers].sort()).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
     for (const id of ['assess', 'volume', 'recovery', 'targets', 'fit', 'prog', 'nextload', 'prescribe', 'planner', 'replan', 'choice', 'forward', 'optimality']) expect(NODES[id], id).toBeDefined();
-    expect(VIEWS.map((v: { id: string }) => v.id)).toEqual(['overview', 'set-level', 'volume-week', 'strength', 'planning', 'recovery-interference', 'optimality']);
+    expect(VIEWS.map((v: { id: string }) => v.id)).toEqual(['overview', 'set-level', 'volume-week', 'strength', 'planning', 'recovery-interference', 'training', 'optimality']);
   });
   it('the doc and the SVGs are up to date (run `node scripts/formula-map.mjs` after a change)', () => {
     const { texts, ...plain } = graph; void texts;

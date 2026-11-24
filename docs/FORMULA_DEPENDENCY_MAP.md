@@ -13,7 +13,7 @@ not from intent. Analysis and visualisation only: no formula, weight, threshold 
 - **Worked examples:** each number is recomputed by a test (synthetic data) — the test is named next to each step.
 
 <!-- map:stats -->
-Code graph: **976 declarations, 3123 value references**; curated map: **77 nodes, 163 edges in 7 views**.
+Code graph: **976 declarations, 3123 value references**; curated map: **85 nodes, 177 edges in 8 views**.
 <!-- /map:stats -->
 
 ## Legend
@@ -491,7 +491,56 @@ flowchart LR
 ![Recovery and next-session interference](diagrams/recovery-interference.svg)
 <!-- /map:recovery-interference -->
 
-## 7. Exercise optimality score (Part 9)
+## 7. Training mode — set by set (restored 2026-11-24)
+
+<!-- map:training -->
+```mermaid
+flowchart LR
+  subgraph A["A · input data"]
+    in_ex["Exercise entry<br/>exercise · machine<br/>configuration · order"]:::input
+    in_set["Logged set<br/>kg · reps · RIR · effort tap<br/>failure · type · side · time"]:::input
+  end
+  subgraph B["B · set level"]
+    logset["logSet()<br/>save · rest · re-tag warm-ups"]:::decision
+    prescrec["What was prescribed<br/>(stored per set)"]:::formula
+    warmups["Automatic warm-ups<br/>(no credit by the numbers)"]:::rule
+  end
+  subgraph E["E · planning & decisions"]
+    prescribe["Prescription<br/>sets · kg · reps · RIR · rest"]:::formula
+    targetp["Exercise target<br/>sets · kg · reps · RIR"]:::formula
+    prefill["Pre-filled weight & reps<br/>(this session · last time · plan)"]:::formula
+    wsource["Weight source<br/>smart · copied"]:::decision
+    adapt["Remaining sets re-check<br/>one step · more / fewer reps"]:::rule
+    offer["Offer after a set<br/>Use / Keep the plan"]:::decision
+  end
+  subgraph F["F · screens"]
+    ui_sets["Training mode<br/>set entry"]:::ui
+    ui_rest["Training mode<br/>rest screen"]:::ui
+  end
+  prescribe -->|sets| targetp
+  targetp -->|weightKg| prefill
+  in_ex -->|target| logset
+  in_set -->|weightKg| prefill
+  prefill --> ui_sets
+  wsource --> ui_sets
+  prescrec --> logset
+  warmups --> logset
+  adapt --> offer
+  offer --> ui_sets
+  offer --> ui_rest
+  logset --> ui_sets
+  classDef input fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
+  classDef formula fill:#ecfeff,stroke:#0891b2,color:#083344
+  classDef rule fill:#fff7ed,stroke:#ea580c,color:#431407
+  classDef aggregation fill:#f0fdf4,stroke:#16a34a,color:#052e16
+  classDef decision fill:#fdf2f8,stroke:#db2777,color:#500724
+  classDef ui fill:#f8fafc,stroke:#64748b,color:#0f172a
+```
+
+![Training mode — set by set (restored 2026-11-24)](diagrams/training.svg)
+<!-- /map:training -->
+
+## 7b. Exercise optimality score (Part 9)
 
 <!-- map:optimality -->
 ```mermaid
@@ -507,6 +556,7 @@ flowchart LR
     optimality["Optimality score 0–100<br/>100 − points · caps<br/>not today · less optimal · suitable"]:::decision
     forward["Forward checks<br/>recovery · interference<br/>≥ 12 h limit · < 4 weeks tips"]:::decision
     choicelearn["Learning from overrides<br/>(≥ 2 of 3 held up)"]:::rule
+    heldup["Held up? (comparable)<br/>reserve · rest · context · 97 %"]:::rule
     kept["Softening from Keep today<br/>(≥ 2 of 3 comparable ≥ 97 %)"]:::rule
     rank["Ranking<br/>(group, score, familiarity, name)"]:::formula
     replace["Replacement options<br/>(same primary, free machine)"]:::decision
@@ -522,6 +572,8 @@ flowchart LR
   analyze -->|usualDays| optimality
   in_workout -->|busyEquipment| optimality
   choicelearn -.->|if| choice
+  heldup --> choicelearn
+  heldup --> kept
   kept -.->|if| forward
   optimality -->|score| rank
   rank --> ui_train
@@ -611,6 +663,14 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **ui_check** History → Check the numbers | F · ui | `ui/pages/WorkoutCheck` · `WorkoutCheckPage` | dates#formatDate, workoutCheck#workoutCheck | — | — | e2e |
 | **ui_strength** Strength screen | F · ui | `ui/pages/Strength` · `StrengthPage` | — | — | — | e2e |
 | **ui_science** Science screen | F · ui | `ui/pages/Science` · `RuleList` | rules#RULES | — | — | e2e |
+| **targetp** Exercise target | E · formula | `domain/planner` · `targetFromPrescription` | prescription#PRESCRIPTION_ENGINE | ui/pages/Train#TrainSession | presc_set_count (heuristic), presc_rir_targets (research_informed_heuristic) | audit-gaps.test.ts |
+| **prefill** Pre-filled weight & reps | E · formula | `domain/liveFlow` · `prefillNext` | — | ui/pages/Train#ExerciseScreens | log_after_set (heuristic) | audit-gaps.test.ts, part6-flow.test.ts, part6-review.test.ts |
+| **wsource** Weight source | E · decision | `domain/liveFlow` · `weightSource` | — | ui/pages/Train#ExerciseScreens | log_after_set (heuristic) | audit-gaps.test.ts |
+| **adapt** Remaining sets re-check | E · rule | `domain/prescription` · `adaptRemaining` | feedback#benchmarkExclusion, feedback#hasPain, feedback#techniqueOf, progression#stepLoad, quality#countedSetCount | domain/liveFlow#nextSetsOffer | presc_set_by_set (heuristic) | prescription.test.ts |
+| **offer** Offer after a set | E · decision | `domain/liveFlow` · `nextSetsOffer` | prescription#adaptRemaining | ui/pages/Train#ExerciseScreens | presc_set_by_set (heuristic) | audit-gaps.test.ts |
+| **prescrec** What was prescribed | B · formula | `domain/liveFlow` · `prescribedFor` | — | — | no rule — app choice | **none — covered only through callers** |
+| **heldup** Held up? (comparable) | E · rule | `domain/outcomes` · `heldUp` | — | domain/exerciseChoice#choiceOutcomes, domain/sequence#keptOutcome | choice_learning (heuristic) | **none — covered only through callers** |
+| **ui_rest** Training mode | F · ui | `ui/pages/Train` · `RestScreen` | liveFlow#REST_STEP_SEC, liveFlow#effortTapOf, liveFlow#mmss, liveFlow#restState, liveFlow#restTargetFor | — | — | e2e |
 | **sessionend** Session end time | C · rule | `domain/dates` · `sessionEndVirtualMs` | — | domain/recovery#estimateRecovery, domain/ruleChecks#ruleChecks | recovery_windows (heuristic) | recovery-time.test.ts |
 | **weighins** Weigh-ins | C · formula | `domain/bodyweight` · `weighIns` | — | — | no rule — app choice | audit-gaps.test.ts |
 | **deload** Deload check | D · decision | `domain/reports` · `assessDeload` | history#mean | ui/pages/Dashboard#DashboardPage, ui/pages/Periodization#PeriodizationPage | no rule — app choice | audit-fixes.test.ts, reports.test.ts |
@@ -626,6 +686,8 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 <!-- map:untested -->
 - `domain/volumeResponse#volumeDecision` (volresp)
 - `domain/targets#computeTargets` (targets)
+- `domain/liveFlow#prescribedFor` (prescrec)
+- `domain/outcomes#heldUp` (heldup)
 <!-- /map:untested -->
 
 ## 9. Worked examples (real values; the test that recomputes each is named)

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 699" width="1280" height="699" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 773" width="1280" height="773" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
 <rect width="100%" height="100%" fill="#ffffff"/>
 <defs><marker id="m-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="m-cond" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker><marker id="m-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0891b2"/></marker><marker id="m-agg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/></marker><marker id="m-ui" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>
 <text x="20" y="24" font-size="16" font-weight="700" fill="#0f172a">Exercise optimality score (Part 9)</text>
@@ -11,7 +11,9 @@
 <path d="M570,99.5 C615,99.5 615,188.5 660,188.5" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>analyze → optimality (data): muscles (week met), usualDays · field usualDays</title></path>
 <path d="M250,99.5 C455,99.5 455,188.5 660,188.5" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_workout → optimality (data): busy machines, the live session · field busyEquipment</title></path>
 <path d="M890,507 C935,507 935,99.5 890,99.5" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#m-cond)" opacity="0.85"><title>choicelearn → choice (cond): a softened primary hold costs 25 instead of NOT TODAY</title></path>
-<path d="M890,581 C935,581 935,425.5 890,425.5" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#m-cond)" opacity="0.85"><title>kept → forward (cond): a softened interference is a tip (−10)</title></path>
+<path d="M890,581 C935,581 935,507 890,507" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>heldup → choicelearn (call)</title></path>
+<path d="M890,581 C935,581 935,655 890,655" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>heldup → kept (call)</title></path>
+<path d="M890,655 C935,655 935,425.5 890,425.5" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#m-cond)" opacity="0.85"><title>kept → forward (cond): a softened interference is a tip (−10)</title></path>
 <path d="M890,188.5 C935,188.5 935,270 890,270" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>optimality → rank (data): group, score, sessions · field score</title></path>
 <path d="M890,270 C935,270 935,92 980,92" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>rank → ui_train (ui)</title></path>
 <path d="M890,270 C935,270 935,166 980,166" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>rank → ui_picker (ui)</title></path>
@@ -53,10 +55,15 @@
 <text x="670" y="501" fill="#431407" font-weight="700">Learning from overrides</text>
 <text x="670" y="516" fill="#431407">(≥ 2 of 3 held up)</text>
 </g>
+<g><title>src/domain/outcomes#heldUp · rules: choice_learning · basis: heuristic</title>
+<rect x="660" y="555" width="230" height="52" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.5"/>
+<text x="670" y="575" fill="#431407" font-weight="700">Held up? (comparable)</text>
+<text x="670" y="590" fill="#431407">reserve · rest · context · 97 %</text>
+</g>
 <g><title>src/domain/sequence#keptOutcome · rules: next_session_interference · basis: research_informed_heuristic</title>
-<rect x="660" y="555" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
-<text x="670" y="575" fill="#431407" font-weight="700">Softening from Keep today</text>
-<text x="670" y="590" fill="#431407">(≥ 2 of 3 comparable ≥ 97 %)</text>
+<rect x="660" y="629" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
+<text x="670" y="649" fill="#431407" font-weight="700">Softening from Keep today</text>
+<text x="670" y="664" fill="#431407">(≥ 2 of 3 comparable ≥ 97 %)</text>
 </g>
 <g><title>src/domain/optimality#rankOptions · rules: exercise_optimality · basis: heuristic</title>
 <rect x="660" y="244" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
@@ -88,14 +95,14 @@
 <text x="670" y="338" fill="#500724" font-weight="700">Replacement options</text>
 <text x="670" y="353" fill="#500724">(same primary, free machine)</text>
 </g>
-<rect x="20" y="651" width="14" height="14" rx="3" fill="#eef2ff" stroke="#6366f1"/><text x="40" y="662" fill="#334155">input</text>
-<rect x="140" y="651" width="14" height="14" rx="3" fill="#ecfeff" stroke="#0891b2"/><text x="160" y="662" fill="#334155">formula</text>
-<rect x="260" y="651" width="14" height="14" rx="3" fill="#fff7ed" stroke="#ea580c"/><text x="280" y="662" fill="#334155">rule / threshold</text>
-<rect x="380" y="651" width="14" height="14" rx="3" fill="#f0fdf4" stroke="#16a34a"/><text x="400" y="662" fill="#334155">aggregation</text>
-<rect x="500" y="651" width="14" height="14" rx="3" fill="#fdf2f8" stroke="#db2777"/><text x="520" y="662" fill="#334155">decision</text>
-<rect x="620" y="651" width="14" height="14" rx="3" fill="#f8fafc" stroke="#64748b"/><text x="640" y="662" fill="#334155">screen</text>
-<rect x="20" y="675" width="14" height="14" rx="3" fill="#fff" stroke="#16a34a" stroke-width="2.5"/><text x="40" y="686" fill="#334155">border: research</text>
-<rect x="210" y="675" width="14" height="14" rx="3" fill="#fff" stroke="#2563eb" stroke-width="2.5"/><text x="230" y="686" fill="#334155">research-informed heuristic</text>
-<rect x="400" y="675" width="14" height="14" rx="3" fill="#fff" stroke="#ea580c" stroke-width="2.5"/><text x="420" y="686" fill="#334155">heuristic</text>
-<rect x="590" y="675" width="14" height="14" rx="3" fill="#fff" stroke="#9333ea" stroke-width="2.5"/><text x="610" y="686" fill="#334155">app choice (no rule)</text>
+<rect x="20" y="725" width="14" height="14" rx="3" fill="#eef2ff" stroke="#6366f1"/><text x="40" y="736" fill="#334155">input</text>
+<rect x="140" y="725" width="14" height="14" rx="3" fill="#ecfeff" stroke="#0891b2"/><text x="160" y="736" fill="#334155">formula</text>
+<rect x="260" y="725" width="14" height="14" rx="3" fill="#fff7ed" stroke="#ea580c"/><text x="280" y="736" fill="#334155">rule / threshold</text>
+<rect x="380" y="725" width="14" height="14" rx="3" fill="#f0fdf4" stroke="#16a34a"/><text x="400" y="736" fill="#334155">aggregation</text>
+<rect x="500" y="725" width="14" height="14" rx="3" fill="#fdf2f8" stroke="#db2777"/><text x="520" y="736" fill="#334155">decision</text>
+<rect x="620" y="725" width="14" height="14" rx="3" fill="#f8fafc" stroke="#64748b"/><text x="640" y="736" fill="#334155">screen</text>
+<rect x="20" y="749" width="14" height="14" rx="3" fill="#fff" stroke="#16a34a" stroke-width="2.5"/><text x="40" y="760" fill="#334155">border: research</text>
+<rect x="210" y="749" width="14" height="14" rx="3" fill="#fff" stroke="#2563eb" stroke-width="2.5"/><text x="230" y="760" fill="#334155">research-informed heuristic</text>
+<rect x="400" y="749" width="14" height="14" rx="3" fill="#fff" stroke="#ea580c" stroke-width="2.5"/><text x="420" y="760" fill="#334155">heuristic</text>
+<rect x="590" y="749" width="14" height="14" rx="3" fill="#fff" stroke="#9333ea" stroke-width="2.5"/><text x="610" y="760" fill="#334155">app choice (no rule)</text>
 </svg>
