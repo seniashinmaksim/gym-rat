@@ -1000,7 +1000,7 @@ finding; the PRINCIPLE comes from research where cited, the NUMBER of points is 
 | Session time unknown near the window's end | the window cannot be placed | −10, confidence low |
 | Primary above its weekly upper bound | diminishing returns of weekly volume (Pelland 2026, Schoenfeld 2017) | −50 |
 | Primary weekly target met | same | −35 (owner 2026-11-24: "less optimal") |
-| Secondary muscles (≥ 0.5) whose week is met — the share of the exercise's work they take | same; work on a met muscle adds fatigue, little growth | −20 × Σ coef(met secondaries) ÷ Σ coef(all ≥ 0.5) |
+| Secondary muscles (≥ 0.5) whose week is met — the share of the exercise's work they take | same; work on a met muscle adds fatigue, little growth | −80 × Σ coef(met secondaries) ÷ Σ coef(all ≥ 0.5) (owner 2026-11-24: −5 was too mild) |
 | Today's share done, week still open | carry over instead of cramming (Part 7) | −20 |
 | Part 8 tip (a softened interference, < 4 weeks of usual days, a near window) | order / prior fatigue lowers later performance (indirect) | −10 |
 | Heavy lower body after ≥ 2 heavy lower lifts / HIGH cost late in a heavy session | fatigue cost (`fatigue_cost`) | −20 / −10 |
@@ -1014,7 +1014,7 @@ Caps (missing data lowers the ceiling, never raises a score): never performed �
 little, Nunes 2021; the order findings already carry it) and priority muscles (they already change the order and fatigue
 findings; no separate points).
 
-**Owner's question (2026-11-24): "if the triceps target is met, should incline press still be shown, but less optimal than the butterfly?"** Yes. Incline press = chest 1 + front delts 0.5 + triceps 0.5: a quarter of its significant work goes to a muscle whose week is met → −20 × 0.5 ÷ 2 = −5 → 95; pec deck (chest 1, front delts 0.25) → 100: both suitable, pec deck first. With the CHEST week met both drop to less optimal (−35). Nothing is hidden (the weekly target is a reference, not a ceiling); the picker's "Best now" only offers exercises whose primary muscle still has an open share today.
+**Owner's question (2026-11-24): "if the triceps target is met, should incline press still be shown, but less optimal than the butterfly?"** Yes. Incline press = chest 1 + front delts 0.5 + triceps 0.5: a quarter of its significant work goes to a muscle whose week is met → −80 × 0.5 ÷ 2 = −20 → 80 ("good fit", owner: 95 was too high); pec deck (chest 1, front delts 0.25) → 100. Front delts AND triceps met → −40 → 60, less optimal. With the CHEST week met both drop to less optimal (−35). Nothing is hidden (the weekly target is a reference, not a ceiling); the picker's "Best now" only offers exercises whose primary muscle still has an open share today.
 
 **No false precision:** bands 85–100 "very good fit now" · 75–80 "good fit" · 50–70 "less optimal" · ≤ 45 "poor fit today";
 the "why" says that 95 vs 90 is no difference in growth — the number ranks options for THIS moment only. Ties: more

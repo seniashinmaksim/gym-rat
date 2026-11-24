@@ -85,6 +85,8 @@ export interface ChoiceAssessment {
   key: string;
   /** A recovery warning softened because ≥ 3 earlier overrides went fine (choice_learning). */
   softened: boolean;
+  /** Every finding with its code (Part 9). */
+  findings: ChoiceFinding[];
 }
 
 export interface AssessInput {
@@ -257,7 +259,11 @@ export function choiceOutcomes(data: AppData, analysis: Analysis): Map<string, C
 const SEVERITY: Record<ChoiceStatus, number> = { good: 0, acceptable: 1, reconsider: 2 };
 const REASON_ORDER: ChoiceReason[] = ['recovery', 'volume', 'fatigue', 'order', 'uncertain', 'decline'];
 
-interface Finding { status: ChoiceStatus; kind: ChoiceReason; text: string }
+/** Stable code of each finding (Part 9: the optimality score reuses these, never a second copy of the logic). */
+export type ChoiceFindingCode = 'primary_softened' | 'primary_held' | 'recovery_uncertain' | 'primary_over' | 'primary_week_met' | 'today_share_done'
+  | 'heavy_lower' | 'late_heavy' | 'order_pending' | 'order_host' | 'decline' | 'synergist_spare' | 'synergist_no_spare';
+export interface ChoiceFinding { code: ChoiceFindingCode; status: ChoiceStatus; kind: ChoiceReason; text: string }
+type Finding = ChoiceFinding;
 
 export function labelOf(status: ChoiceStatus, reason: ChoiceReason | null): ChoiceLabel {
   return status === 'good' ? 'GOOD CHOICE' : status === 'acceptable' ? 'ACCEPTABLE' : reason === 'order' ? 'CONSIDER LATER' : 'CONSIDER ALTERNATIVE';
@@ -278,7 +284,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   if (!def) {
     return {
       exerciseId, equipmentId, status: 'acceptable', reasonKind: 'uncertain', label: 'ACCEPTABLE', muscles: [], fatigueCost: 'moderate', position: 'FIRST HALF',
-      safety: null, alternatives: [], confidence: 'low', why: [L('Unknown exercise — no muscle data to assess.', 'Неизвестное упражнение — нет данных о мышцах для оценки.')], key: `${exerciseId}|unknown`, softened: false,
+      safety: null, alternatives: [], confidence: 'low', why: [L('Unknown exercise — no muscle data to assess.', 'Неизвестное упражнение — нет данных о мышцах для оценки.')], key: `${exerciseId}|unknown`, softened: false, findings: [],
     };
   }
 
@@ -338,23 +344,23 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   if (pLine?.state === 'RECENTLY_LOADED' && pLine.source === 'earlier_session') {
     if (outcomes.get(exerciseId)?.softened) {
       softened = true;
-      findings.push({ status: 'acceptable', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} trained recently (~${pLine.hoursLeft} h left by the heuristic), but your last overrides here performed as usual.`, `${mRu(pLine.muscle)}: недавняя нагрузка (по эвристике ещё ~${pLine.hoursLeft} ч), но в прошлые разы, когда вы всё равно делали это упражнение, результат был обычным.`) });
-    } else findings.push({ status: 'reconsider', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} was trained recently — ~${pLine.hoursLeft} h left by the recovery heuristic.`, `${mRu(pLine.muscle)}: недавняя нагрузка — по эвристике восстановления ещё ~${pLine.hoursLeft} ч.`) });
+      findings.push({ code: 'primary_softened', status: 'acceptable', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} trained recently (~${pLine.hoursLeft} h left by the heuristic), but your last overrides here performed as usual.`, `${mRu(pLine.muscle)}: недавняя нагрузка (по эвристике ещё ~${pLine.hoursLeft} ч), но в прошлые разы, когда вы всё равно делали это упражнение, результат был обычным.`) });
+    } else findings.push({ code: 'primary_held', status: 'reconsider', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} was trained recently — ~${pLine.hoursLeft} h left by the recovery heuristic.`, `${mRu(pLine.muscle)}: недавняя нагрузка — по эвристике восстановления ещё ~${pLine.hoursLeft} ч.`) });
   } else if (pLine?.state === 'RECOVERY_UNCERTAIN') {
-    findings.push({ status: 'acceptable', kind: 'uncertain', text: L(`${muscleName(pLine.muscle)}: last session time unknown, so recovery is uncertain (assumed 18:00 or start time).`, `${mRu(pLine.muscle)}: время прошлой тренировки неизвестно, поэтому восстановление оценить трудно (принято 18:00 или время начала).`) });
+    findings.push({ code: 'recovery_uncertain', status: 'acceptable', kind: 'uncertain', text: L(`${muscleName(pLine.muscle)}: last session time unknown, so recovery is uncertain (assumed 18:00 or start time).`, `${mRu(pLine.muscle)}: время прошлой тренировки неизвестно, поэтому восстановление оценить трудно (принято 18:00 или время начала).`) });
   }
   const loadedSyn = lines.slice(1).filter((l) => l.state === 'RECENTLY_LOADED');
 
   // 2) Weekly volume.
-  if (pmw && pmw.status === 'over') findings.push({ status: 'reconsider', kind: 'volume', text: L(`${muscleName(pmw.muscle)} is above its weekly upper bound (${round1(pmw.completed)} / ${pmw.target.max}) — more sets add fatigue, little growth.`, `${mRu(pmw.muscle)}: недельный объём выше верхней границы (${num(round1(pmw.completed))} / ${num(pmw.target.max)}) — новые подходы добавят утомление и мало что дадут для роста.`) });
-  else if (pmw && pmw.status === 'done') findings.push({ status: 'acceptable', kind: 'volume', text: L(`${muscleName(pmw.muscle)} weekly target already met (${round1(pmw.completed)} / ${pmw.target.preferred}).`, `${mRu(pmw.muscle)}: недельная цель уже выполнена (${num(round1(pmw.completed))} / ${num(pmw.target.preferred)}).`) });
-  else if (pLine && pmw && pmw.todayShare > 0 && pLine.todayLeft <= 0 && pLine.state === 'LIKELY_READY') findings.push({ status: 'acceptable', kind: 'volume', text: L(`Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.`, `${mRu(pmw.muscle)}: доля на сегодня уже выполнена — дальше по желанию.`) });
+  if (pmw && pmw.status === 'over') findings.push({ code: 'primary_over', status: 'reconsider', kind: 'volume', text: L(`${muscleName(pmw.muscle)} is above its weekly upper bound (${round1(pmw.completed)} / ${pmw.target.max}) — more sets add fatigue, little growth.`, `${mRu(pmw.muscle)}: недельный объём выше верхней границы (${num(round1(pmw.completed))} / ${num(pmw.target.max)}) — новые подходы добавят утомление и мало что дадут для роста.`) });
+  else if (pmw && pmw.status === 'done') findings.push({ code: 'primary_week_met', status: 'acceptable', kind: 'volume', text: L(`${muscleName(pmw.muscle)} weekly target already met (${round1(pmw.completed)} / ${pmw.target.preferred}).`, `${mRu(pmw.muscle)}: недельная цель уже выполнена (${num(round1(pmw.completed))} / ${num(pmw.target.preferred)}).`) });
+  else if (pLine && pmw && pmw.todayShare > 0 && pLine.todayLeft <= 0 && pLine.state === 'LIKELY_READY') findings.push({ code: 'today_share_done', status: 'acceptable', kind: 'volume', text: L(`Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.`, `${mRu(pmw.muscle)}: доля на сегодня уже выполнена — дальше по желанию.`) });
 
   // 3) Fatigue cost vs what this session already did.
   if (load && cost === 'high' && isHeavyLower(def, variation) && load.heavyLowerDone.length >= 2 && !isPriority(primary)) {
-    findings.push({ status: 'reconsider', kind: 'fatigue', text: L(`Lower body already heavily loaded this session (${load.heavyLowerDone.map((id) => registry.get(id)?.name.en ?? id).join(' + ')}) — another HIGH-cost lift adds a lot of fatigue for little extra.`, `Низ тела в этой тренировке уже сильно нагружен (${load.heavyLowerDone.map((id) => ruName(registry.get(id), id)).join(' + ')}) — ещё одно упражнение с ВЫСОКИМ утомлением добавит много усталости и мало пользы.`) });
+    findings.push({ code: 'heavy_lower', status: 'reconsider', kind: 'fatigue', text: L(`Lower body already heavily loaded this session (${load.heavyLowerDone.map((id) => registry.get(id)?.name.en ?? id).join(' + ')}) — another HIGH-cost lift adds a lot of fatigue for little extra.`, `Низ тела в этой тренировке уже сильно нагружен (${load.heavyLowerDone.map((id) => ruName(registry.get(id), id)).join(' + ')}) — ещё одно упражнение с ВЫСОКИМ утомлением добавит много усталости и мало пользы.`) });
   } else if (load && cost === 'high' && load.level === 'heavy') {
-    findings.push({ status: 'acceptable', kind: 'fatigue', text: L('Demanding lift late in a heavy session — expect fewer reps than usual; earlier next time keeps it stronger.', 'Тяжёлое упражнение в конце тяжёлой тренировки — повторений, вероятно, будет меньше обычного; в следующий раз лучше поставить его раньше.') });
+    findings.push({ code: 'late_heavy', status: 'acceptable', kind: 'fatigue', text: L('Demanding lift late in a heavy session — expect fewer reps than usual; earlier next time keeps it stronger.', 'Тяжёлое упражнение в конце тяжёлой тренировки — повторений, вероятно, будет меньше обычного; в следующий раз лучше поставить его раньше.') });
   }
 
   // 4) Order: cheap isolation of a synergist before a demanding compound still planned in this session.
@@ -367,22 +373,22 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
       return sm[0]?.muscle !== primary && sm.some((x) => x.muscle === primary);
     });
     if (blocked) {
-      findings.push({ status: 'reconsider', kind: 'order', text: L(`${muscleName(primary)} also works hard in ${registry.get(blocked.exerciseId)?.name.en ?? 'a planned press/pull'} (still to do) — do that first to keep its reps; isolation after it.`, `${mRu(primary)}: большая нагрузка будет и в ${registry.get(blocked.exerciseId) ? `упражнении «${ruName(registry.get(blocked.exerciseId), '')}»` : 'запланированном жиме или тяге'} (ещё впереди) — сначала сделайте его, чтобы сохранить в нём повторения, а изолирующее упражнение — после.`) });
+      findings.push({ code: 'order_pending', status: 'reconsider', kind: 'order', text: L(`${muscleName(primary)} also works hard in ${registry.get(blocked.exerciseId)?.name.en ?? 'a planned press/pull'} (still to do) — do that first to keep its reps; isolation after it.`, `${mRu(primary)}: большая нагрузка будет и в ${registry.get(blocked.exerciseId) ? `упражнении «${ruName(registry.get(blocked.exerciseId), '')}»` : 'запланированном жиме или тяге'} (ещё впереди) — сначала сделайте его, чтобы сохранить в нём повторения, а изолирующее упражнение — после.`) });
     } else if (!pending.length) {
       const host: Partial<Record<MuscleId, MuscleId[]>> = { triceps: ['chest'], front_delts: ['chest'], biceps: ['lats', 'upper_back'], rear_delts: ['upper_back'] };
       const h = (host[primary] ?? []).find((m) => {
         const mw = analysis.muscles.find((x) => x.muscle === m);
         return !!mw && !mw.todayBlocked && mw.todayLeft >= 2 && (load.muscles[m] ?? 0) < 1;
       });
-      if (h) findings.push({ status: 'acceptable', kind: 'order', text: L(`If you still plan ${muscleName(h).toLowerCase()} compounds today, doing them before ${muscleName(primary).toLowerCase()} isolation keeps their reps up.`, `Если сегодня ещё будут базовые упражнения (${mRuLow(h)}), лучше сделать их до изолирующего (${mRuLow(primary)}) — так в них сохранятся повторения.`) });
+      if (h) findings.push({ code: 'order_host', status: 'acceptable', kind: 'order', text: L(`If you still plan ${muscleName(h).toLowerCase()} compounds today, doing them before ${muscleName(primary).toLowerCase()} isolation keeps their reps up.`, `Если сегодня ещё будут базовые упражнения (${mRuLow(h)}), лучше сделать их до изолирующего (${mRuLow(primary)}) — так в них сохранятся повторения.`) });
     }
   }
 
   // 5) Declining performance (this exact history, or the primary's main lifts).
   const key = progressionKey({ id: 'x', order: 0, exerciseId, exerciseConfidence: 'confirmed', equipmentId, equipmentConfidence: 'confirmed', variation, sets: [] } as WorkoutExercise, workout ?? ({ locationId: null } as Workout), def);
   const own = analysis.progression.find((p) => p.key === key);
-  if (own?.trend.cls === 'declining') findings.push({ status: 'acceptable', kind: 'decline', text: L('Performance on this exercise is declining — check load, rest and recovery; keep sets high-quality.', 'Результаты в этом упражнении снижаются — проверьте вес, отдых и восстановление; следите за качеством подходов.') });
-  else if (pLine?.state === 'PERFORMANCE_DECLINING') findings.push({ status: 'acceptable', kind: 'decline', text: L(`${muscleName(pLine.muscle)} main lifts are declining — quality over extra sets.`, `${mRu(pLine.muscle)}: результаты в основных упражнениях снижаются — качество важнее лишних подходов.`) });
+  if (own?.trend.cls === 'declining') findings.push({ code: 'decline', status: 'acceptable', kind: 'decline', text: L('Performance on this exercise is declining — check load, rest and recovery; keep sets high-quality.', 'Результаты в этом упражнении снижаются — проверьте вес, отдых и восстановление; следите за качеством подходов.') });
+  else if (pLine?.state === 'PERFORMANCE_DECLINING') findings.push({ code: 'decline', status: 'acceptable', kind: 'decline', text: L(`${muscleName(pLine.muscle)} main lifts are declining — quality over extra sets.`, `${mRu(pLine.muscle)}: результаты в основных упражнениях снижаются — качество важнее лишних подходов.`) });
 
   // Synergist recovery: depends on whether an alternative spares it.
   let alternatives: ChoiceAlternative[] = [];
@@ -393,9 +399,9 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     const names = loadedSyn.map((l) => `${muscleName(l.muscle).toLowerCase()}${l.source === 'this_session' ? ' (today)' : ''}`).join(', ');
     const namesRu = loadedSyn.map((l) => `${mRuLow(l.muscle)}${l.source === 'this_session' ? ' (сегодня)' : ''}`).join(', ');
     if (spare.length) {
-      findings.push({ status: 'reconsider', kind: 'recovery', text: L(`${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.`, `${mRu(primary)}: готово, но есть недавняя нагрузка: ${namesRu} — вариант без неё тренирует целевую мышцу не хуже.`) });
+      findings.push({ code: 'synergist_spare', status: 'reconsider', kind: 'recovery', text: L(`${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.`, `${mRu(primary)}: готово, но есть недавняя нагрузка: ${namesRu} — вариант без неё тренирует целевую мышцу не хуже.`) });
       if (wantAlt) alternatives = spare;
-    } else findings.push({ status: 'acceptable', kind: 'recovery', text: L(`${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.`, `${mRu(primary)}: готово; недавняя нагрузка: ${namesRu}, и знакомого варианта без неё здесь нет.`) });
+    } else findings.push({ code: 'synergist_no_spare', status: 'acceptable', kind: 'recovery', text: L(`${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.`, `${mRu(primary)}: готово; недавняя нагрузка: ${namesRu}, и знакомого варианта без неё здесь нет.`) });
   }
 
   // Final status: worst finding; reason by fixed priority.
@@ -427,7 +433,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     exerciseId, equipmentId, status, reasonKind, label: labelOf(status, reasonKind), muscles: lines, fatigueCost: cost, position, safety,
     alternatives: alternatives.slice(0, 2), confidence, why,
     key: `${exerciseId}|${equipmentId ?? ''}|${status}|${reasonKind ?? ''}|${lines.map((l) => `${l.muscle}:${l.state}`).join(',')}|${safety ? 'pain' : ''}`,
-    softened,
+    softened, findings: [...findings],
   };
 }
 
