@@ -17,6 +17,8 @@ import {
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
+import { optimality, rankOptions, type Optimality } from '../../domain/optimality';
+import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { progressionKey } from '../../domain/progression';
 import { loadUnitLabel } from '../../domain/registry';
 import { minutesBetween, summarizeSession, type SessionSummary } from '../../domain/sessionSummary';
@@ -27,6 +29,7 @@ import { KG, L, NP, num } from '../../i18n';
 import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { EquipmentPicker } from '../components/EquipmentPicker';
+import { ScoredRow } from '../components/Optimality';
 import { IconCheck, IconChevron, IconMore, IconPlus } from '../components/icons';
 import { Button, confirmAction, cx, Empty, Input, Modal, Page, toast, undoToast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
@@ -371,6 +374,14 @@ function TrainSession({ initial }: { initial: Workout }) {
   };
   const [chooser, setChooser] = useState<string | null>(null);
   const openList = w.exercises.filter((e) => e.id !== chooser && !e.skipped && !e.doneAt && !exerciseProgress(e).reached);
+  // Part 9: each remaining exercise with its fit score for THIS moment, sorted high → low; "not today" listed apart.
+  const ranked = useMemo(() => {
+    if (chooser == null) return [];
+    const outcomes = choiceOutcomes(data, a);
+    return rankOptions(openList.map((e) => ({
+      ...optimality({ data, analysis: a, workout: w, exerciseId: e.exerciseId, equipmentId: e.equipmentId, variation: e.variation ?? null, outcomes, ...(e.target ? { sets: Math.max(1, e.target.sets - exerciseProgress(e).done) } : {}) }), ex: e,
+    })), (id) => names.ex(a.registry.get(id)));
+  }, [chooser, w, data, a, names]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const accent = data.settings.trainAccent ?? 'ember';
   const active = w.exercises.filter((e) => !e.skipped);
@@ -394,12 +405,17 @@ function TrainSession({ initial }: { initial: Workout }) {
       {summary && <SummaryModal s={summary} onDone={() => nav('/')} onBack={preFinish ? backToWorkout : undefined} />}
       <Modal open={chooser != null && !picker} onClose={() => setChooser(null)} title={L('Next exercise', 'Следующее упражнение')}>
         <div className="space-y-2" data-testid="next-chooser">
-          {openList.map((e, i) => (
-            <button key={e.id} type="button" onClick={() => { setChooser(null); open(e.id); }} data-testid="next-choice"
-              className={cx('flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border px-3 py-2 text-left', i === 0 ? 'border-accent-500 bg-accent-500/10' : 'border-ink-200 dark:border-ink-700')}>
-              <span className="break-words text-sm font-semibold text-ink-900 dark:text-white">{exName(e)}</span>
-              <span className="text-xs text-ink-500">{[targetLine(e), i === 0 ? L('suggested', 'предлагается') : ''].filter(Boolean).join(' · ')}</span>
-            </button>
+          {ranked.map((o: Optimality & { ex: WorkoutExercise }, i) => (
+            <div key={o.ex.id}>
+              {o.group === 'not_today' && (i === 0 || ranked[i - 1].group !== 'not_today') && <p className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Not recommended today', 'Сегодня не рекомендуется')}</p>}
+              <ScoredRow o={o}>
+                <button type="button" onClick={() => { setChooser(null); open(o.ex.id); }} data-testid="next-choice"
+                  className={cx('flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border px-3 py-2 text-left', i === 0 && o.group === 'suitable' ? 'border-accent-500 bg-accent-500/10' : 'border-ink-200 dark:border-ink-700')}>
+                  <span className="break-words text-sm font-semibold text-ink-900 dark:text-white">{exName(o.ex)}</span>
+                  <span className="break-words text-xs text-ink-500">{[targetLine(o.ex), i === 0 && o.group === 'suitable' ? L('best fit now', 'лучше всего сейчас') : ''].filter(Boolean).join(' · ')}</span>
+                </button>
+              </ScoredRow>
+            </div>
           ))}
           {!openList.length && <p className="text-sm text-ink-500">{L('Everything planned is done. Add another exercise, or finish the workout in the overview.', 'Всё запланированное сделано. Добавьте ещё упражнение или завершите тренировку в обзоре.')}</p>}
           <Button size="lg" variant={openList.length ? 'secondary' : 'primary'} className="w-full" onClick={() => { setChooser(null); setPicker('add'); }} data-testid="next-add"><IconPlus size={18} />{L('Add exercise', 'Добавить упражнение')}</Button>
@@ -932,7 +948,11 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
   const m = menu ? w.exercises.find((e) => e.id === menu) ?? null : null;
   const mi = m ? w.exercises.findIndex((e) => e.id === m.id) : -1;
   const rf = replaceFor ? w.exercises.find((e) => e.id === replaceFor) ?? null : null;
-  const options = useMemo(() => (rf ? replacementOptions(data, a, w, rf.exerciseId) : []), [rf, data, a, w]);
+  const options = useMemo(() => {
+    if (!rf) return [];
+    const outcomes = choiceOutcomes(data, a);
+    return rankOptions(replacementOptions(data, a, w, rf.exerciseId).map((o) => ({ ...optimality({ data, analysis: a, workout: w, exerciseId: o.exerciseId, equipmentId: o.equipmentId, variation: o.variation ?? null, outcomes }), opt: o })), (id) => names.ex(a.registry.get(id)));
+  }, [rf, data, a, w, names]);
   const total = w.exercises.reduce((n, e) => n + done(e).filter((s) => s.type !== 'warmup').length, 0);
   const act = (fn: () => void) => () => { setMenu(null); fn(); };
   // The one primary action here: go on with the current exercise, else the first open one.
@@ -1016,11 +1036,13 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
             {REASONS.map(([r, label]) => <Toggle key={r} on={reason === r} onClick={() => setReason(reason === r ? null : r)}>{label()}</Toggle>)}
           </div>
           {options.length === 0 && <p className="text-sm text-ink-500">{L('No familiar alternative is available here — add any exercise with “Add exercise”.', 'Знакомой замены здесь нет — добавьте любое упражнение через «Добавить упражнение».')}</p>}
-          {rf && options.map((o) => (
-            <button key={o.exerciseId} type="button" onClick={() => { const id = rf.id; setReplaceFor(null); onReplace(id, o, reason); }} className="flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
-              <span className="text-sm font-semibold text-ink-900 dark:text-white">{names.ex(a.registry.get(o.exerciseId))}{o.equipmentId ? <span className="font-normal text-ink-500"> · {data.equipment.find((e) => e.id === o.equipmentId)?.name}</span> : null}</span>
-              <span className="text-xs text-ink-500">{o.why}</span>
-            </button>
+          {rf && options.map(({ opt: o, ...sc }) => (
+            <ScoredRow key={`${o.exerciseId}|${o.equipmentId ?? ''}`} o={sc}>
+              <button type="button" onClick={() => { const id = rf.id; setReplaceFor(null); onReplace(id, o, reason); }} className="flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
+                <span className="break-words text-sm font-semibold text-ink-900 dark:text-white">{names.ex(a.registry.get(o.exerciseId))}{o.equipmentId ? <span className="font-normal text-ink-500"> · {data.equipment.find((e) => e.id === o.equipmentId)?.name}</span> : null}</span>
+                <span className="break-words text-xs text-ink-500">{o.why}</span>
+              </button>
+            </ScoredRow>
           ))}
           {rf && <Button className="w-full" onClick={() => { const id = rf.id; setReplaceFor(null); onLater(id); }}>{L('Do it later instead', 'Лучше сделать позже')}</Button>}
         </div>

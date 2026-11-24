@@ -24,7 +24,7 @@ type Analysis = ReturnType<typeof analyze>;
 export const OPTIMALITY_POINTS = {
   primarySoftened: 25, synergistSpare: 15, synergistNoSpare: 5, recoveryUncertain: 10,
   primaryOver: 50, primaryWeekMet: 35, todayShareDone: 20, secondaryWeekMetMax: 80,
-  forwardTip: 10, heavyLower: 20, lateHeavy: 10, orderPending: 15, orderHost: 5, decline: 5, machineBusy: 30,
+  forwardTip: 10, heavyLower: 20, lateHeavy: 10, orderPending: 15, orderHost: 5, decline: 5, machineBusy: 40,
 } as const;
 /** Ceilings when data is missing (a cap never raises a score). */
 export const OPTIMALITY_CAPS = { noHistory: 60, newExercise: 70, unknownMachine: 80, oneSession: 85, noUsualDays: 90 } as const;
@@ -35,7 +35,7 @@ export type OptimalityGroup = 'suitable' | 'less_optimal' | 'not_today';
 export type OptimalityBand = 'very_good' | 'good' | 'fair' | 'poor';
 export type DeductionFactor = 'primary_softened' | 'recovery_uncertain' | 'synergist_recovering' | 'primary_over' | 'primary_week_met' | 'today_share_done'
   | 'secondary_week_met' | 'forward_tip' | 'fatigue' | 'order' | 'decline' | 'machine_busy';
-export type CapFactor = 'no_history' | 'new_exercise' | 'one_session' | 'unknown_machine' | 'no_usual_days';
+export type CapFactor = 'no_history' | 'new_exercise' | 'new_machine' | 'one_session' | 'unknown_machine' | 'no_usual_days';
 
 export interface Optimality {
   exerciseId: string;
@@ -67,6 +67,8 @@ export interface OptimalityInput {
   /** Effective sets per muscle planned before it today that are not in `workout` (plan preview). */
   extraDone?: Partial<Record<MuscleId, number>>;
   outcomes?: Map<string, ChoiceOutcome>;
+  /** The gym when there is no live workout yet (plan card). */
+  locationId?: string | null;
 }
 
 const FINDING_POINTS: Partial<Record<ChoiceFindingCode, [DeductionFactor, number]>> = {
@@ -105,7 +107,8 @@ export function optimality(input: OptimalityInput): Optimality {
     return { ...base, group: 'less_optimal', score: 5, band: 'poor', confidence: 'low', deductions: [], caps: [], reason: null,
       why: [L('Unknown exercise — no muscle data to score.', 'Неизвестное упражнение — нет данных о мышцах для оценки.')] };
   }
-  const a = assessChoice({ data, analysis, workout, exerciseId, equipmentId, variation: input.variation, outcomes: input.outcomes });
+  // alternatives: false — the findings never depend on the alternatives list (the sparing check runs regardless).
+  const a = assessChoice({ data, analysis, workout, exerciseId, equipmentId, variation: input.variation, outcomes: input.outcomes, alternatives: false });
   const sets = input.sets ?? usualSetCount(data.workouts, exerciseId);
   const fwd = forwardChecks({ data, analysis, workout, exerciseId, sets, variation: input.variation, extraDone: input.extraDone });
 
@@ -133,13 +136,21 @@ export function optimality(input: OptimalityInput): Optimality {
     const names = met.map((x) => muscleName(x.muscle, getLang()).toLowerCase()).join(', ');
     if (points > 0) deductions.push({ factor: 'secondary_week_met', points, text: L(`Week already met for ${names} — part of this exercise's work goes there.`, `Недельная цель уже выполнена: ${names} — часть работы этого упражнения уходит туда.`) });
   }
+  // Today's share already done while the week is open counts whatever the muscle's state (review 2026-11-24: a declining
+  // or uncertain primary must not escape it and outrank a ready one).
+  const pLine = a.muscles[0];
+  const pmw = pLine ? analysis.muscles.find((m) => m.muscle === pLine.muscle) : undefined;
+  if (pLine && pmw && !deductions.some((x) => /^(primary_over|primary_week_met|today_share_done)$/.test(x.factor))
+    && pmw.status !== 'done' && pmw.status !== 'over' && pmw.todayShare > 0 && pLine.todayLeft <= 0) {
+    deductions.push({ factor: 'today_share_done', points: OPTIMALITY_POINTS.todayShareDone, text: L(`Today's share for ${muscleName(pLine.muscle, 'en').toLowerCase()} is already done — more is optional.`, `${muscleName(pLine.muscle, 'ru')}: доля на сегодня уже выполнена — дальше по желанию.`) });
+  }
   const tip = fwd.find((f) => f.severity === 'recommendation');
   if (tip) deductions.push({ factor: 'forward_tip', points: OPTIMALITY_POINTS.forwardTip, text: tip.text });
 
   // ---- availability
   const caps: Optimality['caps'] = [];
   const busy = new Set((workout?.busyEquipment ?? []).map((b) => b.equipmentId));
-  const loc = workout?.locationId ?? null;
+  const loc = input.locationId !== undefined ? input.locationId : workout?.locationId ?? null;
   const busyText = L('Machine busy right now.', 'Тренажёр сейчас занят.');
   if (equipmentId) {
     if (busy.has(equipmentId)) deductions.push({ factor: 'machine_busy', points: OPTIMALITY_POINTS.machineBusy, text: busyText });
@@ -156,6 +167,12 @@ export function optimality(input: OptimalityInput): Optimality {
   if (!history.some((w) => w.date < analysis.today)) caps.push({ factor: 'no_history', max: OPTIMALITY_CAPS.noHistory, text: L('No training history yet — a rough guide only.', 'Истории тренировок пока нет — оценка приблизительная.') });
   if (sessions === 0) caps.push({ factor: 'new_exercise', max: OPTIMALITY_CAPS.newExercise, text: L('New to you — calibrate the load first.', 'Новое для вас — сначала подберите вес.') });
   else if (sessions === 1) caps.push({ factor: 'one_session', max: OPTIMALITY_CAPS.oneSession, text: L('Done once so far — little history.', 'Пока выполнено один раз — истории мало.') });
+  // Calibration is per exercise × machine: a familiar exercise on a machine never used for it starts a new history.
+  if (equipmentId && sessions > 0) {
+    const onMachine = history.filter((w) => w.exercises.some((e) => e.exerciseId === exerciseId && e.equipmentId === equipmentId && !e.skipped && e.sets.some((s) => !s.planned && s.type === 'working'))).length;
+    if (onMachine === 0) caps.push({ factor: 'new_machine', max: OPTIMALITY_CAPS.newExercise, text: L('New machine for this exercise — calibrate the load first.', 'Новый тренажёр для этого упражнения — сначала подберите вес.') });
+    else if (onMachine === 1 && sessions > 1) caps.push({ factor: 'one_session', max: OPTIMALITY_CAPS.oneSession, text: L('Done once on this machine — little history.', 'На этом тренажёре выполнено один раз — истории мало.') });
+  }
   if (!analysis.usualDays) caps.push({ factor: 'no_usual_days', max: OPTIMALITY_CAPS.noUsualDays, text: L('Your usual days are not known yet, so the next sessions could not be checked.', 'Ваши обычные дни пока не известны, поэтому следующие тренировки проверить нельзя.') });
 
   const ceiling = Math.min(100, ...caps.map((c) => c.max));
@@ -165,8 +182,7 @@ export function optimality(input: OptimalityInput): Optimality {
   const confidence = caps.length ? 'low' : a.confidence;
 
   const why: string[] = [];
-  const pLine = a.muscles[0];
-  if (pLine && !deductions.some((x) => /^primary|today_share/.test(x.factor))) {
+  if (pLine && pLine.state === 'LIKELY_READY' && !deductions.some((x) => /^primary|today_share/.test(x.factor))) {
     const left = pLine.todayLeft > 0 ? pLine.todayLeft : pLine.weekLeft;
     if (left > 0) why.push(pLine.todayLeft > 0
       ? L(`${muscleName(pLine.muscle, 'en')} ready, ${fmtN(left)} effective sets left today.`, `${muscleName(pLine.muscle, 'ru')}: готово, на сегодня ещё ${fmtN(left)} эфф. подх.`)

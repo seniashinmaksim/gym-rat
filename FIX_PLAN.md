@@ -990,7 +990,7 @@ no weekly number, credit or recovery window.
 2. LESS OPTIMAL — scored < 75, or one of the assistant's "reconsider" findings (fatigue / order / a sparing option exists).
 3. SUITABLE NOW — scored ≥ 75 with no "reconsider" finding. Sorted high → low.
 
-**Score = 100 − deductions, then caps for missing data, rounded to 5 (5 … 100).** Every deduction is one existing
+**Score = min(caps for missing data, 100) − deductions, rounded to 5 (5 … 100)** (caps first, so a cap never hides a difference; review 2026-11-24: earlier wording said the reverse). Every deduction is one existing
 finding; the PRINCIPLE comes from research where cited, the NUMBER of points is a heuristic (an app choice):
 
 | Factor (source) | Principle (evidence) | Points (heuristic) |
@@ -1006,7 +1006,7 @@ finding; the PRINCIPLE comes from research where cited, the NUMBER of points is 
 | Heavy lower body after ≥ 2 heavy lower lifts / HIGH cost late in a heavy session | fatigue cost (`fatigue_cost`) | −20 / −10 |
 | A planned compound using this muscle still to do / host-compound hint | order changes later reps, not growth (Nunes 2021) | −15 / −5 |
 | Performance declining (this history or the primary's lifts) | check load, rest, recovery first | −5 |
-| Machine busy now (every linked machine here busy) | availability | −30 |
+| Machine busy now (every linked machine here busy) | availability | −40 (below a free machine that is new to you, capped at 70) |
 
 Caps (missing data lowers the ceiling, never raises a score): never performed → ≤ 70 ("new: calibrate"); one session →
 ≤ 85; no history at all → ≤ 60; a machine / cable exercise with no machine known at this gym → ≤ 80; no usual days known
@@ -1021,6 +1021,12 @@ the "why" says that 95 vs 90 is no difference in growth — the number ranks opt
 sessions logged first, then the name, then the id (stable, independent of input order).
 
 **Why per exercise:** the two largest deductions (or "ready, x sets left today"), one line each, and the cap if any.
+
+## I.5 Status (2026-11-24)
+Built: `src/domain/optimality.ts` + `ScoredRow` (chooser, picker "Best now", replacement options); tests written first
+(`tests/part9-optimality.test.ts`, 25 tests, + 5 review regressions; they failed before the module / fixes existed); rule `exercise_optimality`;
+CLAUDE.md §O; FORMULA_AUDIT row 69; `e2e/part9.spec.ts`. Owner's answers: a met primary week → less optimal (−35); a met
+secondary muscle costs 80 × its share of the work (−5 was too mild).
 
 # Part 10 — Visual formula dependency map (owner's request 2026-11-24; direction, form is free)
 

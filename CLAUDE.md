@@ -380,6 +380,14 @@ Rules specific to these movements:
 - **Not built (owner's question):** an explicit "my training days" setting that would take priority over the learned days — the app has none today.
 - Tests: `tests/part8-sequence.test.ts`, `tests/part8-ui.test.ts`, `tests/part8-review.test.ts`, `tests/part8-habits.test.ts`.
 
+## O. Exercise optimality score (Part 9, 2026-11-24)
+
+- `optimality.ts` (rule `exercise_optimality`, design note FIX_PLAN I.4): how well an exercise fits THIS moment, 0–100 in steps of 5, shown next to every next-exercise suggestion — the training mode's *Next exercise* chooser, the picker's "Best now" (familiar exercises whose primary muscle still has an open share today, ≤ 4, plus ≤ 3 not recommended) and the replacement options (plan card, training mode) — sorted high → low; the "why" opens on tap.
+- No new model: one deduction per EXISTING finding — the choice assistant's codes (`ChoiceAssessment.findings`: softened primary hold 25, synergist loaded 15 with a sparing option / 5 without, session time unknown 10, primary above its upper bound 50, primary week met 35, today's share done 20, fatigue 20 / 10, order 15 / 5, declining 5), a Part 8 tip 10, secondary muscles (≥ 0.5) whose week is met 80 × their share of the exercise's significant work (owner 2026-11-24: incline press with triceps met → 80, pec deck 100), machine busy 40 (ranks below a free machine new to you). Caps for missing data come first (no history 60, new exercise or a machine never used for it 70, no machine known at this gym 80, one session 85, no usual days 90; any cap → low confidence), deductions after them, never below 5.
+- Three groups: NOT TODAY — the primary muscle held by an earlier session's window (> 6 h, not softened), a Part 8 limit, or pain (the SAFETY line) — never gets a number, listed apart with its reason and still selectable; LESS OPTIMAL (< 75 or a "reconsider" finding); SUITABLE (≥ 75). Ties: more sessions logged, then the name, then the id.
+- Every point value is a heuristic (the weekly-target weights are the owner's choice); the principle is the reused rule's. The screen says that 95 vs 90 is no difference in growth. The score changes no weekly number, credit or recovery window.
+- Tests: `tests/part9-optimality.test.ts` (owner's I.2 list + own), `e2e/part9.spec.ts` (EN + RU, 4 WebKit viewports, layout audit).
+
 ## Developer notes
 
 ### Architecture
@@ -410,6 +418,7 @@ src/
     liveFlow.ts    training-mode logic (prefill, log, effort tap, rest)       weights.ts  any weight, step chooser
     workoutCheck.ts  step-by-step numbers of one workout      weekPlan.ts  usual days, recovery-aware today's share, extra session
     sequence.ts    forward checks across sessions, moves, position on the new day
+    optimality.ts  Part 9 fit score 0–100 for the next-exercise suggestions (reuses the choice findings + forward checks)
   i18n/          L(en, ru) language layer (core.ts has no React; index.ts adds useLang)
   data/scientific-evidence/  verified references, per-muscle/exercise evidence, tempo model, rule registry
   data/exercises.ts  seed exercise library (EN/RU, aliases, coefficients)

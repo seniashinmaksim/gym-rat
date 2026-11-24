@@ -281,3 +281,56 @@ describe('own tests', () => {
     } finally { setLang('en'); }
   });
 });
+
+describe('independent review (2026-11-24) — regressions', () => {
+  it('R1 a declining primary whose share is done today is not ranked above a ready one (today-share deduction kept)', () => {
+    const { d, a, w } = setup(history(), [pec(6)]);
+    const normal = optimality({ data: d, analysis: a, workout: w, exerciseId: 'pec_deck', equipmentId: 'pd' });
+    expect(factors(normal)).toContain('today_share_done');
+    const declining = { ...a, muscles: a.muscles.map((m) => (m.muscle === 'chest' ? { ...m, trend: { ...m.trend, overall: 'declining' as const } } : m)) };
+    const o = optimality({ data: d, analysis: declining as typeof a, workout: w, exerciseId: 'pec_deck', equipmentId: 'pd' });
+    expect(factors(o)).toContain('today_share_done');
+    expect(score(o)).toBeLessThanOrEqual(score(normal));
+    expect(o.why.join(' ')).not.toMatch(/ready/);
+  });
+  it('R2 a machine never used for this exercise is capped like a new exercise (calibrate)', () => {
+    const { d, a, w } = setup();
+    const o = optimality({ data: d, analysis: a, workout: w, exerciseId: 'pec_deck', equipmentId: 'pd2' });
+    expect(o.caps.map((c) => c.factor)).toContain('new_machine');
+    expect(score(o)).toBeLessThanOrEqual(70);
+    expect(o.confidence).toBe('low');
+  });
+  it('R3 the plan context counts: sets planned before it (extraDone) can turn a score into NOT TODAY', () => {
+    const { d, a, w } = setup();
+    // 2 curls alone: 24 h window, nothing. With 2 biceps sets already planned before them: 4 → 36 h → Tuesday pull-ups limit.
+    expect(optimality({ data: d, analysis: a, workout: w, exerciseId: 'machine_biceps_curl', sets: 2 }).group).not.toBe('not_today');
+    expect(optimality({ data: d, analysis: a, workout: w, exerciseId: 'machine_biceps_curl', sets: 2, extraDone: { biceps: 2 } }).group).toBe('not_today');
+  });
+  it('R4 a real move (plannedMoves: curls Monday → Tuesday) is scored in Tuesday\'s context', () => {
+    const mon = setup();
+    const monDone = { ...mon.w, endTime: '18:00' };
+    const move = { id: 'mv1', exerciseId: 'machine_biceps_curl', equipmentId: 'bc', sets: 4, fromDate: '2026-11-16', date: '2026-11-17', reason: 'synthetic', createdAt: '2026-11-16T17:40:00Z' };
+    const tue = setup([...history(), monDone], [pullups(4), rows(3)], { settings: { ...mon.d.settings, plannedMoves: [move] } } as Partial<AppData>, new Date('2026-11-17T18:30:00Z'), '2026-11-17');
+    expect(tue.d.settings.plannedMoves).toHaveLength(1);
+    const o = optimality({ data: tue.d, analysis: tue.a, workout: tue.w, exerciseId: 'machine_biceps_curl', equipmentId: 'bc', sets: 4 });
+    expect(o.group).not.toBe('not_today');
+  });
+  it('R5 Russian: the secondary-week, busy-machine and cap texts are Russian too', () => {
+    setLang('ru');
+    try {
+      const { d, w } = setup(history(), [pushdown(3), pec(4)]);
+      const d2 = { ...d, settings: { ...d.settings, targetOverrides: { triceps: { min: 1, preferred: 2, max: 6 } } } };
+      const a2 = analyze(d2, NOW);
+      const busy = { ...w, busyEquipment: [{ equipmentId: 'pd', at: '2026-11-16T17:20:00Z' }] } as unknown as Workout;
+      const texts = [
+        ...optimality({ data: d2, analysis: a2, workout: w, exerciseId: 'incline_dumbbell_press' }).deductions.map((x) => x.text),
+        ...optimality({ data: d2, analysis: a2, workout: busy, exerciseId: 'pec_deck', equipmentId: 'pd' }).deductions.map((x) => x.text),
+        ...optimality({ data: d2, analysis: a2, workout: w, exerciseId: 'leg_extension' }).caps.map((x) => x.text),
+        ...optimality({ data: d2, analysis: a2, workout: w, exerciseId: 'pec_deck', equipmentId: 'pd2' }).caps.map((x) => x.text),
+      ];
+      expect(texts.length).toBeGreaterThanOrEqual(3);
+      for (const t of texts) expect(t).toMatch(/[а-яё]/i);
+      for (const t of texts) expect(t).not.toMatch(/\b(week|machine|busy|new|calibrate|history|gym)\b/i);
+    } finally { setLang('en'); }
+  });
+});

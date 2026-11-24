@@ -25,7 +25,10 @@ import { prescribe, type Prescription } from '../../domain/prescription';
 import { Badge, Button, Card, CardTitle, confirmAction, cx, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, undoToast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 import { byLang, KG, L, locale, num, ruPlural } from '../../i18n';
-import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
+import { assessChoice, choiceOutcomes, exerciseSessionCounts, needsPrompt, priorWorkouts, type ChoiceAssessment } from '../../domain/exerciseChoice';
+import { significantMuscles } from '../../domain/fatigue';
+import { optimality, rankOptions } from '../../domain/optimality';
+import { ScoredRow } from '../components/Optimality';
 import { addMoves, bestMoveDay, forwardChecks, usualSetCount, type ForwardFinding } from '../../domain/sequence';
 import { ForwardWarning } from '../components/ForwardWarning';
 import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
@@ -1344,6 +1347,17 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
   }, [q, muscle, a.registry, usage, atGym]);
 
   const needs = a.muscles.filter((m) => m.todayLeft > 0).sort((x, y) => y.todayLeft - x.todayLeft).slice(0, 8);
+  // Part 9 "Best now": familiar exercises whose primary muscle still has an open share today, by fit score (≤ 4), plus
+  // the ones not recommended today (≤ 3, with the reason). Nothing is hidden from the full list below.
+  const best = useMemo(() => {
+    if (!open || !workout) return [];
+    const counts = exerciseSessionCounts(priorWorkouts(data, workout));
+    const open_ = new Set(a.muscles.filter((m) => m.todayLeft > 0).map((m) => m.muscle));
+    const inSession = new Set(workout.exercises.filter((e) => !e.skipped).map((e) => e.exerciseId));
+    const pool = [...a.registry.values()].filter((d) => (counts.get(d.id) ?? 0) > 0 && !inSession.has(d.id) && open_.has(significantMuscles(d, null, 0.5)[0]?.muscle as MuscleId));
+    const ranked = rankOptions(pool.map((d) => ({ ...optimality({ data, analysis: a, workout, exerciseId: d.id, outcomes }), def: d })), (id) => names.ex(a.registry.get(id)));
+    return [...ranked.filter((o) => o.group !== 'not_today').slice(0, 4), ...ranked.filter((o) => o.group === 'not_today').slice(0, 3)];
+  }, [open, workout, data, a, outcomes, names]);
   // On touch phones, opening the keyboard immediately would hide the muscle filter.
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
@@ -1396,6 +1410,22 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {best.length > 0 && !q && !muscle && (
+        <div className="mt-3 space-y-1.5" data-testid="best-now">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Best now — fit for this moment', 'Лучше сейчас — по ситуации')}</div>
+          {best.map((o, i) => (
+            <div key={o.exerciseId}>
+              {o.group === 'not_today' && (i === 0 || best[i - 1].group !== 'not_today') && <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Not recommended today', 'Сегодня не рекомендуется')}</div>}
+              <ScoredRow o={o}>
+                <button type="button" onClick={() => choose(o.def)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700" data-testid="best-choice">
+                  <span className="break-words text-sm font-medium text-ink-900 dark:text-white">{names.ex(o.def)}</span>
+                  <span className="break-words text-xs text-ink-500">{Object.entries(o.def.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</span>
+                </button>
+              </ScoredRow>
+            </div>
+          ))}
         </div>
       )}
       <ul className="mt-3 divide-y divide-ink-100 dark:divide-ink-800">

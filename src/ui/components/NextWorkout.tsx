@@ -4,6 +4,9 @@ import { formatDate, localNowParts } from '../../domain/dates';
 import { addMoves, bestMoveDay, forwardChecks, movePartners } from '../../domain/sequence';
 import type { MuscleId } from '../../domain/types';
 import { ForwardWarning } from './ForwardWarning';
+import { ScoredRow } from './Optimality';
+import { optimality, rankOptions } from '../../domain/optimality';
+import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { generateWorkout, replacementOptions, workoutFromPlan, type GeneratedWorkout, type ItemEdit, type PlanItem } from '../../domain/planner';
 import { stepLoad, variationParts } from '../../domain/progression';
 import { MODE_LABEL, readinessReport } from '../../domain/readiness';
@@ -28,6 +31,8 @@ const restText = (r: [number, number]) => { const f = (x: number) => `${Math.flo
  * sets × kg × reps · RIR · rest, with provisional / calibrate marks; tap for Replace / Skip / Edit.
  * Start creates a live workout; the plan snapshot is stored separately from what is performed.
  */
+const NO_OPTIONS: ReturnType<typeof replacementOptions> = [];
+
 export function NextWorkoutCard() {
   const data = useData();
   const a = useAnalysis();
@@ -60,9 +65,10 @@ export function NextWorkoutCard() {
   const fwd = useMemo(() => {
     const acc: Partial<Record<MuscleId, number>> = {};
     return items.map((it) => {
+      const before = { ...acc };
       const f = forwardChecks({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } });
       for (const [m, v] of Object.entries(it.contributes) as [MuscleId, number][]) acc[m] = (acc[m] ?? 0) + v;
-      return { f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } }) : null };
+      return { before, f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } }) : null };
     });
   }, [items, data, a]);
   /** Move a planned exercise to the proposed day: kept as a planned move (never skipped), with Undo. */
@@ -160,7 +166,8 @@ export function NextWorkoutCard() {
               replacing={replacing === it.exerciseId}
               onReplace={() => setReplacing(replacing === it.exerciseId ? null : it.exerciseId)}
               reason={reason} setReason={setReason}
-              options={replacing === it.exerciseId ? replacementOptions(data, a, null, it.exerciseId, [], loc) : []}
+              options={replacing === it.exerciseId ? replacementOptions(data, a, null, it.exerciseId, [], loc) : NO_OPTIONS}
+              planCtx={{ sets: it.setCount, extraDone: fwd[i]?.before ?? {}, locationId: loc }}
               exName={(id) => names.ex(a.registry.get(id))}
               onPickReplacement={(o) => {
                 decide({ action: 'replaced', exerciseId: it.exerciseId, equipmentId: it.equipmentId, replacement: { exerciseId: o.exerciseId, equipmentId: o.equipmentId }, reason });
@@ -202,21 +209,31 @@ export function NextWorkoutCard() {
   );
 }
 
-function ItemRow({ footer, n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, replacing, onReplace, options, exName, onPickReplacement, reason, setReason }: {
+function ItemRow({ footer, n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, replacing, onReplace, options, exName, onPickReplacement, reason, setReason, planCtx }: {
   n: number; it: PlanItem; edit?: ItemEdit; open: boolean; onToggle: () => void; name: string; eqName: string | null;
   onSkip: () => void; onEdit: (e: ItemEdit) => void; replacing: boolean; onReplace: () => void;
   options: ReturnType<typeof replacementOptions>; exName: (id: string) => string; onPickReplacement: (o: ReturnType<typeof replacementOptions>[number]) => void;
+  /** Part 9: the plan slot's context (sets, what the earlier plan items give each muscle, the gym). */
+  planCtx: { sets: number; extraDone: Partial<Record<MuscleId, number>>; locationId: string | null };
   reason: PlanDecisionReason | null; setReason: (r: PlanDecisionReason | null) => void;
   /** Part 8: the short forward warning, inside the row (one list item per exercise). */
   footer?: ReactNode;
 }) {
+  const data = useData();
+  const a = useAnalysis();
+  // Part 9: the replacement options with their fit score for the planned session (no live workout yet), high → low.
+  // Scored in the plan slot: same sets, the earlier items' contributions, the chosen gym (review 2026-11-24).
+  const ranked = useMemo(() => {
+    if (!options.length) return [];
+    const outcomes = choiceOutcomes(data, a);
+    return rankOptions(options.map((o) => ({ ...optimality({ data, analysis: a, workout: null, exerciseId: o.exerciseId, equipmentId: o.equipmentId, variation: o.variation ?? null, outcomes, sets: planCtx.sets, extraDone: planCtx.extraDone, locationId: planCtx.locationId }), opt: o })), exName);
+  }, [options, data, a]); // eslint-disable-line react-hooks/exhaustive-deps
   const p = it.prescription;
   const sets = edit?.sets ?? it.setCount;
   const kg = edit?.weightKg !== undefined ? edit.weightKg : p.workingWeightKg;
   const reps = p.sets[0] ? (p.sets[0].repsMin === p.sets[0].repsMax ? `${p.sets[0].repsMin}` : `${p.sets[0].repsMin}–${p.sets[0].repsMax}`) : '—';
   const mark = it.calibration === 'needs_data' ? <Badge tone="warn">{L('calibrate', 'калибровка')}</Badge> : it.calibration === 'provisional' ? <Badge tone="info">{L('provisional', 'предварит.')}</Badge> : null;
   const step = p.step || 2.5;
-  const a = useAnalysis();
   const variant = variationParts(it.variation, a.registry.get(it.exerciseId)).map((x) => x.label).join(' · ') || null;
   return (
     <li>
@@ -267,11 +284,13 @@ function ItemRow({ footer, n, it, edit, open, onToggle, name, eqName, onSkip, on
           {replacing && (
             <div className="space-y-1.5" data-testid="replace-options">
               {options.length === 0 && <p className="text-xs text-ink-500">{L('No familiar alternative here for this muscle.', 'В этом зале нет знакомой замены для этой мышцы.')}</p>}
-              {options.map((o) => (
-                <button key={o.exerciseId} type="button" onClick={() => onPickReplacement(o)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
-                  <span className="text-sm font-medium text-ink-900 dark:text-white">{exName(o.exerciseId)}</span>
-                  <span className="text-xs text-ink-500">{o.why}</span>
-                </button>
+              {ranked.map(({ opt: o, ...sc }) => (
+                <ScoredRow key={`${o.exerciseId}|${o.equipmentId ?? ''}`} o={sc}>
+                  <button type="button" onClick={() => onPickReplacement(o)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
+                    <span className="break-words text-sm font-medium text-ink-900 dark:text-white">{exName(o.exerciseId)}</span>
+                    <span className="break-words text-xs text-ink-500">{o.why}</span>
+                  </button>
+                </ScoredRow>
               ))}
             </div>
           )}
