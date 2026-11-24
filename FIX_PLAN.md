@@ -1067,3 +1067,11 @@ behaviour changes.
 Cross-check every node and edge against the source; every major family present; list nodes without downstream consumers
 and important decision paths without tests; independent review agent on the map vs the code; no behaviour change (all
 tests unchanged and green).
+
+## J.4 Status (2026-11-24)
+Built: `scripts/formula-graph.mjs` (code graph from the TypeScript AST: 966 declarations, ≈ 3 100 references),
+`scripts/formula-map.views.mjs` (69 curated nodes, 133 edges in 7 views, each backed by code — the validator refused 8
+edges first drawn from intent), `scripts/formula-map.mjs` (validator, Mermaid, own SVG layout, traceability table),
+`docs/FORMULA_DEPENDENCY_MAP.md`, `docs/diagrams/*.svg`, `tests/formula-map.test.ts`. No behaviour change. The audit's
+confirmed items (C-1…C-7) wait for the owner's decision.
+

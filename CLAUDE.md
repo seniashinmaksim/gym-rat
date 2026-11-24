@@ -388,6 +388,12 @@ Rules specific to these movements:
 - Every point value is a heuristic (the weekly-target weights are the owner's choice); the principle is the reused rule's. The screen says that 95 vs 90 is no difference in growth. The score changes no weekly number, credit or recovery window.
 - Tests: `tests/part9-optimality.test.ts` (owner's I.2 list + own), `e2e/part9.spec.ts` (EN + RU, 4 WebKit viewports, layout audit).
 
+## P. Formula dependency map (Part 10, 2026-11-24)
+
+- `docs/FORMULA_DEPENDENCY_MAP.md`: how data flows from the logged set to the screens — 7 views (overview, set level, volume / week, strength, planning, recovery + interference, optimality score) as Mermaid and as SVGs in `docs/diagrams/`, a node traceability table (file · function · reads · used by · rules · basis · tests), worked examples with real values and an audit (confirmed problems C-1…C-7 vs risks R-1…R-6). Analysis only: nothing in the app changed.
+- Built from the code: `node scripts/formula-graph.mjs` (TypeScript compiler → `docs/diagrams/code-graph.json`, every top-level declaration and value reference); `node scripts/formula-map.mjs` validates the curated views (`scripts/formula-map.views.mjs`) — an edge the code does not back is refused — and rewrites the doc's generated parts and the SVGs. Run it after changing a formula; `tests/formula-map.test.ts` fails when the map, the doc or an SVG drifts from the code, and recomputes the worked examples. Dev-only: the app never imports these scripts (bundle and CSP unchanged).
+- The audit's confirmed items are owner decisions (none fixed automatically): `adaptRemaining` is not wired although §H describes it; `placeInSession` duplicates the planner's own ordering of moved exercises; Part 5 override learning uses a looser comparison than Part 8; some deciding numbers are not in `rules.ts`.
+
 ## Developer notes
 
 ### Architecture
@@ -418,6 +424,7 @@ src/
     liveFlow.ts    training-mode logic (prefill, log, effort tap, rest)       weights.ts  any weight, step chooser
     workoutCheck.ts  step-by-step numbers of one workout      weekPlan.ts  usual days, recovery-aware today's share, extra session
     sequence.ts    forward checks across sessions, moves, position on the new day
+    (scripts/formula-graph.mjs, formula-map.mjs: dev-only dependency map — docs/FORMULA_DEPENDENCY_MAP.md)
     optimality.ts  Part 9 fit score 0–100 for the next-exercise suggestions (reuses the choice findings + forward checks)
   i18n/          L(en, ru) language layer (core.ts has no React; index.ts adds useLang)
   data/scientific-evidence/  verified references, per-muscle/exercise evidence, tempo model, rule registry
