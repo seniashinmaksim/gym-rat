@@ -748,3 +748,62 @@ Still open:
 - Step 6: older browser specs rewritten (agent running) + responsive audit EN / RU with 0 findings incl. "text cut off".
 - Step 7 (rest): restyle the remaining screens — waits for the owner's OK on the screenshots.
 - Step 11: final independent review (running), full Playwright EN + RU, push, verify the live bundle and console, F.13 report.
+
+---
+
+# Part 7 — Formula revision for muscle gain (planned 2026-11-24, after the Part 6 compact)
+
+Goal: the formulas must actively steer toward muscle gain (enough hard sets per muscle per week, sets close to failure,
+progressive overload in reps then load, sensible frequency, rest and recovery) — not only describe the logs. Inputs:
+`docs/FORMULA_ANALYSIS.md` (first analysis), `docs/FORMULA_AUDIT.md`, and the owner's review below. Every point is to be
+CRITICALLY analysed against the code first (reproduce with a failing test, or explain why it is not a defect) — not accepted
+on faith, neither the owner's points nor Claude's own earlier proposals.
+
+## G.1 Owner's review of the first analysis (2026-11-24) — each with Claude's first note (to be verified)
+1. **Session taper (P3).** 11-set threshold rests on limited evidence (one preprint); a fixed ×0.5 above it is not justified;
+   evidence may support diminishing returns, not this multiplier. Proposal: a note / warning instead of silently lowering the
+   weekly number, or a threshold per muscle group.
+   *Note:* agree the multiplier is a heuristic; options are (a) show raw and tapered, count raw; (b) smooth curve; (c) per group.
+2. **Epley extrapolation / "~20 reps" (P2).** The first analysis mixed up "possible reps" and "reps in reserve". Define exactly
+   which value is capped, and never decide on an unreliable extrapolated value.
+   *Note:* correct — the proposal must say: when POSSIBLE reps at the set's load exceed ~20 (or the load is < ~60 % of the best
+   set's), the estimate becomes a band ("far from failure"), not a number; check how this interacts with the ramp rule and the
+   new 60 % back-off rule (done 2026-11-24).
+3. **Index basis RIR vs reps-only (P1).** Moving the decision to the trend window is good, but "every session in the window has
+   RIR" still lets one missing session flip the whole index. Define a minimum share of sessions with RIR or a better
+   missing-data policy; test mixed histories.
+   *Note:* candidates — (a) RIR basis when ≥ 80 % of window sessions have it, sessions without it scored with the history's
+   median RIR (labelled estimate); (b) always reps-only for trend, RIR only as context. Decide on the effect on decisions.
+4. **Recovery: latest expiry, no 4-day limit (P1).** Use every session whose window is still open, not a fixed lookback.
+   *Note:* correct — windows can exceed 4 days (72 h + 12 h + 24 h soreness = 108 h); the rule should be "any earlier session
+   whose window has not expired".
+5. **Next-set rep drop vs rest (P3).** 60 s is too generic; even with longer rest a SHORT rest can explain a drop — it must not
+   automatically mean the earlier set was near failure.
+   *Note:* compare with the owner's usual rest for the exercise (< 70 % → rest explains it, no evidence), as `rest_attribution` does.
+6. **Evidence vs implementation numbers.** Principles (proximity to failure, diminishing returns, recovery, order) are
+   research-supported; the exact coefficients / thresholds / multipliers are heuristics. Do not present them as established.
+   *Note:* audit every rule in `rules.ts`: split "principle (evidence)" from "number (heuristic, confidence)" in text and UI.
+7. **Verification of the audit.** The 278-formula audit was not independently reviewed against the code by the owner's reviewer.
+   *Note:* re-check every P1 / P2 item against the code with a failing test before changing anything; independent agent pass.
+8. **Regression risk.** Changes to recovery, strength index and set allocation ripple into advice, progress and weekly volume.
+   *Note:* failing test first, then run the six-month reference, the training-mode replay and the Week / Strength / Recovery checks.
+9. **Weighted pull-ups / dips (P2).** Index flips between body + belt and belt-only with weigh-in timing; a 28-day-old weight
+   may be unrepresentative. Either a labelled estimated body weight with an explicit validity policy, or belt-only for the trend
+   with body + belt as context.
+   *Note:* prefer belt-only for trend / decisions (stable scale), body + belt shown as labelled context.
+10. **Set-count inconsistency (P2, audit C-4).** Planner and first live re-assessment size sets differently (5 → 3 with nothing
+    done). One allocation routine with clear muscle-coefficient constraints.
+11. **Baseline partial weeks (P2, audit B-13).** Count only complete weeks, or normalise partial ones.
+12. **Failure share (P1, audit A-17).** 30 sets at RIR 2 + 6 "failure" reads 100 %. Sets with RIR ≥ 1 count as not to failure → 6 / 36 ≈ 17 %.
+
+## G.2 Also to re-examine (Claude's list, from the first analysis and the Part 6 reviews)
+- Unknown-effort credit 0.75 now that most sets carry a one-tap answer or none; how the taps map to credit.
+- Double progression with taps only (the one-session "too light" shortcut needs an exact RIR — can EASY ever trigger it?).
+- Plateau / decline thresholds; weekly targets and individual volume (E.10); exercise choice for growth (evidence only).
+- Remaining open audit items: A-6, A-14…A-21, B-11, B-13, B-14, C-4, C-10…C-16.
+
+## G.3 Process
+1. State check. 2. Critical re-analysis (code + independent agent + verified research) → `docs/FORMULA_ANALYSIS.md` section
+"Second analysis": per item verdict (defect / heuristic to relabel / not a defect), old → new with a hand-computed example,
+evidence, expected effect on muscle gain, risk, priority. 3. Implement (failing test first; rules.ts, CLAUDE.md, FORMULA_AUDIT §5,
+independent reference, EN + RU texts). 4. Full tests EN + RU, independent review of the diff, push, live check, report.
