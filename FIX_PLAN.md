@@ -829,3 +829,86 @@ on faith, neither the owner's points nor Claude's own earlier proposals.
 "Second analysis": per item verdict (defect / heuristic to relabel / not a defect), old → new with a hand-computed example,
 evidence, expected effect on muscle gain, risk, priority. 3. Implement (failing test first; rules.ts, CLAUDE.md, FORMULA_AUDIT §5,
 independent reference, EN + RU texts). 4. Full tests EN + RU, independent review of the diff, push, live check, report.
+
+
+# Part 8 — Recovery-aware sequencing across sessions (owner's request 2026-11-24)
+
+Goal: optimise the SEQUENCE of sessions, not each session alone — weekly volume, frequency, recovery between sessions,
+direct and indirect muscle involvement, performance interference between consecutive workouts, and exercise priority /
+execution order are SEPARATE considerations (owner's clarification: "frequency hardly matters with equal volume" does not
+make order and fatigue management unimportant). Short messages only; nothing blocks; nothing is silently removed.
+
+## H.1 What exists (probed 2026-11-24 on the real code, Mon / Wed / Fri chest scenario)
+- The choice assistant (`exerciseChoice.ts`) looks BACKWARD only: earlier sessions' recovery windows, today's share, order
+  inside today's session. A third chest exercise after 8 sets on Monday shows "ACCEPTABLE — today's share is done";
+  nothing about Wednesday.
+- Wednesday after 12 chest sets on Monday: chest held (46 h left), pec deck → "CONSIDER ALTERNATIVE (recovery)".
+- Habit kept 4 weeks: the weekly chest total still reaches 12–14 (Monday covers it); chest drops to once a week; the
+  target follows what is done. Recovery is always computed from the sessions actually done, so a dismissal never makes the
+  app blind; an overridden recovery warning softens only after ≥ 3 overrides with no performance drop (`choice_learning`).
+- Part 7 `weekPlan.ts` already knows the usual days and fits today's share so the later usual days stay outside the
+  recovery windows — the base for everything below (no second recovery model).
+
+## H.2 Design
+1. **Upcoming sessions** (`sequence.ts`, new, pure): for each later usual day of this week AND the first usual day of next
+   week: its likely exercises = exercises done on that weekday in ≥ 50 % of the recent weeks (with their usual position),
+   plus exercises moved to that day (H.2.4). Each gets a PRIORITY: high = compound / fatigue cost HIGH or MODERATE, or the
+   owner's priority muscle as primary; low = isolation accessories. No usual days known (< 3 weeks) → no forward checks.
+2. **Three separate forward checks** for an exercise X considered today (or already in today's plan):
+   a. **Weekly volume loss** — X's sets today make the week reach LESS for a muscle X trains directly (Part 7 fit).
+   b. **Recovery before the next usual session** — a muscle X trains directly (≥ 0.75) still has sets planned that day and
+      would be inside its window then.
+   c. **Next-session performance interference (NEW, separate from recovery and volume)** — X loads a muscle m directly
+      (coefficient ≥ 0.75) close to the limit, and a HIGH-priority exercise P of the next session uses m meaningfully
+      (coefficient ≥ 0.5, also as a SECONDARY muscle), and the time until P is shorter than the window of X's sets for m.
+      Applies even when the week is met and even when m itself needs nothing that day. Example: Monday 4 hard biceps curls
+      (window 36 h) → Tuesday pull-ups (biceps 0.5) 24 h later → interference.
+   Each check yields a REAL LIMIT (a, b, or c with ≥ 12 h of window left at P) or a RECOMMENDATION (c with < 12 h left,
+   or a low-priority P); differences that change nothing (no sets lost, window over by then) show nothing.
+3. **Message** (one or two short sentences, EN + RU, next to the exercise): why · what it affects · better option.
+   "May reduce Tuesday's pull-ups — biceps still recovering." · "Better on Tuesday after pull-ups." · "Overlaps with
+   Wednesday's chest — ~1 set lost this week." Buttons: [Move to Tue] [Keep today]. Never blocks.
+4. **Move** (scheduling priority ≠ execution order):
+   - the exercise is stored as a MOVED item with a target date and reason (`plannedMoves`, encrypted with the rest; not
+     skipped, not done, not deleted); shown on the Week screen under that day; Undo;
+   - the target day = the earliest later usual day where none of the three checks fires for X (and X itself is outside
+     its muscles' windows); if none exists this week, the best feasible day and an honest "still overlaps with …";
+   - **execution order on the new day** follows the normal order rules (`exercise_order`, `fatigue_cost`): HIGH-priority
+     compounds first; an exercise whose direct muscle is a secondary muscle of a compound that day goes AFTER that compound
+     (biceps after pull-ups); the owner's explicit priority muscle may still go first;
+   - exercises the owner usually does together (adjacent in ≥ 70 % of the sessions where both appear) move together, unless
+     that recreates a conflict;
+   - after a move, every later usual day is re-planned (sets per muscle per day from the Part 7 fit; order inside each day).
+5. **Dismissal** ("Keep today"): not asked again in that session; recorded like `choiceAcks`; a habit of keeping the same
+   kind of conflict is learned only when the next session's performance on P did not drop (≥ 2 of the last 3, like
+   `choice_learning`); dismissals never change recovery windows or the interference rule itself. After 3 kept conflicts of
+   the same kind in a row, one quiet line on the Week screen (not a popup).
+6. **Evidence and labels**: exercise order affects the performance of LATER exercises in the same session (verified refs in
+   `references-order.ts`); residual fatigue after sets to failure lasts 24–48 h (morannavarro2017_recovery_failure, acute,
+   indirect). Carry-over of fatigue from one day's isolation work to the next day's compound is plausible but NOT directly
+   studied for hypertrophy — the interference rule and all its numbers are heuristics and are labelled so (rule
+   `next_session_interference`, principle vs number like every rule).
+
+## H.3 Test plan (written BEFORE implementation; hand-computed)
+1. **Monday chest + intensive biceps / Tuesday back + pull-ups** (usual Mon / Tue / Thu; Tuesday's usual exercises:
+   pull-ups first, rows; biceps curls 4 sets near failure on Monday): check c fires on the curls ("May reduce Tuesday's
+   pull-ups — biceps still recovering"), REAL LIMIT; chest exercises on Monday show nothing; Move proposes Tuesday;
+   on Tuesday the curls are placed AFTER pull-ups and rows, not first.
+2. Same, but the curls are light (RIR ≥ 4 / 2 sets → window 24 h ≤ the 24 h gap minus tolerance) → nothing shown.
+3. Same, but Tuesday has no pull-ups / pulldowns / rows (legs) → nothing shown.
+4. Weekly target for biceps already met → check c still fires (independent of volume).
+5. Pull-ups only a secondary-muscle user of biceps (0.5) → counts; a 0.25 user (e.g. rear delts from rows) → does not.
+6. Chest Mon / Wed / Fri, 4 + 4 + 4 → nothing; 10 chest sets planned on Monday with Wednesday needing chest → check b.
+7. Mon / Tue / Thu chest: 8 on Monday holds Tuesday; week still fits on Thursday → no volume warning (a), but check b on
+   Tuesday's chest if Tuesday plans chest.
+8. Compound overlap: Monday bench + dips (triceps) → Tuesday overhead press (triceps 0.5) → check c.
+9. Moved exercise conflicts again on its target day → the next workable day, else best feasible with "still overlaps".
+10. Pair moved together (curls + hammer curls usually adjacent); a pair split only when moving both recreates a conflict.
+11. Owner's priority muscle = biceps → curls may stay first on the new day.
+12. No usual days known (< 3 full weeks) → no forward checks at all.
+13. Keep today ×3 with Tuesday pull-ups not lower → softened (recommendation, not limit); ×3 with a drop → stays a limit.
+14. Undo of a move; a moved exercise not done by the end of the week stays visible (never auto-skipped); a moved exercise
+    done earlier anyway clears the move.
+15. Deleting / editing the Tuesday workout re-plans; the next week's first usual day is checked across the week boundary.
+16. EN + RU texts short, never cut off (layout audit), screen reader labels on the buttons.
+Regression: six-month reference, training-mode replay, Part 5 planner tests, choice-card tests, Week / Strength / Recovery.
