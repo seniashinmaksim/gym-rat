@@ -729,3 +729,22 @@ The owner sent no corrections to F.0 and no workout export.
 
 ### Open audit findings (not errors; need the owner's decision — listed in docs/FORMULA_AUDIT.md)
 A-6, A-14 … A-21, B-11, B-13, B-14, C-4, C-10 … C-16.
+
+## F.16 Status on 2026-11-24 (evening) — after the post-compact session
+
+Done since F.15 (all committed locally; nothing pushed yet):
+- Step 0 review: 10 findings verified and fixed with failing tests first (`tests/part6-review.test.ts`); the six-month
+  replay found one more (reported back-off sets) — fixed. Audit log rows 42–51 in `docs/FORMULA_AUDIT.md` §5.
+- F.15 steps 1–5, 8, 9, 10 (CLAUDE.md §C D G H I K + new §L): training-mode polish, stop an exercise early, Settings →
+  Training mode, EN / RU switch, every screen / engine text / research text bilingual (`tests/i18n-engine.test.ts`),
+  Workout check, History tags, Logger trimmed, `docs/FORMULA_ANALYSIS.md`, `tests/six-month-live.test.ts`.
+- Step 7: Week screen restyled; screenshots sent (iPhone 13, EN + RU, `e2e/owner-screens.spec.ts`).
+- Owner feedback during the session (all done, tested EN + RU on 4 viewports):
+  effort answer on the SET screen before LOG SET; FAILED → MAX (RU ОТКАЗ = most reps possible, not a missed rep);
+  "Enough — choose next exercise" opens a chooser; the rest timer keeps counting in 15-s laps until NEXT SET and the
+  next set records the real rest; default machine step 2.5 kg; NO text ever cut off (layout audit fails on it).
+
+Still open:
+- Step 6: older browser specs rewritten (agent running) + responsive audit EN / RU with 0 findings incl. "text cut off".
+- Step 7 (rest): restyle the remaining screens — waits for the owner's OK on the screenshots.
+- Step 11: final independent review (running), full Playwright EN + RU, push, verify the live bundle and console, F.13 report.
