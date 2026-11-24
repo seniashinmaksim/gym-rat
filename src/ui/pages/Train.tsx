@@ -45,8 +45,13 @@ export function LogPage() {
   if (id && !workout) return <Page title={L('Workout not found', 'Тренировка не найдена')}><Empty title={L('This workout does not exist.', 'Такой тренировки нет.')} action={<Link to="/log"><Button>{L('Start a new one', 'Начать новую')}</Button></Link>} /></Page>;
   if (!workout) return <StartSession />;
   // A live, unfinished workout opens in training mode; everything else in the detailed editor.
-  if (!isFinished(workout)) return <TrainSession key={workout.id} initial={workout} />;
-  return <SessionEditor key={workout.id} initial={workout} />;
+  return <LogMode key={workout.id} workout={workout} />;
+}
+
+/** Decided once per opened workout: finishing it must not swap the screen under the summary. */
+function LogMode({ workout }: { workout: Workout }) {
+  const [live] = useState(() => !isFinished(workout));
+  return live ? <TrainSession initial={workout} /> : <SessionEditor initial={workout} />;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -820,6 +825,9 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
   const options = useMemo(() => (rf ? replacementOptions(data, a, w, rf.exerciseId) : []), [rf, data, a, w]);
   const total = w.exercises.reduce((n, e) => n + done(e).filter((s) => s.type !== 'warmup').length, 0);
   const act = (fn: () => void) => () => { setMenu(null); fn(); };
+  // The one primary action here: go on with the current exercise, else the first open one.
+  const openEx = (e: WorkoutExercise) => !e.skipped && !e.doneAt && !exerciseProgress(e).reached;
+  const nextUp = w.exercises.find((e) => e.id === curId && openEx(e)) ?? w.exercises.find(openEx) ?? null;
 
   return (
     <>
@@ -828,7 +836,7 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
         center={<><Clock w={w} /><span className="text-sm font-semibold text-t-dim">{NP(total, ['set', 'sets'], ['подход', 'подхода', 'подходов'])}</span></>}
         right={<button type="button" className={quietBtn} onClick={() => setMore(true)} aria-label={L('Workout options', 'Действия с тренировкой')} data-testid="workout-menu"><IconMore size={22} /></button>}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]" data-testid="overview">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6" data-testid="overview">
         <h1 className="font-display text-title font-extrabold uppercase leading-none tracking-tight">{L('Workout', 'Тренировка')}</h1>
         <p className="mt-1 text-sm text-t-dim">{formatDate(w.date, { weekday: 'long', day: 'numeric', month: 'long' })}{gym ? ` · ${gym.name}` : ''}</p>
         <ol className="mt-4 space-y-3">
@@ -854,14 +862,19 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
           })}
         </ol>
         {!w.exercises.length && <p className="mt-6 text-center text-sm text-t-dim">{L('No exercise yet. Add the first one.', 'Пока нет упражнений. Добавьте первое.')}</p>}
-        <div className="mt-4"><TButton variant={w.exercises.length ? 'secondary' : 'primary'} className="w-full" onClick={onAdd} data-testid="add-exercise"><IconPlus size={20} />{L('Add exercise', 'Добавить упражнение')}</TButton></div>
+        <div className="mt-4"><TButton variant={nextUp ? 'secondary' : 'primary'} className="w-full" onClick={onAdd} data-testid="add-exercise"><IconPlus size={20} />{L('Add exercise', 'Добавить упражнение')}</TButton></div>
         <button type="button" className="mt-4 min-h-[48px] text-sm font-semibold text-t-dim underline" onClick={() => setDetails(!details)} aria-expanded={details} data-testid="session-details">{L('Session details (date, gym, how you feel)', 'Детали тренировки (дата, зал, самочувствие)')}</button>
         {details && <div className="mt-2 space-y-3"><SessionMeta w={w} update={update} /><Wellness w={w} update={update} /></div>}
         {/* Finish: only here, at the very end, visually different and far from the main action. */}
-        <div className="mt-12 border-t border-t-line pt-6">
+        <div className="mb-12 mt-12 border-t border-t-line pt-6">
           <TButton variant="finish" onClick={onFinish} data-testid="finish">{L('Finish workout', 'Завершить тренировку')}</TButton>
         </div>
       </div>
+      {nextUp && (
+        <div className="shrink-0 border-t border-t-line bg-t-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+          <TButton variant="primary" onClick={() => onOpen(nextUp.id)} data-testid="continue"><span className="min-w-0 truncate">{done(nextUp).length ? L('Continue', 'Продолжить') : L('Start', 'Начать')}: {exName(nextUp)}</span></TButton>
+        </div>
+      )}
 
       <Modal open={!!m} onClose={() => setMenu(null)} title={m ? exName(m) : ''}>
         {m && (

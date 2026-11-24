@@ -510,7 +510,7 @@ Operating mode on each synthetic history; sessions needed for reliable personali
 
 # PART 6 — Training focus mode, log-after-the-set flow, Russian, and formulas that survive human error (requested 2026-11-23, after the owner's FIRST real gym session; commit 812e25f is live)
 
-Status: PLANNED — nothing below is implemented yet. Parts 1–5 and the UX audit (CLAUDE.md §K) are live; do not redo them. Where this part contradicts §K (planned set rows, "Next set" marker, RIR chips, + Warm-up / + Drop buttons, +30 on the timer), THIS PART WINS and CLAUDE.md must be updated.
+Status: IN PROGRESS — see **F.15** at the end of this part for what is done and what is left (updated 2026-11-24). Parts 1–5 and the UX audit (CLAUDE.md §K) are live; do not redo them. Where this part contradicts §K (planned set rows, "Next set" marker, RIR chips, + Warm-up / + Drop buttons, +30 on the timer), THIS PART WINS and CLAUDE.md must be updated.
 
 ## F.0 The owner's feedback (condensed, numbered as sent)
 1. Does not like the overall UI/UX; the training session must look and feel more aggressive / motivating.
@@ -668,3 +668,64 @@ Problem: pec deck after incline press is weaker than pec deck done first; today 
 
 ## F.13 Final report owed
 The formula audit (F.14): counts per verdict, findings, which were fixed and which are still open; what changed per feedback point; before / after screenshots (EN and RU); the formulas of F.7 / F.8 in plain words with their confidence; what the Workout check showed; references verified; test totals; what is still not possible; what needs a real-iPhone check (wake lock, vibration, keyboard, safe areas, swipe-back).
+
+## F.15 Status on 2026-11-24 (pause before a session compact) — read this first when resuming
+
+Owner's additions during the work: (a) "fix the real errors the audit found, but double-check each one first" — DONE for 28 findings;
+(b) "write an analysis of the formulas and how they have to be improved or redone" — NOT written yet (`docs/FORMULA_ANALYSIS.md`);
+(c) weight entry "maybe a great-looking scroll wheel or touch feature" — DONE as a swipe ruler.
+The owner sent no corrections to F.0 and no workout export.
+
+### Done and committed (local commits c9370bc → c5309dc → 5e2e9b5 → the pause commit; ONLY c9370bc is pushed — the live site still runs 812e25f)
+- F.14 formula audit: `docs/FORMULA_AUDIT.md` (278 formulas; findings; section 5 = every change old → new).
+- F.4 / F.7 / F.8 formulas: `src/domain/perception.ts`, `preload.ts`, changes in `quality.ts`, `volume.ts`, `progression.ts`
+  (`indexBasis`, `comparableSessions`, new increase / reduce rules), `prescription.ts` (`context`, `expectedRepDrop`), `baseline.ts`.
+- F.2 domain: `liveFlow.ts` (prefill, logSet, effort tap, rest state), `planner.ts` (targets instead of planned rows:
+  `targetFromPrescription`, `workoutFromPlan`, `applyPendingUpdate`, `planAdherence`), types (`ExerciseTarget`, `typeSource`,
+  `restTargetSec`, settings `restDefaultSec` / `language` / `trainAccent`, `quality.useNumbersCheck`).
+- F.3 domain: `weights.ts`.
+- Research: `references-perception.ts` (33 verified references, 2026-11-23), 8 new rules in `rules.ts`.
+- Audit fixes (owner approved): 28 defects, `tests/audit-fixes.test.ts` (53 tests). NOT yet reviewed line by line by the main session.
+- Tests: `tests/part6-flow.test.ts`, `tests/part6-perception.test.ts`; vitest 596 passing; typecheck clean.
+- `docs/DESIGN.md`, `docs/GLOSSARY_RU.md`, `src/i18n/core.ts` + `index.ts` (`L(en, ru)`, `P`, `NP`, `num`, `parseDecimal`, `useLang`).
+  DECISION: texts are inline pairs `L('English', 'Русский')` (not key files); the domain imports `../i18n/core`.
+- Training mode: `src/ui/pages/Train.tsx` (LogPage → TrainSession for live workouts, SessionEditor for finished ones),
+  `src/ui/train/controls.tsx` (weight ruler, step chooser, rest ring, effort row), `useLiveWorkout.ts` (ordered writes), `liveEditors.ts`;
+  theme tokens in `src/index.css` (`.train`) and `tailwind.config.js`.
+- `e2e/train.spec.ts`: the full journey PASSES in English on all 4 WebKit viewports (iphone-13, mobile-375, mobile-430, desktop).
+  Screenshots: `test-artifacts/train/after/<project>/en/`.
+
+### Left to do, in this order
+1. Training mode polish: the toast covers the REPS control (move toasts to the top inside training mode); EquipmentForm `onSaved`
+   should fall back to the id when the store has not updated yet; Settings: rest default (`restDefaultSec`), accent preset
+   (`trainAccent`), "Check effort against the numbers" (`quality.useNumbersCheck`), perception bias card (`perceptionBias`).
+2. Language: call `setLang(detectLang())` at start-up (main.tsx), EN / RU toggle next to the theme button in `Layout.tsx` (header + sidebar)
+   and on `LockScreen.tsx`, mirror in `settings.language`, re-render on change (key the app on `useLang()`), `useAnalysis` must recompute
+   when the language changes, `fmt()` and `formatDate()` locale-aware.
+3. Translate every screen and every engine text with `L()` (use parallel agents per file group, glossary in `docs/GLOSSARY_RU.md`):
+   Layout, LockScreen, Dashboard, NextWorkout, Logger (after step 5), History, Strength, Body, AddBodyWeight, Recovery, Muscles, Reports,
+   Periodization, Equipment, EquipmentPicker, Exercises, Import, Settings, Science, ChoiceCard, ui.tsx; domain texts (progression,
+   prescription, planner, exerciseChoice, recovery, analysis, reports, targets, volumeResponse, readiness, baseline, bodyweight,
+   failure, feedback, fatigue, ruleChecks, sessionSummary, muscles); evidence library texts (rules, general, muscles, exercises, tempo,
+   exerciseAudit; reference titles stay in the original). The e2e Russian strings in `e2e/train.spec.ts` (`T.ru`) are GUESSES for the
+   lock screen / start screen — align them with the real translations.
+4. F.9 Workout check screen (History → a workout → Check): per set type / effort answer / what the numbers say / credit; per muscle sums;
+   per exercise index, context, decision. Use `assessSet` with `objectiveForSets`, `preloadFor`, the progression series.
+5. History: no "Working" label on set rows (`History.tsx` ~line 332 prints `{s.type}`), tags only for warm-up / drop / side; pass
+   `objective` to `assessSet` there. Logger.tsx: it is now only the detailed editor for finished workouts — set `live = false`, delete the
+   dead live-only code (RestTimer, LiveBar, PendingActions, TodayPlan, replan effect, planned-row creation in `buildExercise`).
+   `NextWorkout.tsx` Start already produces targets (check the plan-edit UI still reads well).
+6. Older e2e specs drive the OLD live logger and will fail: rewrite `e2e/readiness.spec.ts`, `e2e/part5.spec.ts`, `e2e/ux-recovery.spec.ts`,
+   the live parts of `e2e/responsive.spec.ts` and `e2e/six-month.spec.ts` for the training mode; responsive audit also in Russian.
+7. Week screen restyle with the design tokens (numbers `text-num-lg`), then SHOW the owner training-mode + Week screenshots (EN + RU,
+   iPhone 13) before restyling the remaining screens; then apply the type / spacing system to the rest.
+8. `docs/FORMULA_ANALYSIS.md` (owner's request b): per formula family — what is solid, what is weak, what should be improved or redone and
+   how (e.g. Epley above ~10 reps and per exercise; RIR credit steps; recovery windows from one session only; per-session cap; volume
+   decisions with unknown effort; context drop per set), with priorities. Analysis only.
+9. Six-month simulation with the new flow (sessions logged through `liveFlow.logSet`), advice / analytics appear when expected.
+10. CLAUDE.md: update §C, §D, §G, §H, §I, §K, add §L (Part 6), architecture list. Independent review agent on the whole diff since 812e25f
+    (include the audit-fix diff) → fix findings with regression tests.
+11. Typecheck, vitest, build, full Playwright on 4 viewports EN + RU, commit, push, verify the live bundle hash and console; F.13 report.
+
+### Open audit findings (not errors; need the owner's decision — listed in docs/FORMULA_AUDIT.md)
+A-6, A-14 … A-21, B-11, B-13, B-14, C-4, C-10 … C-16.
