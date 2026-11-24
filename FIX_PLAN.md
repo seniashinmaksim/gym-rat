@@ -696,7 +696,7 @@ The owner sent no corrections to F.0 and no workout export.
   Screenshots: `test-artifacts/train/after/<project>/en/`.
 
 ### Left to do, in this order
-1. Training mode polish: the toast covers the REPS control (move toasts to the top inside training mode); EquipmentForm `onSaved`
+1. Training mode polish: **stop an exercise early** (owner, 2026-11-24): a quiet "Next exercise" on the rest screen and "Finish this exercise" in the exercise ⋯ menu whenever at least one set is logged and the target is not reached yet — marks the exercise done (`doneAt`), opens the next open one, Undo restores; the unfinished sets are not counted against anything (re-assessment already works from what was actually done); the toast covers the REPS control (move toasts to the top inside training mode); EquipmentForm `onSaved`
    should fall back to the id when the store has not updated yet; Settings: rest default (`restDefaultSec`), accent preset
    (`trainAccent`), "Check effort against the numbers" (`quality.useNumbersCheck`), perception bias card (`perceptionBias`).
 2. Language: call `setLang(detectLang())` at start-up (main.tsx), EN / RU toggle next to the theme button in `Layout.tsx` (header + sidebar)
