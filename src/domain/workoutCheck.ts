@@ -12,7 +12,7 @@
  * weekly numbers use. Read-only; nothing is stored.
  */
 import { effortTapOf, type EffortTap } from './liveFlow';
-import { objectiveForSets, reportedRir, type Disagreement, type Objective } from './perception';
+import { objectiveForSets, reportedRir, withoutAutoWarmups, type Disagreement, type Objective } from './perception';
 import { preloadFor, type PreloadContext } from './preload';
 import { progressionKey, type NextLoad, type ProgressionSeries, type SessionPerf } from './progression';
 import { assessSet, isCounted, sideFactors, type SetQuality } from './quality';
@@ -78,7 +78,8 @@ export function workoutCheck(w: Workout, registry: Registry, model: QualityModel
   const exercises: CheckExercise[] = [];
   const byMuscle = new Map<MuscleId, CheckMuscle>();
 
-  for (const ex of w.exercises) {
+  for (const ex0 of w.exercises) {
+    const ex = withoutAutoWarmups(ex0, model);
     const def = registry.get(ex.exerciseId);
     const factors = sideFactors(ex.sets);
     const objective = model.useNumbersCheck === false ? null : objectiveForSets(ex.sets);
@@ -110,7 +111,7 @@ export function workoutCheck(w: Workout, registry: Registry, model: QualityModel
     const series = def ? progression.find((p) => p.key === progressionKey(ex, w, def)) : undefined;
     const idx = series ? series.sessions.findIndex((s) => s.workoutId === w.id) : -1;
     exercises.push({
-      entry: ex, known: !!def, sets,
+      entry: ex0, known: !!def, sets,
       workingSets: r2(working.reduce((a, c) => a + c.factor, 0)), warmups: sets.length - working.length,
       muscles, context: preloadFor(w, ex, registry),
       history: series ? { series, session: idx >= 0 ? series.sessions[idx] : null, previous: idx > 0 ? series.sessions[idx - 1] : null, next: series.next } : null,

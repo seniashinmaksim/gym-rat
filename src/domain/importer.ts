@@ -507,7 +507,7 @@ function feedbackFromInput(s: WorkoutInT['exercises'][number]['sets'][number]): 
   if (s.effort) out.effort = s.effort;
   if (s.weight_accuracy) out.weightAccuracy = s.weight_accuracy;
   if (s.technique) out.technique = s.technique;
-  if (s.feel === 'pain' || s.pain_area || s.pain_note) out.pain = { area: s.pain_area ?? '', ...(s.pain_note ? { note: s.pain_note } : {}) };
+  if (s.feel === 'pain' || s.pain_area != null || s.pain_note) out.pain = { area: s.pain_area ?? '', ...(s.pain_note ? { note: s.pain_note } : {}) };
   if (s.intended_weight_kg != null) out.intendedWeightKg = s.intended_weight_kg;
   // v1.3 failure status / execution / prescription: copied only when present, never inferred.
   if (s.failure_status) out.failure = FAILURE_STATUS_IN[s.failure_status];
@@ -596,7 +596,7 @@ export function workoutToExport(w: Workout, includeRaw = false): WorkoutInT {
         type: s.type, weight_kg: s.weightKg, load_mode: s.loadMode, reps: s.reps, rir: s.rir, rir_source: s.rirSource,
         to_failure: s.toFailure, rest_before_sec: s.restSecBefore, rom: s.rom, technique_ok: s.techniqueOk, ...(s.side ? { side: s.side } : {}),
         ...(s.feel ? { feel: s.feel } : {}), ...(s.effort ? { effort: s.effort } : {}), ...(s.weightAccuracy ? { weight_accuracy: s.weightAccuracy } : {}),
-        ...(s.technique ? { technique: s.technique } : {}), ...(s.pain?.area ? { pain_area: s.pain.area } : {}), ...(s.pain?.note ? { pain_note: s.pain.note } : {}),
+        ...(s.technique ? { technique: s.technique } : {}), ...(s.pain ? { pain_area: s.pain.area ?? '' } : {}), ...(s.pain?.note ? { pain_note: s.pain.note } : {}),
         ...(s.intendedWeightKg != null ? { intended_weight_kg: s.intendedWeightKg } : {}),
         ...(s.failure ? { failure_status: FAILURE_STATUS_OUT[s.failure] } : {}),
         ...(s.technicalFailure != null ? { technical_failure: s.technicalFailure } : {}),

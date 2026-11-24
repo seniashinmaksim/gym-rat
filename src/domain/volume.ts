@@ -1,5 +1,5 @@
 import { TRACKED_MUSCLES } from './muscles';
-import { objectiveForSets } from './perception';
+import { objectiveForSets, withoutAutoWarmups } from './perception';
 import { assessSet, isCounted, round2, sideFactors, taperBeyondCap } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId, QualityModel, RegionId, Workout } from './types';
@@ -79,7 +79,8 @@ export function computeVolume(workouts: Workout[], registry: Registry, model: Qu
     const touched = new Set<MuscleId>();
     // Running effective sets per muscle within THIS session (for the per-session taper).
     const running: Partial<Record<MuscleId, number>> = {};
-    for (const ex of w.exercises) {
+    for (const ex0 of w.exercises) {
+      const ex = withoutAutoWarmups(ex0, model);
       const def = registry.get(ex.exerciseId);
       // Left/right sets of a unilateral exercise pair up into one set (0.5 + 0.5).
       const factors = sideFactors(ex.sets);
@@ -162,7 +163,8 @@ const r2 = round2; // order-independent rounding (see quality.ts)
  */
 export function qualitySetTotal(workouts: Workout[], registry: Registry, model: QualityModel): number {
   let t = 0;
-  for (const w of workouts) for (const ex of w.exercises) {
+  for (const w of workouts) for (const ex0 of w.exercises) {
+    const ex = withoutAutoWarmups(ex0, model);
     const def = registry.get(ex.exerciseId);
     const factors = sideFactors(ex.sets);
     const objective = model.useNumbersCheck === false ? null : objectiveForSets(ex.sets);

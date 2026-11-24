@@ -13,7 +13,7 @@ import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
 import { loadStep } from '../../domain/increments';
 import {
-  adjustRest, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, prefillNext, restState, restTargetFor,
+  ANY_DOUBLE_TAP_MS, adjustRest, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, prefillNext, restState, restTargetFor,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
@@ -115,7 +115,10 @@ function TrainSession({ initial }: { initial: Workout }) {
     const r = restState(initial, Date.now(), data.settings.restDefaultSec);
     const restEx = r ? initial.exercises.find((e) => e.id === r.exerciseId) : undefined;
     const ended = !!restEx?.restEndedAt && Date.parse(restEx.restEndedAt) > Date.now() - r!.elapsedSec * 1000;
-    return r && !ended && r.elapsedSec < 30 * 60 && r.exerciseId === pickCurrent(initial) ? 'rest' : 'set';
+    const lastSet = restEx?.sets.find((s) => s.id === r?.setId);
+    const sides = restEx?.sets.filter((s) => !s.planned && s.side) ?? [];
+    const midPair = lastSet?.side === 'left' && sides.filter((s) => s.side === 'left').length > sides.filter((s) => s.side === 'right').length;
+    return r && !ended && !midPair && r.elapsedSec < 30 * 60 && r.exerciseId === pickCurrent(initial) ? 'rest' : 'set';
   });
   const [picker, setPicker] = useState<'add' | { change: string } | null>(() => (initial.exercises.length ? null : 'add'));
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -181,7 +184,8 @@ function TrainSession({ initial }: { initial: Workout }) {
     undoable(L(`Changed to ${names.ex(def)}`, `Заменено на: ${names.ex(def)}`), (x) => {
       const e = x.exercises.find((y) => y.id === exId);
       if (!e || e.exerciseId !== def.id) return x;
-      const sets = performed.length || done(e).length ? e.sets : old.sets;
+      if (done(e).length > performed.length) return x; // sets were logged on the new exercise since: nothing to undo
+      const sets = performed.length ? e.sets : old.sets;
       return { ...x, exercises: x.exercises.map((y) => (y.id === exId ? { ...old, sets } : y)) };
     });
   };
@@ -380,7 +384,7 @@ function TrainSession({ initial }: { initial: Workout }) {
           onLater={postpone} onBusy={markBusy} onFree={freeMachine} onReplace={replaceExercise} onChange={(id) => setPicker({ change: id })} onSkip={skip} onMove={move} onRemove={removeExercise} />
       ) : (
         <ExerciseScreens key={cur.id} w={w} ex={cur} view={view} setView={setView} position={position} exName={exName(cur)}
-          setEx={setEx} undoable={undoable} onNextExercise={nextExercise} onChooseNext={chooseNext} hasNext={w.exercises.some((e) => e.id !== cur.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached)}
+          setEx={setEx} updateAll={update} undoable={undoable} onNextExercise={nextExercise} onChooseNext={chooseNext} hasNext={w.exercises.some((e) => e.id !== cur.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached)}
           perSide={perSide[cur.id]} setPerSide={(v) => setPerSide((m) => ({ ...m, [cur.id]: v }))}
           sessionStep={sessionStep[cur.id]} setSessionStep={(v) => setSessionStep((m) => ({ ...m, [cur.id]: v }))}
           onLater={() => { postpone(cur.id); setCurId(null); setView('overview'); }} onSkip={() => skip(cur.id)} onChange={() => setPicker({ change: cur.id })} />
@@ -443,9 +447,10 @@ const quietBtn = 'flex h-12 min-w-[48px] items-center justify-center rounded-xl 
 
 // ---------------------------------------------------------------- set entry + rest for one exercise
 
-function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoable, onNextExercise, onChooseNext, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange }: {
+function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, updateAll, undoable, onNextExercise, onChooseNext, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange }: {
   w: Workout; ex: WorkoutExercise; view: View; setView: (v: View) => void; position: string; exName: string;
   setEx: (exId: string, fn: (e: WorkoutExercise) => WorkoutExercise, now?: boolean) => void;
+  updateAll: (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void;
   undoable: (msg: string, revert: (x: Workout) => Workout) => void; onNextExercise: () => void; onChooseNext: () => void; hasNext: boolean;
   perSide: boolean | undefined; setPerSide: (v: boolean) => void; sessionStep: number | undefined; setSessionStep: (v: number) => void;
   onLater: () => void; onSkip: () => void; onChange: () => void;
@@ -478,10 +483,16 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
   const [tap, setTap] = useState<EffortTap | null>(null);
   const lastTapSide = useRef<Side | undefined>(undefined);
   const seenKey = useRef(fillKey);
+  const prevLen = useRef(sets.length);
   useEffect(() => {
     if (seenKey.current === fillKey) return;
     seenKey.current = fillKey;
-    setTap(null);
+    const shrank = sets.length < prevLen.current;
+    prevLen.current = sets.length;
+    // A set removed (or a removal undone the other way) keeps whatever was typed for the next set.
+    if (shrank) return;
+    // The answer given for the left side also stands for the right side of the pair.
+    if (nextSide !== 'right') setTap(null);
     // Second side of a pair: same values as the first side.
     const prevSet = sets[sets.length - 1];
     if (nextSide === 'right' && prevSet) { setWeight(prevSet.weightKg); setReps(prevSet.reps); return; }
@@ -509,7 +520,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
   const log = () => {
     const nowMs = Date.now();
     // A second tap within 1.5 s is a double tap — unless it is the other side of a left / right pair.
-    if (nowMs - tapGuard.current < 1500 && lastTapSide.current === nextSide) return;
+    if (nowMs - tapGuard.current < ANY_DOUBLE_TAP_MS || (nowMs - tapGuard.current < 1500 && lastTapSide.current === nextSide)) return;
     if (reps == null || reps < 1) { toast(L('Enter the reps you did', 'Введите число повторений'), 'bad'); return; }
     const kg = weight ?? (loadMode === 'bodyweight_plus' ? 0 : null);
     if (kg == null) { toast(L('Enter the weight', 'Введите вес'), 'bad'); return; }
@@ -519,12 +530,14 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
     lastTapSide.current = nextSide;
     const id = uid('s');
     const answer = tap;
-    setEx(ex.id, (e) => {
+    const logOne = (e: WorkoutExercise) => {
       const logged = logSet(e, entry, nowMs, id, model);
       const s = logged.sets.find((x) => x.id === id);
       return answer && s ? editSet(logged, id, effortTapPatch(s, answer), model) : logged;
-    }, true);
-    setTap(null);
+    };
+    // A NEXT SET mark left on another exercise no longer applies once this set is logged.
+    updateAll((x) => clearOtherRestEnds({ ...x, exercises: x.exercises.map((e) => (e.id === ex.id ? logOne(e) : e)) }, ex.id), { now: true });
+    if (nextSide !== 'left') setTap(null);
     setFlash(id);
     try { navigator.vibrate?.(30); } catch { /* no vibration */ }
     // After the left side comes the right side directly; rest starts after the pair.

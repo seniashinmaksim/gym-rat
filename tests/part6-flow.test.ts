@@ -274,7 +274,7 @@ describe('F.2 log after the set', () => {
     expect(cur.sets[0]).toMatchObject({ type: 'working', weightKg: 60, reps: 12, completedAt: at(0), restSecBefore: null });
     expect(cur.sets[0].planned).toBeUndefined();
     // 180 s since the previous set − 10 reps × 3 s = 150 s of rest.
-    expect(cur.sets[1]).toMatchObject({ restSecBefore: 150, restSource: 'timer', completedAt: at(180) });
+    expect(cur.sets[1]).toMatchObject({ restSecBefore: 150, restSource: 'estimated', completedAt: at(180) });
   });
   it('a double tap on LOG SET does not create a second set', () => {
     let cur = ex('pec_deck', [], 'pd_a');

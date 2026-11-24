@@ -14,7 +14,7 @@ export function Page({ title, subtitle, actions, children }: { title: string; su
     <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:pb-12">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-900 dark:text-white">{title}</h1>
+          <h1 className="break-words text-title font-bold tracking-tight text-ink-900 dark:text-white">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -35,9 +35,9 @@ export function Card({ children, className, padded = true }: { children: ReactNo
 export function CardTitle({ children, hint, right }: { children: ReactNode; hint?: ReactNode; right?: ReactNode }) {
   return (
     <div className="mb-3 flex items-start justify-between gap-3">
-      <div>
-        <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{children}</h2>
-        {hint && <p className="mt-0.5 text-xs leading-relaxed text-ink-500 dark:text-ink-400">{hint}</p>}
+      <div className="min-w-0">
+        <h2 className="text-label font-bold uppercase text-ink-500 dark:text-ink-400">{children}</h2>
+        {hint && <p className="mt-1 text-xs leading-relaxed text-ink-500 dark:text-ink-400">{hint}</p>}
       </div>
       {right}
     </div>
@@ -60,7 +60,8 @@ export function Button({ variant = 'secondary', size = 'md', className, children
     danger: 'bg-rose-600 text-white hover:bg-rose-500',
   }[variant];
   // Phones get ≥ 40–44 px touch targets; desktop keeps the compact sizes.
-  const s = { sm: 'h-10 px-3.5 text-[13px] sm:h-8 sm:px-3 sm:text-xs', md: 'h-11 px-4 text-sm sm:h-10', lg: 'h-12 px-5 text-base' }[size];
+  // Minimum heights (a long label wraps to a second line instead of being cut).
+  const s = { sm: 'min-h-[40px] px-3.5 py-1 text-[13px] sm:min-h-[32px] sm:px-3 sm:text-xs', md: 'min-h-[44px] px-4 py-1.5 text-sm sm:min-h-[40px]', lg: 'min-h-[48px] px-5 py-2 text-base' }[size];
   return (
     <button type="button" className={cx('inline-flex select-none items-center justify-center gap-2 rounded-xl text-center leading-tight font-medium transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40', v, s, className)} {...rest}>
       {children}
@@ -71,14 +72,14 @@ export function Button({ variant = 'secondary', size = 'md', className, children
 export function Field({ label, hint, children, className }: { label: ReactNode; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <label className={cx('block', className)}>
-      <span className="mb-1 block text-xs font-medium text-ink-600 dark:text-ink-300">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-ink-600 dark:text-ink-300">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-[11px] leading-snug text-ink-500 dark:text-ink-400">{hint}</span>}
     </label>
   );
 }
 
-const inputCls = 'h-11 sm:h-10 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/25 dark:border-ink-700 dark:bg-ink-950 dark:text-ink-100 dark:placeholder:text-ink-500';
+const inputCls = 'h-12 sm:h-11 w-full rounded-xl border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/25 dark:border-ink-700 dark:bg-ink-950 dark:text-ink-100 dark:placeholder:text-ink-500';
 
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(inputCls, className)} {...rest} />;
@@ -182,7 +183,7 @@ const toneCls: Record<Tone, string> = {
 };
 
 export function Badge({ tone = 'neutral', children, className, title }: { tone?: Tone; children: ReactNode; className?: string; title?: string }) {
-  return <span title={title} className={cx('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium', toneCls[tone], className)}>{children}</span>;
+  return <span title={title} className={cx('inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold', toneCls[tone], className)}>{children}</span>;
 }
 
 export function ConfidenceBadge({ c, provisional }: { c: TargetConfidence; provisional?: boolean }) {
@@ -194,8 +195,8 @@ export function Stat({ label, value, sub, tone }: { label: ReactNode; value: Rea
   const t = tone === 'good' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'bad' ? 'text-rose-600 dark:text-rose-400' : 'text-ink-900 dark:text-white';
   return (
     <div className="rounded-2xl border border-ink-200 bg-white p-3.5 dark:border-ink-800 dark:bg-ink-900">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-ink-500 dark:text-ink-400">{label}</div>
-      <div className={cx('mt-1 text-2xl font-semibold tabular-nums tracking-tight', t)}>{value}</div>
+      <div className="break-words text-label font-bold uppercase text-ink-500 dark:text-ink-400">{label}</div>
+      <div className={cx('mt-1 font-display text-num-lg font-extrabold tabular-nums', t)}>{value}</div>
       {sub && <div className="mt-0.5 text-xs text-ink-500 dark:text-ink-400">{sub}</div>}
     </div>
   );
@@ -349,8 +350,8 @@ export function Table({ head, children, dense }: { head: ReactNode[]; children: 
           cannot fit). Wide tables (6+ columns) keep a minimum width and scroll sideways. */}
       <table className={cx('w-full text-left text-sm', head.length >= 6 && 'min-w-[560px]')}>
         <thead>
-          <tr className="border-b border-ink-200 text-[11px] uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
-            {head.map((h, i) => <th key={i} className={cx('whitespace-nowrap px-2 font-medium sm:px-3', dense ? 'py-1.5' : 'py-2', i > 0 && 'text-right')}>{h}</th>)}
+          <tr className="border-b border-ink-200 text-label font-bold uppercase text-ink-500 dark:border-ink-800 dark:text-ink-400">
+            {head.map((h, i) => <th key={i} className={cx('px-2 align-bottom sm:px-3', dense ? 'py-1.5' : 'py-2', i > 0 && 'text-right')}>{h}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-ink-100 dark:divide-ink-800/70">{children}</tbody>

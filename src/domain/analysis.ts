@@ -1,3 +1,4 @@
+import { withoutAutoWarmups } from './perception';
 import type { AppData } from './appdata';
 import { daysLeftInWeek, localNowParts, weekOf, type WeekRange } from './dates';
 import { mean, weeklyHistory, type WeekBucket } from './history';
@@ -94,7 +95,10 @@ export function leftOfShare(share: number, done: number): number {
 
 export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
   // Planned (pre-filled, not yet performed) sets never count toward anything.
-  const data: AppData = { ...rawData, workouts: stripPlanned(rawData.workouts) };
+  // Numbers check off (Settings): the app's own warm-up tags are not applied anywhere (progression, volume, recovery).
+  const off = rawData.settings.quality.useNumbersCheck === false;
+  const stripped = stripPlanned(rawData.workouts);
+  const data: AppData = { ...rawData, workouts: off ? stripped.map((w) => ({ ...w, exercises: w.exercises.map((e) => withoutAutoWarmups(e, rawData.settings.quality)) })) : stripped };
   const { timezone, weekStartsOn, quality, perSessionSetCap, defaultTargetRir } = data.settings;
   const local = localNowParts(timezone, now);
   const today = local.date;

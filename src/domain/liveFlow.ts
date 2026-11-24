@@ -19,6 +19,8 @@ export const REST_MIN_SEC = 15;
 export const REST_MAX_SEC = 900;
 /** A second LOG SET with the same values inside this window is a double tap, not a second set. */
 export const DOUBLE_TAP_MS = 1500;
+/** Any second LOG SET this soon is a double tap, even for the other side of a pair (nobody finishes a side in 0.4 s). */
+export const ANY_DOUBLE_TAP_MS = 400;
 
 // ---------------------------------------------------------------- effort tap
 
@@ -138,7 +140,9 @@ export function isDoubleTap(ex: WorkoutExercise, entry: SetEntry, nowMs: number)
   const done = performed(ex);
   const lastSet = done[done.length - 1];
   if (!lastSet?.completedAt) return false;
-  return nowMs - Date.parse(lastSet.completedAt) < DOUBLE_TAP_MS && lastSet.weightKg === entry.weightKg && lastSet.reps === entry.reps && (lastSet.side ?? null) === (entry.side ?? null);
+  const since = nowMs - Date.parse(lastSet.completedAt);
+  if (since < ANY_DOUBLE_TAP_MS) return true;
+  return since < DOUBLE_TAP_MS && lastSet.weightKg === entry.weightKg && lastSet.reps === entry.reps && (lastSet.side ?? null) === (entry.side ?? null);
 }
 
 /**
@@ -157,12 +161,26 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
   const rest = secondSide ? null : pressed ? Math.round((endMs - prevMs) / 1000) : measuredRestSec(prevAt, nowMs, entry.reps);
   const set: WorkoutSet = {
     id, type: 'working', weightKg: entry.weightKg, loadMode: entry.loadMode, reps: entry.reps, rir: null, rirSource: 'unknown',
-    restSecBefore: rest, ...(rest != null ? { restSource: 'timer' as const } : {}), completedAt: new Date(nowMs).toISOString(),
+    restSecBefore: rest, ...(rest != null ? { restSource: pressed ? 'timer' as const : 'estimated' as const } : {}), completedAt: new Date(nowMs).toISOString(),
     ...(entry.side ? { side: entry.side } : {}),
   };
   const { restEndedAt: _used, ...rest0 } = ex;
   void _used;
   return { ...rest0, sets: reclassifyWarmups([...ex.sets, set], model), ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
+}
+
+/**
+ * A set logged on one exercise ends the "NEXT SET" mark of every OTHER exercise: coming back to an exercise later
+ * must not record the old, short rest (its rest is then estimated from the times as usual). Same object when nothing changes.
+ */
+export function clearOtherRestEnds(w: Workout, exId: string): Workout {
+  if (!w.exercises.some((e) => e.id !== exId && e.restEndedAt)) return w;
+  return { ...w, exercises: w.exercises.map((e) => {
+    if (e.id === exId || !e.restEndedAt) return e;
+    const { restEndedAt: _r, ...rest } = e;
+    void _r;
+    return rest;
+  }) };
 }
 
 /** Edit or remove a logged set, then re-check warm-up tags. `patch: null` removes it. */

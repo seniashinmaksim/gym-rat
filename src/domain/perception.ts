@@ -119,7 +119,8 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
       }
       // Back-off estimate only for a set WITHOUT a report: a reported set is judged by its next set (direct evidence).
       if (w < bw && reportedRir(s) == null) {
-        const hardBefore = i - best;
+        // Sets done since the best set — of the same side only (the other side's sets did not tire this one).
+        const hardBefore = sets.slice(best + 1, i).filter((o) => (o.side ?? null) === (s.side ?? null)).length + 1;
         const est = Math.max(0, r1(possible - (s.reps as number) - BACKOFF_ALLOWANCE * hardBefore));
         // A back-off estimate that is not clearly easy says nothing reliable; next-set evidence then decides.
         if (est >= CLEARLY_EASY_RIR || next.kind === 'none') {
@@ -218,6 +219,16 @@ export function reclassifyWarmups(sets: WorkoutSet[], m: Pick<QualityModel, 'rir
     return s;
   });
   return changed ? out : sets;
+}
+
+/**
+ * With "Check effort against the numbers" switched off, warm-up tags the APP set (`typeSource: 'auto'`) are not
+ * applied anywhere: those sets count as the working sets they were logged as. The stored tag is not rewritten
+ * (switching the check on again restores it). Owner, imported and older warm-ups are untouched.
+ */
+export function withoutAutoWarmups<T extends { sets: WorkoutSet[] }>(ex: T, m: Pick<QualityModel, 'useNumbersCheck'>): T {
+  if (m.useNumbersCheck !== false || !ex.sets.some((s) => s.type === 'warmup' && s.typeSource === 'auto')) return ex;
+  return { ...ex, sets: ex.sets.map((s) => (s.type === 'warmup' && s.typeSource === 'auto' ? { ...s, type: 'working' as const } : s)) };
 }
 
 // ---------------------------------------------------------------- personal bias

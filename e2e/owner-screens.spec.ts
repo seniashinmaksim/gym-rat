@@ -96,3 +96,51 @@ for (const lang of ['en', 'ru'] as const) {
     await shot('08-choose-next');
   });
 }
+
+const AUDIT = fs.readFileSync('scripts/layout-audit.js', 'utf8');
+const ROUTES = ['/', '/history', '/strength', '/muscles', '/recovery', '/reports', '/periodization', '/exercises', '/equipment', '/body', '/science', '/settings', '/import', '/log'];
+
+for (const lang of ['en', 'ru'] as const) {
+  test(`all screens (${lang})`, async ({ page }, info) => {
+    test.skip(info.project.name !== 'iphone-13', 'iPhone 13 only');
+    test.setTimeout(300_000);
+    const t = T[lang];
+    const dir = path.join(OUT, 'all', lang);
+    fs.mkdirSync(dir, { recursive: true });
+    const findings: Record<string, unknown[]> = {};
+    const visit = async (name: string) => {
+      await page.waitForTimeout(500);
+      const h = await page.evaluate(() => document.documentElement.scrollHeight);
+      await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true, clip: { x: 0, y: 0, width: page.viewportSize()!.width, height: Math.min(h, 7000) } });
+      const r = (await page.evaluate(AUDIT)) as { findings: unknown[] };
+      if (r.findings.length) findings[name] = r.findings;
+    };
+    await page.clock.install({ time: new Date('2026-11-22T17:30:00Z') });
+    await page.addInitScript((l) => { try { localStorage.setItem('gymrat-lang', l); } catch { /* ignore */ } }, lang);
+    await page.goto('/');
+    await page.getByPlaceholder(t.choose).fill(PW);
+    await page.getByPlaceholder(t.repeat).fill(PW);
+    await page.locator('input[type=file]').setInputFiles(BACKUP);
+    await page.getByRole('button', { name: t.setPw }).click();
+    await page.getByPlaceholder(t.choose).waitFor({ state: 'detached', timeout: 90_000 });
+    // The restore finishes after unlocking: wait until the synthetic history is there.
+    await page.goto('/#/');
+    await expect(page.locator('#row-chest')).toBeVisible({ timeout: 60_000 });
+    await page.goto('/#/history');
+    await expect(page.locator('button[aria-expanded]').first()).toBeVisible({ timeout: 30_000 });
+    for (const r of ROUTES) {
+      await page.goto(`/#${r}`);
+      await page.waitForLoadState('networkidle');
+      await visit(r === '/' ? 'week' : r.slice(1));
+    }
+    // Workout check of the latest workout (History → open → Check the numbers)
+    await page.goto('/#/history');
+    await page.locator('button[aria-expanded]').first().click();
+    await page.getByTestId('open-check').first().click();
+    await expect(page.getByTestId('workout-check')).toBeVisible();
+    await page.getByTestId('check-set').first().locator('button').first().click();
+    await visit('check');
+    fs.writeFileSync(path.join(dir, 'findings.json'), JSON.stringify(findings, null, 2));
+    expect(findings, 'layout findings (incl. text cut off)').toEqual({});
+  });
+}

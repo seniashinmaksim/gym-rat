@@ -178,3 +178,65 @@ describe('owner request: default weight step on machines is 2.5 kg', () => {
     expect(loadStep({ incrementsKg: [5] }, null, 'machine')).toEqual({ step: 5, source: 'equipment' });
   });
 });
+
+describe('final review fixes', () => {
+  it('#1 a second LOG SET within 0.4 s is a double tap even when the next side differs (no phantom right set)', async () => {
+    const { isDoubleTap } = await import('../src/domain/liveFlow');
+    let cur = ex('cable_lateral_raise', [], 'cl_a');
+    cur = logSet(cur, { weightKg: 5, reps: 12, loadMode: 'total', side: 'left' }, T0, 'a', m);
+    expect(isDoubleTap(cur, { weightKg: 5, reps: 12, loadMode: 'total', side: 'right' }, T0 + 300)).toBe(true);
+    // The right side logged a moment later (≥ 0.4 s) is a real set.
+    expect(isDoubleTap(cur, { weightKg: 5, reps: 12, loadMode: 'total', side: 'right' }, T0 + 900)).toBe(false);
+  });
+
+  it('#2 with the numbers check off, sets the app had tagged as warm-ups count as working sets again', async () => {
+    const { computeVolume } = await import('../src/domain/volume');
+    let cur = ex('pec_deck', [], 'pd_a');
+    cur = logSet(cur, { weightKg: 20, reps: 10, loadMode: 'total' }, T0, 'a', m);
+    cur = logSet(cur, { weightKg: 60, reps: 12, loadMode: 'total' }, T0 + 120_000, 'b', m);
+    expect(cur.sets[0]).toMatchObject({ type: 'warmup', typeSource: 'auto' });
+    const w = workout('2026-11-24', [cur]);
+    // Off: both sets are working sets with unknown effort → 0.75 + 0.75 = 1.5 chest.
+    expect(computeVolume([w], reg, { ...m, useNumbersCheck: false }).muscles.chest.effective).toBe(1.5);
+    // On (default): the warm-up counts 0, the working set 0.75.
+    expect(computeVolume([w], reg, m).muscles.chest.effective).toBe(0.75);
+    // An owner's own warm-up tag stays a warm-up either way.
+    const owner = workout('2026-11-24', [{ ...cur, sets: cur.sets.map((s, i) => (i === 0 ? { ...s, typeSource: 'owner' as const } : s)) }]);
+    expect(computeVolume([owner], reg, { ...m, useNumbersCheck: false }).muscles.chest.effective).toBe(0.75);
+  });
+
+  it('#3 logging a set on another exercise ends the "NEXT SET" mark of every other exercise', async () => {
+    const { clearOtherRestEnds } = await import('../src/domain/liveFlow');
+    const a = ex('pec_deck', [], 'pd_a', { restEndedAt: new Date(T0).toISOString() });
+    const b = ex('lateral_raise', []);
+    const w = workout('2026-11-24', [a, b]);
+    const after = clearOtherRestEnds(w, b.id);
+    expect(after.exercises[0].restEndedAt).toBeUndefined();
+    expect(clearOtherRestEnds(w, a.id)).toBe(w); // nothing to clear → same object
+  });
+
+  it('#5 left / right: the back-off fatigue allowance counts only sets of the same side', () => {
+    // Left: best 50 × 10 (Epley 66.67); at 40: possible = 30 × (66.67 / 40 − 1) = 20; − 12 − 1 (one LEFT set since the best) = 7.
+    const sets = [bare(50, 10, { side: 'left' }), bare(50, 10, { side: 'right' }), bare(40, 12, { side: 'left' }), bare(40, 12, { side: 'right' })];
+    const o = objectiveForSets(sets);
+    expect(o.get(sets[2].id)).toMatchObject({ kind: 'backoff', estRir: 7 });
+    expect(o.get(sets[3].id)).toMatchObject({ kind: 'backoff', estRir: 7 });
+  });
+
+  it('#11 a pain flag without an area survives export → import', async () => {
+    const { workoutToExport, parseImportJson } = await import('../src/domain/importer');
+    const w = workout('2026-11-24', [ex('pec_deck', [bare(50, 12, { pain: { area: '' }, effort: 'appropriate', feel: 'just_right' })], 'pd_a')]);
+    const out = workoutToExport(w);
+    const back = parseImportJson(JSON.stringify(out));
+    expect(back.ok).toBe(true);
+    const set0 = back.workouts[0].exercises[0].sets[0] as { pain_area?: string };
+    expect(set0.pain_area).toBe(''); // the flag is in the file, area unknown
+  });
+
+  it('#12 a rest that was not ended with NEXT SET is stored as an estimate', () => {
+    let cur = ex('pec_deck', [], 'pd_a');
+    cur = logSet(cur, { weightKg: 50, reps: 12, loadMode: 'total' }, T0, 'a', m);
+    cur = logSet(cur, { weightKg: 50, reps: 10, loadMode: 'total' }, T0 + 120_000, 'b', m);
+    expect(cur.sets[1]).toMatchObject({ restSecBefore: 90, restSource: 'estimated' });
+  });
+});
