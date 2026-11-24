@@ -100,3 +100,38 @@ export function parseDecimal(text: string): number | null {
 }
 
 export const KG = () => L('kg', 'кг');
+
+/**
+ * A module-level table of texts that follows the language. `L()` called while a module loads would freeze
+ * the language of that moment; wrap the table instead: `export const ITEMS = byLang(() => [{ label: L('Week', 'Неделя') }])`.
+ * The result behaves like the array / object the factory returns (read-only use: index, map, find, spread,
+ * Object.entries); it is rebuilt once per language.
+ */
+export function byLang<T extends object>(make: () => T): T {
+  const cache = new Map<Lang, T>();
+  const get = (): T => {
+    let v = cache.get(current);
+    if (!v) { v = make(); cache.set(current, v); }
+    return v;
+  };
+  const shape = make();
+  cache.set(current, shape);
+  const target = (Array.isArray(shape) ? [] : typeof shape === 'function' ? function () { /* shape only */ } : {}) as T;
+  return new Proxy(target, {
+    get: (_t, k) => { const v = get(); const x = Reflect.get(v, k, v); return typeof x === 'function' && !Object.prototype.hasOwnProperty.call(v, k) ? x.bind(v) : x; },
+    has: (_t, k) => Reflect.has(get(), k),
+    ownKeys: () => Reflect.ownKeys(get()),
+    getOwnPropertyDescriptor: (_t, k) => { const d = Reflect.getOwnPropertyDescriptor(get(), k); if (d && k !== 'length') d.configurable = true; return d; },
+    getPrototypeOf: () => Reflect.getPrototypeOf(get()),
+    set: () => false,
+    deleteProperty: () => false,
+    defineProperty: () => false,
+  });
+}
+
+// The language is known before any screen renders (also on the lock screen).
+// Only in a browser: unit tests (no window) always run in English, whatever the machine's locale is.
+if (typeof window !== 'undefined') {
+  try { current = detectLang(); document.documentElement.lang = current; } catch { /* keep English */ }
+}
+

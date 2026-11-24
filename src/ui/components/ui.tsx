@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { getLang, L } from '../../i18n';
 import type { TargetConfidence } from '../../domain/types';
 import { IconChevronDown, IconInfo, IconX } from './icons';
 
@@ -366,7 +367,8 @@ export function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null || !Number.isFinite(n)) return '—';
   const r = Math.round(n * 10 ** digits) / 10 ** digits;
   // Trailing zeros dropped: 7.5 → "7.5" (not "7.50").
-  return String(Number(r.toFixed(digits)));
+  const s = String(Number(r.toFixed(digits)));
+  return getLang() === 'ru' ? s.replace('.', ',') : s; // decimal comma in Russian
 }
 
 /** Tiny toast system. A toast with `undo` shows an Undo button and stays ~7 s (one tap to reverse). */
@@ -396,20 +398,20 @@ export function Toaster() {
     setItems((x) => x.filter((i) => i.id !== t.id));
     try {
       const r = await t.undo?.();
-      toast(r === false ? 'Nothing to undo — it has changed since' : 'Undone', 'info');
+      toast(r === false ? L('Nothing to undo — it has changed since', 'Отменять нечего — с тех пор всё изменилось') : L('Undone', 'Отменено'), 'info');
     } catch (e) {
-      toast(`Could not undo: ${(e as Error).message}`, 'bad');
+      toast(`${L('Could not undo', 'Не удалось отменить')}: ${(e as Error).message}`, 'bad');
     }
   };
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[8.5rem] z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
+    <div className="toaster pointer-events-none fixed inset-x-0 bottom-[8.5rem] z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6" aria-live="polite">
       {items.map((t) => (
         <div key={t.id} data-testid="toast" role="status" className={cx('pointer-events-auto flex max-w-md items-center gap-3 rounded-xl py-1.5 pl-4 text-sm font-medium shadow-lg',
           t.undo ? 'pr-1.5' : 'min-h-[40px] pr-4',
           t.tone === 'bad' ? 'bg-rose-600 text-white' : t.tone === 'info' ? 'bg-ink-800 text-white' : 'bg-emerald-600 text-white')}>
           <span className="min-w-0 py-1">{t.msg}</span>
           {t.undo && (
-            <button type="button" onClick={() => void run(t)} className="h-11 shrink-0 rounded-lg bg-white/15 px-4 font-semibold text-accent-300 active:bg-white/25">Undo</button>
+            <button type="button" onClick={() => void run(t)} className="h-11 shrink-0 rounded-lg bg-white/15 px-4 font-semibold text-accent-300 active:bg-white/25">{L('Undo', 'Отменить')}</button>
           )}
         </div>
       ))}

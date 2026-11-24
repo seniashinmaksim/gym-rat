@@ -3,6 +3,7 @@
  * training timezone, so week membership is pure calendar arithmetic. "Now" is
  * resolved in the configured timezone via Intl.
  */
+import { locale } from '../i18n/core';
 
 const DAY = 86_400_000;
 
@@ -117,7 +118,7 @@ export function workoutVirtualMs(date: string, startTime?: string | null): numbe
 }
 
 export function formatDate(d: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }): string {
-  return new Date(dateMs(d)).toLocaleDateString(undefined, { ...opts, timeZone: 'UTC' });
+  return new Date(dateMs(d)).toLocaleDateString(locale(), { ...opts, timeZone: 'UTC' });
 }
 
 export function formatDuration(sec: number | null | undefined): string {

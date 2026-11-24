@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useStore } from './lib/store';
+import { L, useLang } from './i18n';
 import { Toaster } from './ui/components/ui';
 import { Layout } from './ui/Layout';
 import { LockScreen } from './ui/pages/LockScreen';
@@ -48,9 +49,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     if (!this.state.error) return this.props.children;
     return (
       <div className="mx-auto max-w-xl px-6 pt-10">
-        <h1 className="text-lg font-semibold">This screen hit an error</h1>
-        <p className="mt-2 text-sm text-ink-500">Your data is safe — nothing was changed. Details: {this.state.error.message}</p>
-        <button className="mt-4 rounded-xl bg-accent-500 px-4 py-2 text-sm font-semibold text-ink-950" onClick={() => { this.setState({ error: null }); location.hash = '#/'; }}>Back to dashboard</button>
+        <h1 className="text-lg font-semibold">{L('This screen hit an error', 'На этом экране произошла ошибка')}</h1>
+        <p className="mt-2 text-sm text-ink-500">{L('Your data is safe — nothing was changed. Details:', 'Ваши данные в порядке — ничего не изменено. Подробности:')} {this.state.error.message}</p>
+        <button className="mt-4 rounded-xl bg-accent-500 px-4 py-2 text-sm font-semibold text-ink-950" onClick={() => { this.setState({ error: null }); location.hash = '#/'; }}>{L('Back to the Week screen', 'Назад к экрану «Неделя»')}</button>
       </div>
     );
   }
@@ -62,9 +63,11 @@ function Loading() {
 
 export function App() {
   const { status } = useStore();
-  if (status !== 'unlocked') return <LockScreen />;
+  // Every screen is rebuilt when the language changes (texts are produced where they are used).
+  const lang = useLang();
+  if (status !== 'unlocked') return <LockScreen key={lang} />;
   return (
-    <HashRouter>
+    <HashRouter key={lang}>
       <Layout>
         <ErrorBoundary>
         <Suspense fallback={<Loading />}>

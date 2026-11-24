@@ -4,6 +4,7 @@ import type { AppData } from '../domain/appdata';
 import { muscleName } from '../domain/muscles';
 import type { ExerciseDef, MuscleId } from '../domain/types';
 import { store, useData } from '../lib/store';
+import { useLang } from '../i18n';
 
 /**
  * Memoized analysis of the whole dataset. Recomputed when data changes, every minute (so recovery
@@ -13,7 +14,8 @@ import { store, useData } from '../lib/store';
 export function useAnalysis(): Analysis {
   const data = useData();
   const minute = useMinuteTick();
-  return useMemo(() => analyze(data), [data, minute]); // eslint-disable-line react-hooks/exhaustive-deps
+  const appLang = useLang(); // reasons and notes are produced in the current language
+  return useMemo(() => analyze(data), [data, minute, appLang]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function analyzeWith(data: AppData) {
@@ -42,18 +44,20 @@ function useMinuteTick() {
 /** Exercise display name honouring the EN/RU preference. */
 export function useNames() {
   const data = useData();
-  const lang = data.settings.exerciseNames;
+  // Names follow the app language; "both" adds the other language as a second line.
+  const appLang = useLang();
+  const both = data.settings.exerciseNames === 'both';
+  const lang: 'en' | 'ru' | 'both' = both ? 'both' : appLang;
   return useMemo(() => ({
-    ex: (def: ExerciseDef | undefined, fallback = 'Unknown exercise') => {
+    ex: (def: ExerciseDef | undefined, fallback = appLang === 'ru' ? 'Неизвестное упражнение' : 'Unknown exercise') => {
       if (!def) return fallback;
-      if (lang === 'ru') return def.name.ru;
-      return def.name.en;
+      return appLang === 'ru' ? def.name.ru : def.name.en;
     },
-    exSub: (def: ExerciseDef | undefined) => (def && lang === 'both' ? def.name.ru : null),
-    muscle: (m: MuscleId) => muscleName(m, lang === 'ru' ? 'ru' : 'en'),
-    muscleSub: (m: MuscleId) => (lang === 'both' ? muscleName(m, 'ru') : null),
+    exSub: (def: ExerciseDef | undefined) => (def && both ? (appLang === 'ru' ? def.name.en : def.name.ru) : null),
+    muscle: (m: MuscleId) => muscleName(m, appLang),
+    muscleSub: (m: MuscleId) => (both ? muscleName(m, appLang === 'ru' ? 'en' : 'ru') : null),
     lang,
-  }), [lang]);
+  }), [lang, appLang, both]);
 }
 
 /** Applies dark/light theme. Before unlock the preference is read from localStorage (non-sensitive). */

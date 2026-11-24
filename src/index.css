@@ -89,3 +89,9 @@
 .train .t-flash { animation: t-flash 0.5s ease-out; }
 .train .t-flash-good { animation: t-flash-good 0.8s ease-out; }
 @media (prefers-reduced-motion: reduce) { .train .t-flash, .train .t-flash-good { animation: none; } }
+
+/* Training mode: confirmations appear at the top, never over the weight / reps controls or the main button. */
+body:has([data-testid="train"]) .toaster {
+  bottom: auto;
+  top: calc(env(safe-area-inset-top) + 3.25rem);
+}
