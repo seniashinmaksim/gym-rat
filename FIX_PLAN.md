@@ -912,3 +912,12 @@ make order and fatigue management unimportant). Short messages only; nothing blo
 15. Deleting / editing the Tuesday workout re-plans; the next week's first usual day is checked across the week boundary.
 16. EN + RU texts short, never cut off (layout audit), screen reader labels on the buttons.
 Regression: six-month reference, training-mode replay, Part 5 planner tests, choice-card tests, Week / Strength / Recovery.
+
+## Status 2026-11-24 (end of the Part 7 / Part 8 session)
+- Part 7: done — second analysis (`docs/FORMULA_ANALYSIS.md` §5), fixes rows 56–68 in `docs/FORMULA_AUDIT.md` §5, rules state
+  principle vs number, CLAUDE.md §M. Open on purpose: unknown rest stays "normal" (P3); target drift is watched, not changed;
+  the ×0.8 credit for < 5 reps is labelled an app choice not supported by the cited studies (owner to decide).
+- Part 8: done — H.3 #1–#9, #12, #14, #16 tested (`tests/part8-*.test.ts`); CLAUDE.md §N. Not built yet: #10 (usual pairs move
+  together), #13 (softening after repeated "Keep today" with no performance drop, and the quiet habit line), #15 (re-plan
+  after editing / deleting the target-day workout is implicit — moves stay open until performed — but not separately tested).
+- Moves made from the exercise picker store no machine (chosen when it is added on the target day); moves from the plan card keep it.
