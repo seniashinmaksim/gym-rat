@@ -965,6 +965,63 @@ score never changes any weekly number, credit or recovery window; rule `exercise
 Design note (factors, weights, bands, groups) → owner's OK on the weights if any is a pure preference → failing tests →
 implementation → rules.ts + CLAUDE.md + docs/FORMULA_AUDIT.md §5 → unit + browser EN/RU → independent review → push.
 
+## I.4 Design note (2026-11-24, before any code)
+
+**Where "next exercise" suggestions appear today**
+- Training mode → "Enough — choose next exercise" → the *Next exercise* chooser (`Train.tsx`): the remaining planned
+  exercises in plan order, the first marked "suggested". No assessment today.
+- Exercise picker (`Logger.tsx` `ExercisePicker`, used by the training mode's Add): every row has the choice dot
+  (`assessChoice`, GOOD / ACCEPTABLE / CONSIDER …); the list is sorted by how often an exercise was used.
+- Replacement options (`planner.ts` `replacementOptions`): plan card → Replace (`NextWorkout.tsx`) and the training
+  mode's Replace / Machine busy (`Train.tsx`); sorted by familiarity only.
+
+**One function, no new model:** `src/domain/optimality.ts` `optimality()` reads only what the app already computes —
+`assessChoice` (recovery / volume / fatigue / order / decline / safety, softened recovery from `choice_learning`),
+`forwardChecks` (Part 8: recovery before the next session, next-session interference, softening, < 4 weeks → tips),
+`analysis.muscles` (weekly target, today's open share — Part 7 week fit already inside it), `availableEquipment`
+(busy machines, this gym), session counts (familiarity / calibration) and the usual days. It writes nothing and changes
+no weekly number, credit or recovery window.
+
+**Three groups**
+1. NOT RECOMMENDED TODAY — no number, shown separately with its reason: the primary muscle is held by an earlier
+   session's recovery window (> 6 h left, not softened); a Part 8 LIMIT (recovery before the next session that trains it,
+   or next-session performance); pain logged on this exercise (safety line, its own reason). A score never turns these
+   into a recommendation.
+2. LESS OPTIMAL — scored < 75, or one of the assistant's "reconsider" findings (fatigue / order / a sparing option exists).
+3. SUITABLE NOW — scored ≥ 75 with no "reconsider" finding. Sorted high → low.
+
+**Score = 100 − deductions, then caps for missing data, rounded to 5 (5 … 100).** Every deduction is one existing
+finding; the PRINCIPLE comes from research where cited, the NUMBER of points is a heuristic (an app choice):
+
+| Factor (source) | Principle (evidence) | Points (heuristic) |
+|---|---|---|
+| Primary held, but ≥ 3 earlier overrides went fine (`choice_learning`) | recovery windows are heuristics; own data beats them (Part 5) | −25 |
+| A synergist ≥ 0.5 recently loaded; a familiar option spares it / none does | performance falls after recent loading of the muscle (indirect) | −15 / −5 |
+| Session time unknown near the window's end | the window cannot be placed | −10, confidence low |
+| Primary above its weekly upper bound | diminishing returns of weekly volume (Pelland 2026, Schoenfeld 2017) | −50 |
+| Primary weekly target met | same | −35 (owner 2026-11-24: "less optimal") |
+| Secondary muscles (≥ 0.5) whose week is met — the share of the exercise's work they take | same; work on a met muscle adds fatigue, little growth | −20 × Σ coef(met secondaries) ÷ Σ coef(all ≥ 0.5) |
+| Today's share done, week still open | carry over instead of cramming (Part 7) | −20 |
+| Part 8 tip (a softened interference, < 4 weeks of usual days, a near window) | order / prior fatigue lowers later performance (indirect) | −10 |
+| Heavy lower body after ≥ 2 heavy lower lifts / HIGH cost late in a heavy session | fatigue cost (`fatigue_cost`) | −20 / −10 |
+| A planned compound using this muscle still to do / host-compound hint | order changes later reps, not growth (Nunes 2021) | −15 / −5 |
+| Performance declining (this history or the primary's lifts) | check load, rest, recovery first | −5 |
+| Machine busy now (every linked machine here busy) | availability | −30 |
+
+Caps (missing data lowers the ceiling, never raises a score): never performed → ≤ 70 ("new: calibrate"); one session →
+≤ 85; no history at all → ≤ 60; a machine / cable exercise with no machine known at this gym → ≤ 80; no usual days known
+(no forward check possible) → ≤ 90. Any cap → confidence low. Not scored: session order / pre-load (hypertrophy differs
+little, Nunes 2021; the order findings already carry it) and priority muscles (they already change the order and fatigue
+findings; no separate points).
+
+**Owner's question (2026-11-24): "if the triceps target is met, should incline press still be shown, but less optimal than the butterfly?"** Yes. Incline press = chest 1 + front delts 0.5 + triceps 0.5: a quarter of its significant work goes to a muscle whose week is met → −20 × 0.5 ÷ 2 = −5 → 95; pec deck (chest 1, front delts 0.25) → 100: both suitable, pec deck first. With the CHEST week met both drop to less optimal (−35). Nothing is hidden (the weekly target is a reference, not a ceiling); the picker's "Best now" only offers exercises whose primary muscle still has an open share today.
+
+**No false precision:** bands 85–100 "very good fit now" · 75–80 "good fit" · 50–70 "less optimal" · ≤ 45 "poor fit today";
+the "why" says that 95 vs 90 is no difference in growth — the number ranks options for THIS moment only. Ties: more
+sessions logged first, then the name, then the id (stable, independent of input order).
+
+**Why per exercise:** the two largest deductions (or "ready, x sets left today"), one line each, and the cap if any.
+
 # Part 10 — Visual formula dependency map (owner's request 2026-11-24; direction, form is free)
 
 Goal: one visual overview (plus linked detail views) of how data flows from raw workout data through every formula, rule
