@@ -12,6 +12,7 @@
  * started from what was ACTUALLY done (any order). Nothing here writes data; the UI stores the snapshot
  * (`Workout.generated`) separately from what is performed.
  */
+import { activeMoves } from './sequence';
 import type { AppData } from './appdata';
 import { diffDays, localNowParts } from './dates';
 import { L, num, ruPlural } from '../i18n/core';
@@ -323,6 +324,20 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
     });
   };
 
+  // Exercises the owner moved to today (or to an earlier day and not done yet, Part 8): planned with their own set
+  // count; their POSITION follows the normal order rules below (scheduling day ≠ execution order).
+  const moved = activeMoves(data).filter((m) => m.date <= today);
+  const pinned = new Map<string, number>();
+  for (const mv of moved) {
+    const def = registry.get(mv.exerciseId);
+    if (!def || usedEx.has(def.id)) continue;
+    const target = significantMuscles(def, mv.variation, 0.5)[0]?.muscle;
+    if (!target) continue;
+    const entry = library.find((e) => e.exerciseId === mv.exerciseId && e.equipmentId === mv.equipmentId) ?? null;
+    addItem(def, mv.equipmentId, mv.variation ?? entry?.variation, entry, target, [L(`Moved here from ${mv.fromDate}: ${mv.reason}`, `Перенесено сюда с ${mv.fromDate}: ${mv.reason}`)]);
+    pinned.set(def.id, mv.sets);
+  }
+
   // Forced items first (chosen replacements).
   for (const f of input.force ?? []) {
     const def = registry.get(f.exerciseId);
@@ -441,7 +456,9 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
     if (!def) return [it];
     const { contributions } = resolveCoefficients(def, it.variation);
     const maxSets = def.category === 'compound' ? MAX_SETS.compound : MAX_SETS.isolation;
-    const sets = Math.min(it.setCount, allocateSets(contributions, openFinal, maxSets).sets);
+    const alloc = Math.min(it.setCount, allocateSets(contributions, openFinal, maxSets).sets);
+    // A moved exercise keeps its own set count (the owner asked for it); everything else follows the allocation.
+    const sets = pinned.has(it.exerciseId) ? Math.max(1, pinned.get(it.exerciseId)!) : alloc;
     if (sets <= 0) return [];
     const contributes: Partial<Record<MuscleId, number>> = {};
     for (const [m, c] of Object.entries(contributions) as [MuscleId, number][]) {

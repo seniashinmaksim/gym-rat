@@ -1,6 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { localNowParts } from '../../domain/dates';
+import { formatDate, localNowParts } from '../../domain/dates';
+import { bestMoveDay, forwardChecks } from '../../domain/sequence';
+import type { MuscleId } from '../../domain/types';
+import { ForwardWarning } from './ForwardWarning';
 import { generateWorkout, replacementOptions, workoutFromPlan, type GeneratedWorkout, type ItemEdit, type PlanItem } from '../../domain/planner';
 import { stepLoad, variationParts } from '../../domain/progression';
 import { MODE_LABEL, readinessReport } from '../../domain/readiness';
@@ -9,7 +12,7 @@ import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import { useAnalysis, useDraftSync, useNames } from '../hooks';
-import { Badge, Button, Card, cx, fmt, Select, toast, Why } from './ui';
+import { Badge, Button, Card, cx, fmt, Select, toast, undoToast, Why } from './ui';
 import { byLang, KG, L, ruPlural } from '../../i18n';
 
 interface PlanDraft {
@@ -53,6 +56,27 @@ export function NextWorkoutCard() {
 
   const gen: GeneratedWorkout = useMemo(() => generateWorkout({ data, analysis: a, now: new Date(), locationId: loc, readiness, exclude, force }), [data, a, loc, readiness, exclude, force]);
   const items = gen.items.filter((it) => !skipped.includes(it.exerciseId));
+  // Part 8: what each planned exercise would do to the next usual sessions (cumulative over the plan, in order).
+  const fwd = useMemo(() => {
+    const acc: Partial<Record<MuscleId, number>> = {};
+    return items.map((it) => {
+      const f = forwardChecks({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } });
+      for (const [m, v] of Object.entries(it.contributes) as [MuscleId, number][]) acc[m] = (acc[m] ?? 0) + v;
+      return { f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation }) : null };
+    });
+  }, [items, data, a]);
+  /** Move a planned exercise to the proposed day: kept as a planned move (never skipped), with Undo. */
+  const moveItem = async (it: PlanItem, w: { f: { text: string }[]; move: { date: string } | null }) => {
+    if (!w.move) return;
+    const before = data.settings.plannedMoves ?? [];
+    const mv = { id: uid(), exerciseId: it.exerciseId, equipmentId: it.equipmentId, ...(it.variation ? { variation: it.variation } : {}), sets: it.setCount, fromDate: a.today, date: w.move.date, reason: w.f.map((x) => x.text).join(' '), createdAt: new Date().toISOString() };
+    await store.saveSettings({ plannedMoves: [...before, mv] });
+    setExclude((x) => [...x, it.exerciseId]);
+    undoToast(L(`${names.ex(a.registry.get(it.exerciseId))} moved to ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`, `${names.ex(a.registry.get(it.exerciseId))}: перенесено на ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`), async () => {
+      await store.saveSettings({ plannedMoves: before });
+      setExclude((x) => x.filter((y) => y !== it.exerciseId));
+    });
+  };
   if (activeWorkout(data.workouts)) return null;
 
   const mode = readiness.mode;
@@ -99,6 +123,7 @@ export function NextWorkoutCard() {
     );
   }
 
+
   return (
     <Card padded={false}>
       {header}
@@ -116,7 +141,9 @@ export function NextWorkoutCard() {
         <p className="px-4 py-3 text-sm text-ink-600 dark:text-ink-300 sm:px-5">{gen.notes.find((n) => /^(Nothing|Ничего|Сегодня нич)/.test(n)) ?? L('Nothing planned — every muscle is done or recovering.', 'Ничего не запланировано — по всем мышцам цель выполнена или идёт восстановление.')}</p>
       ) : (
         <ol className="mt-2 divide-y divide-ink-100 dark:divide-ink-800/70" data-testid="next-workout-list">
-          {items.map((it, i) => (
+          {items.map((it, i) => (<FragmentRow key={it.exerciseId} warning={fwd[i]?.f.length ? (
+              <li className="px-4 pb-3 sm:px-5"><ForwardWarning findings={fwd[i].f} moveDate={fwd[i].move?.date ?? null} clean={fwd[i].move?.clean ?? false} onMove={() => void moveItem(it, fwd[i])} /></li>
+            ) : null}>
             <ItemRow key={it.exerciseId} n={i + 1} it={it} edit={edits[it.exerciseId]} open={openItem === it.exerciseId}
               onToggle={() => { setOpenItem(openItem === it.exerciseId ? null : it.exerciseId); setReplacing(null); }}
               name={names.ex(a.registry.get(it.exerciseId))} eqName={it.equipmentId ? data.equipment.find((e) => e.id === it.equipmentId)?.name ?? null : null}
@@ -134,7 +161,7 @@ export function NextWorkoutCard() {
                 setForce((f) => [...f, { exerciseId: o.exerciseId, equipmentId: o.equipmentId, variation: o.variation }]);
                 setReplacing(null); setOpenItem(null); setReason(null);
               }} />
-          ))}
+          </FragmentRow>))}
         </ol>
       )}
       <div className="space-y-2 px-4 pb-4 pt-2 sm:px-5">
@@ -242,4 +269,9 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
       )}
     </li>
   );
+}
+
+/** A plan row followed by its optional forward warning (Part 8). */
+function FragmentRow({ children, warning }: { children: ReactNode; warning: ReactNode }) {
+  return <>{children}{warning}</>;
 }

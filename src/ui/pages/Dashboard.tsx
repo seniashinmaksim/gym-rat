@@ -18,6 +18,7 @@ import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
 import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { activeMoves } from '../../domain/sequence';
 import { KG, L, num, ruPlural } from '../../i18n';
 
 /**
@@ -31,6 +32,33 @@ import { KG, L, num, ruPlural } from '../../i18n';
  * Part 7 #14: one optional extra short session when the usual days cannot finish the week. A suggestion with Why,
  * never a requirement; "Not this week" hides it until next week (with Undo).
  */
+/** Part 8: exercises moved to a later day — kept in the plan until done; Cancel only on the owner's tap (with Undo). */
+function MovedCard() {
+  const data = useData();
+  const names = useNames();
+  const a = useAnalysis();
+  const moves = activeMoves(data);
+  if (!moves.length) return null;
+  const cancel = async (id: string) => {
+    const before = data.settings.plannedMoves ?? [];
+    await store.saveSettings({ plannedMoves: before.filter((m) => m.id !== id) });
+    undoToast(L('Move cancelled', 'Перенос отменён'), () => store.saveSettings({ plannedMoves: before }));
+  };
+  return (
+    <Card className="!py-3" data-testid="moved-card">
+      <p className="text-label font-bold uppercase text-ink-500">{L('Moved to a later day', 'Перенесено на другой день')}</p>
+      <ul className="mt-1.5 space-y-1.5">
+        {moves.map((m) => (
+          <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 break-words">{names.ex(a.registry.get(m.exerciseId))} · {m.sets} → <b>{formatDate(m.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b>{m.date < a.today ? L(' (still planned)', ' (всё ещё в плане)') : ''}</span>
+            <Button size="sm" onClick={() => void cancel(m.id)}>{L('Cancel move', 'Отменить перенос')}</Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function ExtraSessionCard() {
   const a = useAnalysis();
   const data = useData();
@@ -105,6 +133,7 @@ export function DashboardPage() {
 
       <NextWorkoutCard />
       <ExtraSessionCard />
+      <MovedCard />
 
       <Card padded={false}>
         <div className="flex items-end justify-between gap-3 border-b border-ink-100 px-4 pb-3 pt-4 dark:border-ink-800 sm:px-5" data-testid="week-head">

@@ -518,7 +518,28 @@ export interface QualityModel {
   useNumbersCheck?: boolean;
 }
 
+/**
+ * An exercise the owner moved to a later day (Part 8). Never a skip, never done, never deleted silently: it stays
+ * planned until it is performed after `fromDate` or the owner cancels the move.
+ */
+export interface PlannedMove {
+  id: string;
+  exerciseId: string;
+  equipmentId: string | null;
+  variation?: Variation;
+  sets: number;
+  /** The day it was moved away from. */
+  fromDate: string;
+  /** The day it is planned for. */
+  date: string;
+  /** The short finding that led to the move (as shown then). */
+  reason: string;
+  createdAt: string;
+}
+
 export interface Settings {
+  /** Exercises moved to a later day (Part 8). */
+  plannedMoves?: PlannedMove[];
   /** Formula revision the stored settings were migrated to (7 = Part 7, 2026-11-24). */
   formulaRevision?: number;
   /** Week start (YYYY-MM-DD) for which the owner dismissed the extra-session suggestion ("not this week"). */

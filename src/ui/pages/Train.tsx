@@ -159,7 +159,7 @@ function TrainSession({ initial }: { initial: Workout }) {
     setPicker(null);
     const ex = buildExercise(def, w, opts);
     const at = new Date().toISOString();
-    update((x) => ({ ...x, exercises: [...x.exercises, { ...ex, order: x.exercises.length }], ...(opts.ackKey ? { choiceAcks: [...(x.choiceAcks ?? []), { key: opts.ackKey, at }] } : {}) }), { now: true });
+    update((x) => ({ ...x, exercises: [...x.exercises, { ...ex, order: x.exercises.length }], ...(opts.ackKey || opts.forwardAck ? { choiceAcks: [...(x.choiceAcks ?? []), ...[opts.ackKey, opts.forwardAck].filter((k): k is string => !!k).map((key) => ({ key, at }))] } : {}) }), { now: true });
     setCurId(ex.id);
     setView('set');
   };

@@ -26,6 +26,8 @@ import { Badge, Button, Card, CardTitle, confirmAction, cx, Field, fmt, Input, M
 import { useAnalysis, useNames } from '../hooks';
 import { byLang, KG, L, locale, num, ruPlural } from '../../i18n';
 import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
+import { bestMoveDay, forwardChecks, usualSetCount, type ForwardFinding } from '../../domain/sequence';
+import { ForwardWarning } from '../components/ForwardWarning';
 import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
 import { uncertainMuscles } from '../../domain/mappingUncertainty';
 import type { ExerciseChoiceRecord } from '../../domain/types';
@@ -411,6 +413,8 @@ export interface AddOpts {
   choice?: ExerciseChoiceRecord;
   /** Answered warning: not repeated in this session unless the inputs change. */
   ackKey?: string;
+  /** Answered forward warning (Part 8, "Keep today"): not repeated for this exercise today. */
+  forwardAck?: string;
 }
 
 function newSet(type: SetType, weight: number | null, reps: number | null, loadMode: LoadMode = 'total', planned = false): WorkoutSet {
@@ -1294,7 +1298,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
   const names = useNames();
   const [q, setQ] = useState('');
   const [muscle, setMuscle] = useState<MuscleId | null>(null);
-  const [card, setCard] = useState<{ def: ExerciseDef; a: ChoiceAssessment } | null>(null);
+  const [card, setCard] = useState<{ def: ExerciseDef; a: ChoiceAssessment; fwd: ForwardFinding[]; fwdKey: string; sets: number; move: { date: string; clean: boolean } | null } | null>(null);
   // The default title follows the language (a default parameter would freeze it); callers pass the pair already resolved.
   const addTitle = L('Add exercise', 'Добавить упражнение');
   const heading = title ?? addTitle;
@@ -1305,8 +1309,20 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
   const choose = (d: ExerciseDef) => {
     if (!workout) return onPick(d);
     const full = assessChoice({ data, analysis: a, workout, exerciseId: d.id, outcomes });
-    if (!needsPrompt(workout, full)) return onPick(d);
-    setCard({ def: d, a: full });
+    // Part 8: what this exercise today would do to the next usual sessions (short; only meaningful conflicts).
+    const sets = usualSetCount(data.workouts, d.id);
+    const fwdKey = `fwd:${d.id}:${a.today}`;
+    const fwd = workout.choiceAcks?.some((k) => k.key === fwdKey) ? [] : forwardChecks({ data, analysis: a, workout, exerciseId: d.id, sets });
+    if (!needsPrompt(workout, full) && !fwd.length) return onPick(d);
+    setCard({ def: d, a: full, fwd, fwdKey, sets, move: fwd.length ? bestMoveDay({ data, analysis: a, workout, exerciseId: d.id, sets }) : null });
+  };
+  const moveLater = async (c: NonNullable<typeof card>) => {
+    if (!c.move) return;
+    const mv = { id: `mv-${Date.now().toString(36)}`, exerciseId: c.def.id, equipmentId: null, sets: c.sets, fromDate: a.today, date: c.move.date, reason: c.fwd.map((f) => f.text).join(' '), createdAt: new Date().toISOString() };
+    const before = data.settings.plannedMoves ?? [];
+    await store.saveSettings({ plannedMoves: [...before, mv] });
+    onClose();
+    undoToast(L(`${names.ex(c.def)} moved to ${formatDate(c.move.date, { weekday: 'short', day: 'numeric' })}`, `${names.ex(c.def)}: перенесено на ${formatDate(c.move.date, { weekday: 'short', day: 'numeric' })}`), () => store.saveSettings({ plannedMoves: before }));
   };
   const record = (c: ChoiceAssessment, followed: ExerciseChoiceRecord['followed'], replaced?: string): ExerciseChoiceRecord => ({
     status: c.status, reasonKind: c.reasonKind, alternativeOffered: c.alternatives[0]?.exerciseId ?? null, followed, ...(replaced ? { replacedExerciseId: replaced } : {}), at: new Date().toISOString(),
@@ -1330,10 +1346,18 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
   if (card) {
+    const prompt = needsPrompt(workout, card.a);
     return (
       <Modal open={open} onClose={onClose} title={addTitle} wide>
-        <ChoiceCard a={card.a} name={names.ex(card.def)} altName={(id) => names.ex(a.registry.get(id))}
-          onContinue={() => onPick(card.def, { choice: record(card.a, 'continued'), ackKey: card.a.key })}
+        {card.fwd.length > 0 && (
+          <div className="mb-3">
+            {!prompt && <p className="mb-1.5 text-sm font-semibold text-ink-900 break-words dark:text-white">{names.ex(card.def)}</p>}
+            <ForwardWarning findings={card.fwd} moveDate={card.move?.date ?? null} clean={card.move?.clean ?? false}
+              onMove={() => void moveLater(card)} onKeep={() => onPick(card.def, { forwardAck: card.fwdKey, ...(prompt ? { choice: record(card.a, 'continued'), ackKey: card.a.key } : {}) })} />
+          </div>
+        )}
+        {prompt && <ChoiceCard a={card.a} name={names.ex(card.def)} altName={(id) => names.ex(a.registry.get(id))}
+          onContinue={() => onPick(card.def, { choice: record(card.a, 'continued'), ackKey: card.a.key, ...(card.fwd.length ? { forwardAck: card.fwdKey } : {}) })}
           onAlternative={(alt) => {
             const d = a.registry.get(alt.exerciseId);
             if (!d) return;
@@ -1345,7 +1369,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
               return;
             }
             onPick(d, { equipmentId: alt.equipmentId, choice: record(card.a, 'alternative', card.def.id), ackKey: card.a.key });
-          }} />
+          }} />}
         <button type="button" onClick={() => setCard(null)} className="mt-2 min-h-[44px] text-sm font-medium text-ink-600 dark:text-ink-300">{L('← Back to the list', '← Назад к списку')}</button>
       </Modal>
     );
