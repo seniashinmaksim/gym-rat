@@ -807,6 +807,17 @@ on faith, neither the owner's points nor Claude's own earlier proposals.
     pelland2026_volume_frequency — re-verify) supports redistributing; the per-session cap and recovery windows are heuristics
     (see point 1 and A-14) — label them. Also apply the same feasibility to the planner (C-4, point 10) so plan and Week agree.
 
+14. **Suggest an extra short session when the usual days cannot fit the week (owner).** The usual pattern is learned from the
+    history (example to design and test for: Mon / Wed / Fri). If, with item 13, the remaining usual days cannot complete a
+    muscle's week (recovery windows, per-session cap), the app may SUGGEST one extra short session on a day that is outside
+    the relevant recovery windows, e.g. "Short session on Thursday: chest 3 sets, side delts 2 — otherwise the week ends about
+    5 sets short." Rules (to verify): only when the shortfall is meaningful (proposal: ≥ 2 effective sets on at least one muscle,
+    or the sum ≥ 4), only the muscles that are short, smallest useful session, never on a day that would break another muscle's
+    recovery or the next usual session; a suggestion with "Why", never a requirement, never blocking, dismissible ("not this
+    week"; a dismissal is not learned as a preference unless repeated ≥ 3 times, like other choices). Shown on the Week screen /
+    next-workout card; the planner can build that short session. Honest wording: missing a few sets is fine — weekly volume is a
+    reference, not a quota.
+
 ## G.2 Also to re-examine (Claude's list, from the first analysis and the Part 6 reviews)
 - Unknown-effort credit 0.75 now that most sets carry a one-tap answer or none; how the taps map to credit.
 - Double progression with taps only (the one-session "too light" shortcut needs an exact RIR — can EASY ever trigger it?).
