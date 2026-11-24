@@ -7,9 +7,9 @@
  *  - ramp:     a set done BEFORE the session's best set. Reps possible at its load follow from the best
  *              set (Epley inverse); possible − done = estimated reps in reserve. 40 × 5 before 60 × 12
  *              ≈ 28 in reserve (a warm-up); 55 × 11 before 60 × 12 ≈ 5 (partly a working set).
- *  - back-off: a LIGHTER set after the best set, without an effort answer. Same estimate minus one rep per
- *              hard set already done (fatigue), so it is less certain. A reported back-off set is judged by
- *              the next-set rule instead.
+ *  - back-off: a clearly LIGHTER set (≤ 60 % of the best set's load) after the best set, without an effort
+ *              answer. Same estimate minus one rep per set of that side already done (fatigue). Heavier or
+ *              reported back-off sets are judged by the next-set rule, else stay provisional.
  *  - next set: at the same load after a normal rest, reps that hold or rise on the next set mean the set
  *              had reserve; a drop of ≥ 2 reps means it was close to the limit.
  *
@@ -46,6 +46,12 @@ export const REPORTED_EASY_RIR = 4;
 export const RAMP_OVERRIDE_MAX_LOAD = 0.75;
 /** A next set reported with at least this many reps in reserve was stopped on purpose: its lower reps prove nothing about the set before. */
 export const NEXT_SET_FREE_RIR = 3;
+/**
+ * A back-off set WITHOUT an answer is judged from the best set only when it is clearly very light: at most this share
+ * of the best set's load. Heavier back-off sets stay provisional (owner's decision 2026-11-24): Epley extrapolated
+ * far from the best set's reps is too rough to take credit away from a genuine working set.
+ */
+export const BACKOFF_MAX_LOAD = 0.6;
 
 export type ObjectiveKind = 'ramp' | 'backoff' | 'next_set' | 'none';
 export type ObjectiveBand = 'easy' | 'hard' | 'reserve' | null;
@@ -118,7 +124,7 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
         return;
       }
       // Back-off estimate only for a set WITHOUT a report: a reported set is judged by its next set (direct evidence).
-      if (w < bw && reportedRir(s) == null) {
+      if (w < bw && reportedRir(s) == null && w / bw <= BACKOFF_MAX_LOAD) {
         // Sets done since the best set — of the same side only (the other side's sets did not tire this one).
         const hardBefore = sets.slice(best + 1, i).filter((o) => (o.side ?? null) === (s.side ?? null)).length + 1;
         const est = Math.max(0, r1(possible - (s.reps as number) - BACKOFF_ALLOWANCE * hardBefore));

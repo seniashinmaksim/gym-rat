@@ -80,10 +80,11 @@ describe('six-month replay: a reported back-off set is judged by the next set, n
     const sets = [bare(17.5, 7), bare(12.5, 12, { effort: 'easy' }), bare(12.5, 10, { effort: 'near_max', failure: 'muscular' })];
     expect(credit(sets, 1).credit).toBe(1);
   });
-  it('the same set without an answer keeps the back-off estimate (unchanged)', () => {
-    // 17.5 × 7 → 21.58; possible at 12.5 = 30 × (21.58 / 12.5 − 1) = 21.8; − 12 − 1 (one set since the best) = 8.8 → table 0, capped.
+  it('the same set without an answer (71 % of the best load) is judged by its next set too: a hard set', () => {
+    // No back-off estimate above 60 % of the best load (owner's decision 2026-11-24); 12 → 10 reps on the next set → hard → 1.
     const sets = [bare(17.5, 7), bare(12.5, 12), bare(12.5, 10)];
-    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'backoff', estRir: 8.8 });
+    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'next_set', band: 'hard' });
+    expect(credit(sets, 1).credit).toBe(1);
   });
 });
 
@@ -216,11 +217,11 @@ describe('final review fixes', () => {
   });
 
   it('#5 left / right: the back-off fatigue allowance counts only sets of the same side', () => {
-    // Left: best 50 × 10 (Epley 66.67); at 40: possible = 30 × (66.67 / 40 − 1) = 20; − 12 − 1 (one LEFT set since the best) = 7.
-    const sets = [bare(50, 10, { side: 'left' }), bare(50, 10, { side: 'right' }), bare(40, 12, { side: 'left' }), bare(40, 12, { side: 'right' })];
+    // Left: best 50 × 10 (Epley 66.67); at 25 (50 %): possible = 30 × (66.67 / 25 − 1) = 50; − 20 − 1 (one LEFT set since the best) = 29.
+    const sets = [bare(50, 10, { side: 'left' }), bare(50, 10, { side: 'right' }), bare(25, 20, { side: 'left' }), bare(25, 20, { side: 'right' })];
     const o = objectiveForSets(sets);
-    expect(o.get(sets[2].id)).toMatchObject({ kind: 'backoff', estRir: 7 });
-    expect(o.get(sets[3].id)).toMatchObject({ kind: 'backoff', estRir: 7 });
+    expect(o.get(sets[2].id)).toMatchObject({ kind: 'backoff', estRir: 29 });
+    expect(o.get(sets[3].id)).toMatchObject({ kind: 'backoff', estRir: 29 });
   });
 
   it('#11 a pain flag without an area survives export → import', async () => {
@@ -238,5 +239,23 @@ describe('final review fixes', () => {
     cur = logSet(cur, { weightKg: 50, reps: 12, loadMode: 'total' }, T0, 'a', m);
     cur = logSet(cur, { weightKg: 50, reps: 10, loadMode: 'total' }, T0 + 120_000, 'b', m);
     expect(cur.sets[1]).toMatchObject({ restSecBefore: 90, restSource: 'estimated' });
+  });
+});
+
+describe('owner decision 2026-11-24: a back-off set without an answer is judged by the heavy set only when clearly very light', () => {
+  it('100 × 6, then 70 × 12 with no answer (70 % of the heavy weight) → provisional 0.75, not 0', () => {
+    const sets = [bare(100, 6), bare(70, 12)];
+    expect(objectiveForSets(sets).get(sets[1].id)?.kind).toBe('none');
+    expect(credit(sets, 1).credit).toBe(0.75);
+  });
+  it('100 × 6, then 50 × 20 (50 %, clearly very light) → still judged from the heavy set: 0', () => {
+    // Epley 100 × 6 = 120; possible at 50 = 30 × (120 / 50 − 1) = 42; − 20 − 1 = 21 in reserve → credit 0.
+    const sets = [bare(100, 6), bare(50, 20)];
+    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'backoff', estRir: 21 });
+    expect(credit(sets, 1).credit).toBe(0);
+  });
+  it('a back-off set at 70 % followed by a clear rep drop still counts as a hard set', () => {
+    const sets = [bare(100, 6), bare(70, 12), bare(70, 9)];
+    expect(credit(sets, 1).credit).toBe(1);
   });
 });

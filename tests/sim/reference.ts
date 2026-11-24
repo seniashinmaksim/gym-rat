@@ -84,8 +84,10 @@ function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: 
       if (reserve >= 5 && reserve - report >= 3 && ratio <= 0.75) return { reserve, cap: false };
       return null;
     }
-    if ((s.weightKg as number) < (pool[b].weightKg as number) && report == null) {
-      const reserve = Math.max(0, round1(possible - (s.reps as number) - (i - b)));
+    // Back-off (owner's decision 2026-11-24): only a clearly very light set — at most 60 % of the best set's load.
+    if ((s.weightKg as number) < (pool[b].weightKg as number) && report == null && ratio <= 0.6) {
+      const sinceBest = pool.slice(b + 1, i).filter((x) => side(x) === side(s)).length + 1; // same-side sets only
+      const reserve = Math.max(0, round1(possible - (s.reps as number) - sinceBest));
       const nxt = pool.slice(i + 1).find((x) => side(x) === side(s));
       const sameLoadNext = !!nxt && nxt.weightKg === s.weightKg && nxt.loadMode === s.loadMode && nxt.reps != null;
       if (reserve >= 5 || !sameLoadNext) return { reserve, cap: true };

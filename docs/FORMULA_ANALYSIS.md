@@ -20,7 +20,7 @@ How to read it:
 | 1 | Set credit table (RIR → credit) | solid | none in normal use | keep | — |
 | 2 | Unknown effort = 0.75 provisional | acceptable | one number for very different sets | let the numbers check carry more of it (done for clear cases in Part 6) | P3 |
 | 3 | Effort from the numbers — ramp sets | acceptable (after the review fix) | Epley extrapolated far from the best set's rep count | limit to sets ≥ ~50 % of the best load or ≤ 20 possible reps | P2 |
-| 4 | Effort from the numbers — back-off sets without a report | **weak** | a light back-off set can get credit 0 | apply only near the best set's load; else stay provisional | **P1** |
+| 4 | Effort from the numbers — back-off sets without a report | **done 2026-11-24** (owner's OK) | a back-off set could get credit 0 | estimate only at ≤ 60 % of the best load; else provisional | — |
 | 5 | Effort from the numbers — next-set rep drop | acceptable (after the review fix) | rest length only checked against 60 s | use the owner's usual rest per exercise | P3 |
 | 6 | Automatic warm-up tag | acceptable | same limits as #3 | follows #3 | P2 |
 | 7 | Muscle coefficients | acceptable (audited 2026-11-22) | practical estimates, 15 with a plausible range | keep; show the range (already done) | — |
@@ -73,7 +73,9 @@ set since the best one).
 - **Back-off sets without a report — weak (P1).** Example from the review: 100 × 5, then 60 × 15 with no answer.
   `possible` at 60 = 30 × (116.7 ÷ 60 − 1) = 28.3; estimate = 28.3 − 15 − 1 = 12.3 → credit 0. A set of 15 reps
   after a heavy set may well be a genuine working set; the estimate rests entirely on the long extrapolation.
-  **Proposal:** use the back-off estimate only when the set is ≥ 75 % of the best load (as for reported ramp sets);
+  **Done 2026-11-24 (owner's OK):** the back-off estimate is used only for a clearly very light set (≤ 60 % of the best load);
+  heavier back-off sets without an answer stay provisional (0.75) unless the next-set rule applies. (Original proposal text below.)
+  **Proposal:** use the back-off estimate only when the set is far below the best load (as for reported ramp sets);
   otherwise leave the set provisional (0.75, uncertain) unless the next-set rule says something. Test: the 60 × 15
   example must get 0.75, not 0.
 - **Next-set rep drop — acceptable.** A drop of ≥ 2 reps at the same load after a rest ≥ 60 s marks the earlier set as
@@ -170,7 +172,7 @@ set since the best one).
 
 ## 3. Proposed order of work (each after the owner's OK)
 
-1. **P1** — #4 back-off estimate, #10 index basis over the trend window, #17 recovery latest expiry (A-14),
+1. **P1** — ~~#4 back-off estimate~~ (done), #10 index basis over the trend window, #17 recovery latest expiry (A-14),
    #23 failure share (A-17), C-15 wording.
 2. **P2** — #3 band above ~20 possible reps, #9 rep-zone comparison, #11 weighted pull-up index, #15 one set-count
    routine (C-4), #22 complete weeks (B-13), C-11 / C-12 / C-14 / C-16, A-6 / A-16 / A-18 / A-19 / A-20 / A-21 / B-11 / B-14.

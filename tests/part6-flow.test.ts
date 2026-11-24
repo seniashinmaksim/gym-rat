@@ -110,10 +110,13 @@ describe('F.4 what the numbers say about each set', () => {
     const s = [bare(60, 12), bare(60, 9, { restSecBefore: 30 })];
     expect(objectiveForSets(s).get(s[0].id)).toMatchObject({ kind: 'none' });
   });
-  it('a lighter set after the best set is a back-off set (less certain: one rep of fatigue per earlier hard set)', () => {
-    // 60×12 → 84. At 50 kg: 30 × (84/50 − 1) = 20.4 possible; 20.4 − 12 − 1 = 7.4 in reserve.
-    const s = [bare(60, 12), bare(50, 12)];
-    expect(objectiveForSets(s).get(s[1].id)).toMatchObject({ kind: 'backoff', estRir: 7.4, band: 'easy' });
+  it('a clearly lighter set after the best set is a back-off set (less certain: one rep of fatigue per earlier set)', () => {
+    // 60×12 → 84. At 30 kg (50 %): 30 × (84/30 − 1) = 54 possible; 54 − 20 − 1 = 33 in reserve.
+    const s = [bare(60, 12), bare(30, 20)];
+    expect(objectiveForSets(s).get(s[1].id)).toMatchObject({ kind: 'backoff', estRir: 33, band: 'easy' });
+    // At 50 kg (83 % of the best load) no estimate is made from the best set (owner's decision 2026-11-24).
+    const h = [bare(60, 12), bare(50, 12)];
+    expect(objectiveForSets(h).get(h[1].id)?.kind).toBe('none');
   });
   it('bodyweight, belt-only and assisted loads get no load-based estimate', () => {
     const bw = [bare(0, 12, { loadMode: 'bodyweight_plus' }), bare(10, 8, { loadMode: 'bodyweight_plus' })];
