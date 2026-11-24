@@ -18,7 +18,7 @@ const LANGS = (process.env.TRAIN_LANG ? [process.env.TRAIN_LANG] : ['en', 'ru'])
 
 const T = {
   en: { choose: 'Choose a password', repeat: 'Repeat password', setPw: /Set password/, gym: 'e.g. Gym A', start: /Start session/, pw: 'Password', unlock: /Unlock|Open/, cont: 'Continue', undo: 'Undo', incline: 'incline dumbbell', inclineName: /^Incline dumbbell press/, pec: 'pec deck', pecName: /^Pec deck/, saved: /Workout saved/, back: /Back to workout/, doneBtn: /^Done$/ },
-  ru: { choose: 'Придумайте пароль', repeat: 'Повторите пароль', setPw: /Задать пароль/, gym: 'например, Зал А', start: /Начать тренировку/, pw: 'Пароль', unlock: /Разблокировать/, cont: 'Продолжить', undo: 'Отменить', incline: 'жим гантелей на наклонной', inclineName: /^Жим гантелей на наклонной/, pec: 'пек-дек', pecName: /^Пек-дек/, saved: /Тренировка сохранена/, back: /Назад к тренировке/, doneBtn: /^Готово$/ },
+  ru: { choose: 'Придумайте пароль', repeat: 'Повторите пароль', setPw: /Задать пароль/, gym: 'напр. Зал А', start: /Начать тренировку/, pw: 'Пароль', unlock: /Разблокировать/, cont: 'Продолжить', undo: 'Отменить', incline: 'жим гантелей на наклонной', inclineName: /^Жим гантелей на наклонной/, pec: 'пек-дек', pecName: /^Пек-дек/, saved: /Тренировка сохранена/, back: /Вернуться к тренировке/, doneBtn: /^Готово$/ },
 };
 
 async function continueChoice(page: Page, lang: 'en' | 'ru') {

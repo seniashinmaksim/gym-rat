@@ -20,7 +20,7 @@ Exercise and muscle names come from the library (`name.ru`).
 | failure / muscular failure | отказ / мышечный отказ |
 | technical failure | отказ по технике |
 | effort | усилие |
-| EASY · GOOD · HARD · FAILED | ЛЕГКО · НОРМАЛЬНО · ТЯЖЕЛО · ОТКАЗ |
+| EASY · GOOD · HARD · FAILED | ЛЕГКО · ХОРОШО · ТЯЖЕЛО · ОТКАЗ (НОРМАЛЬНО did not fit the 4-column row on a 375-px phone) |
 | technique / form | техника |
 | machine / equipment | тренажёр / оборудование |
 | gym | зал |

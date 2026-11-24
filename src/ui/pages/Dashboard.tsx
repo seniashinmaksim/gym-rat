@@ -18,7 +18,7 @@ import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
 import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
-import { getLang, KG, L, ruPlural } from '../../i18n';
+import { KG, L, ruPlural } from '../../i18n';
 
 /**
  * Main screen — deliberately simple. It answers two questions:
@@ -64,7 +64,7 @@ export function DashboardPage() {
     <Page title={L('This week', 'Эта неделя')} subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? L('Resume', 'Продолжить') : L('Log workout', 'Тренировка')}</Button></Link>}>
       {effort.nudge && (
         <Callout tone="info" title={L(`${effort.missing} / ${effort.counted} sets without RIR or feel`, `${effort.missing} / ${effort.counted} подх. без RIR и без оценки ощущений`)}>
-          {L('Counted as provisional (0.75). One tap after ✓ fixes it.', 'Засчитаны предварительно (0,75). Одно касание после ✓ это исправит.')}
+          {L('Counted as provisional (0.75). One tap on the rest screen (Easy / Good / Hard / Failed) fixes it.', 'Засчитаны предварительно (0,75). Одно касание на экране отдыха (Легко / Хорошо / Тяжело / Отказ) это исправит.')}
         </Callout>
       )}
       {deload.recommend && (
@@ -76,15 +76,15 @@ export function DashboardPage() {
       <NextWorkoutCard />
 
       <Card padded={false}>
-        <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
-          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Quality sets', 'Качественные подходы')}</h2>
-          <span className="flex items-center gap-1.5">
-            {a.learning.active && <Badge tone="warn">{L('PROVISIONAL', 'ПРЕДВ.')}</Badge>}
-            <span className="text-xs tabular-nums text-ink-500">{fmt(weekQualitySets(a, data))} {L('sets done', 'подх.')}</span>
-          </span>
+        <div className="flex items-end justify-between gap-3 border-b border-ink-100 px-4 pb-3 pt-4 dark:border-ink-800 sm:px-5" data-testid="week-head">
+          <div className="min-w-0">
+            <h2 className="text-label font-bold uppercase text-ink-500 dark:text-ink-400">{L('Quality sets this week', 'Качественные подходы за неделю')}</h2>
+            <div className="mt-1 font-display text-num-lg font-extrabold tabular-nums text-ink-900 dark:text-white" data-testid="week-sets">{fmt(weekQualitySets(a, data))}</div>
+          </div>
+          {a.learning.active && <Badge tone="warn">{L('PROVISIONAL', 'ПРЕДВ.')}</Badge>}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:px-5">
-          <span>{L('Muscle', 'Мышца')}</span><span className="w-[4.5rem] text-right">{L('Done / target', 'Вып. / цель')}</span><span className="w-12 text-right">{L('Left', 'Ост.')}</span>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4 pb-1 pt-3 text-label font-bold uppercase text-ink-400 sm:px-5">
+          <span>{L('Muscle · done / target', 'Мышца · сделано / цель')}</span><span className="text-right">{L('Left', 'Осталось')}</span>
         </div>
         <ul className="divide-y divide-ink-100 dark:divide-ink-800/70">
           {sorted.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
@@ -112,16 +112,23 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
   const done = m.remainingToPreferred <= 0;
   return (
     <li id={`row-${m.muscle}`} className={cx('transition-colors', open && 'bg-ink-50/70 dark:bg-ink-950/40')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full px-4 py-2.5 text-left sm:px-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
-            {statusChip(m)}
+      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full px-4 py-3 text-left sm:px-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
+          <span className="min-w-0">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[15px] font-semibold text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
+              {statusChip(m)}
+            </span>
+            <span className="mt-0.5 block font-display text-xl font-bold tabular-nums text-ink-700 dark:text-ink-200" data-testid="done-target">
+              {fmt(m.completed)}<span className="text-ink-400 dark:text-ink-500"> / {fmt(m.target.preferred)}</span>
+            </span>
           </span>
-          <span className="w-[4.5rem] text-right text-sm tabular-nums text-ink-600 dark:text-ink-300">{fmt(m.completed)} / {fmt(m.target.preferred)}</span>
-          <span className={cx('w-12 text-right font-semibold tabular-nums', done && getLang() === 'ru' ? 'text-[11px]' : 'text-base', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{done ? (m.status === 'over' ? L('OVER', 'СВЕРХ') : L('DONE', 'ГОТОВО')) : fmt(m.remainingToPreferred)}</span>
+          <span className="flex min-w-[4.5rem] flex-col items-end">
+            <span className={cx('font-display text-num-lg font-extrabold tabular-nums', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')} data-testid="left">{done ? '✓' : fmt(m.remainingToPreferred)}</span>
+            <span className={cx('mt-0.5 text-label font-bold uppercase', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-500')}>{done ? (m.status === 'over' ? L('Over', 'Сверх') : L('Done', 'Готово')) : L('Left', 'Осталось')}</span>
+          </span>
         </div>
-        <div className="mt-1.5"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={4} /></div>
+        <div className="mt-2"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={4} /></div>
       </button>
       {open && <div className="px-4 pb-4 sm:px-5"><MuscleDetail m={m} /></div>}
     </li>
@@ -213,7 +220,7 @@ function AdviceRow({ p }: { p: ProgressionSeries }) {
           <span className="block truncate text-[11px] text-ink-500">{p.scopeLabel}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <Badge tone={ADVICE_TONE[adv.kind]}>{adviceLabel(p, adv.kind)}</Badge>
+          <Badge tone={ADVICE_TONE[adv.kind]} className="font-display text-[13px] font-extrabold tracking-wide">{adviceLabel(p, adv.kind)}</Badge>
         </span>
       </Link>
     </li>
@@ -232,7 +239,7 @@ function NextWeights() {
   return (
     <Card>
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Next weights', 'Следующие веса')}</h2>
+        <h2 className="text-label font-bold uppercase text-ink-500 dark:text-ink-400">{L('Next weights', 'Следующие веса')}</h2>
         <Link to="/strength" className="inline-flex min-h-[40px] items-center text-xs font-medium text-accent-600 dark:text-accent-400">{L('All exercises', 'Все упражнения')}</Link>
       </div>
       <ul className="space-y-1.5">{shown.map((p) => <AdviceRow key={p.key} p={p} />)}</ul>
@@ -253,7 +260,7 @@ function WeekStrip() {
   const last = latestWeighIn(data.body);
   const avg = rollingAverage(data.body, a.today);
   const trend = weeklyTrend(data.body, a.today);
-  const cell = (k: string, v: string) => <span className="flex flex-col"><span className="text-[10px] uppercase tracking-wider text-ink-400">{k}</span><span className="text-sm font-semibold tabular-nums text-ink-900 dark:text-white">{v}</span></span>;
+  const cell = (k: string, v: string) => <span className="flex min-w-0 flex-col"><span className="truncate text-label font-bold uppercase text-ink-400">{k}</span><span className="font-display text-xl font-bold tabular-nums text-ink-900 dark:text-white">{v}</span></span>;
   return (
     <Card className="!py-3">
       {eff.total > 0 && (

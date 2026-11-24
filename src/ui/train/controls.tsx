@@ -183,7 +183,7 @@ export function RestRing({ remainingSec, targetSec, paused, text }: { remainingS
   const R = 46;
   const C = 2 * Math.PI * R;
   return (
-    <div className="relative mx-auto aspect-square w-[min(84vw,52vh,26rem)]" data-testid="rest-ring" data-done={done ? 'true' : 'false'}>
+    <div className="relative mx-auto aspect-square w-[min(84vw,36vh,26rem)]" data-testid="rest-ring" data-done={done ? 'true' : 'false'}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
         <circle cx="50" cy="50" r={R} fill="none" stroke="var(--t-line)" strokeWidth="4" />
         <circle cx="50" cy="50" r={R} fill="none" stroke={done ? 'var(--t-good)' : 'var(--t-accent)'} strokeWidth="4" strokeLinecap="round"
@@ -200,7 +200,7 @@ export function RestRing({ remainingSec, targetSec, paused, text }: { remainingS
 // ---------------------------------------------------------------- effort answers
 
 export const effortLabel = (t: EffortTap): string => ({
-  easy: L('Easy', 'Легко'), good: L('Good', 'Нормально'), hard: L('Hard', 'Тяжело'), failed: L('Failed', 'Отказ'),
+  easy: L('Easy', 'Легко'), good: L('Good', 'Хорошо'), hard: L('Hard', 'Тяжело'), failed: L('Failed', 'Отказ'),
 }[t]);
 export const effortHint = (t: EffortTap): string => ({
   easy: L('3+ reps left', '3+ в запасе'), good: L('1–2 left', '1–2 в запасе'), hard: L('0–1 left', '0–1 в запасе'), failed: L('could not finish a rep', 'повтор не получился'),
@@ -216,7 +216,7 @@ export function EffortRow({ value, onPick, dark = true }: { value: EffortTap | n
             className={cx('flex min-h-[56px] flex-col items-center justify-center rounded-xl border px-1 py-1.5 leading-tight active:scale-[0.98]',
               dark ? (on ? 'border-t-accent bg-t-accent text-t-on' : 'border-t-line bg-t-surface text-t-text')
                 : (on ? 'border-accent-500 bg-accent-500 text-ink-950' : 'border-ink-200 bg-ink-50 text-ink-900 dark:border-ink-700 dark:bg-ink-850 dark:text-white'))}>
-            <span className="font-display text-base font-extrabold uppercase tracking-wide">{effortLabel(t)}</span>
+            <span className="max-w-full font-display text-[clamp(0.8125rem,3.9vw,1rem)] font-extrabold uppercase tracking-normal">{effortLabel(t)}</span>
             <span className={cx('text-[10px] font-medium', on ? 'opacity-80' : dark ? 'text-t-dim' : 'text-ink-500')}>{effortHint(t)}</span>
           </button>
         );

@@ -22,7 +22,7 @@ export default {
         display: ['"Avenir Next Condensed"', '"HelveticaNeue-CondensedBold"', '"Roboto Condensed"', 'Bahnschrift', '"Arial Narrow"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       fontSize: {
-        hero: ['clamp(4.5rem, 24vw, 7.5rem)', { lineHeight: '0.9' }],
+        hero: ['clamp(4.5rem, min(24vw, 14vh), 7.5rem)', { lineHeight: '0.9' }],
         'num-xl': ['3.5rem', { lineHeight: '1' }],
         'num-lg': ['2.25rem', { lineHeight: '1' }],
         title: ['1.75rem', { lineHeight: '1.1' }],
