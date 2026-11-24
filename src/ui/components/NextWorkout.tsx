@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDate, localNowParts } from '../../domain/dates';
-import { bestMoveDay, forwardChecks, movePartners } from '../../domain/sequence';
+import { addMoves, bestMoveDay, forwardChecks, movePartners } from '../../domain/sequence';
 import type { MuscleId } from '../../domain/types';
 import { ForwardWarning } from './ForwardWarning';
 import { generateWorkout, replacementOptions, workoutFromPlan, type GeneratedWorkout, type ItemEdit, type PlanItem } from '../../domain/planner';
@@ -76,7 +76,7 @@ export function NextWorkoutCard() {
     const reason = w.f.map((x) => x.text).join(' ');
     const moves = group.map((g) => ({ id: uid(), exerciseId: g.exerciseId, equipmentId: g.equipmentId, ...(g.variation ? { variation: g.variation } : {}), sets: g.setCount, fromDate: a.today, date, reason, createdAt: new Date().toISOString() }));
     const ids = group.map((g) => g.exerciseId);
-    await store.saveSettings({ plannedMoves: [...before.filter((x) => !ids.includes(x.exerciseId)), ...moves] });
+    await store.saveSettings({ plannedMoves: addMoves(before, moves) });
     setExclude((x) => [...x, ...ids]);
     const label = group.map((g) => names.ex(a.registry.get(g.exerciseId))).join(' + ');
     const day = formatDate(date, { weekday: 'short', day: 'numeric' });

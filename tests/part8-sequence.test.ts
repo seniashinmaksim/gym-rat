@@ -2,7 +2,7 @@
  * Part 8 — recovery-aware sequencing across sessions (FIX_PLAN H.3). Written BEFORE the implementation; every number
  * is computed by hand in the comment above it. All data is synthetic.
  *
- * Usual week (three full weeks from Monday 2026-10-26): Mon chest + biceps curls, Tue pull-ups then rows, Thu legs + chest.
+ * Usual week (four full weeks from Monday 2026-10-19): Mon chest + biceps curls, Tue pull-ups then rows, Thu legs + chest.
  * Today: Monday 2026-11-16, live session started 17:00 with 4 pec-deck sets done.
  */
 import { describe, expect, it } from 'vitest';
@@ -22,7 +22,7 @@ const day = (d: string, exs: WorkoutExercise[]) => workout(d, exs, { startTime: 
 
 function history(tue: (d: string) => WorkoutExercise[] = (d) => { void d; return [pullups(4), rows(3)]; }): Workout[] {
   const out: Workout[] = [];
-  for (const [mon, tu, th] of [['2026-10-26', '2026-10-27', '2026-10-29'], ['2026-11-02', '2026-11-03', '2026-11-05'], ['2026-11-09', '2026-11-10', '2026-11-12']]) {
+  for (const [mon, tu, th] of [['2026-10-19', '2026-10-20', '2026-10-22'], ['2026-10-26', '2026-10-27', '2026-10-29'], ['2026-11-02', '2026-11-03', '2026-11-05'], ['2026-11-09', '2026-11-10', '2026-11-12']]) {
     out.push(day(mon, [pec(4), curls(4)]), day(tu, tue(tu)), day(th, [legs(3), pec(3)]));
   }
   return out;
@@ -42,7 +42,7 @@ describe('upcoming sessions from the usual days', () => {
     expect(up[0].exercises.map((e) => [e.exerciseId, e.priority])).toEqual([['pull_up', 'high'], ['seated_cable_row', 'high']]);
   });
   it('no usual days known (< 3 full weeks) → no upcoming sessions, no forward checks', () => {
-    const { d, a, w } = setup(history().slice(3));
+    const { d, a, w } = setup(history().slice(6)); // 2 full weeks left
     expect(upcomingSessions(d, a)).toEqual([]);
     expect(forwardChecks({ data: d, analysis: a, workout: w, exerciseId: 'machine_biceps_curl', sets: 4 })).toEqual([]);
   });
@@ -129,7 +129,7 @@ describe('H.3 #6 — recovery before the next usual session (week not met)', () 
   // 48 h later → 24 h left (≥ 12: a limit); Wednesday's pec deck trains chest directly and the week still needs 12 − 10 = 2.
   it('10 chest sets today → chest still recovering by Wednesday', () => {
     const mwf: Workout[] = [];
-    for (const [m, w2, f] of [['2026-10-26', '2026-10-28', '2026-10-30'], ['2026-11-02', '2026-11-04', '2026-11-06'], ['2026-11-09', '2026-11-11', '2026-11-13']]) mwf.push(day(m, [pec(4)]), day(w2, [pec(4)]), day(f, [pec(4)]));
+    for (const [m, w2, f] of [['2026-10-19', '2026-10-21', '2026-10-23'], ['2026-10-26', '2026-10-28', '2026-10-30'], ['2026-11-02', '2026-11-04', '2026-11-06'], ['2026-11-09', '2026-11-11', '2026-11-13']]) mwf.push(day(m, [pec(4)]), day(w2, [pec(4)]), day(f, [pec(4)]));
     const { d, a, w } = setup(mwf, []);
     const f = forwardChecks({ data: d, analysis: a, workout: w, exerciseId: 'pec_deck', sets: 10 });
     expect(f.map((x) => [x.check, x.severity, x.date, x.muscle, x.hoursLeft])).toEqual([['recovery', 'limit', '2026-11-18', 'chest', 24]]);

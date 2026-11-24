@@ -143,6 +143,19 @@ export function usualSetCount(workouts: Workout[], exerciseId: string): number {
   return counts.length ? Math.round(median(counts)) : 3;
 }
 
+/** Add moves: a new move of an exercise replaces its earlier open move (never a duplicate); the input list is not changed (Undo = it). */
+export function addMoves(before: PlannedMove[], moves: PlannedMove[]): PlannedMove[] {
+  const ids = new Set(moves.map((m) => m.exerciseId));
+  return [...before.filter((m) => !ids.has(m.exerciseId)), ...moves];
+}
+
+const MACHINE_KINDS = new Set(['machine', 'cable', 'plate_loaded', 'smith']);
+/** A move without a machine for a machine / cable exercise: the machine is chosen again on the day (shown so). */
+export function moveNeedsSetup(m: PlannedMove, registry: Analysis['registry']): boolean {
+  const def = registry.get(m.exerciseId);
+  return m.equipmentId == null && !!def && MACHINE_KINDS.has(def.equipmentKind as string);
+}
+
 /** Effective sets per muscle already done in this session. */
 function doneToday(input: Pick<ForwardInput, 'workout' | 'analysis' | 'data'>): Partial<Record<MuscleId, number>> {
   if (!input.workout) return {};
@@ -191,18 +204,33 @@ export function forwardChecks(input: ForwardInput): ForwardFinding[] {
   return checksFrom(input, sessions, input.analysis.today, load, direct, added).map((f) => {
     // H.3 #13: an interference the owner kept >= 3 times while the affected exercise held up becomes a tip, not a limit.
     // Only the message changes: windows, hours left and every number stay the same.
-    const soft = f.check === 'interference' && f.severity === 'limit' && keptOutcome(input.data, input.analysis, input.exerciseId, f.affectsExerciseId).softened;
+    const soft = f.severity === 'limit' && ((f.check === 'interference' && keptOutcome(input.data, input.analysis, input.exerciseId, f.affectsExerciseId).softened)
+      // Usual days learned from fewer than 4 full weeks: confidence is limited → a tip at most (recovery checks included:
+      // the upcoming session itself is uncertain, the windows are not).
+      || learnedWeeks(input.analysis) < FULL_CONFIDENCE_WEEKS);
     const g = soft ? { ...f, severity: 'recommendation' as const } : f;
     return { ...g, text: findingText(input.analysis, g) };
   });
 }
 
+/** Full weeks behind the learned usual days below which a forward warning is a tip at most. */
+export const FULL_CONFIDENCE_WEEKS = 4;
+const learnedWeeks = (analysis: Analysis) => analysis.weeks.filter((w) => w.complete && !w.partial && w.workouts.length > 0).length;
+
 // ---------------------------------------------------------------- learning from "Keep today" (H.3 #13)
 
 /** A kept conflict counts as "held up" when the affected exercise's index was at least this share of its previous one. */
 export const KEPT_NOT_LOWER = 0.97;
-/** Kept conflicts needed before anything is learned (the last 3 are used; >= 2 held up -> softened). */
+/**
+ * Kept conflicts needed before anything is learned: the last 3 COMPARABLE results are used; >= 2 held up -> softened.
+ * A result that cannot be compared (no comparable baseline, different reserve or rest, another history) is skipped —
+ * never counted either way; fewer than 3 comparable results -> nothing learned.
+ */
 export const KEPT_MIN_OBSERVATIONS = 3;
+/** A result whose top-set reserve differs by at least this much from the baseline is not comparable. */
+export const KEPT_RIR_DIFF = 2;
+/** A result whose average rest is below this share of the baseline's is not comparable. */
+export const KEPT_SHORT_REST = 0.7;
 
 export interface KeptOutcome { observations: number; notLower: number; lower: number; softened: boolean; lastDate: string | null }
 
@@ -213,6 +241,10 @@ export interface KeptOutcome { observations: number; notLower: number; lower: nu
 export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: string, affectsId: string): KeptOutcome {
   const kept = [...data.workouts].sort((a, b) => a.date.localeCompare(b.date))
     .flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId && e.forwardKept?.affectsExerciseId === affectsId).map((e) => e.forwardKept!));
+  const afterKept = (date: string) => kept.some((k) => date >= k.date && diffDays(date, k.date) <= 2);
+  // Index ratio on one scale: kg-based indices directly; a reps-based index (bodyweight) on the Epley scale, so one rep
+  // at 10 is not a "10 % drop" (1 + reps / 30).
+  const ratio = (cur: number, base: number, kind: string | null) => (kind === 'reps' ? (1 + cur / 30) / (1 + base / 30) : cur / base);
   const obs: boolean[] = [];
   let lastDate: string | null = null;
   for (const k of kept) {
@@ -220,9 +252,18 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
       const i = series.sessions.findIndex((x) => x.date >= k.date && diffDays(x.date, k.date) <= 2);
       if (i < 0) continue;
       const cur = series.sessions[i];
-      const prev = [...series.sessions.slice(0, i)].reverse().find((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind);
-      if (cur.indexRaw == null || !prev || prev.indexRaw == null) continue;
-      obs.push(cur.indexRaw >= prev.indexRaw * KEPT_NOT_LOWER);
+      if (cur.indexRaw == null || !cur.representative) break;
+      // Baseline: the last <= 3 comparable sessions of the SAME history (exercise × machine × configuration) that were not
+      // themselves right after a kept conflict; at least 2 are needed.
+      const base = series.sessions.slice(0, i).filter((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind && !afterKept(x.date)).slice(-3);
+      if (base.length < 2) break;
+      // Not comparable: stopped with a clearly different reserve, a much shorter rest, or a different place in the session.
+      const baseRir = median(base.map((x) => x.topRir).filter((r): r is number => r != null));
+      if (cur.topRir != null && Number.isFinite(baseRir) && Math.abs(cur.topRir - baseRir) >= KEPT_RIR_DIFF) break;
+      const rests = base.map((x) => x.restAvgSec).filter((r): r is number => r != null);
+      if (cur.restAvgSec != null && rests.length && cur.restAvgSec < KEPT_SHORT_REST * median(rests)) break;
+      if (cur.context && base.every((x) => x.context && x.context !== cur.context)) break;
+      obs.push(ratio(cur.indexRaw, median(base.map((x) => x.indexRaw as number)), cur.indexKind) >= KEPT_NOT_LOWER);
       lastDate = k.date;
       break;
     }
@@ -261,6 +302,8 @@ export function forwardHabit(data: AppData, analysis: Analysis): { text: string;
 /** Two exercises are a usual pair when they were adjacent in at least this share of the sessions holding both (>= 3). */
 export const PAIR_ADJACENT_SHARE = 0.7;
 export const PAIR_MIN_SESSIONS = 3;
+/** Only the most recent sessions holding both count (a changed routine is forgotten). */
+export const PAIR_RECENT = 6;
 
 const ARM = new Set<MuscleId>(['biceps', 'triceps', 'forearms']);
 /**
@@ -304,13 +347,12 @@ export function movePartners(data: AppData, analysis: Analysis, exerciseId: stri
     if (other === exerciseId) continue;
     let both = 0;
     let adjacent = 0;
-    for (const w of past) {
-      const ids = w.exercises.filter((e) => !e.skipped && e.sets.some((x) => !x.planned)).map((e) => e.exerciseId);
-      const a = ids.indexOf(exerciseId);
-      const b = ids.indexOf(other);
-      if (a < 0 || b < 0) continue;
+    // The last PAIR_RECENT sessions holding both: a routine that changed is forgotten.
+    const together = [...past].sort((x, y) => x.date.localeCompare(y.date)).map((w) => w.exercises.filter((e) => !e.skipped && e.sets.some((x) => !x.planned)).map((e) => e.exerciseId))
+      .filter((ids) => ids.includes(exerciseId) && ids.includes(other)).slice(-PAIR_RECENT);
+    for (const ids of together) {
       both++;
-      if (Math.abs(a - b) === 1) adjacent++;
+      if (Math.abs(ids.indexOf(exerciseId) - ids.indexOf(other)) === 1) adjacent++;
     }
     if (both < PAIR_MIN_SESSIONS || adjacent / both < PAIR_ADJACENT_SHARE || !related(analysis, exerciseId, other)) continue;
     if (issuesIfDoneOn({ data, analysis, workout: null, exerciseId: other, sets: usualSetCount(data.workouts, other) }, sessions, date) === 0) out.push(other);

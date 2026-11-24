@@ -12,7 +12,7 @@ const noop = () => undefined;
 describe('ForwardWarning', () => {
   it('a real limit: label, the short text, the better day and both buttons', () => {
     const html = renderToString(h(ForwardWarning, { findings: [limit], moveDate: '2026-11-17', clean: true, onMove: noop, onKeep: noop }));
-    expect(html).toContain('Recovery limit');
+    expect(html).toContain('Next-session performance'); // an interference limit is not a recovery limit
     expect(html).toContain('May reduce Tuesday');
     expect(html).toMatch(/Better on Tue/);
     expect(html).toMatch(/Move to Tue/);
@@ -32,7 +32,7 @@ describe('ForwardWarning', () => {
     setLang('ru');
     try {
       const html = renderToString(h(ForwardWarning, { findings: [limit], moveDate: '2026-11-17', clean: true, onMove: noop, onKeep: noop }));
-      expect(html).toContain('Предел восстановления');
+      expect(html).toContain('Результат следующей тренировки');
       expect(html).toContain('Оставить сегодня');
       expect(html).toContain('Перенести');
     } finally { setLang('en'); }

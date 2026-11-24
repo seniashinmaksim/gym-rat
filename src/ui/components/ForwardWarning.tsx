@@ -19,11 +19,14 @@ export function ForwardWarning({ findings, moveDate, clean, onMove, onKeep, comp
 }) {
   if (!findings.length) return null;
   const limit = findings.some((f) => f.severity === 'limit');
+  // Three distinct categories: a recovery window still open · next-session performance · a tip (optional).
+  const label = findings.some((f) => f.severity === 'limit' && f.check === 'recovery') ? L('Recovery limit', 'Предел восстановления')
+    : limit ? L('Next-session performance', 'Результат следующей тренировки') : L('Tip', 'Совет');
   const day = moveDate ? formatDate(moveDate, { weekday: 'short', day: 'numeric' }) : null;
   return (
     <div data-testid="forward-warning" className={`rounded-xl border px-3 py-2 text-xs ${limit ? 'border-amber-500/50 bg-amber-500/10' : 'border-ink-200 bg-ink-50 dark:border-ink-700 dark:bg-ink-800/60'}`}>
       <div className="flex flex-wrap items-start gap-2">
-        <Badge tone={limit ? 'warn' : 'neutral'}>{limit ? L('Recovery limit', 'Предел восстановления') : L('Tip', 'Совет')}</Badge>
+        <Badge tone={limit ? 'warn' : 'neutral'}>{label}</Badge>
         <span className="min-w-0 flex-1 break-words text-ink-700 dark:text-ink-200">
           {findings.map((f) => f.text).join(' ')}
           {day && !compact ? ' ' + (clean ? L(`Better on ${day}.`, `Лучше: ${day}.`) : L(`${day} is the best option, but still overlaps.`, `${day} — лучший вариант, но пересечение остаётся.`)) : ''}

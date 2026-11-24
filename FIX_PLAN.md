@@ -921,3 +921,46 @@ Regression: six-month reference, training-mode replay, Part 5 planner tests, cho
   creates a conflict, order after rescheduling, 3 overrides held / declined, recovery unchanged after softening, a change of
   usual days, habit line EN + RU); CLAUDE.md §N.
 - Moves made from the exercise picker store no machine (chosen when it is added on the target day); moves from the plan card keep it.
+
+- Part 8 validation (owner's list, 2026-11-24): `tests/part8-validation.test.ts` written first; it found and fixed: softening
+  compared with the single previous session (10 → 9 counted as a drop; RIR / rest / history not checked), alternating weeks
+  invented a 6-day schedule, 3 weeks of history gave firm warnings, picker moves could duplicate and did not say the
+  machine must be chosen again, and the badge called performance interference a "Recovery limit". Open (owner's question):
+  an explicit training-days setting with priority over the learned days.
+
+# Part 9 — Exercise Optimality Score (0–100) for the next-exercise recommendations (owner's request 2026-11-24)
+
+Goal: next to every recommended exercise in "Next exercise" (the next-exercise chooser in training mode, the picker's
+suggestions and the plan card's alternatives) show how well it fits the CURRENT situation, and sort by it.
+
+## I.1 Requirements (owner)
+1. A number 0–100 next to each suggestion; sorted high → low; the best suitable exercise first.
+2. Computed only from what the app already calculates: recovery status and remaining windows (`recovery.ts`), direct /
+   indirect involvement (coefficients), weekly target and today's open share (`analysis.ts`, Part 7 week fit),
+   next-session interference and recovery (`sequence.ts`), order and pre-fatigue (`exerciseChoice.ts`, `preload.ts`,
+   `fatigue.ts`), overlap with previous and upcoming sessions, history / demonstrated performance and calibration
+   (`progression.ts`, `readiness.ts`), priorities, fit with the week's sequence, equipment availability (busy / gym).
+3. Dynamic: recomputed when recovery, the plan, today's sets, the week or a move changes.
+4. Ranking ≠ restriction: three groups — suitable now (scored and sorted), acceptable but less optimal (scored lower),
+   NOT recommended today (an open recovery window that holds the muscle / a real planning conflict: shown separately with
+   the reason, never as a high number). A score never turns a real limit into a recommendation.
+5. Transparency: document every factor and its weight; principle (evidence) vs weight (heuristic) as in rules.ts; no false
+   precision (show bands or round to 5, say that 95 vs 90 is not a growth difference); a short "why" per exercise.
+6. No invented weights for the sake of a number: start from the existing assistant's separate dimensions (recovery,
+   volume, fatigue, order, decline, safety) and the forward checks; each factor is a documented deduction or cap with a
+   stated reason; missing data lowers confidence and caps the score (never a misleadingly high number).
+
+## I.2 Tests to write FIRST (owner's list + own)
+1. Descending order on screen. 2. Better recovery → higher score, all else equal. 3. Compromising the next priority
+session is penalised. 4. An active recovery restriction is never recommended, whatever the other factors. 5. A met weekly
+target lowers the ranking appropriately. 6. Changing the planned workout recalculates. 7. A move recalculates in the new
+day's context. 8. Identical inputs → identical scores (stable, no randomness, order of input irrelevant). 9. Missing data
+(no history, unknown machine, no usual days) → capped / labelled, never misleadingly high. 10. EN + RU display without
+layout findings or cut-off text (layout audit, 4 WebKit viewports).
+Own: ties broken deterministically (familiarity, then name); pain hold → not recommended (safety, separate line); a
+softened interference tip costs less than a limit; busy machine → alternative on free equipment ranks above it; the
+score never changes any weekly number, credit or recovery window; rule `exercise_optimality` (principle vs number).
+
+## I.3 Process
+Design note (factors, weights, bands, groups) → owner's OK on the weights if any is a pure preference → failing tests →
+implementation → rules.ts + CLAUDE.md + docs/FORMULA_AUDIT.md §5 → unit + browser EN/RU → independent review → push.

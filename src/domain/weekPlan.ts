@@ -44,6 +44,10 @@ export function usualTrainingDays(weeks: { dates: string[] }[]): number[] | null
   const count = new Map<number, number>();
   for (const w of recent) for (const d of new Set(w.dates.map(weekdayOf))) count.set(d, (count.get(d) ?? 0) + 1);
   const days = [...count].filter(([, n]) => n / recent.length >= USUAL_DAY_SHARE).map(([d]) => d).sort((a, b) => a - b);
+  // More "usual" days than the owner trains in a week (+ 1) means the pattern alternates: no fixed schedule is invented.
+  const perWeek = recent.map((w) => new Set(w.dates).size).sort((a, b) => a - b);
+  const typical = perWeek.length % 2 ? perWeek[perWeek.length >> 1] : (perWeek[perWeek.length / 2 - 1] + perWeek[perWeek.length / 2]) / 2;
+  if (days.length > Math.round(typical) + 1) return null;
   return days.length ? days : null;
 }
 

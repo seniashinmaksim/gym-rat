@@ -26,7 +26,7 @@ import { Badge, Button, Card, CardTitle, confirmAction, cx, Field, fmt, Input, M
 import { useAnalysis, useNames } from '../hooks';
 import { byLang, KG, L, locale, num, ruPlural } from '../../i18n';
 import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
-import { bestMoveDay, forwardChecks, usualSetCount, type ForwardFinding } from '../../domain/sequence';
+import { addMoves, bestMoveDay, forwardChecks, usualSetCount, type ForwardFinding } from '../../domain/sequence';
 import { ForwardWarning } from '../components/ForwardWarning';
 import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
 import { uncertainMuscles } from '../../domain/mappingUncertainty';
@@ -1322,7 +1322,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
     if (!c.move) return;
     const mv = { id: `mv-${Date.now().toString(36)}`, exerciseId: c.def.id, equipmentId: null, sets: c.sets, fromDate: a.today, date: c.move.date, reason: c.fwd.map((f) => f.text).join(' '), createdAt: new Date().toISOString() };
     const before = data.settings.plannedMoves ?? [];
-    await store.saveSettings({ plannedMoves: [...before, mv] });
+    await store.saveSettings({ plannedMoves: addMoves(before, [mv]) });
     onClose();
     undoToast(L(`${names.ex(c.def)} moved to ${formatDate(c.move.date, { weekday: 'short', day: 'numeric' })}`, `${names.ex(c.def)}: перенесено на ${formatDate(c.move.date, { weekday: 'short', day: 'numeric' })}`), () => store.saveSettings({ plannedMoves: before }));
   };

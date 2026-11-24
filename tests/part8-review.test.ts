@@ -51,7 +51,7 @@ describe('#3 / #4 forward checks count today once and use what else is planned t
   // Usual Mon pec deck / Tue machine curls / Thu legs; today Monday; biceps target 10. 4 curls done today, 2 more →
   // biceps 6 → 36 h; Tuesday (24 h) has curls (biceps 1.0) → 12 h left = a limit; week: 10 − 6 = 4 still open → recovery.
   const hist: Workout[] = [];
-  for (const [m, t, th] of [['2026-10-26', '2026-10-27', '2026-10-29'], ['2026-11-02', '2026-11-03', '2026-11-05'], ['2026-11-09', '2026-11-10', '2026-11-12']]) {
+  for (const [m, t, th] of [['2026-10-19', '2026-10-20', '2026-10-22'], ['2026-10-26', '2026-10-27', '2026-10-29'], ['2026-11-02', '2026-11-03', '2026-11-05'], ['2026-11-09', '2026-11-10', '2026-11-12']]) {
     hist.push(day(m, [ex('pec_deck', times(4, () => set(40, 12, 2)), 'pd')]), day(t, [ex('machine_biceps_curl', times(3, () => set(30, 10, 2)), 'bc')]), day(th, [ex('leg_extension', times(3, () => set(50, 12, 2)), 'le')]));
   }
   const NOW = new Date('2026-11-16T17:40:00Z');

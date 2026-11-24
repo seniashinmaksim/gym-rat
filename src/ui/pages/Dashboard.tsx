@@ -18,7 +18,7 @@ import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
 import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
-import { activeMoves, forwardHabit } from '../../domain/sequence';
+import { activeMoves, forwardHabit, moveNeedsSetup } from '../../domain/sequence';
 import { KG, L, num, ruPlural } from '../../i18n';
 
 /**
@@ -55,7 +55,7 @@ function MovedCard() {
       <ul className="mt-1.5 space-y-1.5">
         {moves.map((m) => (
           <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="min-w-0 break-words">{names.ex(a.registry.get(m.exerciseId))} · {m.sets} → <b>{formatDate(m.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b>{m.date < a.today ? L(' (still planned)', ' (всё ещё в плане)') : ''}</span>
+            <span className="min-w-0 break-words">{names.ex(a.registry.get(m.exerciseId))} · {m.sets} → <b>{formatDate(m.date, { weekday: 'short', day: 'numeric', month: 'short' })}</b>{m.date < a.today ? L(' (still planned)', ' (всё ещё в плане)') : ''}{moveNeedsSetup(m, a.registry) ? L(' · choose the machine on the day', ' · тренажёр выберете в тот день') : ''}</span>
             <Button size="sm" onClick={() => void cancel(m.id)}>{L('Cancel move', 'Отменить перенос')}</Button>
           </li>
         ))}
