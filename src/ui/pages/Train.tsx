@@ -113,7 +113,9 @@ function TrainSession({ initial }: { initial: Workout }) {
   const [view, setView] = useState<View>(() => {
     if (!initial.exercises.length || !pickCurrent(initial)) return 'overview';
     const r = restState(initial, Date.now(), data.settings.restDefaultSec);
-    return r && r.elapsedSec < r.targetSec + 60 && r.exerciseId === pickCurrent(initial) ? 'rest' : 'set';
+    const restEx = r ? initial.exercises.find((e) => e.id === r.exerciseId) : undefined;
+    const ended = !!restEx?.restEndedAt && Date.parse(restEx.restEndedAt) > Date.now() - r!.elapsedSec * 1000;
+    return r && !ended && r.elapsedSec < 30 * 60 && r.exerciseId === pickCurrent(initial) ? 'rest' : 'set';
   });
   const [picker, setPicker] = useState<'add' | { change: string } | null>(() => (initial.exercises.length ? null : 'add'));
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -345,6 +347,7 @@ function TrainSession({ initial }: { initial: Workout }) {
           const now = latest.current.exercises.find((e) => e.id === exId);
           if (!now || !now.doneAt) return false;
           setEx(exId, (e) => ({ ...e, doneAt: undefined }), true);
+          setChooser(null);
           setCurId(exId);
           setView('set');
           return true;
@@ -354,6 +357,16 @@ function TrainSession({ initial }: { initial: Workout }) {
     const next = w.exercises.find((e) => e.id !== cur?.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached);
     if (next) { setCurId(next.id); setView('set'); } else { setCurId(null); setView('overview'); }
   };
+  /** Close the current exercise (Undo when before its target) and let the owner pick what comes next. */
+  const chooseNext = () => {
+    const from = cur?.id ?? null;
+    if (cur) nextExercise();
+    setCurId(null);
+    setView('overview');
+    setChooser(from ?? 'none');
+  };
+  const [chooser, setChooser] = useState<string | null>(null);
+  const openList = w.exercises.filter((e) => e.id !== chooser && !e.skipped && !e.doneAt && !exerciseProgress(e).reached);
 
   const accent = data.settings.trainAccent ?? 'ember';
   const active = w.exercises.filter((e) => !e.skipped);
@@ -367,7 +380,7 @@ function TrainSession({ initial }: { initial: Workout }) {
           onLater={postpone} onBusy={markBusy} onFree={freeMachine} onReplace={replaceExercise} onChange={(id) => setPicker({ change: id })} onSkip={skip} onMove={move} onRemove={removeExercise} />
       ) : (
         <ExerciseScreens key={cur.id} w={w} ex={cur} view={view} setView={setView} position={position} exName={exName(cur)}
-          setEx={setEx} undoable={undoable} onNextExercise={nextExercise} hasNext={w.exercises.some((e) => e.id !== cur.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached)}
+          setEx={setEx} undoable={undoable} onNextExercise={nextExercise} onChooseNext={chooseNext} hasNext={w.exercises.some((e) => e.id !== cur.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached)}
           perSide={perSide[cur.id]} setPerSide={(v) => setPerSide((m) => ({ ...m, [cur.id]: v }))}
           sessionStep={sessionStep[cur.id]} setSessionStep={(v) => setSessionStep((m) => ({ ...m, [cur.id]: v }))}
           onLater={() => { postpone(cur.id); setCurId(null); setView('overview'); }} onSkip={() => skip(cur.id)} onChange={() => setPicker({ change: cur.id })} />
@@ -375,6 +388,20 @@ function TrainSession({ initial }: { initial: Workout }) {
       <ExercisePicker open={!!picker} title={picker && picker !== 'add' ? L('Change exercise', 'Сменить упражнение') : L('Add exercise', 'Добавить упражнение')} onClose={() => setPicker(null)}
         onPick={picker && picker !== 'add' ? (d) => { const id = picker.change; setPicker(null); changeExercise(id, d); } : addExercise} locationId={w.locationId} workout={picker === 'add' ? w : null} />
       {summary && <SummaryModal s={summary} onDone={() => nav('/')} onBack={preFinish ? backToWorkout : undefined} />}
+      <Modal open={chooser != null && !picker} onClose={() => setChooser(null)} title={L('Next exercise', 'Следующее упражнение')}>
+        <div className="space-y-2" data-testid="next-chooser">
+          {openList.map((e, i) => (
+            <button key={e.id} type="button" onClick={() => { setChooser(null); open(e.id); }} data-testid="next-choice"
+              className={cx('flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border px-3 py-2 text-left', i === 0 ? 'border-accent-500 bg-accent-500/10' : 'border-ink-200 dark:border-ink-700')}>
+              <span className="break-words text-sm font-semibold text-ink-900 dark:text-white">{exName(e)}</span>
+              <span className="text-xs text-ink-500">{[targetLine(e), i === 0 ? L('suggested', 'предлагается') : ''].filter(Boolean).join(' · ')}</span>
+            </button>
+          ))}
+          {!openList.length && <p className="text-sm text-ink-500">{L('Everything planned is done. Add another exercise, or finish the workout in the overview.', 'Всё запланированное сделано. Добавьте ещё упражнение или завершите тренировку в обзоре.')}</p>}
+          <Button size="lg" variant={openList.length ? 'secondary' : 'primary'} className="w-full" onClick={() => { setChooser(null); setPicker('add'); }} data-testid="next-add"><IconPlus size={18} />{L('Add exercise', 'Добавить упражнение')}</Button>
+          <button type="button" className="min-h-[48px] w-full text-sm font-semibold text-ink-500 underline" onClick={() => setChooser(null)} data-testid="next-overview">{L('Overview', 'Обзор')}</button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -416,10 +443,10 @@ const quietBtn = 'flex h-12 min-w-[48px] items-center justify-center rounded-xl 
 
 // ---------------------------------------------------------------- set entry + rest for one exercise
 
-function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoable, onNextExercise, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange }: {
+function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoable, onNextExercise, onChooseNext, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange }: {
   w: Workout; ex: WorkoutExercise; view: View; setView: (v: View) => void; position: string; exName: string;
   setEx: (exId: string, fn: (e: WorkoutExercise) => WorkoutExercise, now?: boolean) => void;
-  undoable: (msg: string, revert: (x: Workout) => Workout) => void; onNextExercise: () => void; hasNext: boolean;
+  undoable: (msg: string, revert: (x: Workout) => Workout) => void; onNextExercise: () => void; onChooseNext: () => void; hasNext: boolean;
   perSide: boolean | undefined; setPerSide: (v: boolean) => void; sessionStep: number | undefined; setSessionStep: (v: number) => void;
   onLater: () => void; onSkip: () => void; onChange: () => void;
 }) {
@@ -447,11 +474,14 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
   const [weight, setWeight] = useState<number | null>(fill.weightKg);
   const [reps, setReps] = useState<number | null>(fill.reps);
   const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}`;
+  // How the set went: answered together with weight and reps, before LOG SET (optional; cleared after each set).
+  const [tap, setTap] = useState<EffortTap | null>(null);
   const lastTapSide = useRef<Side | undefined>(undefined);
   const seenKey = useRef(fillKey);
   useEffect(() => {
     if (seenKey.current === fillKey) return;
     seenKey.current = fillKey;
+    setTap(null);
     // Second side of a pair: same values as the first side.
     const prevSet = sets[sets.length - 1];
     if (nextSide === 'right' && prevSet) { setWeight(prevSet.weightKg); setReps(prevSet.reps); return; }
@@ -488,7 +518,13 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
     tapGuard.current = nowMs;
     lastTapSide.current = nextSide;
     const id = uid('s');
-    setEx(ex.id, (e) => logSet(e, entry, nowMs, id, model), true);
+    const answer = tap;
+    setEx(ex.id, (e) => {
+      const logged = logSet(e, entry, nowMs, id, model);
+      const s = logged.sets.find((x) => x.id === id);
+      return answer && s ? editSet(logged, id, effortTapPatch(s, answer), model) : logged;
+    }, true);
+    setTap(null);
     setFlash(id);
     try { navigator.vibrate?.(30); } catch { /* no vibration */ }
     // After the left side comes the right side directly; rest starts after the pair.
@@ -592,7 +628,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
           <Button size="lg" onClick={() => { setSheet(null); setPickEq(true); }}>{L('Change machine', 'Сменить тренажёр')}</Button>
           <Button size="lg" onClick={toggleSides} aria-pressed={sides}>{sides ? L('Log both sides together', 'Записывать обе стороны вместе') : L('Log left / right separately', 'Записывать левую / правую отдельно')}</Button>
           <Button size="lg" onClick={() => { setSheet(null); onChange(); }}>{L('Change exercise', 'Сменить упражнение')}</Button>
-          {sets.length > 0 && <Button size="lg" onClick={() => { setSheet(null); onNextExercise(); }} data-testid="finish-exercise">{progress.reached || progress.target == null ? L('Finish this exercise', 'Завершить упражнение') : L(`Finish this exercise (${progress.done} of ${progress.target} sets)`, `Завершить упражнение (${progress.done} из ${progress.target} подх.)`)}</Button>}
+          {sets.length > 0 && <Button size="lg" onClick={() => { setSheet(null); onChooseNext(); }} data-testid="finish-exercise">{progress.reached || progress.target == null ? L('Finish this exercise', 'Завершить упражнение') : L(`Finish this exercise (${progress.done} of ${progress.target} sets)`, `Завершить упражнение (${progress.done} из ${progress.target} подх.)`)}</Button>}
           {!sets.length && <Button size="lg" onClick={() => { setSheet(null); onLater(); }}>{L('Later', 'Позже')}</Button>}
           {!sets.length && <Button size="lg" variant="ghost" onClick={() => { setSheet(null); onSkip(); }}>{L('Skip this exercise', 'Пропустить упражнение')}</Button>}
         </div>
@@ -619,9 +655,9 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
       <>
         {head}
         <RestScreen w={w} ex={ex} set={lastSet} exName={exName} n={sets.length} reached={progress.reached} hasNext={hasNext}
-          onEffort={(t) => patchSet(lastSet.id, effortTapPatch(lastSet, t))} onMore={() => setSheet({ set: lastSet.id })}
+          onMore={() => setSheet({ set: lastSet.id })} onChooseNext={onChooseNext}
           onAdjust={(d) => setEx(ex.id, (e) => adjustRest(e, d, data.settings.restDefaultSec), true)}
-          onNextSet={() => setView('set')} onNextExercise={onNextExercise} />
+          onNextSet={() => { setEx(ex.id, (e) => ({ ...e, restEndedAt: new Date().toISOString() }), true); setView('set'); }} onNextExercise={onNextExercise} />
         {sheets}
       </>
     );
@@ -632,7 +668,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
       {head}
       <div className="flex min-h-0 flex-1 flex-col landscape:max-lg:flex-row">
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-1">
-          <h1 className="line-clamp-2 font-display text-title font-extrabold uppercase leading-none tracking-tight" data-testid="exercise-name">{exName}</h1>
+          <h1 className={cx('break-words font-display font-extrabold uppercase leading-none tracking-tight [text-wrap:balance]', exName.length > 26 ? 'text-2xl' : 'text-title')} data-testid="exercise-name">{exName}</h1>
           {eqLine && <button type="button" onClick={() => setPickEq(true)} className="flex min-h-[44px] min-w-[44px] items-center text-left text-sm text-t-dim" data-testid="machine-line">{eqLine}{ex.settings && Object.values(ex.settings).some((v) => v.trim()) ? ` · ${Object.entries(ex.settings).filter(([, v]) => v.trim()).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}</button>}
           <dl className="mt-3 space-y-1.5">
             <div data-testid="last-time">
@@ -657,7 +693,11 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
           {sides && <div className="flex items-center gap-2"><TLabel>{L('Side', 'Сторона')}</TLabel><span className="rounded-md bg-t-surface px-2 py-1 text-xs font-bold uppercase" data-testid="side">{nextSide === 'left' ? L('Left', 'Левая') : L('Right', 'Правая')}</span></div>}
           <WeightControl value={weight} onChange={setWeight} step={step} onStepClick={() => setSheet('step')} unit={unit} />
           <RepsControl value={reps} onChange={setReps} />
-          <TButton variant="primary" onClick={log} data-testid="log-set">{L('Log set', 'Записать подход')}{sets.length ? ` ${sets.length + 1}` : ''}</TButton>
+          <div data-testid="effort-entry">
+            <TLabel>{L('How did it go? (optional)', 'Как прошёл? (необязательно)')}</TLabel>
+            <div className="mt-1"><EffortRow value={tap} onPick={(t) => setTap(tap === t ? null : t)} /></div>
+          </div>
+          <TButton variant="primary" className="landscape:max-lg:sticky landscape:max-lg:bottom-0 landscape:max-lg:z-10" onClick={log} data-testid="log-set">{L('Log set', 'Записать подход')}{sets.length ? ` ${sets.length + 1}` : ''}</TButton>
         </div>
       </div>
       {sheets}
@@ -671,19 +711,30 @@ function RestPill({ w, onOpen }: { w: Workout; onOpen: () => void }) {
   const now = useNow(500);
   const r = restState(w, now, data.settings.restDefaultSec);
   if (!r || r.elapsedSec > 30 * 60) return null;
+  const ex = w.exercises.find((e) => e.id === r.exerciseId);
+  const setAt = Date.parse(ex?.sets.find((s) => s.id === r.setId)?.completedAt ?? '');
+  const endAt = ex?.restEndedAt ? Date.parse(ex.restEndedAt) : NaN;
+  // Rest ended with NEXT SET: show how long it actually was (this is what is recorded with the next set).
+  if (Number.isFinite(endAt) && Number.isFinite(setAt) && endAt > setAt) {
+    return (
+      <button type="button" onClick={onOpen} data-testid="rest-pill" data-ended="true" className="t-num mt-3 flex min-h-[48px] items-center gap-2 rounded-xl border border-t-line px-3 font-display text-lg font-bold text-t-text">
+        <span className="t-label">{L('Rested', 'Отдых был')}</span>{mmss(Math.round((endAt - setAt) / 1000))}
+      </button>
+    );
+  }
   return (
     <button type="button" onClick={onOpen} data-testid="rest-pill" className={cx('t-num mt-3 flex min-h-[48px] items-center gap-2 rounded-xl border px-3 font-display text-lg font-bold', r.done ? 'border-t-good text-t-good' : 'border-t-line text-t-text')}>
-      <span className="t-label">{r.done ? L('Rested', 'Отдых окончен') : L('Rest', 'Отдых')}</span>
-      {r.done ? `+${mmss(-r.remainingSec)}` : mmss(r.remainingSec)}
+      <span className="t-label">{L('Rest', 'Отдых')}</span>
+      {mmss(r.done ? r.elapsedSec : r.remainingSec)}
     </button>
   );
 }
 
 // ---------------------------------------------------------------- rest screen
 
-function RestScreen({ w, ex, set, exName, n, reached, hasNext, onEffort, onMore, onAdjust, onNextSet, onNextExercise }: {
+function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust, onNextSet, onNextExercise, onChooseNext }: {
   w: Workout; ex: WorkoutExercise; set: WorkoutSet; exName: string; n: number; reached: boolean; hasNext: boolean;
-  onEffort: (t: EffortTap) => void; onMore: () => void; onAdjust: (deltaSec: number) => void; onNextSet: () => void; onNextExercise: () => void;
+  onMore: () => void; onAdjust: (deltaSec: number) => void; onNextSet: () => void; onNextExercise: () => void; onChooseNext: () => void;
 }) {
   const data = useData();
   const now = useNow(250);
@@ -718,13 +769,19 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onEffort, onMore,
     return () => { gone = true; document.removeEventListener('visibilitychange', vis); void lock?.release().catch(() => undefined); };
   }, []);
 
-  const text = remaining > 0 ? mmss(remaining) : `+${mmss(-remaining)}`;
+  // After zero the timer keeps going in 15-second laps until NEXT SET: the digits show the whole rest so far.
+  const over = Math.max(0, -remaining);
+  const text = remaining > 0 ? mmss(remaining) : mmss(target + over);
   const side = 'flex h-16 w-20 items-center justify-center rounded-xl border border-t-line bg-t-surface font-display text-2xl font-bold text-t-text active:brightness-125 max-[379px]:w-16';
   return (
     <div className="flex min-h-0 flex-1 flex-col landscape:max-lg:flex-row" data-testid="rest-screen">
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-        <p className="mb-1 max-w-full truncate text-center text-sm font-semibold text-t-dim"><span className="uppercase">{exName}</span> · {L(`set ${n}`, `подход ${n}`)}: <span className="t-num text-t-text">{setText(set)}</span></p>
-        <RestRing remainingSec={remaining} targetSec={target} paused={!!t.pausedAt} text={text} />
+        <p className="mb-1 max-w-full break-words text-center text-sm font-semibold text-t-dim [text-wrap:balance]">
+          <span className="uppercase">{exName}</span> · {L(`set ${n}`, `подход ${n}`)}: <span className="t-num text-t-text">{setText(set)}</span>
+          {effortTapOf(set) && <span className="text-t-text"> · {effortLabel(effortTapOf(set) as EffortTap)}</span>}
+          {' '}<button type="button" className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center px-2 align-middle text-xs font-semibold text-t-dim underline" onClick={onMore} data-testid="more">{L('edit', 'изменить')}</button>
+        </p>
+        <RestRing remainingSec={remaining} targetSec={target} paused={!!t.pausedAt} text={text} overSec={over} />
         <div className="mt-2 flex items-center gap-3">
           <button type="button" className={side} onClick={() => onAdjust(-REST_STEP_SEC)} aria-label={L('15 seconds less rest', 'На 15 секунд меньше отдыха')} data-testid="rest-minus">−15</button>
           <button type="button" className="flex h-12 min-w-[48px] items-center justify-center rounded-xl px-3 text-sm font-semibold text-t-dim" aria-label={t.pausedAt ? L('Resume the timer', 'Продолжить таймер') : L('Pause the timer', 'Пауза таймера')}
@@ -733,11 +790,6 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onEffort, onMore,
         </div>
       </div>
       <div className="shrink-0 space-y-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 landscape:max-lg:flex landscape:max-lg:w-1/2 landscape:max-lg:flex-col landscape:max-lg:justify-center">
-        <div className="flex items-center justify-between">
-          <TLabel>{L('How was it? (optional)', 'Как прошёл? (необязательно)')}</TLabel>
-          <button type="button" className="-mr-2 min-h-[44px] px-2 text-xs font-semibold text-t-dim underline" onClick={onMore} data-testid="more">{L('More…', 'Ещё…')}</button>
-        </div>
-        <EffortRow value={effortTapOf(set)} onPick={onEffort} />
         {reached && hasNext ? (
           <>
             <TButton variant="secondary" className="w-full" onClick={guarded(onNextSet)} data-testid="one-more">{L('One more set', 'Ещё подход')}</TButton>
@@ -746,14 +798,14 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onEffort, onMore,
         ) : reached ? (
           <>
             <TButton variant="secondary" className="w-full" onClick={guarded(onNextSet)} data-testid="one-more">{L('One more set', 'Ещё подход')}</TButton>
-            <TButton variant="primary" onClick={guarded(onNextExercise)} data-testid="next-exercise">{L('To the overview', 'К обзору')}</TButton>
+            <TButton variant="primary" onClick={guarded(onChooseNext)} data-testid="next-exercise">{L('Choose next exercise', 'Выбрать следующее')}</TButton>
           </>
         ) : (
           <>
             <TButton variant="primary" onClick={guarded(onNextSet)} data-testid="next-set">{L('Next set', 'Следующий подход')}</TButton>
             <div className="flex justify-center pt-1">
-              <button type="button" className="min-h-[44px] px-3 text-sm font-semibold text-t-dim underline" onClick={guarded(onNextExercise)} data-testid="stop-early">
-                {hasNext ? L('Enough for this one — next exercise', 'Хватит — следующее упражнение') : L('Enough for this one — to the overview', 'Хватит — к обзору')}
+              <button type="button" className="min-h-[44px] px-3 text-center text-sm font-semibold text-t-dim underline" onClick={guarded(onChooseNext)} data-testid="stop-early">
+                {L('Enough — choose next exercise', 'Хватит — выбрать следующее')}
               </button>
             </div>
           </>
@@ -895,9 +947,9 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
                 <button type="button" onClick={() => onOpen(e.id)} className={cx('flex min-h-[64px] min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 text-left', isCur ? 'border-t-accent' : 'border-t-line', e.skipped && 'opacity-50')}>
                   <span className={cx('t-num flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold', p.reached || e.doneAt ? 'bg-t-good text-t-on' : isCur ? 'bg-t-accent text-t-on' : 'bg-t-surface text-t-dim')}>{p.reached || e.doneAt ? <IconCheck size={16} /> : i + 1}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-display text-lg font-bold uppercase leading-tight">{exName(e)}</span>
-                    <span className="block truncate text-xs text-t-dim">{[targetLine(e), state, busy ? L('machine busy', 'тренажёр занят') : ''].filter(Boolean).join(' · ')}</span>
-                    {adjusted[e.id] && !p.done && <span className="block truncate text-[11px] text-t-accent" data-testid="adjusted-note">{L('Adjusted', 'Уточнено')}: {adjusted[e.id]}</span>}
+                    <span className="block break-words font-display text-lg font-bold uppercase leading-tight">{exName(e)}</span>
+                    <span className="block break-words text-xs text-t-dim">{[targetLine(e), state, busy ? L('machine busy', 'тренажёр занят') : ''].filter(Boolean).join(' · ')}</span>
+                    {adjusted[e.id] && !p.done && <span className="block break-words text-[11px] text-t-accent" data-testid="adjusted-note">{L('Adjusted', 'Уточнено')}: {adjusted[e.id]}</span>}
                   </span>
                   <span className="t-num shrink-0 font-display text-xl font-bold">{p.done}{p.target != null ? <span className="text-t-dim"> / {p.target}</span> : null}</span>
                 </button>
@@ -917,7 +969,12 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
       </div>
       {nextUp && (
         <div className="shrink-0 border-t border-t-line bg-t-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-          <TButton variant="primary" onClick={() => onOpen(nextUp.id)} data-testid="continue"><span className="min-w-0 truncate">{done(nextUp).length ? L('Continue', 'Продолжить') : L('Start', 'Начать')}: {exName(nextUp)}</span></TButton>
+          <TButton variant="primary" className="py-2" onClick={() => onOpen(nextUp.id)} data-testid="continue">
+            <span className="flex min-w-0 flex-col items-center">
+              <span className="text-xs font-bold tracking-[0.12em] opacity-75">{done(nextUp).length ? L('Continue', 'Продолжить') : L('Start', 'Начать')}</span>
+              <span className={cx('break-words leading-tight [text-wrap:balance]', exName(nextUp).length > 22 ? 'text-lg' : 'text-xl')}>{exName(nextUp)}</span>
+            </span>
+          </TButton>
         </div>
       )}
 

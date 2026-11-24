@@ -85,7 +85,7 @@ F.8 fatigue between exercises); **OPEN** = reported only, waits for the owner's 
   index 120 and 123) → best = 123. Trends and progress % keep kinds apart; `best` does not.
 - Proposed fix: best within the latest index kind only.
 
-### F-7 Default load steps — QUESTIONABLE (minor) → PART 6 (F.3, by the step chooser)
+### F-7 Default load steps — QUESTIONABLE (minor) → PART 6 (F.3, by the step chooser); machine default 2.5 kg since 2026-11-24 (owner)
 - Where: `defaultIncrement`: machine 5 kg, cable 2.5, dumbbell 2 kg.
 - Many stacks move in 2.5 kg (or have add-on weights), many dumbbell racks in 2.5 kg above 10 kg. A default that is too
   coarse hides weights from the stepper (the owner's feedback 8) and makes "+1 step" too large.
@@ -2625,6 +2625,8 @@ Rows 1–10: what the owner asked for in Part 6 (F.4, F.7, F.8, and what F.2 / F
 | 47 | "Last time" in training mode (review) | latest entry with the same exercise id + machine id, even with no performed set | latest earlier entry of the same HISTORY (`progressionKey`: machine, bench angle, attachment …) with ≥ 1 performed set (`lastEntryFor`) | a 45° session was compared with a 30° one; a never-done card hid the real history | review 6 |
 | 48 | Volume property test | "adding a set never lowers a muscle's volume" | holds with the numbers check off, and with it on when the added set repeats the last set's weight | by design (F.4) a heavier later set can reveal an earlier unreported set as a warm-up | `tests/properties.test.ts` |
 | 49 | Back-off estimate vs a REPORTED effort (six-month replay) | a lighter set after the best set got the back-off estimate even with an answer, which hid the next-set rule | the back-off estimate applies only WITHOUT an answer (as documented); a reported back-off set is judged by its next set | 17.5 × 7, 12.5 × 12 "easy", 12.5 × 10 to failure: credit 0.6 instead of 1 (app ≠ reference by 0.4 side-delt sets) | `tests/part6-review.test.ts`, `tests/six-month-live.test.ts` |
+| 50 | Default load step on machines (owner's request 2026-11-24, finding F-7) | 5 kg | 2.5 kg; a step saved on the machine (or chosen with the step chip) still wins | 60 kg → next increase 65 kg on a machine with no recorded step | `tests/part6-review.test.ts`; 4 expectations updated by one step in `tests/feedback.test.ts`, `tests/part6-perception.test.ts` |
+| 51 | Rest measured until NEXT SET (owner's request) | rest of a set = time since the previous set − reps × 3 s (estimated set duration) | time from LOG SET to the NEXT SET press, when it was pressed (`restEndedAt`, used once); else the estimate as before | 2:47 of real rest recorded as 2:47, not as an estimate | `tests/part6-review.test.ts` |
 
 Six-month reference checks after these changes: 0 failures (one simulated set changed credit: 17.5 kg × 18 logged at RIR 3 before 25 kg × 13 — about 13 reps in reserve by the numbers — now earns no credit; the independent reference computes the same).
 

@@ -379,7 +379,7 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
 
 export function defaultIncrement(kind: EquipmentKind | undefined, loadMode?: string): number {
   switch (kind) {
-    case 'machine': return 5;
+    case 'machine': return 2.5; // owner's choice (2026-11-24): a 2.5 kg step by default; a machine's saved step wins
     case 'cable': return 2.5;
     case 'barbell': case 'smith': return 2.5;
     case 'plate_loaded': return loadMode === 'per_side' ? 1.25 : 2.5;

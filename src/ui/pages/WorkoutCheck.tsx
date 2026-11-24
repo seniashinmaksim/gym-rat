@@ -60,7 +60,7 @@ function SetLine({ c, off }: { c: CheckSet; off: boolean }) {
           {s.side && <span className="ml-1.5 text-[11px] font-semibold uppercase text-ink-500">{s.side === 'left' ? L('L', 'Л') : L('R', 'П')}</span>}
           {warm && <span className="ml-1.5 text-[11px] font-semibold uppercase text-ink-500">{L('warm-up', 'разминка')}</span>}
           {s.type === 'drop' && <span className="ml-1.5 text-[11px] font-semibold uppercase text-ink-500">{L('drop', 'дроп')}</span>}
-          <span className="block truncate text-xs text-ink-500">{saidText(c)}{c.disagreement ? ` · ${c.disagreement === 'felt_harder' ? L('felt harder than the numbers show', 'по ощущениям тяжелее, чем по числам') : L('felt easier than the numbers show', 'по ощущениям легче, чем по числам')}` : ''}</span>
+          <span className="block break-words text-xs text-ink-500">{saidText(c)}{c.disagreement ? ` · ${c.disagreement === 'felt_harder' ? L('felt harder than the numbers show', 'по ощущениям тяжелее, чем по числам') : L('felt easier than the numbers show', 'по ощущениям легче, чем по числам')}` : ''}</span>
         </span>
         <span className="shrink-0 text-right">
           <span className="block text-base font-bold tabular-nums text-ink-900 dark:text-white" data-testid="check-credit">{num(c.quality.credit * c.factor)}</span>
@@ -103,7 +103,7 @@ function ExerciseBlock({ e, off }: { e: CheckExercise; off: boolean }) {
           <ul className="space-y-0.5 text-sm">
             {e.muscles.map((m) => (
               <li key={m.muscle} className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-ink-700 dark:text-ink-200">{names.muscle(m.muscle)}</span>
+                <span className="min-w-0 break-words text-ink-700 dark:text-ink-200">{names.muscle(m.muscle)}</span>
                 <span className="shrink-0 tabular-nums text-ink-500">{num(m.coefficient)} × {num(m.creditSets)} = <b className="text-ink-900 dark:text-white">{num(m.effective)}</b></span>
               </li>
             ))}
@@ -169,7 +169,7 @@ export function WorkoutCheckPage() {
               {check.muscles.map((m) => (
                 <li key={m.muscle} className="py-2">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate text-sm font-semibold text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
+                    <span className="min-w-0 break-words text-sm font-semibold text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
                     <span className="shrink-0 text-base font-bold tabular-nums text-ink-900 dark:text-white" data-testid="check-muscle-total">{num(m.counted)}</span>
                   </div>
                   <div className="text-xs tabular-nums text-ink-500">

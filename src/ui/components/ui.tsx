@@ -62,7 +62,7 @@ export function Button({ variant = 'secondary', size = 'md', className, children
   // Phones get ≥ 40–44 px touch targets; desktop keeps the compact sizes.
   const s = { sm: 'h-10 px-3.5 text-[13px] sm:h-8 sm:px-3 sm:text-xs', md: 'h-11 px-4 text-sm sm:h-10', lg: 'h-12 px-5 text-base' }[size];
   return (
-    <button type="button" className={cx('inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40', v, s, className)} {...rest}>
+    <button type="button" className={cx('inline-flex select-none items-center justify-center gap-2 rounded-xl text-center leading-tight font-medium transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40', v, s, className)} {...rest}>
       {children}
     </button>
   );

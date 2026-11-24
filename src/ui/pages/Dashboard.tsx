@@ -64,7 +64,7 @@ export function DashboardPage() {
     <Page title={L('This week', 'Эта неделя')} subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? L('Resume', 'Продолжить') : L('Log workout', 'Тренировка')}</Button></Link>}>
       {effort.nudge && (
         <Callout tone="info" title={L(`${effort.missing} / ${effort.counted} sets without RIR or feel`, `${effort.missing} / ${effort.counted} подх. без RIR и без оценки ощущений`)}>
-          {L('Counted as provisional (0.75). One tap on the rest screen (Easy / Good / Hard / Failed) fixes it.', 'Засчитаны предварительно (0,75). Одно касание на экране отдыха (Легко / Хорошо / Тяжело / Отказ) это исправит.')}
+          {L('Counted as provisional (0.75). One tap when you log the set (Easy / Good / Hard / Max) fixes it.', 'Засчитаны предварительно (0,75). Одно касание при записи подхода (Легко / Хорошо / Тяжело / Отказ) это исправит.')}
         </Callout>
       )}
       {deload.recommend && (
@@ -115,8 +115,8 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
       <button type="button" onClick={onToggle} aria-expanded={open} className="w-full px-4 py-3 text-left sm:px-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4">
           <span className="min-w-0">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-[15px] font-semibold text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className="break-words text-[15px] font-semibold text-ink-900 dark:text-white">{names.muscle(m.muscle)}</span>
               {statusChip(m)}
             </span>
             <span className="mt-0.5 block font-display text-xl font-bold tabular-nums text-ink-700 dark:text-ink-200" data-testid="done-target">
@@ -216,8 +216,8 @@ function AdviceRow({ p }: { p: ProgressionSeries }) {
     <li>
       <Link to={`/strength?k=${encodeURIComponent(p.key)}`} className="flex min-h-[48px] items-center justify-between gap-3 rounded-xl border border-ink-200 bg-white px-3 py-2 dark:border-ink-800 dark:bg-ink-900">
         <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-ink-900 dark:text-white">{names.ex(def, p.exerciseId)}</span>
-          <span className="block truncate text-[11px] text-ink-500">{p.scopeLabel}</span>
+          <span className="block break-words text-sm font-medium leading-snug text-ink-900 dark:text-white">{names.ex(def, p.exerciseId)}</span>
+          <span className="block break-words text-[11px] text-ink-500">{p.scopeLabel}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <Badge tone={ADVICE_TONE[adv.kind]} className="font-display text-[13px] font-extrabold tracking-wide">{adviceLabel(p, adv.kind)}</Badge>
@@ -260,7 +260,7 @@ function WeekStrip() {
   const last = latestWeighIn(data.body);
   const avg = rollingAverage(data.body, a.today);
   const trend = weeklyTrend(data.body, a.today);
-  const cell = (k: string, v: string) => <span className="flex min-w-0 flex-col"><span className="truncate text-label font-bold uppercase text-ink-400">{k}</span><span className="font-display text-xl font-bold tabular-nums text-ink-900 dark:text-white">{v}</span></span>;
+  const cell = (k: string, v: string) => <span className="flex min-w-0 flex-col"><span className="break-words text-label font-bold uppercase text-ink-400">{k}</span><span className="font-display text-xl font-bold tabular-nums text-ink-900 dark:text-white">{v}</span></span>;
   return (
     <Card className="!py-3">
       {eff.total > 0 && (

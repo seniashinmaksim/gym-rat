@@ -274,7 +274,8 @@ describe('weekly summary', () => {
     const bucket = a.weeks.find((w) => w.range.start === '2026-11-09')!;
     const s = weeklySummary(weeklyReport(bucket, a, data(ws)), a);
     expect(s.increase.join()).toMatch(/Incline dumbbell press .*→ 27 kg/);
-    expect(s.reduce.join()).toMatch(/Pec deck .*→ 45 kg/);
+    // 50 kg, technique broke on every set → one machine step down (default step 2.5 kg since 2026-11-24)
+    expect(s.reduce.join()).toMatch(/Pec deck .*→ 47\.5 kg/);
     expect(s.behind.find((b) => b.muscle === 'chest')!.left).toBeGreaterThan(0);
     expect(s.behind.some((b) => b.muscle === 'lats')).toBe(true);
   });

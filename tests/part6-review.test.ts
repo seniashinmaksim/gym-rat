@@ -145,3 +145,36 @@ describe('review 6: "last time" compares like with like', () => {
     expect(lastEntryFor([...all, wC], wC, first, key)).toBeNull();
   });
 });
+
+describe('owner request: rest is measured until NEXT SET is pressed', () => {
+  it('NEXT SET pressed 2:47 after the set → the next set records 167 s of rest (not an estimate)', () => {
+    let cur = ex('pec_deck', [], 'pd_a');
+    cur = logSet(cur, { weightKg: 50, reps: 12, loadMode: 'total' }, T0, 'a', m);
+    cur = { ...cur, restEndedAt: new Date(T0 + 167_000).toISOString() };
+    // The set itself took 33 s after NEXT SET; that time is not rest.
+    cur = logSet(cur, { weightKg: 50, reps: 11, loadMode: 'total' }, T0 + 200_000, 'b', m);
+    expect(cur.sets[1]).toMatchObject({ restSecBefore: 167, restSource: 'timer' });
+    expect(cur.restEndedAt).toBeUndefined(); // used once
+  });
+  it('without a NEXT SET press the estimate stays: 200 s since the set − 11 reps × 3 s = 167 s', () => {
+    let cur = ex('pec_deck', [], 'pd_a');
+    cur = logSet(cur, { weightKg: 50, reps: 12, loadMode: 'total' }, T0, 'a', m);
+    cur = logSet(cur, { weightKg: 50, reps: 11, loadMode: 'total' }, T0 + 200_000, 'b', m);
+    expect(cur.sets[1].restSecBefore).toBe(167);
+  });
+  it('a NEXT SET press from before the previous set is ignored', () => {
+    let cur = ex('pec_deck', [], 'pd_a', { restEndedAt: new Date(T0 - 60_000).toISOString() });
+    cur = logSet(cur, { weightKg: 50, reps: 12, loadMode: 'total' }, T0, 'a', m);
+    cur = logSet(cur, { weightKg: 50, reps: 10, loadMode: 'total' }, T0 + 120_000, 'b', m);
+    // 120 s − 10 × 3 s = 90 s (estimate), not the stale press
+    expect(cur.sets[1].restSecBefore).toBe(90);
+  });
+});
+
+describe('owner request: default weight step on machines is 2.5 kg', () => {
+  it('a machine without a recorded step moves in 2.5 kg; a step saved on the machine still wins', async () => {
+    const { loadStep } = await import('../src/domain/increments');
+    expect(loadStep(null, null, 'machine')).toEqual({ step: 2.5, source: 'default' });
+    expect(loadStep({ incrementsKg: [5] }, null, 'machine')).toEqual({ step: 5, source: 'equipment' });
+  });
+});

@@ -192,6 +192,11 @@ export interface WorkoutExercise {
   /** Rest-timer length chosen for this exercise in this session (−15 / +15 sticks for the rest of the session). */
   restTargetSec?: number;
   /**
+   * Training mode: when NEXT SET was pressed after the last logged set of this exercise. The rest of the next
+   * logged set is measured up to this moment (instead of estimating the set's own duration). Used once, then cleared.
+   */
+  restEndedAt?: string;
+  /**
    * How many working sets the APP last planned for this exercise. A re-assessment may only replace planned sets
    * while the card still has exactly this many working sets (the owner added / removed / edited nothing).
    */

@@ -58,7 +58,7 @@ describe('F.7 load decisions rest on what was done', () => {
     // pec deck range 10–15; default machine step 5.
     const ws = series(() => [bare(60, 15), bare(60, 15), bare(60, 15)], 3);
     const p = run(ws).a.progression[0];
-    expect(p.next).toMatchObject({ action: 'increase', weight: 65 });
+    expect(p.next).toMatchObject({ action: 'increase', weight: 62.5 } );
   });
   it('one top session is still not enough', () => {
     const ws = series((k) => (k < 2 ? [bare(60, 13), bare(60, 12)] : [bare(60, 15), bare(60, 15)]), 3);
@@ -68,7 +68,7 @@ describe('F.7 load decisions rest on what was done', () => {
     const easy = (w: number, r: number) => bare(w, r, { effort: 'very_easy', feel: 'too_easy' });
     expect(run(series(() => [easy(60, 15)], 1)).a.progression[0].next.action).toBe('hold'); // one set = one answer
     expect(run(series(() => [easy(60, 16), easy(60, 15)], 1)).a.progression[0].next.action).toBe('hold'); // reps fell: not that easy
-    expect(run(series(() => [easy(60, 15), easy(60, 15)], 1)).a.progression[0].next).toMatchObject({ action: 'increase', weight: 65 });
+    expect(run(series(() => [easy(60, 15), easy(60, 15)], 1)).a.progression[0].next).toMatchObject({ action: 'increase', weight: 62.5 });
     expect(run(series(() => [set(60, 15, 4), set(60, 15, 4)], 1)).a.progression[0].next.action).toBe('increase'); // RIR ≥ target + 2
   });
   it('one "form broke" answer does not reduce the load; two do; one plus reps under the range does', () => {
@@ -79,7 +79,7 @@ describe('F.7 load decisions rest on what was done', () => {
     expect(run(one).a.progression[0].next.action).toBe('hold');
     expect(run(one).a.progression[0].next.reason).toMatch(/technique/i);
     const two = [...before, workout(day, [ex('pec_deck', [broke(60, 12), broke(60, 11), bare(60, 10)], 'pd_a')])];
-    expect(run(two).a.progression[0].next).toMatchObject({ action: 'reduce', weight: 55 });
+    expect(run(two).a.progression[0].next).toMatchObject({ action: 'reduce', weight: 57.5 });
     const under = [...before, workout(day, [ex('pec_deck', [broke(60, 8), bare(60, 11)], 'pd_a')])]; // 8 < 10 = bottom of the range
     expect(run(under).a.progression[0].next.action).toBe('reduce');
     // The same answer in two consecutive sessions also counts.

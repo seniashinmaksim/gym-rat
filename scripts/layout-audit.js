@@ -7,6 +7,7 @@
  *  - any visible element sticking out of its nearest "box" ancestor (card, bordered/rounded panel,
  *    or the main content column) by more than 0.5 px, unless that ancestor is a horizontal scroller
  *  - non-scrolling containers whose content is wider than they are (clipped content)
+ *  - text cut off: ellipsis, hidden overflow or a line clamp that hides part of an element's own text
  *
  * Returns { viewport, pageOverflow, findings: [{ el, box, dx, why }] }.
  */
@@ -67,6 +68,20 @@
     if (el.scrollWidth > el.clientWidth + 1 && r.left + el.scrollWidth > b.right + 0.5 && !/(auto|scroll|hidden)/.test(s.overflowX) && el.clientWidth > 0 && !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
       findings.push({ el: label(el), box: label(box), dx: el.scrollWidth - el.clientWidth, why: 'content wider than the element' });
     }
+  }
+  // Text cut off (Part 6, owner's rule: never "…"): an element that hides part of its own text — ellipsis,
+  // overflow hidden or a line clamp — while its text is longer than the box. Inputs and scrollers are not text boxes.
+  for (const el of document.querySelectorAll('body *')) {
+    if (!visible(el) || ['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'svg'].includes(el.tagName) || el.closest('svg')) continue;
+    const s = getComputedStyle(el);
+    const hidesX = s.textOverflow === 'ellipsis' || s.overflowX === 'hidden' || s.overflowX === 'clip';
+    const clamp = s.webkitLineClamp && s.webkitLineClamp !== 'none';
+    const hidesY = clamp || s.overflowY === 'hidden' || s.overflowY === 'clip';
+    const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) || (el.children.length === 0 && (el.textContent || '').trim());
+    if (!ownText && !clamp && s.textOverflow !== 'ellipsis') continue;
+    const cutX = hidesX && el.scrollWidth > el.clientWidth + 1;
+    const cutY = hidesY && el.scrollHeight > el.clientHeight + 2;
+    if (cutX || cutY) findings.push({ el: label(el), box: '', dx: cutX ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight, why: 'text cut off' });
   }
   // De-duplicate: keep the outermost offender of each chain.
   const seen = new Set();

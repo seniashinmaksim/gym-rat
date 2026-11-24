@@ -126,7 +126,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {active && !loc.pathname.startsWith('/log') && (
           <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
             <NavLink to={logTo} className="flex min-h-[48px] items-center justify-between gap-3 rounded-2xl border border-accent-500/40 bg-accent-500/10 px-4 py-2" data-testid="resume-banner">
-              <span className="min-w-0 truncate text-sm"><b className="font-semibold text-ink-900 dark:text-white">{L('Workout in progress', 'Идёт тренировка')}</b><span className="text-ink-500"> · {L('started', 'начата в')} {active.startTime ?? ''}</span></span>
+              <span className="min-w-0 break-words text-sm"><b className="font-semibold text-ink-900 dark:text-white">{L('Workout in progress', 'Идёт тренировка')}</b><span className="text-ink-500"> · {L('started', 'начата в')} {active.startTime ?? ''}</span></span>
               <span className="flex h-10 shrink-0 items-center rounded-xl bg-accent-500 px-4 text-sm font-semibold text-ink-950">{L('Resume', 'Продолжить')}</span>
             </NavLink>
           </div>
@@ -165,7 +165,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <div className="grid grid-cols-2 gap-2">
                   {g.items.map((it) => (
                     <NavLink key={it.to} to={it.to === '/log' ? logTo : it.to} end={it.to === '/'} className={({ isActive }) => cx('flex min-h-[48px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm', isActive ? 'border-accent-500/50 bg-accent-500/10 text-accent-600 dark:text-accent-400' : 'border-ink-200 text-ink-700 dark:border-ink-800 dark:text-ink-200')}>
-                      <it.icon size={18} /> <span className="truncate">{it.short ?? it.label}</span>
+                      <it.icon size={18} /> <span className="min-w-0 break-words leading-tight">{it.short ?? it.label}</span>
                     </NavLink>
                   ))}
                 </div>

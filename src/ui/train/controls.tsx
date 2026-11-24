@@ -3,7 +3,7 @@
  * the rest ring and the effort answers. Colours come from the `.train` CSS variables.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { EFFORT_TAPS, type EffortTap } from '../../domain/liveFlow';
+import { EFFORT_TAPS, mmss, type EffortTap } from '../../domain/liveFlow';
 import { MAX_WEIGHT_KG, STEP_CHOICES, stepFrom } from '../../domain/weights';
 import { KG, L, num, parseDecimal } from '../../i18n';
 import { cx } from '../components/ui';
@@ -177,20 +177,21 @@ export function StepChoices({ current, onPick }: { current: number; onPick: (ste
 // ---------------------------------------------------------------- rest ring
 
 /** Large centred circle: remaining time in very large digits, the ring emptying; "GO" and counting up at zero. */
-export function RestRing({ remainingSec, targetSec, paused, text }: { remainingSec: number; targetSec: number; paused: boolean; text: string }) {
+export function RestRing({ remainingSec, targetSec, paused, text, overSec = 0 }: { remainingSec: number; targetSec: number; paused: boolean; text: string; overSec?: number }) {
   const done = remainingSec <= 0;
-  const frac = done ? 0 : Math.max(0, Math.min(1, remainingSec / Math.max(1, targetSec)));
+  // Before zero: the part of the planned rest still left. After zero: the current 15-second lap (+15, +15 … until NEXT SET).
+  const frac = done ? (overSec % 15) / 15 : Math.max(0, Math.min(1, remainingSec / Math.max(1, targetSec)));
   const R = 46;
   const C = 2 * Math.PI * R;
   return (
-    <div className="relative mx-auto aspect-square w-[min(84vw,36vh,26rem)]" data-testid="rest-ring" data-done={done ? 'true' : 'false'}>
+    <div className="relative mx-auto aspect-square w-[min(84vw,max(36vh,calc(100vh_-_460px)),26rem)]" data-testid="rest-ring" data-done={done ? 'true' : 'false'}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
         <circle cx="50" cy="50" r={R} fill="none" stroke="var(--t-line)" strokeWidth="4" />
         <circle cx="50" cy="50" r={R} fill="none" stroke={done ? 'var(--t-good)' : 'var(--t-accent)'} strokeWidth="4" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={done ? 0 : C * (1 - frac)} style={{ transition: 'stroke-dashoffset 0.3s linear' }} />
+          strokeDasharray={C} strokeDashoffset={C * (1 - frac)} style={{ transition: 'stroke-dashoffset 0.3s linear' }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="t-label">{done ? L('Go', 'Вперёд') : paused ? L('Rest · paused', 'Отдых · пауза') : L('Rest', 'Отдых')}</span>
+        <span className="t-label" data-testid="rest-label">{done ? L(`Rest · +${mmss(overSec)}`, `Отдых · +${mmss(overSec)}`) : paused ? L('Rest · paused', 'Отдых · пауза') : L('Rest', 'Отдых')}</span>
         <span role="timer" aria-live="off" data-testid="rest-digits" className={cx('t-num font-display text-hero font-extrabold', done ? 'text-t-good' : 'text-t-text')}>{text}</span>
       </div>
     </div>
@@ -200,10 +201,11 @@ export function RestRing({ remainingSec, targetSec, paused, text }: { remainingS
 // ---------------------------------------------------------------- effort answers
 
 export const effortLabel = (t: EffortTap): string => ({
-  easy: L('Easy', 'Легко'), good: L('Good', 'Хорошо'), hard: L('Hard', 'Тяжело'), failed: L('Failed', 'Отказ'),
+  // FAILED = muscular failure: the most reps possible, not one more with good form (not a missed or botched rep).
+  easy: L('Easy', 'Легко'), good: L('Good', 'Хорошо'), hard: L('Hard', 'Тяжело'), failed: L('Max', 'Отказ'),
 }[t]);
 export const effortHint = (t: EffortTap): string => ({
-  easy: L('3+ reps left', '3+ в запасе'), good: L('1–2 left', '1–2 в запасе'), hard: L('0–1 left', '0–1 в запасе'), failed: L('could not finish a rep', 'повтор не получился'),
+  easy: L('3+ left', '3+ в запасе'), good: L('1–2 left', '1–2 в запасе'), hard: L('~1 left', '~1 в запасе'), failed: L('not one more', 'больше ни одного'),
 }[t]);
 
 export function EffortRow({ value, onPick, dark = true }: { value: EffortTap | null; onPick: (t: EffortTap) => void; dark?: boolean }) {

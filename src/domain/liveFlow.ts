@@ -150,13 +150,19 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
   const done = performed(ex);
   const prevAt = done.map((s) => s.completedAt).filter((x): x is string => !!x).sort().pop();
   const secondSide = !!entry.side && done.filter((s) => s.side && s.side !== entry.side).length > done.filter((s) => s.side === entry.side).length;
-  const rest = secondSide ? null : measuredRestSec(prevAt, nowMs, entry.reps);
+  // Rest ends when NEXT SET was pressed (training mode); without that press it is estimated from the set's duration.
+  const prevMs = prevAt ? Date.parse(prevAt) : NaN;
+  const endMs = ex.restEndedAt ? Date.parse(ex.restEndedAt) : NaN;
+  const pressed = Number.isFinite(prevMs) && Number.isFinite(endMs) && endMs > prevMs && endMs <= nowMs;
+  const rest = secondSide ? null : pressed ? Math.round((endMs - prevMs) / 1000) : measuredRestSec(prevAt, nowMs, entry.reps);
   const set: WorkoutSet = {
     id, type: 'working', weightKg: entry.weightKg, loadMode: entry.loadMode, reps: entry.reps, rir: null, rirSource: 'unknown',
     restSecBefore: rest, ...(rest != null ? { restSource: 'timer' as const } : {}), completedAt: new Date(nowMs).toISOString(),
     ...(entry.side ? { side: entry.side } : {}),
   };
-  return { ...ex, sets: reclassifyWarmups([...ex.sets, set], model), ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
+  const { restEndedAt: _used, ...rest0 } = ex;
+  void _used;
+  return { ...rest0, sets: reclassifyWarmups([...ex.sets, set], model), ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
 }
 
 /** Edit or remove a logged set, then re-check warm-up tags. `patch: null` removes it. */

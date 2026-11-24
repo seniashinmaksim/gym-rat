@@ -52,13 +52,25 @@ async function designRules(page: Page, label: string) {
     const risky = [...root.querySelectorAll('[data-testid="finish"], [data-testid="remove-set"], [data-testid="remove-exercise"], [data-testid="delete-workout"]')].filter(vis);
     const near = p ? risky.filter((el) => { const b = el.getBoundingClientRect(); const dx = Math.max(0, Math.max(p.left - b.right, b.left - p.right)); const dy = Math.max(0, Math.max(p.top - b.bottom, b.top - p.bottom)); return Math.hypot(dx, dy) < 24; }).length : 0;
     const small = [...root.querySelectorAll('button, a')].filter((el) => vis(el) && !el.closest('[role="dialog"]')).map((el) => { const b = el.getBoundingClientRect(); return { t: (el.getAttribute('data-testid') ?? el.textContent ?? '').trim().slice(0, 24), w: Math.round(b.width), h: Math.round(b.height) }; }).filter((x) => x.h < 44 || x.w < 40);
-    return { primary: dialog ? 1 : prim.length, primaryH: p ? Math.round(p.height) : 0, near, small, overflow: document.documentElement.scrollWidth - innerWidth, view: root.dataset.view };
+    // Owner's rule: no text is ever cut off ("…"), in any language.
+    const cut = [...document.querySelectorAll('[data-testid="train"] *, [role="dialog"] *')].filter((el) => {
+      if (!vis(el) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.closest('svg')) return false;
+      const st = getComputedStyle(el);
+      const clamp = (st as CSSStyleDeclaration & { webkitLineClamp?: string }).webkitLineClamp;
+      const hidesX = st.textOverflow === 'ellipsis' || st.overflowX === 'hidden' || st.overflowX === 'clip';
+      const hidesY = (clamp && clamp !== 'none') || st.overflowY === 'hidden' || st.overflowY === 'clip';
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? '').trim()) || (el.children.length === 0 && (el.textContent ?? '').trim());
+      if (!own) return false;
+      return (hidesX && el.scrollWidth > el.clientWidth + 1) || (hidesY && el.scrollHeight > el.clientHeight + 2);
+    }).map((el) => (el.textContent ?? '').trim().slice(0, 40));
+    return { primary: dialog ? 1 : prim.length, primaryH: p ? Math.round(p.height) : 0, near, small, cut, overflow: document.documentElement.scrollWidth - innerWidth, view: root.dataset.view };
   });
   expect(r.primary, `${label}: exactly one primary action (${r.view})`).toBe(1);
   expect(r.primaryH, `${label}: primary ≥ 56 px`).toBeGreaterThanOrEqual(56);
   expect(r.near, `${label}: nothing destructive within 24 px of the primary action`).toBe(0);
   expect(r.small, `${label}: tap targets`).toEqual([]);
   expect(r.overflow, `${label}: no horizontal overflow`).toBeLessThanOrEqual(0);
+  expect(r.cut, `${label}: no text cut off`).toEqual([]);
 }
 
 for (const lang of LANGS) {
@@ -70,6 +82,7 @@ for (const lang of LANGS) {
     fs.mkdirSync(out, { recursive: true });
     const shot = (n: string) => page.screenshot({ path: path.join(out, `${n}.png`) });
     await page.addInitScript((l) => { try { if (!localStorage.getItem('gymrat-lang')) localStorage.setItem('gymrat-lang', l); } catch { /* ignore */ } }, lang);
+    await page.clock.install(); // real time keeps flowing; lets the test jump ahead on the rest timer
 
     // ---- fresh vault, start a workout
     await page.goto('/');
@@ -96,6 +109,9 @@ for (const lang of LANGS) {
     await typeNumber(page, 'weight-value', '12,5');
     expect(await value(page, 'weight-value')).toBe(lang === 'ru' ? '12,5' : '12.5');
     await typeNumber(page, 'reps-value', '10');
+    // how it went is answered on the set screen, together with weight and reps (optional)
+    await page.getByTestId('effort-entry').getByRole('button').nth(1).click();
+    await expect(page.getByTestId('effort-entry').getByRole('button').nth(1)).toHaveAttribute('aria-pressed', 'true');
     await page.getByTestId('log-set').click();
 
     // ---- rest: big ring, 2:30, −15 / +15
@@ -116,10 +132,12 @@ for (const lang of LANGS) {
     await expect(digits).toHaveText(/^2:(0\d|1\d)$/); // 2:15 for this exercise from now on
     await designRules(page, 'rest');
     await shot('02-rest');
-    // one optional effort tap; the timer never waits for it
-    await page.getByTestId('effort-row').getByRole('button').nth(1).click();
-    await expect(page.getByTestId('effort-row').getByRole('button').nth(1)).toHaveAttribute('aria-pressed', 'true');
+    // the answer given before LOG SET is on the logged set; the rest screen has no effort row
+    await expect(page.getByTestId('rest-screen')).toContainText(lang === 'ru' ? 'Хорошо' : 'Good');
+    await expect(page.getByTestId('rest-screen').getByTestId('effort-row')).toHaveCount(0);
     await nextSet(page);
+    // the next set starts with no answer chosen
+    await expect(page.getByTestId('effort-entry').locator('[aria-pressed="true"]')).toHaveCount(0);
 
     // ---- next set: weight pre-filled from the last set; a heavier set makes the first one a warm-up
     await expect(train).toHaveAttribute('data-view', 'set');
@@ -190,6 +208,11 @@ for (const lang of LANGS) {
     await expect(page.locator('[data-testid="stop-early"], [data-testid="next-exercise"]')).toHaveCount(1);
     await designRules(page, 'rest (second exercise)');
     await shot('05-rest-second-exercise');
+    // past zero the timer keeps counting the whole rest (15-second laps) until NEXT SET; that press ends the rest
+    await page.clock.fastForward('03:05');
+    await expect(page.getByTestId('rest-label')).toContainText('+');
+    await expect(page.getByTestId('rest-digits')).toHaveText(/^3:0\d$/);
+    await shot('05b-rest-overtime');
 
     // ---- landscape keeps the primary action on screen
     if (info.project.name !== 'desktop') {
@@ -202,6 +225,9 @@ for (const lang of LANGS) {
       await shot('07-landscape-set');
       await page.setViewportSize(v);
     } else await nextSet(page);
+    // NEXT SET ended the rest: the set screen shows the measured rest (recorded with the next set)
+    await expect(page.getByTestId('rest-pill')).toHaveAttribute('data-ended', 'true');
+    await expect(page.getByTestId('rest-pill')).toContainText(/3:0\d/);
 
     // ---- stop an exercise before (or at) the target from its menu; Undo brings it back
     await page.getByTestId('exercise-menu').click();
@@ -215,9 +241,13 @@ for (const lang of LANGS) {
       await page.getByTestId('exercise-menu').click();
       await page.getByTestId('finish-exercise').click();
     }
-    if ((await train.getAttribute('data-view')) !== 'overview') await page.getByTestId('to-overview').click();
+    // the owner chooses what comes next (the remaining plan, Add exercise, or the overview)
+    await expect(page.getByTestId('next-chooser')).toBeVisible();
+    await expect(page.getByTestId('next-add')).toBeVisible();
+    await shot('09-choose-next');
+    await page.getByTestId('next-overview').click();
+    await expect(train).toHaveAttribute('data-view', 'overview');
     await expect(page.getByTestId('ov-row').nth(1)).toHaveAttribute('data-state', 'done');
-    await shot('09-overview-after-stop');
 
     // ---- finish → summary → back to workout → finish
     await page.getByTestId('finish').click();

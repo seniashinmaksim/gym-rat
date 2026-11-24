@@ -95,6 +95,7 @@ REPS                           [EASY][GOOD][HARD][FAILED]
 [        LOG SET        ]      [       NEXT SET        ]      (  Finish workout  )
 ```
 
+- **Changed 2026-11-24 (owner):** the effort answer (EASY · GOOD · HARD · MAX) sits on the SET ENTRY screen under REPS and is answered before LOG SET; the rest screen shows only the timer, the logged set with its answer and an "edit" link. Past zero the timer keeps counting in 15-second laps until NEXT SET (the measured rest). "Enough — choose next exercise" opens a chooser instead of the overview. No text is ever cut off (shorter word, smaller size or a second line).
 - Top line: quiet back button (to the overview), the workout clock (starts at the first logged set), exercise n / N.
 - The weight control: big number (tap to type), a swipeable ruler snapping to the machine's step, and ± step buttons. The step chip (`2.5 kg`) opens the step chooser, remembered per machine.
 - Logged sets are chips: number, weight × reps, and the delta against the same set last time. Tap a chip to edit or remove (Undo).

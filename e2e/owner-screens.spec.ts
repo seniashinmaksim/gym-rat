@@ -75,9 +75,10 @@ for (const lang of ['en', 'ru'] as const) {
     await expect(train).toHaveAttribute('data-view', 'set');
     await shot('04-train-set-entry');
     await typeNumber(page, 'reps-value', '12');
+    await page.getByTestId('effort-entry').getByRole('button').nth(1).click();
+    await shot('04b-train-set-entry-answered');
     await page.getByTestId('log-set').click();
     await expect(train).toHaveAttribute('data-view', 'rest');
-    await page.getByTestId('effort-row').getByRole('button').nth(1).click();
     await shot('05-train-rest');
     await page.waitForTimeout(750);
     await page.locator('[data-testid="next-set"], [data-testid="one-more"]').first().click();
@@ -88,5 +89,10 @@ for (const lang of ['en', 'ru'] as const) {
     await shot('06-train-set-entry-with-sets');
     await page.getByTestId('to-overview').click();
     await shot('07-train-overview');
+    await page.getByTestId('continue').click();
+    await page.getByTestId('exercise-menu').click();
+    await page.getByTestId('finish-exercise').click();
+    await expect(page.getByTestId('next-chooser')).toBeVisible();
+    await shot('08-choose-next');
   });
 }
