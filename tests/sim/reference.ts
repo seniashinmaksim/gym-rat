@@ -38,14 +38,31 @@ export function refRirCredit(rir: number): number {
 }
 
 /**
+ * §G: without a logged RIR, the effort answer stands for a reserve range; its HIGHER end goes through the RIR
+ * table (very easy "5+" → 5, easy 3–4 → 4, appropriate 1–3 → 3, hard 1–2 → 2, near max 0–1 → 1). Training mode's
+ * one tap: EASY = easy, GOOD = appropriate, HARD = near max, FAILED = near max + muscular failure.
+ */
+const REF_EFFORT_RESERVE: Record<string, number> = { very_easy: 5, easy: 4, appropriate: 3, hard: 2, near_max: 1 };
+/** The reserve a set was REPORTED with (RIR, failure = 0, else the effort answer's higher end); null = no report. */
+export function refReported(s: WorkoutSet): number | null {
+  if (s.rir != null) return s.rir;
+  if (s.toFailure) return 0;
+  if (s.failure === 'muscular' && !s.technicalFailure) return 0;
+  if (s.effort) return REF_EFFORT_RESERVE[s.effort] ?? null;
+  return null;
+}
+
+/**
  * §L (Part 6) "effort from the numbers", written from the documented rule only (independent of perception.ts).
- * Among the performed, non-warm-up, non-drop sets of ONE exercise with a real load: best = highest
- * weight × (1 + reps / 30). A set BEFORE it could have done 30 × (best / weight − 1) reps; minus the reps done =
- * reserve (1 decimal). With a logged RIR / failure the numbers win only when the reserve is ≥ 5 and ≥ 3 reps above
- * the report; without a report the reserve decides, capped at the provisional 0.75. A lighter set AFTER the best
- * set loses one more rep of reserve per set since the best one (only without a report). At the same load, reps
- * falling by ≥ 2 on the next set (rest not under 60 s) mark the set as hard: full credit when nothing or "easy"
- * (RIR ≥ 4) was reported. Returns the reserve to use for the credit table, or null = no change.
+ * Among the performed, non-warm-up, non-drop sets of ONE exercise with a real load — and of the SAME SIDE when
+ * sides are logged separately: best = highest weight × (1 + reps / 30). A set BEFORE it could have done
+ * 30 × (best / weight − 1) reps; minus the reps done = reserve (1 decimal). With a report the numbers win only
+ * when the reserve is ≥ 5, ≥ 3 reps above the report AND the set's load is ≤ 75 % of the best set's load;
+ * without a report the reserve decides, capped at the provisional 0.75. A lighter set AFTER the best set loses
+ * one more rep of reserve per set since the best one (only without a report). At the same load, reps falling by
+ * ≥ 2 on the next set (rest not under 60 s) mark the set as hard — unless that next set was itself reported with
+ * ≥ 3 in reserve: full credit when nothing or "easy" (reported ≥ 4) was reported. Returns the reserve to use for
+ * the credit table, or null = no change.
  */
 function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: boolean } | null {
   const pool = sets.filter((x) => !x.planned && x.type !== 'warmup');
@@ -53,28 +70,32 @@ function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: 
   if (i < 0) return null;
   const loaded = (x: WorkoutSet) => x.type !== 'drop' && x.weightKg != null && x.weightKg > 0 && x.reps != null && x.reps >= 1 && (x.loadMode === 'total' || x.loadMode === 'per_side');
   const score = (x: WorkoutSet) => (x.weightKg as number) * (1 + Math.min(x.reps as number, 30) / 30);
+  const side = (x: WorkoutSet) => x.side ?? null;
   let b = -1;
-  pool.forEach((x, k) => { if (loaded(x) && (b < 0 || score(x) > score(pool[b]) + 1e-9)) b = k; });
-  const report = s.rir ?? (s.toFailure ? 0 : s.failure === 'muscular' && !s.technicalFailure ? 0 : null);
+  pool.forEach((x, k) => { if (side(x) === side(s) && loaded(x) && (b < 0 || score(x) > score(pool[b]) + 1e-9)) b = k; });
+  const report = refReported(s);
   const round1 = (n: number) => Math.round(n * 10) / 10;
   if (b >= 0 && i !== b && loaded(s)) {
     const possible = 30 * (score(pool[b]) / (s.weightKg as number) - 1);
+    const ratio = (s.weightKg as number) / (pool[b].weightKg as number);
     if (i < b) {
       const reserve = Math.max(0, round1(possible - (s.reps as number)));
       if (report == null) return { reserve, cap: true };
-      if (reserve >= 5 && reserve - report >= 3) return { reserve, cap: false };
+      if (reserve >= 5 && reserve - report >= 3 && ratio <= 0.75) return { reserve, cap: false };
       return null;
     }
     if ((s.weightKg as number) < (pool[b].weightKg as number) && report == null) {
       const reserve = Math.max(0, round1(possible - (s.reps as number) - (i - b)));
-      const nxt = pool.slice(i + 1).find((x) => (x.side ?? null) === (s.side ?? null));
+      const nxt = pool.slice(i + 1).find((x) => side(x) === side(s));
       const sameLoadNext = !!nxt && nxt.weightKg === s.weightKg && nxt.loadMode === s.loadMode && nxt.reps != null;
       if (reserve >= 5 || !sameLoadNext) return { reserve, cap: true };
     }
   }
-  const next = pool.slice(i + 1).find((x) => (x.side ?? null) === (s.side ?? null));
+  const next = pool.slice(i + 1).find((x) => side(x) === side(s));
+  const nextReport = next ? refReported(next) : null;
   if (next && s.type !== 'drop' && next.type !== 'drop' && s.reps != null && next.reps != null && next.weightKg === s.weightKg && next.loadMode === s.loadMode
-    && !(next.restSecBefore != null && next.restSecBefore > 0 && next.restSecBefore < 60) && s.reps - next.reps >= 2 && (report == null || report >= 4)) {
+    && !(next.restSecBefore != null && next.restSecBefore > 0 && next.restSecBefore < 60) && s.reps - next.reps >= 2 && (report == null || report >= 4)
+    && !(nextReport != null && nextReport >= 3)) {
     return { reserve: 1, cap: false };
   }
   return null;
@@ -89,6 +110,7 @@ export function refSetCredit(s: WorkoutSet, sets: WorkoutSet[] = [s]): number {
   else if (s.rir != null) c = refRirCredit(s.rir);
   else if (s.toFailure) c = 1;
   else if (s.failure === 'muscular' && !s.technicalFailure) c = 1; // §H: ≈ RIR 0, same credit as RIR 1–3
+  else if (s.effort) c = refRirCredit(refReported(s) as number); // §G: the answer's higher end through the table
   else c = 0.75; // unknown effort (failure 'none' / 'uncertain' without RIR stays unknown)
   if (s.reps != null && s.reps < 5) c *= 0.8;
   if (s.type === 'drop') c *= 0.5;

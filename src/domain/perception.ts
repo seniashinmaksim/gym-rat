@@ -7,8 +7,9 @@
  *  - ramp:     a set done BEFORE the session's best set. Reps possible at its load follow from the best
  *              set (Epley inverse); possible − done = estimated reps in reserve. 40 × 5 before 60 × 12
  *              ≈ 28 in reserve (a warm-up); 55 × 11 before 60 × 12 ≈ 5 (partly a working set).
- *  - back-off: a LIGHTER set after the best set. Same estimate minus one rep per hard set already done
- *              (fatigue), so it is less certain.
+ *  - back-off: a LIGHTER set after the best set, without an effort answer. Same estimate minus one rep per
+ *              hard set already done (fatigue), so it is less certain. A reported back-off set is judged by
+ *              the next-set rule instead.
  *  - next set: at the same load after a normal rest, reps that hold or rise on the next set mean the set
  *              had reserve; a drop of ≥ 2 reps means it was close to the limit.
  *
@@ -116,7 +117,8 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
         out.set(s.id, { kind: 'ramp', estRir: est, band: bandOf(est), possibleReps: r1(possible), loadRatio: w / bw });
         return;
       }
-      if (w < bw) {
+      // Back-off estimate only for a set WITHOUT a report: a reported set is judged by its next set (direct evidence).
+      if (w < bw && reportedRir(s) == null) {
         const hardBefore = i - best;
         const est = Math.max(0, r1(possible - (s.reps as number) - BACKOFF_ALLOWANCE * hardBefore));
         // A back-off estimate that is not clearly easy says nothing reliable; next-set evidence then decides.

@@ -73,6 +73,20 @@ describe('review 3: the numbers check never changes an ordinary set with a logge
   });
 });
 
+describe('six-month replay: a reported back-off set is judged by the next set, not by the extrapolated estimate', () => {
+  it('17.5 × 7, then 12.5 × 12 "easy", then 12.5 × 10 to failure: the reported set was close to its limit → credit 1', () => {
+    // A back-off estimate is used only WITHOUT a report (documented rule). With a report, the next set at the same
+    // weight decides: 12 → 10 reps (−2, normal rest) after an "easy" (4 in reserve) answer → a hard set → credit 1.
+    const sets = [bare(17.5, 7), bare(12.5, 12, { effort: 'easy' }), bare(12.5, 10, { effort: 'near_max', failure: 'muscular' })];
+    expect(credit(sets, 1).credit).toBe(1);
+  });
+  it('the same set without an answer keeps the back-off estimate (unchanged)', () => {
+    // 17.5 × 7 → 21.58; possible at 12.5 = 30 × (21.58 / 12.5 − 1) = 21.8; − 12 − 1 (one set since the best) = 8.8 → table 0, capped.
+    const sets = [bare(17.5, 7), bare(12.5, 12), bare(12.5, 10)];
+    expect(objectiveForSets(sets).get(sets[1].id)).toMatchObject({ kind: 'backoff', estRir: 8.8 });
+  });
+});
+
 describe('review 4: the "check effort against the numbers" switch also governs automatic warm-up tags', () => {
   it('switched off: no set is tagged, and earlier automatic tags are removed', () => {
     const off = { ...m, useNumbersCheck: false };
