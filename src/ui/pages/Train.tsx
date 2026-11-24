@@ -951,7 +951,7 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
                     <span className="block break-words text-xs text-t-dim">{[targetLine(e), state, busy ? L('machine busy', 'тренажёр занят') : ''].filter(Boolean).join(' · ')}</span>
                     {adjusted[e.id] && !p.done && <span className="block break-words text-[11px] text-t-accent" data-testid="adjusted-note">{L('Adjusted', 'Уточнено')}: {adjusted[e.id]}</span>}
                   </span>
-                  <span className="t-num shrink-0 font-display text-xl font-bold">{p.done}{p.target != null ? <span className="text-t-dim"> / {p.target}</span> : null}</span>
+                  <span className="t-num shrink-0 font-display text-xl font-bold">{p.done}{p.target ? <span className="text-t-dim"> / {p.target}</span> : null}</span>
                 </button>
                 <button type="button" className="flex w-12 shrink-0 items-center justify-center rounded-xl border border-t-line text-t-dim" onClick={() => setMenu(e.id)} aria-label={L(`Options for ${exName(e)}`, `Действия: ${exName(e)}`)} data-testid="ov-menu"><IconMore size={20} /></button>
               </li>
@@ -959,7 +959,7 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
           })}
         </ol>
         {!w.exercises.length && <p className="mt-6 text-center text-sm text-t-dim">{L('No exercise yet. Add the first one.', 'Пока нет упражнений. Добавьте первое.')}</p>}
-        <div className="mt-4"><TButton variant={nextUp ? 'secondary' : 'primary'} className="w-full" onClick={onAdd} data-testid="add-exercise"><IconPlus size={20} />{L('Add exercise', 'Добавить упражнение')}</TButton></div>
+        <div className="mt-4"><TButton variant={nextUp ? 'secondary' : 'primary'} className="w-full !text-xl" onClick={onAdd} data-testid="add-exercise"><IconPlus size={20} />{L('Add exercise', 'Добавить упражнение')}</TButton></div>
         <button type="button" className="mt-4 min-h-[48px] text-sm font-semibold text-t-dim underline" onClick={() => setDetails(!details)} aria-expanded={details} data-testid="session-details">{L('Session details (date, gym, how you feel)', 'Детали тренировки (дата, зал, самочувствие)')}</button>
         {details && <div className="mt-2 space-y-3"><SessionMeta w={w} update={update} /><Wellness w={w} update={update} /></div>}
         {/* Finish: only here, at the very end, visually different and far from the main action. */}
