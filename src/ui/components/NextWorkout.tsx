@@ -149,10 +149,10 @@ export function NextWorkoutCard() {
         <p className="px-4 py-3 text-sm text-ink-600 dark:text-ink-300 sm:px-5">{gen.notes.find((n) => /^(Nothing|Ничего|Сегодня нич)/.test(n)) ?? L('Nothing planned — every muscle is done or recovering.', 'Ничего не запланировано — по всем мышцам цель выполнена или идёт восстановление.')}</p>
       ) : (
         <ol className="mt-2 divide-y divide-ink-100 dark:divide-ink-800/70" data-testid="next-workout-list">
-          {items.map((it, i) => (<FragmentRow key={it.exerciseId} warning={fwd[i]?.f.length ? (
-              <li className="px-4 pb-3 sm:px-5"><ForwardWarning findings={fwd[i].f} moveDate={fwd[i].move?.date ?? null} clean={fwd[i].move?.clean ?? false} onMove={() => void moveItem(it, fwd[i])} /></li>
-            ) : null}>
-            <ItemRow key={it.exerciseId} n={i + 1} it={it} edit={edits[it.exerciseId]} open={openItem === it.exerciseId}
+          {items.map((it, i) => (
+            <ItemRow key={it.exerciseId} footer={fwd[i]?.f.length ? (
+              <div className="px-4 pb-3 sm:px-5"><ForwardWarning findings={fwd[i].f} moveDate={fwd[i].move?.date ?? null} clean={fwd[i].move?.clean ?? false} onMove={() => void moveItem(it, fwd[i])} /></div>
+            ) : null} n={i + 1} it={it} edit={edits[it.exerciseId]} open={openItem === it.exerciseId}
               onToggle={() => { setOpenItem(openItem === it.exerciseId ? null : it.exerciseId); setReplacing(null); }}
               name={names.ex(a.registry.get(it.exerciseId))} eqName={it.equipmentId ? data.equipment.find((e) => e.id === it.equipmentId)?.name ?? null : null}
               onSkip={() => { setSkipped((s) => [...s, it.exerciseId]); decide({ action: 'skipped', exerciseId: it.exerciseId, equipmentId: it.equipmentId, reason }); setOpenItem(null); setReason(null); }}
@@ -169,7 +169,7 @@ export function NextWorkoutCard() {
                 setForce((f) => [...f, { exerciseId: o.exerciseId, equipmentId: o.equipmentId, variation: o.variation }]);
                 setReplacing(null); setOpenItem(null); setReason(null);
               }} />
-          </FragmentRow>))}
+          ))}
         </ol>
       )}
       <div className="space-y-2 px-4 pb-4 pt-2 sm:px-5">
@@ -202,11 +202,13 @@ export function NextWorkoutCard() {
   );
 }
 
-function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, replacing, onReplace, options, exName, onPickReplacement, reason, setReason }: {
+function ItemRow({ footer, n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, replacing, onReplace, options, exName, onPickReplacement, reason, setReason }: {
   n: number; it: PlanItem; edit?: ItemEdit; open: boolean; onToggle: () => void; name: string; eqName: string | null;
   onSkip: () => void; onEdit: (e: ItemEdit) => void; replacing: boolean; onReplace: () => void;
   options: ReturnType<typeof replacementOptions>; exName: (id: string) => string; onPickReplacement: (o: ReturnType<typeof replacementOptions>[number]) => void;
   reason: PlanDecisionReason | null; setReason: (r: PlanDecisionReason | null) => void;
+  /** Part 8: the short forward warning, inside the row (one list item per exercise). */
+  footer?: ReactNode;
 }) {
   const p = it.prescription;
   const sets = edit?.sets ?? it.setCount;
@@ -275,11 +277,8 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
           )}
         </div>
       )}
+      {footer}
     </li>
   );
 }
 
-/** A plan row followed by its optional forward warning (Part 8). */
-function FragmentRow({ children, warning }: { children: ReactNode; warning: ReactNode }) {
-  return <>{children}{warning}</>;
-}
