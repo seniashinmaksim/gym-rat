@@ -1078,3 +1078,7 @@ Gaps fixed after the owner's "fix the gaps found by the map, but double check if
 (2026-11-24): see docs/FORMULA_DEPENDENCY_MAP.md §10 Resolution; tests first in `tests/audit-gaps.test.ts`. Also the
 weight-source mark in the training mode (smart / copied — owner: only that distinction matters).
 
+
+Second analysis of the map (2026-11-24): docs/FORMULA_DEPENDENCY_MAP.md §11; tests first in tests/second-analysis.test.ts.
+Owner's decisions: one recovery window everywhere (forward checks + week fit add what is known today); EASY at the top
+of the range offers one step up after a set; one short-rest rule (< 70 % of a usual rest never below 2:30).

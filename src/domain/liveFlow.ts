@@ -194,9 +194,36 @@ export function clearOtherRestEnds(w: Workout, exId: string): Workout {
 }
 
 /** Edit or remove a logged set, then re-check warm-up tags. `patch: null` removes it. */
-export function editSet(ex: WorkoutExercise, setId: string, patch: Partial<WorkoutSet> | null, model: WarmupModel): WorkoutExercise {
+export function editSet(ex: WorkoutExercise, setId: string, patch: Partial<WorkoutSet> | null, model: WarmupModel, target: ExerciseTarget | undefined = ex.target): WorkoutExercise {
   const sets = patch == null ? ex.sets.filter((s) => s.id !== setId) : ex.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s));
-  return { ...ex, sets: reclassifyWarmups(sets, model) };
+  return { ...ex, sets: resyncPrescribed(reclassifyWarmups(sets, model), target) };
+}
+
+/**
+ * After a set was removed or re-tagged: every working set that carries a prescription gets the one of its (new) place
+ * among the working sets — the reps / RIR of that place; the load it was prescribed keeps its own value (second
+ * analysis B-12). Warm-ups lose a working prescription.
+ */
+function resyncPrescribed(sets: WorkoutSet[], t: ExerciseTarget | undefined): WorkoutSet[] {
+  if (!t) return sets;
+  let n = 0;
+  const pairOpen: Partial<Record<string, number>> = {};
+  return sets.map((s) => {
+    if (s.planned) return s;
+    if (s.type === 'warmup') {
+      if (s.prescribed?.kind === 'working') { const { prescribed: _p, ...rest } = s; void _p; return rest as WorkoutSet; }
+      return s;
+    }
+    if (s.type !== 'working') return s;
+    let idx: number;
+    if (s.side) {
+      const other = s.side === 'left' ? 'right' : 'left';
+      if (pairOpen[other] != null) { idx = pairOpen[other] as number; delete pairOpen[other]; } else { idx = n++; pairOpen[s.side] = idx; }
+    } else idx = n++;
+    if (!s.prescribed) return s;
+    const pr = prescribedFor(t, idx);
+    return pr ? { ...s, prescribed: { ...pr, weightKg: s.prescribed.weightKg } } : s;
+  });
 }
 
 /** The owner corrects the warm-up tag: stored as the owner's decision, never changed automatically. */
@@ -369,7 +396,7 @@ export function nextSetsOffer(ex: WorkoutExercise, step: number, ctx: OfferConte
   // Bodyweight-only history (e.g. pull-ups without a belt): adding load would start another history → never a belt offer.
   const bodyweightOnly = ex.variation?.loading === 'bodyweight';
   const p = { sets, loadMode: done[0].loadMode, minKg: ctx.minKg ?? null, maxKg: bodyweightOnly ? 0 : ctx.maxKg ?? null, rest: { medianSec: ctx.restMedianSec ?? null } } as unknown as Prescription;
-  const a = adaptRemaining(p, done, step);
+  const a = adaptRemaining(p, done, step, { easyTap: true });
   if (a.change !== 'add_load' && a.change !== 'add_reps' && a.change !== 'reduce') return null;
   const first = a.sets[0];
   if (!first) return null;
@@ -400,7 +427,7 @@ export function applyOffer(ex: WorkoutExercise, o: NextSetsOffer, at: string): W
  * weight; 'copied' = no target, the number is only copied (last time or the previous set); null = the shown weight is
  * neither (the owner typed it).
  */
-export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, weightKg: number | null): 'adjusted' | 'kept' | 'copied' | null {
+export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, weightKg: number | null): 'adjusted' | 'kept' | 'copied' | 'session' | null {
   if (weightKg == null) return null;
   const t = ex.target;
   const prev = performed(last);
@@ -412,6 +439,7 @@ export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, 
     if (t.adapted) return 'adjusted';
     return lastHere != null && lastHere !== t.weightKg ? 'adjusted' : 'kept';
   }
-  if (weightKg === lastHere || weightKg === done.at(-1)?.weightKg) return 'copied';
+  if (weightKg === lastHere) return 'copied';
+  if (weightKg === done.at(-1)?.weightKg) return 'session';
   return null;
 }

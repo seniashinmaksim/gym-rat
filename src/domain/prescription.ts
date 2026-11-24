@@ -18,6 +18,7 @@
  * Every number here is a practical heuristic, not a measurement; confidence says how much
  * personal data stands behind it.
  */
+import { isShortRest, usualRestSec } from './rest';
 import type { AppData } from './appdata';
 import { diffDays, localNowParts } from './dates';
 import { benchmarkExclusion, hasPain, techniqueOf } from './feedback';
@@ -358,7 +359,7 @@ export function prescribe(input: PrescribeInput): Prescription {
       const b = ws[i];
       if (a.weightKg !== b.weightKg) continue;
       const r = b.restSecBefore;
-      if (restMed != null && r != null && r > 0 && (r < restMed * 0.7 || r > restMed * 1.3)) continue;
+      if (restMed != null && r != null && r > 0 && (isShortRest(r, restMed) || r > restMed * 1.3)) continue;
       drops.push((a.reps as number) - (b.reps as number));
     }
   }
@@ -638,6 +639,7 @@ export function adaptRemaining(
   p: Prescription,
   performed: WorkoutSet[],
   step: number,
+  opts: { easyTap?: boolean } = {},
 ): { sets: Prescription['sets']; change: AdaptChange; why: string } {
   const done = doneWorking(performed);
   const n = Math.ceil(countedSetCount(done, ['working']));
@@ -677,7 +679,9 @@ export function adaptRemaining(
   // 2) Clearly too easy with clean technique and reps at the top.
   const t = techniqueOf(last);
   const clean = t == null || t === 'good' || t === 'not_assessed';
-  const easyEffort = last.rir != null ? last.rir >= target.rirMax + 2 : last.feel === 'too_easy';
+  // In the training mode the EASY tap ("3+ left") with reps at the top counts too (owner 2026-11-24, an offer only);
+  // between sessions "a little too easy" alone still never raises the load (suggestNextLoad).
+  const easyEffort = last.rir != null ? last.rir >= target.rirMax + 2 : last.feel === 'too_easy' || (!!opts.easyTap && (last.effort === 'easy' || last.effort === 'very_easy'));
   if (easyEffort && clean && last.reps != null && last.reps >= target.repsMax && !benchmarkExclusion(last)) {
     let to: number | null = null;
     if (w != null && step > 0) {
@@ -702,8 +706,8 @@ export function adaptRemaining(
     return !!pr && s.reps != null && s.weightKg === pr.weightKg && s.reps <= pr.repsMin - 2;
   };
   if (wellBelow(last, done.length - 1)) {
-    const usual = p.rest.medianSec;
-    if (usual != null && last.restSecBefore != null && last.restSecBefore > 0 && last.restSecBefore < usual * 0.7) {
+    const usual = usualRestSec(done.map((x) => x.restSecBefore), p.rest.medianSec);
+    if (isShortRest(last.restSecBefore, usual)) {
       return { sets: remaining, change: 'none', why: L(`Reps dropped after a shorter rest (${last.restSecBefore} s vs your usual ~${usual} s) — likely the rest, not the load. Rest fully before the next set.`, `Повторения упали после более короткого отдыха (${last.restSecBefore} с против обычных ~${usual} с) — вероятно, дело в отдыхе, а не в весе. Перед следующим подходом отдохните полностью.`) };
     }
     const offCount = done.filter((s, i) => wellBelow(s, i)).length;

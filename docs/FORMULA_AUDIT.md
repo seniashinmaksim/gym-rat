@@ -2650,3 +2650,5 @@ Rows 1–10: what the owner asked for in Part 6 (F.4, F.7, F.8, and what F.2 / F
 Six-month reference checks after these changes: 0 failures (one simulated set changed credit: 17.5 kg × 18 logged at RIR 3 before 25 kg × 13 — about 13 reps in reserve by the numbers — now earns no credit; the independent reference computes the same).
 
 After rows 11–41: all unit tests pass (37 files); the six-month reference checks (`tests/six-month*.test.ts`, independent reference in `tests/sim/reference.ts`) pass without any change to the reference. Not fixed, on purpose: A-6, A-14 … A-21, B-8, B-11, B-13, B-14, C-2 (rewritten in Part 6), C-4, C-10 … C-16.
+
+> **Note (2026-11-24, formula map second analysis):** sections that describe `placeInSession`, `isWrongWeight`, `isCleanMuscularFailure`, `todayIn`, `inRange`, `quality.round1` or `daysBetween` are historical — those functions were removed (docs/FORMULA_DEPENDENCY_MAP.md §10). The 60 s short-rest floor was replaced by one rule (< 70 % of a usual rest never below 2:30, `rest.ts`), and the forward checks / week fit now use the same recovery window as the recovery screen (`recovery.windowHours`).

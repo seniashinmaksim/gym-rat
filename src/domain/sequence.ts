@@ -21,6 +21,7 @@ import { fatigueCostOf } from './fatigue';
 import { L, getLang, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, muscleName } from './muscles';
 import { RECOVERY_TOLERANCE_H, type analyze } from './analysis';
+import { todayExtraH } from './recovery';
 import { resolveCoefficients, MACHINE_KINDS } from './registry';
 import type { MuscleId, PlannedMove, Variation, Workout } from './types';
 import { computeVolume } from './volume';
@@ -155,10 +156,13 @@ export function moveNeedsSetup(m: PlannedMove, registry: Analysis['registry']): 
   return m.equipmentId == null && !!def && MACHINE_KINDS.has(def.equipmentKind);
 }
 
-/** Effective sets per muscle already done in this session. */
+/** Effective sets per muscle already done TODAY — every session of the day, the live one included (second analysis B-7). */
 function doneToday(input: Pick<ForwardInput, 'workout' | 'analysis' | 'data'>): Partial<Record<MuscleId, number>> {
-  if (!input.workout) return {};
-  const v = computeVolume([input.workout], input.analysis.registry, input.data.settings.quality).muscles;
+  const today = input.analysis.today;
+  const ws = input.data.workouts.filter((w) => w.date === today && (!input.workout || w.id !== input.workout.id));
+  if (input.workout) ws.push(input.workout);
+  if (!ws.length) return {};
+  const v = computeVolume(ws, input.analysis.registry, input.data.settings.quality).muscles;
   return Object.fromEntries(Object.entries(v).map(([m, x]) => [m, x.effective])) as Partial<Record<MuscleId, number>>;
 }
 
@@ -168,7 +172,9 @@ function checksFrom(input: ForwardInput, sessions: UpcomingSession[], fromDate: 
   const weekLeft = (m: MuscleId) => input.analysis.muscles.find((x) => x.muscle === m)?.remainingToPreferred ?? 0;
   for (const m of direct) {
     const eff = load[m] ?? 0;
-    const window = sessionWindowH(eff, MUSCLE_BY_ID[m].size === 'large');
+    // The same window as the recovery screen (owner 2026-11-24): base + what is already known today.
+    const extra = fromDate === input.analysis.today ? (input.analysis.recovery[m]?.conditionsExtraH ?? 0) + todayExtraH(input.data, input.analysis.registry, m, fromDate, [input.exerciseId]) : 0;
+    const window = sessionWindowH(eff, MUSCLE_BY_ID[m].size === 'large', extra);
     for (const s of sessions) {
       const gap = 24 * diffDays(s.date, fromDate);
       if (gap <= 0) continue;

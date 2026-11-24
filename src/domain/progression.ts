@@ -1,3 +1,4 @@
+import { isShortRest } from './rest';
 import { defaultIncrement } from './increments';
 import { diffDays } from './dates';
 import type { Registry } from './registry';
@@ -422,7 +423,7 @@ export function restInsight(sessions: SessionPerf[]): string | null {
   if (!first) return null;
   for (const p of last.sets.slice(1)) {
     if (!p.benchmark || p.weight !== first.weight || p.reps == null || p.restSec == null || p.restSec <= 0) continue;
-    if (first.reps! - p.reps >= 2 && p.restSec < typical * 0.7) {
+    if (first.reps! - p.reps >= 2 && isShortRest(p.restSec, typical)) {
       return L(`Reps fell from ${first.reps} to ${p.reps} at ${p.weight} kg after a shorter rest (${p.restSec} s vs your usual ~${Math.round(typical)} s) — likely the short rest, not a weight that is too heavy.`, `Повторения упали с ${first.reps} до ${p.reps} при ${ruKg(p.weight)} кг после более короткого отдыха (${p.restSec} с против обычных ~${Math.round(typical)} с) — вероятно, дело в коротком отдыхе, а не в слишком большом весе.`);
     }
   }

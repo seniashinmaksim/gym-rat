@@ -3,7 +3,7 @@ import { sha256Hex } from '../lib/crypto';
 import type { AppData } from './appdata';
 import { isIsoDate } from './dates';
 import { MUSCLE_IDS } from './types';
-import { normalizeName, searchExercises, type Registry } from './registry';
+import { normalizeName, searchExercises, type Registry, MACHINE_KINDS } from './registry';
 import { FEEL_BY_ID } from './feedback';
 import { failureConsistency } from './failure';
 import type { Confidence, Equipment, FailureStatus, Location, MuscleId, Workout, WorkoutExercise, WorkoutSet } from './types';
@@ -369,7 +369,7 @@ export async function buildDraft(input: WorkoutInT, data: AppData, registry: Reg
     const eqHint = ex.equipment ?? null;
     const eq = matchEquipment(data.equipment, exerciseId, loc.id, ex.equipment?.equipment_id ?? ex.equipment_id, eqHint);
     const def = exerciseId ? registry.get(exerciseId) : undefined;
-    const needsMachine = def && ['machine', 'cable', 'plate_loaded', 'smith'].includes(def.equipmentKind);
+    const needsMachine = def && MACHINE_KINDS.has(def.equipmentKind);
     if (!eq.id && needsMachine) {
       issues.push({ level: 'warning', path: `exercises[${i}].equipment`, message: L(`${def!.name.en}: machine not identified. Loads on different machines are not comparable — select or create the equipment instance.`, `${def!.name.ru}: тренажёр не определён. Веса на разных тренажёрах несравнимы — выберите тренажёр или создайте новый.`) });
     }

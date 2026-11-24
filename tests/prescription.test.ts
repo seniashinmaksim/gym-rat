@@ -44,7 +44,8 @@ function run(d: AppData, w: Workout, idx = 0): Prescription {
 const rest = (sec: number) => ({ restSecBefore: sec });
 /** Pec deck on machine pd_a: reps per set at 45 kg, RIR 2, 90 s rest. */
 const pecDeck = (reps: number[], eq = 'pd_a', w = 45, rir: number | null = 2, extra: Partial<WorkoutSet> = {}) =>
-  ex('pec_deck', reps.map((r, i) => set(w, r, rir, { ...(i ? rest(90) : {}), ...extra })), eq);
+  // The owner rests ≥ 2:30 (owner 2026-11-24): 150 s between sets is the usual rest of this synthetic history.
+  ex('pec_deck', reps.map((r, i) => set(w, r, rir, { ...(i ? rest(150) : {}), ...extra })), eq);
 
 // ---------------------------------------------------------------- confidence
 
@@ -207,7 +208,8 @@ describe('RIR targets', () => {
 
 describe('rest', () => {
   it('uses the owner\'s median rest on this key, bounded, as a range', () => {
-    const p = run(appData(history(2, () => [pecDeck([14, 13, 12])])), live([ex('pec_deck', [], 'pd_a')]));
+    // A synthetic 90 s habit (this test is about the bounds of the prescribed range, not the owner's own rest).
+    const p = run(appData(history(2, () => [pecDeck([14, 13, 12], 'pd_a', 45, 2, rest(90))])), live([ex('pec_deck', [], 'pd_a')]));
     expect(p.rest.source).toBe('history');
     expect(p.rest.medianSec).toBe(90);
     expect(p.rest.range).toEqual([75, 105]);
@@ -382,7 +384,8 @@ describe('adaptRemaining', () => {
     const one = adaptRemaining(p, [done(45, 10, 1)], p.step);
     expect(one.change).toBe('defer');
     expect(one.sets).toEqual(p.sets.slice(1));
-    const two = adaptRemaining(p, [done(45, 10, 1), done(45, 9, 1, rest(90))], p.step);
+    // A normal rest (150 s; the usual rest is never below 2:30 — owner 2026-11-24, a 90 s rest would now explain the drop).
+    const two = adaptRemaining(p, [done(45, 10, 1), done(45, 9, 1, rest(150))], p.step);
     expect(two.change).toBe('reduce');
     expect(two.sets.every((s) => s.weightKg === 45)).toBe(true);
     expect(two.sets[0].repsMax).toBeLessThanOrEqual(10);

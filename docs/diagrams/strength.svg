@@ -1,51 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 521" width="1600" height="521" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 521" width="1920" height="521" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
 <rect width="100%" height="100%" fill="#ffffff"/>
 <defs><marker id="m-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="m-cond" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker><marker id="m-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0891b2"/></marker><marker id="m-agg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/></marker><marker id="m-ui" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>
 <text x="20" y="24" font-size="16" font-weight="700" fill="#0f172a">Strength index, trend and double progression</text>
 <text x="20" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">A · INPUT DATA</text>
-<text x="340" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">C · EXERCISE / MUSCLE</text>
-<text x="660" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">D · WEEK</text>
-<text x="980" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">E · PLANNING &amp; DECISIONS</text>
-<text x="1300" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">F · SCREENS</text>
-<path d="M570,240 C615,240 615,240 660,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>perf → prog (call)</title></path>
-<path d="M570,166 C615,166 615,240 660,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>preload → prog (call)</title></path>
-<path d="M890,92 C935,92 935,240 890,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>trend → prog (call)</title></path>
-<path d="M890,166 C935,166 935,240 890,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>nextload → prog (call)</title></path>
-<path d="M250,92 C295,92 295,92 340,92" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_body → weighins (data): weigh-ins · field weightKg</title></path>
-<path d="M570,92 C615,92 615,314 570,314" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>weighins → bodyidx (call): latest before the session</title></path>
-<path d="M570,314 C615,314 615,321.5 660,321.5" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>bodyidx → analyze (call): passed into buildProgression as the body-weight callback</title></path>
-<path d="M890,240 C935,240 935,321.5 890,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>prog → analyze (agg)</title></path>
-<path d="M890,92 C935,92 935,92 980,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>trend → prescribe (call)</title></path>
-<path d="M890,166 C935,166 935,92 980,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>nextload → prescribe (call)</title></path>
-<path d="M570,166 C775,166 775,92 980,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>preload → prescribe (call)</title></path>
-<path d="M890,240 C935,240 935,403 890,403" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>prog → baseline (data): the history’s sessions · field sessions</title></path>
-<path d="M890,321.5 C1095,321.5 1095,151 1300,151" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>analyze → ui_analysis (ui)</title></path>
-<path d="M1530,151 C1575,151 1575,84.5 1530,84.5" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>ui_analysis → ui_strength (ui)</title></path>
-<path d="M890,403 C1095,403 1095,217.5 1300,217.5" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>baseline → ui_progress (ui)</title></path>
+<text x="340" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">B · SET LEVEL</text>
+<text x="660" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">C · EXERCISE / MUSCLE</text>
+<text x="980" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">D · WEEK</text>
+<text x="1300" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">E · PLANNING &amp; DECISIONS</text>
+<text x="1620" y="48" font-size="11" font-weight="700" fill="#64748b" letter-spacing="0.5">F · SCREENS</text>
+<path d="M890,240 C935,240 935,240 980,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>perf → prog (call)</title></path>
+<path d="M890,166 C935,166 935,240 980,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>preload → prog (call)</title></path>
+<path d="M1210,92 C1255,92 1255,240 1210,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>trend → prog (call)</title></path>
+<path d="M1210,166 C1255,166 1255,240 1210,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>nextload → prog (call)</title></path>
+<path d="M250,92 C455,92 455,92 660,92" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_body → weighins (data): weigh-ins · field weightKg</title></path>
+<path d="M890,92 C935,92 935,314 890,314" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>weighins → bodyidx (call): latest before the session</title></path>
+<path d="M890,314 C935,314 935,321.5 980,321.5" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>bodyidx → analyze (call): passed into buildProgression as the body-weight callback</title></path>
+<path d="M1210,240 C1255,240 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>prog → analyze (agg)</title></path>
+<path d="M1210,92 C1255,92 1255,92 1300,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>trend → prescribe (call)</title></path>
+<path d="M1210,166 C1255,166 1255,92 1300,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>nextload → prescribe (call)</title></path>
+<path d="M890,166 C1095,166 1095,92 1300,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>preload → prescribe (call)</title></path>
+<path d="M570,92 C775,92 775,166 980,166" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>shortrest → nextload (call): rest insight</title></path>
+<path d="M1210,240 C1255,240 1255,403 1210,403" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>prog → baseline (data): the history’s sessions · field sessions</title></path>
+<path d="M1210,321.5 C1415,321.5 1415,151 1620,151" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>analyze → ui_analysis (ui)</title></path>
+<path d="M1850,151 C1895,151 1895,84.5 1850,84.5" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>ui_analysis → ui_strength (ui)</title></path>
+<path d="M1210,403 C1415,403 1415,217.5 1620,217.5" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>baseline → ui_progress (ui)</title></path>
 <g><title>src/domain/progression#sessionPerf · rules: index_scale, index_basis · basis: heuristic</title>
-<rect x="340" y="214" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
-<text x="350" y="234" fill="#083344" font-weight="700">Strength index</text>
-<text x="350" y="249" fill="#083344">RIR-adjusted Epley / reps</text>
+<rect x="660" y="214" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
+<text x="670" y="234" fill="#083344" font-weight="700">Strength index</text>
+<text x="670" y="249" fill="#083344">RIR-adjusted Epley / reps</text>
 </g>
 <g><title>src/domain/progression#buildProgression · rules: plateau, single_bad_session, sustained_decline, index_basis · basis: heuristic</title>
-<rect x="660" y="214" width="230" height="52" rx="9" fill="#f0fdf4" stroke="#ea580c" stroke-width="2.5"/>
-<text x="670" y="234" fill="#052e16" font-weight="700">Histories · trend · plateau</text>
-<text x="670" y="249" fill="#052e16">(like with like)</text>
+<rect x="980" y="214" width="230" height="52" rx="9" fill="#f0fdf4" stroke="#ea580c" stroke-width="2.5"/>
+<text x="990" y="234" fill="#052e16" font-weight="700">Histories · trend · plateau</text>
+<text x="990" y="249" fill="#052e16">(like with like)</text>
 </g>
 <g><title>src/domain/preload#preloadFor · rules: preload_context · basis: research_informed_heuristic</title>
-<rect x="340" y="140" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
-<text x="350" y="160" fill="#431407" font-weight="700">Session-order context</text>
-<text x="350" y="175" fill="#431407">(≥ 2 sets before → pre-loaded)</text>
+<rect x="660" y="140" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
+<text x="670" y="160" fill="#431407" font-weight="700">Session-order context</text>
+<text x="670" y="175" fill="#431407">(≥ 2 sets before → pre-loaded)</text>
 </g>
 <g><title>src/domain/progression#classifyTrend · rules: plateau, single_bad_session, sustained_decline · basis: heuristic</title>
-<rect x="660" y="66" width="230" height="52" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.5"/>
-<text x="670" y="86" fill="#431407" font-weight="700">Trend class</text>
-<text x="670" y="101" fill="#431407">±1 %/session · 6 in 8 weeks</text>
+<rect x="980" y="66" width="230" height="52" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.5"/>
+<text x="990" y="86" fill="#431407" font-weight="700">Trend class</text>
+<text x="990" y="101" fill="#431407">±1 %/session · 6 in 8 weeks</text>
 </g>
 <g><title>src/domain/progression#suggestNextLoad · rules: double_progression, benchmark_exclusion, rest_attribution · basis: heuristic</title>
-<rect x="660" y="140" width="230" height="52" rx="9" fill="#fdf2f8" stroke="#ea580c" stroke-width="2.5"/>
-<text x="670" y="160" fill="#500724" font-weight="700">Double progression</text>
-<text x="670" y="175" fill="#500724">INCREASE / KEEP / REDUCE</text>
+<rect x="980" y="140" width="230" height="52" rx="9" fill="#fdf2f8" stroke="#ea580c" stroke-width="2.5"/>
+<text x="990" y="160" fill="#500724" font-weight="700">Double progression</text>
+<text x="990" y="175" fill="#500724">INCREASE / KEEP / REDUCE</text>
 </g>
 <g><title>src/domain/types#BodyMeasurement</title>
 <rect x="20" y="66" width="230" height="52" rx="9" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
@@ -53,43 +55,48 @@
 <text x="30" y="101" fill="#1e1b4b">(measured date + time)</text>
 </g>
 <g><title>src/domain/bodyweight#weighIns · basis: app_choice</title>
-<rect x="340" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#9333ea" stroke-width="2.5"/>
-<text x="350" y="86" fill="#083344" font-weight="700">Weigh-ins</text>
-<text x="350" y="101" fill="#083344">(valid, sorted)</text>
+<rect x="660" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#9333ea" stroke-width="2.5"/>
+<text x="670" y="86" fill="#083344" font-weight="700">Weigh-ins</text>
+<text x="670" y="101" fill="#083344">(valid, sorted)</text>
 </g>
 <g><title>src/domain/bodyweight#bodyKgForIndex · rules: index_scale · basis: heuristic</title>
-<rect x="340" y="288" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
-<text x="350" y="308" fill="#083344" font-weight="700">Body + belt</text>
-<text x="350" y="323" fill="#083344">(weigh-in ≤ 28 days)</text>
+<rect x="660" y="288" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
+<text x="670" y="308" fill="#083344" font-weight="700">Body + belt</text>
+<text x="670" y="323" fill="#083344">(weigh-in ≤ 28 days)</text>
 </g>
 <g><title>src/domain/analysis#analyze · rules: todays_share, weekly_target_reference · basis: research_informed_heuristic</title>
-<rect x="660" y="288" width="230" height="67" rx="9" fill="#f0fdf4" stroke="#2563eb" stroke-width="2.5"/>
-<text x="670" y="308" fill="#052e16" font-weight="700">analyze()</text>
-<text x="670" y="323" fill="#052e16">the week, per muscle:</text>
-<text x="670" y="338" fill="#052e16">done · target · left · today · recovery</text>
+<rect x="980" y="288" width="230" height="67" rx="9" fill="#f0fdf4" stroke="#2563eb" stroke-width="2.5"/>
+<text x="990" y="308" fill="#052e16" font-weight="700">analyze()</text>
+<text x="990" y="323" fill="#052e16">the week, per muscle:</text>
+<text x="990" y="338" fill="#052e16">done · target · left · today · recovery</text>
 </g>
 <g><title>src/domain/prescription#prescribe · rules: presc_set_count, presc_rep_ranges, presc_rir_targets, presc_rest, presc_confidence · basis: heuristic</title>
-<rect x="980" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
-<text x="990" y="86" fill="#083344" font-weight="700">Prescription</text>
-<text x="990" y="101" fill="#083344">sets · kg · reps · RIR · rest</text>
+<rect x="1300" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#ea580c" stroke-width="2.5"/>
+<text x="1310" y="86" fill="#083344" font-weight="700">Prescription</text>
+<text x="1310" y="101" fill="#083344">sets · kg · reps · RIR · rest</text>
+</g>
+<g><title>src/domain/rest#isShortRest · rules: rest_attribution · basis: research_informed_heuristic</title>
+<rect x="340" y="66" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
+<text x="350" y="86" fill="#431407" font-weight="700">ONE short rest</text>
+<text x="350" y="101" fill="#431407">&lt; 70 % of usual (≥ 2:30)</text>
 </g>
 <g><title>src/domain/baseline#strengthProgress · basis: app_choice</title>
-<rect x="660" y="377" width="230" height="52" rx="9" fill="#ecfeff" stroke="#9333ea" stroke-width="2.5"/>
-<text x="670" y="397" fill="#083344" font-weight="700">Baseline &amp; progress %</text>
-<text x="670" y="412" fill="#083344">(first 28 days)</text>
+<rect x="980" y="377" width="230" height="52" rx="9" fill="#ecfeff" stroke="#9333ea" stroke-width="2.5"/>
+<text x="990" y="397" fill="#083344" font-weight="700">Baseline &amp; progress %</text>
+<text x="990" y="412" fill="#083344">(first 28 days)</text>
 </g>
 <g><title>src/ui/hooks#useAnalysis</title>
-<rect x="1300" y="125" width="230" height="52" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-<text x="1310" y="145" fill="#0f172a" font-weight="700">useAnalysis()</text>
-<text x="1310" y="160" fill="#0f172a">(recomputed every minute)</text>
+<rect x="1620" y="125" width="230" height="52" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1630" y="145" fill="#0f172a" font-weight="700">useAnalysis()</text>
+<text x="1630" y="160" fill="#0f172a">(recomputed every minute)</text>
 </g>
 <g><title>src/ui/pages/Strength#StrengthPage</title>
-<rect x="1300" y="66" width="230" height="37" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-<text x="1310" y="86" fill="#0f172a" font-weight="700">Strength screen</text>
+<rect x="1620" y="66" width="230" height="37" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1630" y="86" fill="#0f172a" font-weight="700">Strength screen</text>
 </g>
 <g><title>src/ui/pages/Strength#ProgressTable</title>
-<rect x="1300" y="199" width="230" height="37" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-<text x="1310" y="219" fill="#0f172a" font-weight="700">Strength → progress table</text>
+<rect x="1620" y="199" width="230" height="37" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1630" y="219" fill="#0f172a" font-weight="700">Strength → progress table</text>
 </g>
 <rect x="20" y="473" width="14" height="14" rx="3" fill="#eef2ff" stroke="#6366f1"/><text x="40" y="484" fill="#334155">input</text>
 <rect x="140" y="473" width="14" height="14" rx="3" fill="#ecfeff" stroke="#0891b2"/><text x="160" y="484" fill="#334155">formula</text>

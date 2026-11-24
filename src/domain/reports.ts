@@ -4,7 +4,7 @@ import { addDays, diffDays, type WeekRange } from './dates';
 import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
 import { L, byLang, getLang, num, ruPlural } from '../i18n/core';
-import { exerciseLabel, type Registry } from './registry';
+import { exerciseLabel, type Registry, MACHINE_KINDS } from './registry';
 import { adviceFor, buildProgression, type ProgressionSeries } from './progression';
 import { failureImpliedRir, failureProfile, type FailureProfile } from './failure';
 import { bodyKgForIndex } from './bodyweight';
@@ -339,7 +339,7 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
   if (rirPct < 70) dq.push(L(`RIR recorded on ${rirPct}% of working sets — effort-adjusted volume is uncertain for the rest.`, `RIR записан в ${rirPct}% рабочих подходов — для остальных объём с поправкой на усилие неточен.`));
   const restSamples = ws.flatMap((w) => w.exercises.flatMap((e) => e.sets.slice(1))).filter((s) => s.restSecBefore != null).length;
   if (restSamples < totalSets * 0.3) dq.push(L('Few rest intervals recorded — rest-vs-performance findings are tentative.', 'Записано мало интервалов отдыха — выводы о связи отдыха и результата предварительные.'));
-  const unknownEq = ws.flatMap((w) => w.exercises).filter((e) => !e.equipmentId && ['machine', 'cable', 'plate_loaded', 'smith'].includes(reg.get(e.exerciseId)?.equipmentKind ?? '')).length;
+  const unknownEq = ws.flatMap((w) => w.exercises).filter((e) => !e.equipmentId && ((k) => k != null && MACHINE_KINDS.has(k))(reg.get(e.exerciseId)?.equipmentKind)).length;
   if (unknownEq) dq.push(L(`${unknownEq} machine/cable exercise entries have no identified equipment instance.`, `Записей упражнений в тренажёре / на блоке без указанного тренажёра: ${unknownEq}.`));
   const uncertainLoc = ws.filter((w) => !w.locationId || w.locationConfidence === 'uncertain' || w.locationConfidence === 'unknown').length;
   if (uncertainLoc) dq.push(L(`${uncertainLoc} session(s) have an unknown or uncertain gym.`, `Тренировок с неизвестным или неточно указанным залом: ${uncertainLoc}.`));

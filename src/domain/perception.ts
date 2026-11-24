@@ -21,6 +21,7 @@
  * hard for another reason (bad day, short rest). The one-tap effort answer exists for that.
  */
 import { EFFORT_RIR_ESTIMATE } from './feedback';
+import { isShortRest } from './rest';
 import { failureImpliedRir } from './failure';
 import type { QualityModel, WorkoutSet } from './types';
 
@@ -32,7 +33,7 @@ export const CLEARLY_HARD_RIR = 1;
 export const RAMP_OVERRIDE_GAP = 3;
 /** Reps lost on the next set at the same load that mark the earlier set as close to its limit. */
 export const NEXT_SET_DROP = 2;
-/** A rest shorter than this before the next set explains a rep drop by itself (no evidence about effort). */
+/** Superseded by rest.ts (owner 2026-11-24: the usual rest is never below 2:30, short = < 70 % of it). Kept for older references. */
 export const SHORT_REST_SEC = 60;
 /**
  * A rest shorter than this share of the exercise's usual rest in the session (median of its measured rests, ≥ 3 of
@@ -112,7 +113,8 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
   const rests = sets.map((o) => o.restSecBefore).filter((r): r is number => r != null && r > 0).sort((a, b) => a - b);
   const usualRest = rests.length >= 3 ? (rests.length % 2 ? rests[rests.length >> 1] : (rests[rests.length / 2 - 1] + rests[rests.length / 2]) / 2) : null;
   // Unknown rest (older imports) is treated as a normal rest, as before (training mode always records it).
-  const restExplains = (r: number | null | undefined) => r != null && r > 0 && (r < SHORT_REST_SEC || (usualRest != null && r < SHORT_REST_RATIO * usualRest));
+  // ONE short-rest rule (rest.ts): < 70 % of the usual rest, the usual never below 2:30 (owner 2026-11-24).
+  const restExplains = (r: number | null | undefined) => isShortRest(r, usualRest);
 
   sets.forEach((s, i) => {
     const b0 = bestBySide.get(s.side ?? '');

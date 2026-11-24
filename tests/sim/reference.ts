@@ -104,7 +104,8 @@ function refNumbers(sets: WorkoutSet[], s: WorkoutSet): { reserve: number; cap: 
   const measured = pool.map((x) => x.restSecBefore).filter((r): r is number => r != null && r > 0).sort((a, b) => a - b);
   const mid = measured.length / 2;
   const usual = measured.length < 3 ? null : measured.length % 2 ? measured[Math.floor(mid)] : (measured[mid - 1] + measured[mid]) / 2;
-  const shortRest = (r: number | null | undefined) => r != null && r > 0 && (r < 60 || (usual != null && r < 0.7 * usual)); // unknown rest: treated as normal
+  // Owner 2026-11-24: short = under 70 % of the usual rest, the usual never taken below 150 s (2:30).
+  const shortRest = (r: number | null | undefined) => r != null && r > 0 && r < 0.7 * Math.max(150, usual ?? 0); // unknown rest: treated as normal
   const next = pool.slice(i + 1).find((x) => side(x) === side(s));
   const nextReport = next ? refReported(next) : null;
   if (next && s.type !== 'drop' && next.type !== 'drop' && s.reps != null && next.reps != null && next.weightKg === s.weightKg && next.loadMode === s.loadMode

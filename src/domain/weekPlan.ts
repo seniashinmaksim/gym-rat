@@ -16,7 +16,7 @@
  */
 import { L } from '../i18n/core';
 import { addDays, diffDays } from './dates';
-import { baseWindowHours } from './recovery';
+import { windowHours } from './recovery';
 
 /** At least this many recent complete weeks with training are needed to speak of "usual" days. */
 export const USUAL_MIN_WEEKS = 3;
@@ -59,6 +59,8 @@ export function laterUsualOffsets(today: string, weekEnd: string, usual: number[
 }
 
 export interface FitInput {
+  /** Hours already known to lengthen TODAY's window (failure sets, new exercise, how the owner feels) — later days: base only. */
+  todayExtraH?: number;
   /** Effective sets left this week when the day started. */
   remaining: number;
   /** Most sets in one session for this muscle. */
@@ -82,12 +84,12 @@ export interface Fit {
   raised: boolean;
 }
 
-export function sessionWindowH(sets: number, large: boolean): number {
-  return sets <= 0 ? 0 : baseWindowHours(sets) + (large && sets > 9 ? 12 : 0);
+export function sessionWindowH(sets: number, large: boolean, extraH = 0): number {
+  return sets <= 0 ? 0 : windowHours({ sets, large }) + extraH;
 }
 
 /** Most sets the later days can still take (exhaustive over whole sets; ≤ 7 days × ≤ 10 sets, memoised). */
-function bestLater(remaining: number, later: number[], cap: number, large: boolean, tol: number, todaySets: number): number {
+function bestLater(remaining: number, later: number[], cap: number, large: boolean, tol: number, todaySets: number, todayExtra = 0): number {
   const memo = new Map<string, number>();
   const go = (rem: number, k: number, lastOff: number, lastWin: number): number => {
     if (rem <= 1e-9 || k >= later.length) return 0;
@@ -102,7 +104,7 @@ function bestLater(remaining: number, later: number[], cap: number, large: boole
     memo.set(key, b);
     return b;
   };
-  return go(remaining, 0, 0, sessionWindowH(todaySets, large));
+  return go(remaining, 0, 0, sessionWindowH(todaySets, large, todayExtra));
 }
 
 export function fitToday(p: FitInput): Fit {
@@ -113,7 +115,7 @@ export function fitToday(p: FitInput): Fit {
   let bestTotal = -1;
   for (let s = start; s <= hi; s++) {
     const today = Math.min(s, p.remaining);
-    const total = today + bestLater(p.remaining - today, p.later, p.cap, p.large, p.toleranceH, s);
+    const total = today + bestLater(p.remaining - today, p.later, p.cap, p.large, p.toleranceH, s, p.todayExtraH ?? 0);
     if (total >= p.remaining - 1e-9) return { share: today, reachable: p.remaining, shortBy: 0, raised: s > start };
     if (total > bestTotal + 1e-9) { bestTotal = total; bestS = s; }
   }

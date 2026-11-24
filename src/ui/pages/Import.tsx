@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatDate } from '../../domain/dates';
 import { effectiveVariation, variationParts } from '../../domain/progression';
 import { countedSetCount } from '../../domain/quality';
-import { loadUnitLabel } from '../../domain/registry';
+import { loadUnitLabel, MACHINE_KINDS } from '../../domain/registry';
 import { buildDraft, draftBlockers, IMPORT_SCHEMA_ID, IMPORT_SCHEMA_VERSION, parseImportJson, type ImportDraft } from '../../domain/importer';
 import type { Equipment, Location } from '../../domain/types';
 import { slugId, uid } from '../../lib/id';
@@ -285,7 +285,7 @@ function DraftCard({ draft, onChange, onRemove }: { draft: ImportDraft; onChange
                       <option value="">{L('Not identified / free weights', 'Не определён / свободные веса')}</option>
                       {eqChoices.map((q) => <option key={q.id} value={q.id}>{q.name}{res?.equipmentSuggestions.includes(q.id) ? L(' (suggested)', ' (предложено)') : ''}</option>)}
                     </Select>
-                    {!ex.equipmentId && def && ['machine', 'cable', 'plate_loaded', 'smith'].includes(def.equipmentKind) && <Button onClick={() => createMachine(i)} title={L('Create a new equipment record', 'Создать новую запись оборудования')}>{L('New', 'Новый')}</Button>}
+                    {!ex.equipmentId && def && MACHINE_KINDS.has(def.equipmentKind) && <Button onClick={() => createMachine(i)} title={L('Create a new equipment record', 'Создать новую запись оборудования')}>{L('New', 'Новый')}</Button>}
                   </div>
                 </Field>
               </div>

@@ -1,6 +1,6 @@
 import type { AppData } from './appdata';
 import { techniqueOf } from './feedback';
-import { buildRegistry, type Registry } from './registry';
+import { buildRegistry, type Registry, MACHINE_KINDS } from './registry';
 import { isCounted, sideFactors } from './sets';
 import type { ExerciseDef, FailureStatus, MuscleId, Technique, Workout, WorkoutSet } from './types';
 import { L, byLang, num, ruPlural } from '../i18n/core';
@@ -126,13 +126,14 @@ export const TECHNIQUE_FIRST_COMPOUNDS: readonly string[] = [
 
 export type FailureCategory = 'technique_first_compound' | 'compound' | 'stable_isolation' | 'isolation';
 
-const STABLE_KINDS = ['machine', 'cable', 'plate_loaded', 'smith'];
+/** Machine-guided kinds (one definition: registry.ts MACHINE_KINDS). */
+const STABLE_KINDS = MACHINE_KINDS;
 
 export function failureCategory(def: ExerciseDef | undefined, exerciseId: string): FailureCategory {
   if (TECHNIQUE_FIRST_COMPOUNDS.includes(exerciseId)) return 'technique_first_compound';
   if (!def) return 'compound';
   if (def.category === 'compound') return 'compound';
-  return STABLE_KINDS.includes(def.equipmentKind) ? 'stable_isolation' : 'isolation';
+  return STABLE_KINDS.has(def.equipmentKind) ? 'stable_isolation' : 'isolation';
 }
 
 // ---------------------------------------------------------------- Profile

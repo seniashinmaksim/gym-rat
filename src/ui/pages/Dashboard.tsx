@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { weekChip } from '../../domain/analysis';
 import { Link } from 'react-router-dom';
 import type { MuscleWeek } from '../../domain/analysis';
 import { formatDate, diffDays } from '../../domain/dates';
@@ -207,9 +208,10 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
 
 /** One small tag: today's share, or recovery (never both). */
 function statusChip(m: MuscleWeek) {
-  if (m.todayBlocked || m.recovery.status === 'recovering') return <Badge tone="warn">{L('RECOVERING', 'ВОССТ.')}</Badge>;
-  if (m.remainingToPreferred <= 0) return null;
-  if (m.todayLeft > 0) return <Badge tone="accent">{L('today', 'сегодня')} {fmt(m.todayLeft)}</Badge>;
+  // Only an EARLIER session holds a muscle (todayBlocked) — today's own sets never do (second analysis B-1).
+  const chip = weekChip(m);
+  if (chip === 'recovering') return <Badge tone="warn">{L('RECOVERING', 'ВОССТ.')}</Badge>;
+  if (chip === 'today') return <Badge tone="accent">{L('today', 'сегодня')} {fmt(m.todayLeft)}</Badge>;
   return null;
 }
 

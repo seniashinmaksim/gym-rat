@@ -81,9 +81,13 @@ describe('G.1 #5 — a rep drop after a rest much shorter than usual says nothin
     const s = [mk(12, null, 'a'), mk(12, 150, 'b'), mk(12, 150, 'c'), mk(10, 150, 'd')];
     expect(objectiveForSets(s).get('c')).toMatchObject({ kind: 'next_set', band: 'hard' });
   });
-  it('with fewer than 3 measured rests only the 60 s floor applies (90 s after 150 s: still evidence)', async () => {
+  // Owner 2026-11-24 (second analysis): ONE short-rest rule — the usual rest is never taken below 2:30, so with fewer
+  // than 3 measured rests a rest under 105 s (70 % of 150 s) already explains the drop (was: only under 60 s).
+  it('with fewer than 3 measured rests the 2:30 floor applies: 90 s → the rest explains the drop (no evidence)', async () => {
     const { objectiveForSets } = await import('../src/domain/perception');
     const s = [mk(12, null, 'a'), mk(12, 150, 'b'), mk(10, 90, 'c')];
-    expect(objectiveForSets(s).get('b')).toMatchObject({ kind: 'next_set', band: 'hard' });
+    expect(objectiveForSets(s).get('b')?.kind).toBe('none');
+    const ok = [mk(12, null, 'a'), mk(12, 150, 'b'), mk(10, 120, 'c')]; // 120 s ≥ 105 s: a normal rest → evidence
+    expect(objectiveForSets(ok).get('b')).toMatchObject({ kind: 'next_set', band: 'hard' });
   });
 });

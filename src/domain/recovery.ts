@@ -29,6 +29,8 @@ export interface RecoveryEstimate {
   recent7dIndirect: number;
   exposures14d: number;
   soreness: number | null;
+  /** Hours the owner's reported state adds to any window today (soreness, sleep, fatigue) — used by the forward checks. */
+  conditionsExtraH: number;
   factors: string[];
 }
 
@@ -67,6 +69,39 @@ export function sameMovement(a: string, b: string): boolean {
 /** Baseline window by the size of the last significant session (effective sets for the muscle). */
 /** How far back an earlier session can still hold a muscle: the longest window the rules can give (72 + 12 × 5 + 24 = 156 h), rounded up to a week. */
 export const RECOVERY_LOOKBACK_H = 168;
+
+export interface WindowInputs {
+  /** Effective sets of the session for this muscle. */
+  sets: number;
+  large: boolean;
+  failureSets?: number;
+  novel?: boolean;
+  soreness?: number | null;
+  avgSleep?: number | null;
+  maxFatigue?: number | null;
+}
+
+/**
+ * The recovery window of one session for one muscle — ONE formula for the recovery screen, the next-session checks and
+ * the week fit (owner 2026-11-24): base by effective sets; + 12 h large muscle after > 9 sets; + 12 h for ≥ 2 sets to
+ * failure (Morán-Navarro 2017, acute); + 12 h exercise new in 3 weeks; soreness ≥ 2 + 12 h, ≥ 3 + 24 h; sleep < 6 h
+ * + 12 h; fatigue ≥ 4 + 12 h. All numbers are heuristics (rule recovery_windows).
+ */
+export function windowHours(i: WindowInputs): number {
+  let w = baseWindowHours(i.sets);
+  if (i.large && i.sets > 9) w += 12;
+  return w + conditionsExtraH(i) + ((i.failureSets ?? 0) >= 2 ? 12 : 0) + (i.novel ? 12 : 0);
+}
+
+/** The additions known from how the owner feels (soreness, sleep, fatigue) — they apply to any session's window. */
+export function conditionsExtraH(i: Pick<WindowInputs, 'soreness' | 'avgSleep' | 'maxFatigue'>): number {
+  let h = 0;
+  if (i.soreness != null && i.soreness >= 3) h += 24;
+  else if (i.soreness != null && i.soreness >= 2) h += 12;
+  if (i.avgSleep != null && i.avgSleep < 6) h += 12;
+  if (i.maxFatigue != null && i.maxFatigue >= 4) h += 12;
+  return h;
+}
 
 export function baseWindowHours(sets: number): number {
   return sets <= 3 ? 24 : sets <= 6 ? 36 : sets <= 9 ? 48 : sets <= 12 ? 60 : 72;
@@ -149,6 +184,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       recent7dIndirect: v7.indirectSets,
       exposures14d,
       soreness,
+      conditionsExtraH: conditionsExtraH({ soreness, avgSleep, maxFatigue }),
     };
 
     if (!last0) {
@@ -172,7 +208,6 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       let window = baseWindowHours(last.sets);
       factors.push(L(`Last significant stimulus: ${last.sets.toFixed(1)} effective sets → baseline window ~${window} h.`, `Последняя значимая нагрузка: ${num(last.sets, 1)} эффективных подходов → базовое окно ~${window} ч.`));
       if (MUSCLE_BY_ID[m].size === 'large' && last.sets > 9) {
-        window += 12;
         factors.push(L('Large muscle with a very high-volume session: +12 h.', 'Крупная мышца и очень объёмная тренировка: +12 ч.'));
       }
       // Sets taken to failure slow recovery by roughly a day (Morán-Navarro 2017); unfamiliar
@@ -189,7 +224,6 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
         return n + e.sets.filter((s) => s.type !== 'warmup' && !s.planned && isFailureSetForFatigue(s)).reduce((a, s) => a + (f.get(s.id) ?? 1), 0);
       }, 0);
       if (failureSets >= 2) {
-        window += 12;
         factors.push(L(`${failureSets} sets to failure in that session: +12 h.`, `На той тренировке ${num(failureSets)} ${ruPlural(failureSets, 'подход', 'подхода', 'подходов')} до отказа: +12 ч.`));
       }
       const lastDate = last.date;
@@ -199,24 +233,21 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       const novel = last.workout.exercises.filter((e) => hitsM(e, 0.75) && performedWork(e)).filter((e) =>
         !data.workouts.some((o) => o.date < lastDate && diffDays(lastDate, o.date) <= 21 && o.exercises.some((x) => sameMovement(x.exerciseId, e.exerciseId))));
       if (novel.length && data.workouts.some((o) => o.date < lastDate)) {
-        window += 12;
         factors.push(L('Exercise new to you in the last 3 weeks (more muscle damage expected): +12 h.', 'Упражнение, новое для вас за последние 3 недели (ожидается больше повреждения мышц): +12 ч.'));
       }
       if (soreness != null && soreness >= 3) {
-        window += 24;
         factors.push(L(`Reported soreness ${soreness}/4: +24 h.`, `Отмеченная болезненность ${soreness}/4: +24 ч.`));
       } else if (soreness != null && soreness >= 2) {
-        window += 12;
         factors.push(L(`Reported soreness ${soreness}/4: +12 h.`, `Отмеченная болезненность ${soreness}/4: +12 ч.`));
       }
       if (avgSleep != null && avgSleep < 6) {
-        window += 12;
         factors.push(L(`Recent sleep ~${avgSleep.toFixed(1)} h (<6 h): +12 h.`, `Сон в последние дни ~${num(avgSleep, 1)} ч (<6 ч): +12 ч.`));
       }
       if (maxFatigue != null && maxFatigue >= 4) {
-        window += 12;
         factors.push(L(`High reported fatigue (${maxFatigue}/5): +12 h.`, `Высокая отмеченная усталость (${maxFatigue}/5): +12 ч.`));
       }
+      // ONE formula for the window (the forward checks and the week fit use it too — owner 2026-11-24).
+      window = windowHours({ sets: last.sets, large: MUSCLE_BY_ID[m].size === 'large', failureSets, novel: !!novel.length && data.workouts.some((o) => o.date < lastDate), soreness, avgSleep, maxFatigue });
       return { endedAt, src, hoursSince, endedHHMM, window, factors };
     };
     const all = cands.map((c) => ({ c, a: assess(c) }));
@@ -242,4 +273,29 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     };
   }
   return out;
+}
+
+/**
+ * What is already known TODAY that lengthens a muscle's window beyond the base (owner 2026-11-24: one window everywhere):
+ * ≥ 2 sets to failure on it today (any session today, sides paired) → + 12 h; an exercise on it (≥ 0.75) new in 3 weeks
+ * among today's exercises or `candidates` → + 12 h. The owner's state (soreness, sleep, fatigue) is added by the caller
+ * from `RecoveryEstimate.conditionsExtraH`.
+ */
+export function todayExtraH(data: AppData, registry: Registry, m: MuscleId, today: string, candidates: string[] = []): number {
+  const todays = data.workouts.filter((w) => w.date === today);
+  const hits = (exerciseId: string, variation: Parameters<typeof resolveCoefficients>[1], min: number) => {
+    const def = registry.get(exerciseId);
+    return !!def && (resolveCoefficients(def, variation).contributions[m] ?? 0) >= min;
+  };
+  let failure = 0;
+  for (const w of todays) for (const e of w.exercises) {
+    if (!hits(e.exerciseId, e.variation, 0.5)) continue;
+    const f = sideFactors(e.sets);
+    failure += e.sets.filter((x) => x.type !== 'warmup' && !x.planned && isFailureSetForFatigue(x)).reduce((a, x) => a + (f.get(x.id) ?? 1), 0);
+  }
+  const before = data.workouts.filter((o) => o.date < today);
+  const isNew = (id: string) => before.length > 0 && !before.some((o) => diffDays(today, o.date) <= 21 && o.exercises.some((x) => sameMovement(x.exerciseId, id)));
+  const ids = [...todays.flatMap((w) => w.exercises.filter((e) => e.sets.some((x) => x.type !== 'warmup' && !x.planned) && hits(e.exerciseId, e.variation, 0.75)).map((e) => e.exerciseId)),
+    ...candidates.filter((id) => hits(id, undefined, 0.75))];
+  return (failure >= 2 ? 12 : 0) + (ids.some(isNew) ? 12 : 0);
 }

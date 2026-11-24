@@ -211,7 +211,9 @@ describe('I.2 #9 — missing data caps the score and lowers confidence (never mi
   });
   it('an exercise never performed → ≤ 70 ("new: calibrate")', () => {
     const { d, a, w } = setup();
-    const o = optimality({ data: d, analysis: a, workout: w, exerciseId: 'dumbbell_curl', sets: 2 });
+    // (A new BICEPS exercise on Monday now gets the +12 h "new exercise" in its window too — one window everywhere,
+    // owner 2026-11-24 — and is not for today before Tuesday's pull-ups; a new chest fly has no such conflict.)
+    const o = optimality({ data: d, analysis: a, workout: w, exerciseId: 'cable_fly', sets: 2 });
     expect(score(o)).toBeLessThanOrEqual(70);
     expect(o.caps.map((c) => c.factor)).toContain('new_exercise');
   });
@@ -236,7 +238,7 @@ describe('I.2 #9 — missing data caps the score and lowers confidence (never mi
   });
   it('caps come first and deductions after them, so a cap never hides a difference', () => {
     const { d, a, w } = setup();
-    const o = optimality({ data: d, analysis: a, workout: w, exerciseId: 'dumbbell_curl', sets: 2 });
+    const o = optimality({ data: d, analysis: a, workout: w, exerciseId: 'cable_fly', sets: 2 });
     const ded = o.deductions.reduce((s, x) => s + x.points, 0);
     expect(o.score).toBe(Math.max(5, Math.min(...o.caps.map((c) => c.max), 100) - ded));
   });

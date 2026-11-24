@@ -4,6 +4,7 @@
  * compared only when it is comparable with its baseline; otherwise it is skipped (null), never counted either way.
  */
 import type { SessionPerf } from './progression';
+import { isShortRest } from './rest';
 
 /** A result whose top-set reserve differs by at least this much from the baseline is not comparable. */
 export const OUTCOME_RIR_DIFF = 2;
@@ -32,7 +33,7 @@ export function heldUp(cur: SessionPerf, base: SessionPerf[]): boolean | null {
   const baseRir = median(b.map((x) => x.topRir).filter((r): r is number => r != null));
   if (cur.topRir != null && baseRir != null && Math.abs(cur.topRir - baseRir) >= OUTCOME_RIR_DIFF) return null;
   const rest = median(b.map((x) => x.restAvgSec).filter((r): r is number => r != null));
-  if (cur.restAvgSec != null && rest != null && cur.restAvgSec < OUTCOME_SHORT_REST * rest) return null;
+  if (rest != null && isShortRest(cur.restAvgSec, rest)) return null;
   if (cur.context && b.every((x) => x.context && x.context !== cur.context)) return null;
   const bi = median(b.map((x) => x.indexRaw as number)) as number;
   const ratio = cur.indexKind === 'reps' ? (1 + cur.indexRaw / 30) / (1 + bi / 30) : cur.indexRaw / bi;

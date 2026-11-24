@@ -20,7 +20,7 @@ import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescr
 import { optimality, rankOptions, type Optimality } from '../../domain/optimality';
 import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { progressionKey } from '../../domain/progression';
-import { loadUnitLabel } from '../../domain/registry';
+import { loadUnitLabel, MACHINE_KINDS } from '../../domain/registry';
 import { minutesBetween, summarizeSession, type SessionSummary } from '../../domain/sessionSummary';
 import type { Equipment, ExerciseDef, LoadMode, PlanDecision, PlanDecisionReason, Side, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
 import { stepTarget, withChosenStep } from '../../domain/weights';
@@ -548,7 +548,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     const xs = (series?.sessions ?? []).map((x) => x.restAvgSec).filter((r): r is number => r != null).sort((p, q) => p - q);
     return xs.length ? xs[xs.length >> 1] : null;
   }, [series]);
-  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, step, { minKg: eq?.minKg ?? null, maxKg: eq?.maxKg ?? null, restMedianSec: restMedian })), [ex, step, progress.reached, eq, restMedian]);
+  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, stepInfo.step, { minKg: eq?.minKg ?? null, maxKg: eq?.maxKg ?? null, restMedianSec: restMedian })), [ex, stepInfo.step, progress.reached, eq, restMedian]);
 
   const log = () => {
     const nowMs = Date.now();
@@ -610,7 +610,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const lastSet = sets[sets.length - 1] ?? null;
   const editing = sheet && typeof sheet === 'object' ? ex.sets.find((s) => s.id === sheet.set) ?? null : null;
   const unit = unitLabel(def, loadMode);
-  const eqLine = eq ? eq.name : def && ['machine', 'cable', 'plate_loaded', 'smith'].includes(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите') : null;
+  const eqLine = eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите') : null;
   const target = targetLine(ex);
 
   const chips = (
@@ -784,8 +784,8 @@ function RestPill({ w, onOpen }: { w: Workout; onOpen: () => void }) {
  * Where the pre-filled weight came from — only what matters (owner 2026-11-24): SMART (the analysis set it: changed from
  * last time, confirmed it, or adjusted after a set) or COPIED (nothing analysed). The note says how it compares with last time.
  */
-function WeightSource({ source, planKg, weightKg, lastKg }: { source: 'adjusted' | 'kept' | 'copied'; planKg: number | null; weightKg: number | null; lastKg: number | null }) {
-  const smart = source !== 'copied';
+function WeightSource({ source, planKg, weightKg, lastKg }: { source: 'adjusted' | 'kept' | 'copied' | 'session'; planKg: number | null; weightKg: number | null; lastKg: number | null }) {
+  const smart = source === 'adjusted' || source === 'kept';
   const diff = weightKg != null && lastKg != null ? Math.round((weightKg - lastKg) * 100) / 100 : null;
   const vs = diff == null ? '' : diff === 0 ? L(' · same as last time', ' · как в прошлый раз')
     : L(` · ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} kg vs last time`, ` · ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} кг к прошлому разу`);
@@ -793,6 +793,7 @@ function WeightSource({ source, planKg, weightKg, lastKg }: { source: 'adjusted'
     <p className={cx('flex items-center gap-1.5 text-xs font-semibold', smart ? 'text-t-accent' : 'text-t-dim')} data-testid="weight-source" data-source={smart ? 'smart' : 'copied'}>
       {smart ? <IconBrain size={16} /> : <IconCopy size={16} />}
       <span className="min-w-0 break-words">{smart ? L('Smart weight', 'Умный вес') + vs
+        : source === 'session' ? (planKg != null && planKg !== weightKg ? L(`Same as your previous set — the analysis suggests ${num(planKg)} kg`, `Как в прошлом подходе — анализ предлагает ${num(planKg)} кг`) : L('Same as your previous set', 'Как в прошлом подходе'))
         : planKg != null ? L(`Copied from last time — the analysis suggests ${num(planKg)} kg`, `Скопировано с прошлого раза — анализ предлагает ${num(planKg)} кг`)
           : L('Copied from last time — not analysed', 'Скопировано с прошлого раза — без анализа')}</span>
     </p>

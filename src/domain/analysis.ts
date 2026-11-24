@@ -9,7 +9,7 @@ import { failureProfile, type FailureProfile } from './failure';
 import { bodyKgForIndex } from './bodyweight';
 import { buildProgression, type ProgressionSeries } from './progression';
 import { round2, roundHalf, stripPlanned } from './quality';
-import { estimateRecovery, type RecoveryEstimate } from './recovery';
+import { estimateRecovery, type RecoveryEstimate, todayExtraH } from './recovery';
 import { buildRegistry, type Registry } from './registry';
 import { computeTargets, learningState, muscleTrendSummary, type LearningState, type MuscleTarget } from './targets';
 import type { MuscleId } from './types';
@@ -219,7 +219,8 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
         : L(`${remainingAtDayStart} left ÷ ~${sessionsLeftInclToday} sessions`, `осталось ${num(remainingAtDayStart)} ÷ ~${sessionsLeftInclToday} трен.`);
       if (laterUsual) {
         // Part 7 #13: the share that still lets the later usual days finish the week outside the recovery windows.
-        const fitIn: FitInput = { remaining: remainingAtDayStart, cap: sessionCap, base: todayShare, later: laterUsual, large: MUSCLE_BY_ID[m].size === 'large', toleranceH: RECOVERY_TOLERANCE_H };
+        const fitIn: FitInput = { remaining: remainingAtDayStart, cap: sessionCap, base: todayShare, later: laterUsual, large: MUSCLE_BY_ID[m].size === 'large', toleranceH: RECOVERY_TOLERANCE_H,
+          todayExtraH: rec.conditionsExtraH + todayExtraH(data, registry, m, today) };
         const fit = fitToday(fitIn);
         shareRaised = fit.share > todayShare;
         todayShare = fit.share;
@@ -261,4 +262,15 @@ export function statusLabel(s: WeekStatus): string {
     done: L('Target met', 'Цель выполнена'), over: L('Above range', 'Выше диапазона'), on_track: L('On track', 'По плану'),
     behind: L('Behind', 'Отставание'), at_risk: L('At risk', 'Под угрозой'), no_data: L('No data', 'Нет данных'),
   }[s];
+}
+
+/**
+ * The Week screen's chip for a muscle (second analysis B-1): RECOVERING only when an EARLIER session holds it today
+ * (`todayBlocked`: > 6 h of its window left) — today's own sets never do, and a window inside the tolerance does not;
+ * else "today n" while today's share is open; else nothing.
+ */
+export function weekChip(m: Pick<MuscleWeek, 'todayBlocked' | 'remainingToPreferred' | 'todayLeft'>): 'recovering' | 'today' | null {
+  if (m.todayBlocked) return 'recovering';
+  if (m.remainingToPreferred <= 0) return null;
+  return m.todayLeft > 0 ? 'today' : null;
 }

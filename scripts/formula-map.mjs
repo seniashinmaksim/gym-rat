@@ -37,7 +37,8 @@ export function nodeBasis(node, bases) {
 }
 
 const hasEdge = (g, from, to) => g.edgeSet.has(`${from}|${to}`);
-const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+// Comments and string literals are removed before a field name is searched (a word inside L('…') text proves nothing).
+const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g, "''");
 /** Declarations reachable from `ref` within `n` references (ref → consumer → consumer …). */
 function reach(g, ref, n) {
   let frontier = new Set([ref]);
