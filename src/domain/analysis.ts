@@ -2,6 +2,7 @@ import type { AppData } from './appdata';
 import { daysLeftInWeek, localNowParts, weekOf, type WeekRange } from './dates';
 import { mean, weeklyHistory, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
+import { L, getLang, num } from '../i18n/core';
 import { failureProfile, type FailureProfile } from './failure';
 import { bodyKgForIndex } from './bodyweight';
 import { buildProgression, type ProgressionSeries } from './progression';
@@ -42,7 +43,13 @@ export interface MuscleWeek {
   sessionCap: number;
   /** Remaining sets that will not fit in the sessions left — they simply carry over (don't cram). */
   carryOver: number;
+  /**
+   * The one value `'Target met'` stays ENGLISH in every language: it is a code other modules compare
+   * (`prescription.ts`) and it is never shown by itself. Language-proof twin: `targetMet`.
+   */
   todayNote: string;
+  /** Nothing was left of the weekly target when the day started (same condition as `todayNote === 'Target met'`). */
+  targetMet: boolean;
   explanation: string;
 }
 
@@ -142,32 +149,39 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
     if (status === 'done' || status === 'over') {
       moreVolumeJustified = 'no';
       justification = status === 'over'
-        ? `Above the current upper bound (${target.max}). Extra sets are unlikely to add much (diminishing returns) and add fatigue.`
-        : 'Target reached — no additional sets are required just to satisfy a number.';
+        ? L(`Above the current upper bound (${target.max}). Extra sets are unlikely to add much (diminishing returns) and add fatigue.`,
+          `Выше текущей верхней границы (${num(target.max)}). Дополнительные подходы вряд ли дадут заметную прибавку (убывающая отдача) и добавляют усталость.`)
+        : L('Target reached — no additional sets are required just to satisfy a number.', 'Цель достигнута — дополнительные подходы ради цифры не нужны.');
     } else if (planRec.status === 'recovering' && planRec.hoursLeft > RECOVERY_TOLERANCE_H) {
       moreVolumeJustified = 'wait';
-      justification = `Below target, but likely still recovering from the last session (~${planRec.hoursLeft} h more by the heuristic). Train it next session rather than today if possible — this is advice, not a rule.`;
+      justification = L(`Below target, but likely still recovering from the last session (~${planRec.hoursLeft} h more by the heuristic). Train it next session rather than today if possible — this is advice, not a rule.`,
+        `Ниже цели, но мышца, вероятно, ещё восстанавливается после прошлой тренировки (по эвристике ещё ~${planRec.hoursLeft} ч). По возможности нагрузите её на следующей тренировке, а не сегодня — это совет, а не правило.`);
     } else if (trend.overall === 'declining') {
       moreVolumeJustified = 'caution';
-      justification = 'Below target, but performance on its main exercises is declining — prioritize quality sets over adding volume.';
+      justification = L('Below target, but performance on its main exercises is declining — prioritize quality sets over adding volume.',
+        'Ниже цели, но результаты в основных упражнениях снижаются — качество подходов важнее добавления объёма.');
     } else {
       moreVolumeJustified = 'yes';
       justification = target.provisional
-        ? 'Below the provisional reference. Adding the remaining sets is reasonable if time and recovery allow.'
-        : 'Below your individualized target and recovery looks adequate.';
+        ? L('Below the provisional reference. Adding the remaining sets is reasonable if time and recovery allow.', 'Ниже предварительного ориентира. Оставшиеся подходы стоит добавить, если позволяют время и восстановление.')
+        : L('Below your individualized target and recovery looks adequate.', 'Ниже вашей индивидуальной цели, восстановление выглядит достаточным.');
     }
 
-    const name = muscleName(m);
+    const name = muscleName(m, getLang());
     const tLabel = target.provisional ? 'provisional ' : '';
     const indirectShare = completed > 0 ? Math.round((volume.effectiveIndirect / completed) * 100) : 0;
-    let explanation = `${name}: ${completed.toFixed(1)} of your ${tLabel}${target.preferred} weekly effective sets completed (${volume.directSets} direct, ${volume.indirectSets} indirect raw sets).`;
+    let explanation = L(`${name}: ${completed.toFixed(1)} of your ${tLabel}${target.preferred} weekly effective sets completed (${volume.directSets} direct, ${volume.indirectSets} indirect raw sets).`,
+      `${name}: выполнено ${num(completed, 1)} из ${num(target.preferred)} эффективных подходов недельной цели${target.provisional ? ' (предварительной)' : ''} (подходов как записано: ${num(volume.directSets)} прямых, ${num(volume.indirectSets)} косвенных).`);
     if (remainingToPreferred > 0) {
-      explanation += ` About ${remainingToPreferred} effective sets remain`;
-      explanation += remainingToMin > 0 ? ` (${remainingToMin} to reach the lower end of ${target.min}).` : ' to reach the preferred target; the lower end is already met.';
-    } else explanation += ' No more sets are needed this week.';
-    if (completed > 0 && indirectShare >= 60) explanation += ` ${indirectShare}% of this came from indirect work.`;
-    if (volume.uncertainEffective > 0) explanation += ` ${volume.uncertainEffective.toFixed(1)} of the credited sets have unknown effort (no RIR).`;
-    if (status === 'at_risk') explanation += ` With ~${expectedRemainingSessions} session(s) likely left, reaching the target would need more than ~${sessionCap} sets in a session — don't cram; the rest simply carries over.`;
+      explanation += L(` About ${remainingToPreferred} effective sets remain`, ` Осталось около ${num(remainingToPreferred)} эффективных подходов`);
+      explanation += remainingToMin > 0
+        ? L(` (${remainingToMin} to reach the lower end of ${target.min}).`, ` (${num(remainingToMin)} до нижней границы ${num(target.min)}).`)
+        : L(' to reach the preferred target; the lower end is already met.', ' до предпочтительной цели; нижняя граница уже достигнута.');
+    } else explanation += L(' No more sets are needed this week.', ' На этой неделе подходы больше не нужны.');
+    if (completed > 0 && indirectShare >= 60) explanation += L(` ${indirectShare}% of this came from indirect work.`, ` ${indirectShare}% из этого дала косвенная нагрузка.`);
+    if (volume.uncertainEffective > 0) explanation += L(` ${volume.uncertainEffective.toFixed(1)} of the credited sets have unknown effort (no RIR).`, ` У ${num(volume.uncertainEffective, 1)} из засчитанных подходов усилие неизвестно (нет RIR).`);
+    if (status === 'at_risk') explanation += L(` With ~${expectedRemainingSessions} session(s) likely left, reaching the target would need more than ~${sessionCap} sets in a session — don't cram; the rest simply carries over.`,
+      ` Тренировок, вероятно, осталось ~${expectedRemainingSessions}: чтобы достичь цели, понадобилось бы больше ~${sessionCap} подходов за тренировку — не пытайтесь уместить всё; остаток просто переносится.`);
 
     // Today's plan is fixed for the whole day: it is based on what remained when the day started,
     // so it does not shrink while you log, and today's own sets never mark the muscle "recovering".
@@ -178,23 +192,24 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
     let carryOver = 0;
     let todayNote: string;
     if (remainingAtDayStart <= 0) todayNote = 'Target met';
-    else if (todayBlocked) todayNote = `Still recovering (~${planRec.hoursLeft} h) — better next session`;
-    else if (sessionsLeftInclToday <= 0) todayNote = 'Week is over';
+    else if (todayBlocked) todayNote = L(`Still recovering (~${planRec.hoursLeft} h) — better next session`, `Ещё восстанавливается (~${planRec.hoursLeft} ч) — лучше на следующей тренировке`);
+    else if (sessionsLeftInclToday <= 0) todayNote = L('Week is over', 'Неделя закончилась');
     else {
       // Whole sets per session, but never more than what is actually left this week.
       todayShare = Math.min(sessionCap, remainingAtDayStart, Math.ceil(remainingAtDayStart / sessionsLeftInclToday));
       carryOver = roundHalf(Math.max(0, remainingAtDayStart - sessionCap * sessionsLeftInclToday));
       todayNote = sessionsLeftInclToday === 1
-        ? 'Likely your last session this week'
-        : `${remainingAtDayStart} left ÷ ~${sessionsLeftInclToday} sessions`;
-      if (todayShare === sessionCap && carryOver > 0) todayNote += ` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`;
-      if (mwTrendDeclining(trend.overall)) todayNote += ' · keep sets high-quality';
+        ? L('Likely your last session this week', 'Вероятно, последняя тренировка на этой неделе')
+        : L(`${remainingAtDayStart} left ÷ ~${sessionsLeftInclToday} sessions`, `осталось ${num(remainingAtDayStart)} ÷ ~${sessionsLeftInclToday} трен.`);
+      if (todayShare === sessionCap && carryOver > 0) todayNote += L(` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`, ` · не больше ${sessionCap} за тренировку; ~${num(carryOver)} переносится (это нормально)`);
+      if (mwTrendDeclining(trend.overall)) todayNote += L(' · keep sets high-quality', ' · следите за качеством подходов');
     }
     const todayLeft = leftOfShare(todayShare, doneToday);
 
     return {
       muscle: m, target, volume, completed, remainingToMin, remainingToPreferred, pctOfPreferred: pct, status, recovery: rec, trend,
       moreVolumeJustified, justification, explanation, todayShare, doneToday, todayLeft, todayBlocked, sessionCap, carryOver, todayNote,
+      targetMet: remainingAtDayStart <= 0,
     };
   });
 
@@ -210,5 +225,8 @@ function mwTrendDeclining(t: string) {
 }
 
 export function statusLabel(s: WeekStatus): string {
-  return { done: 'Target met', over: 'Above range', on_track: 'On track', behind: 'Behind', at_risk: 'At risk', no_data: 'No data' }[s];
+  return {
+    done: L('Target met', 'Цель выполнена'), over: L('Above range', 'Выше диапазона'), on_track: L('On track', 'По плану'),
+    behind: L('Behind', 'Отставание'), at_risk: L('At risk', 'Под угрозой'), no_data: L('No data', 'Нет данных'),
+  }[s];
 }

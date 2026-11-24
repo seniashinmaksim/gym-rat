@@ -14,6 +14,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays, formatDate } from './dates';
 import { hasPain } from './feedback';
+import { L, byLang, getLang, num, ruPlural } from '../i18n/core';
 import { FATIGUE_LABEL, FATIGUE_RANK, fatigueCostOf, isHeavyLower, sessionLoad, significantMuscles, type SessionLoad } from './fatigue';
 import { muscleName, MUSCLE_BY_ID } from './muscles';
 import { progressionKey } from './progression';
@@ -29,9 +30,18 @@ export type ChoiceStatus = 'good' | 'acceptable' | 'reconsider';
 export type ChoiceReason = 'recovery' | 'volume' | 'fatigue' | 'order' | 'uncertain' | 'decline';
 export type ChoiceLabel = 'GOOD CHOICE' | 'ACCEPTABLE' | 'CONSIDER ALTERNATIVE' | 'CONSIDER LATER';
 
-export const STATE_LABEL: Record<MuscleState, string> = {
-  LIKELY_READY: 'READY', RECENTLY_LOADED: 'RECENTLY LOADED', RECOVERY_UNCERTAIN: 'RECOVERY UNCERTAIN', PERFORMANCE_DECLINING: 'PERFORMANCE DECLINING',
-};
+export const STATE_LABEL: Record<MuscleState, string> = byLang(() => ({
+  LIKELY_READY: L('READY', 'ГОТОВО'), RECENTLY_LOADED: L('RECENTLY LOADED', 'НЕДАВНЯЯ НАГРУЗКА'), RECOVERY_UNCERTAIN: L('RECOVERY UNCERTAIN', 'ВОССТАНОВЛЕНИЕ НЕЯСНО'), PERFORMANCE_DECLINING: L('PERFORMANCE DECLINING', 'РЕЗУЛЬТАТЫ СНИЖАЮТСЯ'),
+}));
+
+/**
+ * The choice label as shown to the person. `ChoiceAssessment.label` itself stays the English value: it is a code
+ * (tests compare it), so the screen prints `choiceLabelText(a.label)`.
+ */
+export function choiceLabelText(label: ChoiceLabel): string {
+  return label === 'GOOD CHOICE' ? L('GOOD CHOICE', 'ХОРОШИЙ ВЫБОР') : label === 'ACCEPTABLE' ? L('ACCEPTABLE', 'ДОПУСТИМО')
+    : label === 'CONSIDER LATER' ? L('CONSIDER LATER', 'ЛУЧШЕ ПОЗЖЕ') : L('CONSIDER ALTERNATIVE', 'ЛУЧШЕ ЗАМЕНИТЬ');
+}
 
 export interface MuscleLine {
   muscle: MuscleId;
@@ -171,6 +181,16 @@ const PAIN_REGIONS: Partial<Record<MovementPattern, string[]>> = {
   hip_abduction: ['Hip'], calf: ['Ankle'], core: ['Lower back', 'Hip'], back_extension: ['Lower back'], carry: ['Lower back', 'Wrist', 'Shoulder'],
 };
 
+/** Russian words for the stored pain areas (the stored value stays English: it is compared with PAIN_REGIONS). */
+const AREA_RU: Record<string, string> = {
+  Shoulder: 'плечо', Elbow: 'локоть', Wrist: 'запястье', Neck: 'шея', 'Upper back': 'верх спины', 'Lower back': 'поясница', Hip: 'бедро', Knee: 'колено', Ankle: 'голеностоп', Other: 'другое',
+};
+const areaRu = (a: string) => AREA_RU[a] ?? a.toLowerCase();
+/** Russian name of an exercise (a custom exercise may have none). */
+const ruName = (d: { name: { en: string; ru: string } } | undefined, fallback: string) => (d ? d.name.ru || d.name.en : fallback);
+const mRu = (m: MuscleId) => muscleName(m, 'ru');
+const mRuLow = (m: MuscleId) => muscleName(m, 'ru').toLowerCase();
+
 /** Pain logged in the last 7 days on this exercise or on an area this movement loads — separate from fatigue. */
 export function safetyLine(data: AppData, def: ExerciseDef, today: string, registry: Analysis['registry'], current: Workout | null): string | null {
   const since = addDays(today, -7);
@@ -185,12 +205,12 @@ export function safetyLine(data: AppData, def: ExerciseDef, today: string, regis
         if (!hasPain(s) || s.planned) continue;
         const area = s.pain?.area || '';
         if (e.exerciseId === def.id) { if (!same || w.date > same.date) same = { date: w.date, area }; }
-        else if (area && regions.includes(area) && (!region || w.date > region.date)) region = { date: w.date, area, ex: registry.get(e.exerciseId)?.name.en ?? e.exerciseId };
+        else if (area && regions.includes(area) && (!region || w.date > region.date)) region = { date: w.date, area, ex: L(registry.get(e.exerciseId)?.name.en ?? e.exerciseId, ruName(registry.get(e.exerciseId), e.exerciseId)) };
       }
     }
   }
-  if (same) return `SAFETY: pain logged on this exercise ${formatDate(same.date)}${same.area ? ` (${same.area.toLowerCase()})` : ''}. If it hurts again, stop — a pain-free alternative or rest is the better choice.`;
-  if (region) return `SAFETY: ${region.area.toLowerCase()} pain logged ${formatDate(region.date)} (${region.ex}); this movement also loads the ${region.area.toLowerCase()}. Stop if it hurts.`;
+  if (same) return L(`SAFETY: pain logged on this exercise ${formatDate(same.date)}${same.area ? ` (${same.area.toLowerCase()})` : ''}. If it hurts again, stop — a pain-free alternative or rest is the better choice.`, `БЕЗОПАСНОСТЬ: в этом упражнении отмечена боль — ${formatDate(same.date)}${same.area ? ` (${areaRu(same.area)})` : ''}. Если заболит снова, остановитесь — лучше выбрать замену без боли или отдых.`);
+  if (region) return L(`SAFETY: ${region.area.toLowerCase()} pain logged ${formatDate(region.date)} (${region.ex}); this movement also loads the ${region.area.toLowerCase()}. Stop if it hurts.`, `БЕЗОПАСНОСТЬ: ${formatDate(region.date)} отмечена боль (${areaRu(region.area)}; ${region.ex}); это движение тоже нагружает эту область. Если болит — остановитесь.`);
   return null;
 }
 
@@ -258,7 +278,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   if (!def) {
     return {
       exerciseId, equipmentId, status: 'acceptable', reasonKind: 'uncertain', label: 'ACCEPTABLE', muscles: [], fatigueCost: 'moderate', position: 'FIRST HALF',
-      safety: null, alternatives: [], confidence: 'low', why: ['Unknown exercise — no muscle data to assess.'], key: `${exerciseId}|unknown`, softened: false,
+      safety: null, alternatives: [], confidence: 'low', why: [L('Unknown exercise — no muscle data to assess.', 'Неизвестное упражнение — нет данных о мышцах для оценки.')], key: `${exerciseId}|unknown`, softened: false,
     };
   }
 
@@ -285,12 +305,14 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
       state = 'RECENTLY_LOADED';
       source = 'this_session';
     } else if (mw?.trend.overall === 'declining') state = 'PERFORMANCE_DECLINING';
-    const name = muscleName(muscle);
+    const name = muscleName(muscle, getLang());
     let text = `${name}: ${STATE_LABEL[state]}`;
-    if (state === 'RECENTLY_LOADED' && source === 'earlier_session') text += ` (~${hoursLeft} h left)`;
-    else if (state === 'RECENTLY_LOADED') text += ` (${round1(doneNow)} sets today)`;
-    else if (state === 'RECOVERY_UNCERTAIN') text += ' (session time unknown)';
-    if (idx === 0 || state === 'LIKELY_READY') text += weekLeft > 0 ? ` · ${fmtSets(todayLeft > 0 ? todayLeft : weekLeft)} ${todayLeft > 0 ? 'LEFT TODAY' : 'LEFT THIS WEEK'}` : ' · WEEK DONE';
+    if (state === 'RECENTLY_LOADED' && source === 'earlier_session') text += L(` (~${hoursLeft} h left)`, ` (ещё ~${hoursLeft} ч)`);
+    else if (state === 'RECENTLY_LOADED') text += L(` (${round1(doneNow)} sets today)`, ` (${num(round1(doneNow))} подх. сегодня)`);
+    else if (state === 'RECOVERY_UNCERTAIN') text += L(' (session time unknown)', ' (время тренировки неизвестно)');
+    if (idx === 0 || state === 'LIKELY_READY') text += weekLeft > 0
+      ? L(` · ${fmtSets(todayLeft > 0 ? todayLeft : weekLeft)} ${todayLeft > 0 ? 'LEFT TODAY' : 'LEFT THIS WEEK'}`, ` · ЕЩЁ ${ruSets(todayLeft > 0 ? todayLeft : weekLeft).toUpperCase()} ${todayLeft > 0 ? 'СЕГОДНЯ' : 'НА НЕДЕЛЕ'}`)
+      : L(' · WEEK DONE', ' · НЕДЕЛЬНАЯ ЦЕЛЬ ВЫПОЛНЕНА');
     return { muscle, coef, state, source, hoursLeft, weekLeft, todayLeft, text };
   });
 
@@ -316,23 +338,23 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   if (pLine?.state === 'RECENTLY_LOADED' && pLine.source === 'earlier_session') {
     if (outcomes.get(exerciseId)?.softened) {
       softened = true;
-      findings.push({ status: 'acceptable', kind: 'recovery', text: `${muscleName(pLine.muscle)} trained recently (~${pLine.hoursLeft} h left by the heuristic), but your last overrides here performed as usual.` });
-    } else findings.push({ status: 'reconsider', kind: 'recovery', text: `${muscleName(pLine.muscle)} was trained recently — ~${pLine.hoursLeft} h left by the recovery heuristic.` });
+      findings.push({ status: 'acceptable', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} trained recently (~${pLine.hoursLeft} h left by the heuristic), but your last overrides here performed as usual.`, `${mRu(pLine.muscle)}: недавняя нагрузка (по эвристике ещё ~${pLine.hoursLeft} ч), но в прошлые разы, когда вы всё равно делали это упражнение, результат был обычным.`) });
+    } else findings.push({ status: 'reconsider', kind: 'recovery', text: L(`${muscleName(pLine.muscle)} was trained recently — ~${pLine.hoursLeft} h left by the recovery heuristic.`, `${mRu(pLine.muscle)}: недавняя нагрузка — по эвристике восстановления ещё ~${pLine.hoursLeft} ч.`) });
   } else if (pLine?.state === 'RECOVERY_UNCERTAIN') {
-    findings.push({ status: 'acceptable', kind: 'uncertain', text: `${muscleName(pLine.muscle)}: last session time unknown, so recovery is uncertain (assumed 18:00 or start time).` });
+    findings.push({ status: 'acceptable', kind: 'uncertain', text: L(`${muscleName(pLine.muscle)}: last session time unknown, so recovery is uncertain (assumed 18:00 or start time).`, `${mRu(pLine.muscle)}: время прошлой тренировки неизвестно, поэтому восстановление оценить трудно (принято 18:00 или время начала).`) });
   }
   const loadedSyn = lines.slice(1).filter((l) => l.state === 'RECENTLY_LOADED');
 
   // 2) Weekly volume.
-  if (pmw && pmw.status === 'over') findings.push({ status: 'reconsider', kind: 'volume', text: `${muscleName(pmw.muscle)} is above its weekly upper bound (${round1(pmw.completed)} / ${pmw.target.max}) — more sets add fatigue, little growth.` });
-  else if (pmw && pmw.status === 'done') findings.push({ status: 'acceptable', kind: 'volume', text: `${muscleName(pmw.muscle)} weekly target already met (${round1(pmw.completed)} / ${pmw.target.preferred}).` });
-  else if (pLine && pmw && pmw.todayShare > 0 && pLine.todayLeft <= 0 && pLine.state === 'LIKELY_READY') findings.push({ status: 'acceptable', kind: 'volume', text: `Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.` });
+  if (pmw && pmw.status === 'over') findings.push({ status: 'reconsider', kind: 'volume', text: L(`${muscleName(pmw.muscle)} is above its weekly upper bound (${round1(pmw.completed)} / ${pmw.target.max}) — more sets add fatigue, little growth.`, `${mRu(pmw.muscle)}: недельный объём выше верхней границы (${num(round1(pmw.completed))} / ${num(pmw.target.max)}) — новые подходы добавят утомление и мало что дадут для роста.`) });
+  else if (pmw && pmw.status === 'done') findings.push({ status: 'acceptable', kind: 'volume', text: L(`${muscleName(pmw.muscle)} weekly target already met (${round1(pmw.completed)} / ${pmw.target.preferred}).`, `${mRu(pmw.muscle)}: недельная цель уже выполнена (${num(round1(pmw.completed))} / ${num(pmw.target.preferred)}).`) });
+  else if (pLine && pmw && pmw.todayShare > 0 && pLine.todayLeft <= 0 && pLine.state === 'LIKELY_READY') findings.push({ status: 'acceptable', kind: 'volume', text: L(`Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.`, `${mRu(pmw.muscle)}: доля на сегодня уже выполнена — дальше по желанию.`) });
 
   // 3) Fatigue cost vs what this session already did.
   if (load && cost === 'high' && isHeavyLower(def, variation) && load.heavyLowerDone.length >= 2 && !isPriority(primary)) {
-    findings.push({ status: 'reconsider', kind: 'fatigue', text: `Lower body already heavily loaded this session (${load.heavyLowerDone.map((id) => registry.get(id)?.name.en ?? id).join(' + ')}) — another HIGH-cost lift adds a lot of fatigue for little extra.` });
+    findings.push({ status: 'reconsider', kind: 'fatigue', text: L(`Lower body already heavily loaded this session (${load.heavyLowerDone.map((id) => registry.get(id)?.name.en ?? id).join(' + ')}) — another HIGH-cost lift adds a lot of fatigue for little extra.`, `Низ тела в этой тренировке уже сильно нагружен (${load.heavyLowerDone.map((id) => ruName(registry.get(id), id)).join(' + ')}) — ещё одно упражнение с ВЫСОКИМ утомлением добавит много усталости и мало пользы.`) });
   } else if (load && cost === 'high' && load.level === 'heavy') {
-    findings.push({ status: 'acceptable', kind: 'fatigue', text: 'Demanding lift late in a heavy session — expect fewer reps than usual; earlier next time keeps it stronger.' });
+    findings.push({ status: 'acceptable', kind: 'fatigue', text: L('Demanding lift late in a heavy session — expect fewer reps than usual; earlier next time keeps it stronger.', 'Тяжёлое упражнение в конце тяжёлой тренировки — повторений, вероятно, будет меньше обычного; в следующий раз лучше поставить его раньше.') });
   }
 
   // 4) Order: cheap isolation of a synergist before a demanding compound still planned in this session.
@@ -345,22 +367,22 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
       return sm[0]?.muscle !== primary && sm.some((x) => x.muscle === primary);
     });
     if (blocked) {
-      findings.push({ status: 'reconsider', kind: 'order', text: `${muscleName(primary)} also works hard in ${registry.get(blocked.exerciseId)?.name.en ?? 'a planned press/pull'} (still to do) — do that first to keep its reps; isolation after it.` });
+      findings.push({ status: 'reconsider', kind: 'order', text: L(`${muscleName(primary)} also works hard in ${registry.get(blocked.exerciseId)?.name.en ?? 'a planned press/pull'} (still to do) — do that first to keep its reps; isolation after it.`, `${mRu(primary)}: большая нагрузка будет и в ${registry.get(blocked.exerciseId) ? `упражнении «${ruName(registry.get(blocked.exerciseId), '')}»` : 'запланированном жиме или тяге'} (ещё впереди) — сначала сделайте его, чтобы сохранить в нём повторения, а изолирующее упражнение — после.`) });
     } else if (!pending.length) {
       const host: Partial<Record<MuscleId, MuscleId[]>> = { triceps: ['chest'], front_delts: ['chest'], biceps: ['lats', 'upper_back'], rear_delts: ['upper_back'] };
       const h = (host[primary] ?? []).find((m) => {
         const mw = analysis.muscles.find((x) => x.muscle === m);
         return !!mw && !mw.todayBlocked && mw.todayLeft >= 2 && (load.muscles[m] ?? 0) < 1;
       });
-      if (h) findings.push({ status: 'acceptable', kind: 'order', text: `If you still plan ${muscleName(h).toLowerCase()} compounds today, doing them before ${muscleName(primary).toLowerCase()} isolation keeps their reps up.` });
+      if (h) findings.push({ status: 'acceptable', kind: 'order', text: L(`If you still plan ${muscleName(h).toLowerCase()} compounds today, doing them before ${muscleName(primary).toLowerCase()} isolation keeps their reps up.`, `Если сегодня ещё будут базовые упражнения (${mRuLow(h)}), лучше сделать их до изолирующего (${mRuLow(primary)}) — так в них сохранятся повторения.`) });
     }
   }
 
   // 5) Declining performance (this exact history, or the primary's main lifts).
   const key = progressionKey({ id: 'x', order: 0, exerciseId, exerciseConfidence: 'confirmed', equipmentId, equipmentConfidence: 'confirmed', variation, sets: [] } as WorkoutExercise, workout ?? ({ locationId: null } as Workout), def);
   const own = analysis.progression.find((p) => p.key === key);
-  if (own?.trend.cls === 'declining') findings.push({ status: 'acceptable', kind: 'decline', text: 'Performance on this exercise is declining — check load, rest and recovery; keep sets high-quality.' });
-  else if (pLine?.state === 'PERFORMANCE_DECLINING') findings.push({ status: 'acceptable', kind: 'decline', text: `${muscleName(pLine.muscle)} main lifts are declining — quality over extra sets.` });
+  if (own?.trend.cls === 'declining') findings.push({ status: 'acceptable', kind: 'decline', text: L('Performance on this exercise is declining — check load, rest and recovery; keep sets high-quality.', 'Результаты в этом упражнении снижаются — проверьте вес, отдых и восстановление; следите за качеством подходов.') });
+  else if (pLine?.state === 'PERFORMANCE_DECLINING') findings.push({ status: 'acceptable', kind: 'decline', text: L(`${muscleName(pLine.muscle)} main lifts are declining — quality over extra sets.`, `${mRu(pLine.muscle)}: результаты в основных упражнениях снижаются — качество важнее лишних подходов.`) });
 
   // Synergist recovery: depends on whether an alternative spares it.
   let alternatives: ChoiceAlternative[] = [];
@@ -369,10 +391,11 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   if (loadedSyn.length && primary) {
     const spare = sparingAlternatives(altCtx, primary, loadedSyn.map((l) => l.muscle));
     const names = loadedSyn.map((l) => `${muscleName(l.muscle).toLowerCase()}${l.source === 'this_session' ? ' (today)' : ''}`).join(', ');
+    const namesRu = loadedSyn.map((l) => `${mRuLow(l.muscle)}${l.source === 'this_session' ? ' (сегодня)' : ''}`).join(', ');
     if (spare.length) {
-      findings.push({ status: 'reconsider', kind: 'recovery', text: `${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.` });
+      findings.push({ status: 'reconsider', kind: 'recovery', text: L(`${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.`, `${mRu(primary)}: готово, но есть недавняя нагрузка: ${namesRu} — вариант без неё тренирует целевую мышцу не хуже.`) });
       if (wantAlt) alternatives = spare;
-    } else findings.push({ status: 'acceptable', kind: 'recovery', text: `${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.` });
+    } else findings.push({ status: 'acceptable', kind: 'recovery', text: L(`${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.`, `${mRu(primary)}: готово; недавняя нагрузка: ${namesRu}, и знакомого варианта без неё здесь нет.`) });
   }
 
   // Final status: worst finding; reason by fixed priority.
@@ -389,11 +412,11 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
 
   const why = findings.sort((a, b) => SEVERITY[b.status] - SEVERITY[a.status] || REASON_ORDER.indexOf(a.kind) - REASON_ORDER.indexOf(b.kind)).map((f) => f.text);
   if (status === 'good') {
-    if (pLine && pLine.todayLeft > 0) why.unshift(`${muscleName(pLine.muscle)} is ready with ${fmtSets(pLine.todayLeft)} left today.`);
-    if (cost === 'high' && position === 'FIRST HALF') why.push('Fatigue cost HIGH early in the session — a good point for it.');
+    if (pLine && pLine.todayLeft > 0) why.unshift(L(`${muscleName(pLine.muscle)} is ready with ${fmtSets(pLine.todayLeft)} left today.`, `${mRu(pLine.muscle)}: готово, на сегодня ещё ${ruSets(pLine.todayLeft)}.`));
+    if (cost === 'high' && position === 'FIRST HALF') why.push(L('Fatigue cost HIGH early in the session — a good point for it.', 'ВЫСОКОЕ утомление в начале тренировки — подходящий момент для такого упражнения.'));
   }
-  if (wantAlt && status !== 'good' && !alternatives.length) why.push('No better familiar option here today — continuing is reasonable.');
-  why.push(`Fatigue cost ${FATIGUE_LABEL[cost]} · position ${position}.`);
+  if (wantAlt && status !== 'good' && !alternatives.length) why.push(L('No better familiar option here today — continuing is reasonable.', 'Лучшего знакомого варианта здесь сегодня нет — продолжать вполне разумно.'));
+  why.push(L(`Fatigue cost ${FATIGUE_LABEL[cost]} · position ${position}.`, `Утомление: ${FATIGUE_LABEL[cost]} · место в тренировке: ${position === 'FIRST HALF' ? 'ПЕРВАЯ ПОЛОВИНА' : 'ВТОРАЯ ПОЛОВИНА'}.`));
 
   const hasHistory = history.some((w) => w.date < today);
   const confidence: ChoiceAssessment['confidence'] = !hasHistory || pLine?.state === 'RECOVERY_UNCERTAIN' ? 'low'
@@ -466,7 +489,7 @@ function sparingAlternatives(c: AltCtx, primary: MuscleId, loaded: MuscleId[]): 
   }).filter((x) => x.sessions >= 1);
   return pool.slice(0, 2).map((x) => ({
     exerciseId: x.d.id, equipmentId: x.equipmentId, kind: 'same_muscle', sessions: x.sessions,
-    why: `${x.d.name.en}: ${muscleName(primary).toLowerCase()} without the ${loaded.map((m) => muscleName(m).toLowerCase()).join(' / ')} load (${x.sessions} session${x.sessions === 1 ? '' : 's'} logged).`,
+    why: L(`${x.d.name.en}: ${muscleName(primary).toLowerCase()} without the ${loaded.map((m) => muscleName(m).toLowerCase()).join(' / ')} load (${x.sessions} session${x.sessions === 1 ? '' : 's'} logged).`, `${ruName(x.d, x.d.id)}: ${mRuLow(primary)} без нагрузки на ${loaded.map((m) => mRuLow(m)).join(' / ')} (записано тренировок: ${x.sessions}).`),
   }));
 }
 
@@ -480,7 +503,7 @@ function otherMuscleAlternatives(c: AltCtx, avoid: MuscleId | null): ChoiceAlter
     if (out.length >= 2) break;
     const pick = candidatePool(c, (d) => (d.contributions[mw.muscle] ?? 0) >= 0.75).filter((x) => x.sessions >= 1)[0];
     if (pick && !out.some((o) => o.exerciseId === pick.d.id)) {
-      out.push({ exerciseId: pick.d.id, equipmentId: pick.equipmentId, kind: 'other_muscle', sessions: pick.sessions, why: `${pick.d.name.en}: ${muscleName(mw.muscle).toLowerCase()} is ready with ${fmtSets(mw.todayLeft)} left today.` });
+      out.push({ exerciseId: pick.d.id, equipmentId: pick.equipmentId, kind: 'other_muscle', sessions: pick.sessions, why: L(`${pick.d.name.en}: ${muscleName(mw.muscle).toLowerCase()} is ready with ${fmtSets(mw.todayLeft)} left today.`, `${ruName(pick.d, pick.d.id)}: ${mRuLow(mw.muscle)} — готово, на сегодня ещё ${ruSets(mw.todayLeft)}.`) });
     }
   }
   return out;
@@ -489,7 +512,7 @@ function otherMuscleAlternatives(c: AltCtx, avoid: MuscleId | null): ChoiceAlter
 function cheaperAlternatives(c: AltCtx, primary: MuscleId, cost: FatigueCost): ChoiceAlternative[] {
   return candidatePool(c, (d) => (d.contributions[primary] ?? 0) >= 0.75 && FATIGUE_RANK[fatigueCostOf(d)] > FATIGUE_RANK[cost])
     .filter((x) => x.sessions >= 1).slice(0, 2)
-    .map((x) => ({ exerciseId: x.d.id, equipmentId: x.equipmentId, kind: 'same_muscle', sessions: x.sessions, why: `${x.d.name.en}: ${muscleName(primary).toLowerCase()} at a ${FATIGUE_LABEL[fatigueCostOf(x.d)].toLowerCase()} fatigue cost.` }));
+    .map((x) => ({ exerciseId: x.d.id, equipmentId: x.equipmentId, kind: 'same_muscle', sessions: x.sessions, why: L(`${x.d.name.en}: ${muscleName(primary).toLowerCase()} at a ${FATIGUE_LABEL[fatigueCostOf(x.d)].toLowerCase()} fatigue cost.`, `${ruName(x.d, x.d.id)}: ${mRuLow(primary)}, утомление ${FATIGUE_LABEL[fatigueCostOf(x.d)].toLowerCase()}.`) }));
 }
 
 function doFirstAlternatives(c: AltCtx, primary: MuscleId | null): ChoiceAlternative[] {
@@ -499,7 +522,7 @@ function doFirstAlternatives(c: AltCtx, primary: MuscleId | null): ChoiceAlterna
     const d = c.analysis.registry.get(e.exerciseId);
     if (!d || fatigueCostOf(d, e.variation, e.sets) === 'low') continue;
     if (primary && !significantMuscles(d, e.variation, 0.5).some((x) => x.muscle === primary)) continue;
-    out.push({ exerciseId: d.id, equipmentId: e.equipmentId, kind: 'do_first', sessions: c.counts.get(d.id) ?? 0, why: `${d.name.en} first (still planned), then this.` });
+    out.push({ exerciseId: d.id, equipmentId: e.equipmentId, kind: 'do_first', sessions: c.counts.get(d.id) ?? 0, why: L(`${d.name.en} first (still planned), then this.`, `Сначала «${ruName(d, d.id)}» (ещё в плане), затем это упражнение.`) });
   }
   return out.slice(0, 2);
 }
@@ -513,4 +536,6 @@ function pendingDoable(w: Workout | null, except: string): WorkoutExercise[] {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const fmtSets = (n: number) => `${Number.isInteger(n) ? n : round1(n)} SET${n === 1 ? '' : 'S'}`;
+/** The Russian twin of `fmtSets`, in lower case: "3 подхода", "1,5 подхода". */
+const ruSets = (n: number) => `${num(Number.isInteger(n) ? n : round1(n))} ${ruPlural(Number.isInteger(n) ? n : round1(n), 'подход', 'подхода', 'подходов')}`;
 const sizeRank = (m: MuscleId) => ({ large: 0, medium: 1, small: 2 })[MUSCLE_BY_ID[m].size];

@@ -13,6 +13,20 @@ import { loadStep } from '../../domain/increments';
 import { IconChevronDown, IconSearch } from '../components/icons';
 import { Badge, Button, Card, confirmAction, Empty, Input, NumInput, Page, Segmented, Table, Td, Why, cx, fmt, toast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { L, NP, KG, byLang, ruPlural } from '../../i18n';
+import type { ExerciseDef } from '../../domain/types';
+
+const REPS = () => L('reps', 'повт.');
+const BW = () => L('BW', 'свой вес');
+/** `loadUnitLabel()` gives the English unit; the Russian twin is looked up by it. */
+const unitLabel = (def: ExerciseDef | undefined, mode: string | undefined): string => {
+  const en = loadUnitLabel(def, mode);
+  const ru: Record<string, string> = {
+    'kg assistance': 'кг помощи', 'kg added': 'кг доп. веса', 'kg per side': 'кг на сторону', 'kg per dumbbell': 'кг одна гантель',
+    'kg total': 'кг всего', 'kg on stack': 'кг на блоке', 'kg plates': 'кг дисков', kg: 'кг',
+  };
+  return L(en, ru[en] ?? 'кг');
+};
 
 /**
  * Strength — simple on the surface: one recommendation per exercise history and one chart.
@@ -50,23 +64,23 @@ export function StrengthPage() {
 
   if (!a.progression.length) {
     return (
-      <Page title="Strength" subtitle="Per exercise and per machine.">
-        <Empty title="No strength history yet">Log working sets with weight and reps (and RIR or how the set felt). Recommendations get reliable after a few comparable sessions on the same exercise and machine.</Empty>
+      <Page title={L('Strength', 'Сила')} subtitle={L('Per exercise and per machine.', 'По упражнениям и тренажёрам.')}>
+        <Empty title={L('No strength history yet', 'Истории силы пока нет')}>{L('Log working sets with weight and reps (and RIR or how the set felt). Recommendations get reliable after a few comparable sessions on the same exercise and machine.', 'Записывайте рабочие подходы с весом и повторениями (и RIR или ощущение от подхода). Рекомендации становятся надёжными после нескольких сопоставимых тренировок с тем же упражнением на том же тренажёре.')}</Empty>
       </Page>
     );
   }
 
   return (
-    <Page title="Strength" subtitle="One recommendation per exercise. Each machine and configuration has its own history.">
+    <Page title={L('Strength', 'Сила')} subtitle={L('One recommendation per exercise. Each machine and configuration has its own history.', 'Одна рекомендация на упражнение. У каждого тренажёра и каждой настройки — своя история.')}>
       <ProgressTable />
       <div className="relative">
         <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-        <Input placeholder="Search exercise or machine" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+        <Input placeholder={L('Search exercise or machine', 'Поиск упражнения или тренажёра')} value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className={cx('space-y-4', sel && 'hidden lg:block')}>
-          {groups.length === 0 && <Empty title="No matches">Try another search.</Empty>}
+          {groups.length === 0 && <Empty title={L('No matches', 'Ничего не найдено')}>{L('Try another search.', 'Попробуйте другой запрос.')}</Empty>}
           {groups.map(([exerciseId, series]) => (
             <div key={exerciseId}>
               <h2 className="mb-1.5 px-1 text-sm font-semibold text-ink-900 dark:text-white">{names.ex(a.registry.get(exerciseId), exerciseId)}</h2>
@@ -78,7 +92,7 @@ export function StrengthPage() {
         </div>
         <div id="series-detail" className="scroll-mt-20 lg:sticky lg:top-4 lg:self-start">
           {sel ? <SeriesDetail p={sel} onBack={() => setSelected(null)} /> : (
-            <Card className="hidden lg:block"><p className="py-10 text-center text-sm text-ink-500">Select an exercise to see its chart and recommendation.</p></Card>
+            <Card className="hidden lg:block"><p className="py-10 text-center text-sm text-ink-500">{L('Select an exercise to see its chart and recommendation.', 'Выберите упражнение, чтобы увидеть график и рекомендацию.')}</p></Card>
           )}
         </div>
       </div>
@@ -86,7 +100,7 @@ export function StrengthPage() {
   );
 }
 
-const TREND_WORD: Record<ProgressionSeries['trend']['cls'], string> = { progressing: 'PROGRESSING', stable: 'STABLE', plateau: 'PLATEAU', declining: 'DECLINING', insufficient_data: 'MORE DATA' };
+const TREND_WORD: Record<ProgressionSeries['trend']['cls'], string> = byLang(() => ({ progressing: L('PROGRESSING', 'ПРОГРЕСС'), stable: L('STABLE', 'СТАБИЛЬНО'), plateau: L('PLATEAU', 'ПЛАТО'), declining: L('DECLINING', 'СНИЖЕНИЕ'), insufficient_data: L('MORE DATA', 'МАЛО ДАННЫХ') }));
 
 const isBodyweight = (p: ProgressionSeries) => p.loadMode === 'bodyweight_plus' && (p.current?.topWeight ?? 0) === 0;
 
@@ -101,7 +115,7 @@ function SeriesCard({ p, active, onClick }: { p: ProgressionSeries; active: bool
       <span className="min-w-0">
         <span className="block truncate text-xs text-ink-500">{p.scopeLabel}</span>
         <span className="block text-sm tabular-nums text-ink-900 dark:text-white">
-          {cur ? <>{bw || cur.topWeight == null ? '' : `${fmt(cur.topWeight, 2)} kg × `}{cur.topReps ?? '?'}{bw ? ' reps' : ''}</> : '—'}
+          {cur ? <>{bw || cur.topWeight == null ? '' : `${fmt(cur.topWeight, 2)} ${KG()} × `}{cur.topReps ?? '?'}{bw ? ` ${REPS()}` : ''}</> : '—'}
           {cur && <span className="text-xs text-ink-400"> · {formatDate(cur.date, { day: 'numeric', month: 'short' })}</span>}
         </span>
       </span>
@@ -120,7 +134,7 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
   const def = a.registry.get(p.exerciseId);
   const adv = adviceFor(p);
   const bw = isBodyweight(p);
-  const unit = loadUnitLabel(def, p.loadMode);
+  const unit = unitLabel(def, p.loadMode);
   const eq = p.equipmentId ? data.equipment.find((e) => e.id === p.equipmentId) : undefined;
   const lastGym = data.locations.find((l) => l.id === data.workouts.find((w) => w.id === p.current?.workoutId)?.locationId) ?? null;
   const inc = loadStep(eq, lastGym, def?.equipmentKind, p.loadMode).step;
@@ -136,10 +150,10 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={onBack} className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-accent-600 lg:hidden dark:text-accent-400">← All exercises</button>
+      <button type="button" onClick={onBack} className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-accent-600 lg:hidden dark:text-accent-400">{L('← All exercises', '← Все упражнения')}</button>
       <Card>
         <h2 className="text-base font-semibold text-ink-900 dark:text-white">{names.ex(def, p.exerciseId)}</h2>
-        <p className="text-xs text-ink-500">{p.scopeLabel} · {unit}{def ? ` · ${def.repRange[0]}–${def.repRange[1]} reps` : ''}</p>
+        <p className="text-xs text-ink-500">{p.scopeLabel} · {unit}{def ? ` · ${def.repRange[0]}–${def.repRange[1]} ${REPS()}` : ''}</p>
         <div className={cx('mt-3 rounded-xl border p-3', {
           increase: 'border-emerald-500/40 bg-emerald-500/5', keep: 'border-sky-500/30 bg-sky-500/5', reduce: 'border-amber-500/40 bg-amber-500/5',
           plateau: 'border-violet-500/30 bg-violet-500/5', not_enough_data: 'border-ink-200 bg-ink-50 dark:border-ink-700 dark:bg-ink-950',
@@ -149,14 +163,14 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
             <Badge tone={p.trend.cls === 'progressing' ? 'good' : p.trend.cls === 'declining' ? 'warn' : 'neutral'}>{TREND_WORD[p.trend.cls]}</Badge>
           </div>
           <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
-            <Num k="Previous" v={p.previous?.topWeight != null && !bw ? `${fmt(p.previous.topWeight, 2)} kg` : p.previous ? `${p.previous.topReps ?? '—'} reps` : '—'} />
-            <Num k="Current" v={p.current?.topWeight != null && !bw ? `${fmt(p.current.topWeight, 2)} kg` : p.current ? `${p.current.topReps ?? '—'} reps` : '—'} />
-            <Num k="Best reps" v={String(Math.max(0, ...p.sessions.flatMap((x) => x.sets.filter((q) => q.benchmark).map((q) => q.reps ?? 0))) || '—')} />
-            <Num k="Next" v={p.next.weight != null && !bw ? `${fmt(p.next.weight, 2)} kg` : bw ? 'BW' : '—'} />
-            <Num k="Reps" v={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} />
-            <Num k="Target RIR" v={String(p.next.rirTarget)} />
+            <Num k={L('Previous', 'Было')} v={p.previous?.topWeight != null && !bw ? `${fmt(p.previous.topWeight, 2)} ${KG()}` : p.previous ? `${p.previous.topReps ?? '—'} ${REPS()}` : '—'} />
+            <Num k={L('Current', 'Сейчас')} v={p.current?.topWeight != null && !bw ? `${fmt(p.current.topWeight, 2)} ${KG()}` : p.current ? `${p.current.topReps ?? '—'} ${REPS()}` : '—'} />
+            <Num k={L('Best reps', 'Макс. повт.')} v={String(Math.max(0, ...p.sessions.flatMap((x) => x.sets.filter((q) => q.benchmark).map((q) => q.reps ?? 0))) || '—')} />
+            <Num k={L('Next', 'Дальше')} v={p.next.weight != null && !bw ? `${fmt(p.next.weight, 2)} ${KG()}` : bw ? BW() : '—'} />
+            <Num k={L('Reps', 'Повт.')} v={`${p.next.repTarget[0]}–${p.next.repTarget[1]}`} />
+            <Num k={L('Target RIR', 'Цель RIR')} v={String(p.next.rirTarget)} />
           </dl>
-          <div className="mt-1"><Why label="Why"><p>{adv.text}</p>{!bw && <p>Smallest step {fmt(inc, 2)} kg.</p>}</Why></div>
+          <div className="mt-1"><Why label={L('Why', 'Почему')}><p>{adv.text}</p>{!bw && <p>{L(`Smallest step ${fmt(inc, 2)} kg.`, `Минимальный шаг ${fmt(inc, 2)} кг.`)}</p>}</Why></div>
         </div>
         {def?.variationFields?.includes('angle') && p.variantLabel == null && p.sessions.length > 0 && <AssignAngle p={p} name={names.ex(def, p.exerciseId)} />}
       </Card>
@@ -164,8 +178,8 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
 
       <Card>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold">History</span>
-          {!bw && <Segmented<ChartMode> size="sm" value={mode} onChange={setMode} options={[{ value: 'weight', label: 'Weight' }, { value: 'reps', label: 'Reps' }, { value: 'both', label: 'Both' }]} />}
+          <span className="text-sm font-semibold">{L('History', 'История')}</span>
+          {!bw && <Segmented<ChartMode> size="sm" value={mode} onChange={setMode} options={[{ value: 'weight', label: L('Weight', 'Вес') }, { value: 'reps', label: L('Reps', 'Повт.') }, { value: 'both', label: L('Both', 'Оба') }]} />}
         </div>
         {p.sessions.length >= 2 ? (
           <div className="h-56">
@@ -177,53 +191,53 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
                 {(mode !== 'weight' || bw) && <YAxis yAxisId="r" orientation={mode === 'both' && !bw ? 'right' : 'left'} tickLine={false} axisLine={false} allowDecimals={false} domain={['auto', 'auto']} />}
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
-                {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name="Top weight (kg)" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
-                {(mode !== 'weight' || bw) && <Line yAxisId="r" type="monotone" dataKey="reps" name="Reps (top set)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />}
+                {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name={L('Top weight (kg)', 'Лучший вес (кг)')} stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                {(mode !== 'weight' || bw) && <Line yAxisId="r" type="monotone" dataKey="reps" name={L('Reps (top set)', 'Повт. (лучший подход)')} stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />}
               </LineChart>
             </ResponsiveContainer>
           </div>
-        ) : <p className="text-xs text-ink-500">The chart appears after the second session.</p>}
-        {p.sessions.some((s) => !s.representative) && <p className="mt-1 text-[11px] text-ink-500">Sessions flagged as wrong weight, pain or broken technique are shown but not used to judge progress.</p>}
+        ) : <p className="text-xs text-ink-500">{L('The chart appears after the second session.', 'График появится после второй тренировки.')}</p>}
+        {p.sessions.some((s) => !s.representative) && <p className="mt-1 text-[11px] text-ink-500">{L('Sessions flagged as wrong weight, pain or broken technique are shown but not used to judge progress.', 'Тренировки с пометкой «не тот вес», «боль» или «нарушена техника» показаны, но в оценке прогресса не участвуют.')}</p>}
       </Card>
 
-      <Section title="Set-by-set feedback" hint="Every working set, as recorded">
+      <Section title={L('Set-by-set feedback', 'Отзывы по подходам')} hint={L('Every working set, as recorded', 'Все рабочие подходы, как записаны')}>
         <FeedbackTable p={p} />
       </Section>
 
-      <Section title="Your loads" hint={loadNote ?? 'Tap how sets felt to calibrate'}>
+      <Section title={L('Your loads', 'Ваши веса')} hint={loadNote ?? L('Tap how sets felt to calibrate', 'Отмечайте ощущения от подходов для калибровки')}>
         {loads.length ? (
           <ul className="space-y-1 text-xs">
             {loads.map((l) => (
               <li key={l.weight} className="flex items-center justify-between gap-2">
-                <span className="tabular-nums font-medium">{fmt(l.weight, 2)} kg <span className="font-normal text-ink-500">· {l.sets} set{l.sets === 1 ? '' : 's'}</span></span>
-                <Badge tone={{ right: 'good', too_easy: 'info', too_heavy: 'warn', mixed: 'neutral', no_feedback: 'neutral' }[l.verdict] as 'good'}>{{ right: 'feels right', too_easy: 'too easy', too_heavy: 'too heavy', mixed: 'mixed', no_feedback: 'not rated' }[l.verdict]}</Badge>
+                <span className="tabular-nums font-medium">{fmt(l.weight, 2)} {KG()} <span className="font-normal text-ink-500">· {NP(l.sets, ['set', 'sets'], ['подход', 'подхода', 'подходов'])}</span></span>
+                <Badge tone={{ right: 'good', too_easy: 'info', too_heavy: 'warn', mixed: 'neutral', no_feedback: 'neutral' }[l.verdict] as 'good'}>{{ right: L('feels right', 'в самый раз'), too_easy: L('too easy', 'слишком легко'), too_heavy: L('too heavy', 'слишком тяжело'), mixed: L('mixed', 'по-разному'), no_feedback: L('not rated', 'без оценки') }[l.verdict]}</Badge>
               </li>
             ))}
           </ul>
-        ) : <p className="text-xs text-ink-500">No loads yet.</p>}
-        <p className="mt-2 text-[11px] text-ink-500">Learned only for this exercise on this equipment and configuration — the same number on another machine can feel completely different.</p>
+        ) : <p className="text-xs text-ink-500">{L('No loads yet.', 'Весов пока нет.')}</p>}
+        <p className="mt-2 text-[11px] text-ink-500">{L('Learned only for this exercise on this equipment and configuration — the same number on another machine can feel completely different.', 'Относится только к этому упражнению на этом оборудовании и в этой настройке — то же число на другом тренажёре может ощущаться совсем иначе.')}</p>
       </Section>
 
-      <Section title="Personal bests">
+      <Section title={L('Personal bests', 'Личные рекорды')}>
         <PersonalBests p={p} bw={bw} />
       </Section>
 
-      <Section title="Effort & rest">
-        <Table head={['Date', 'Avg RIR', 'Avg rest', 'Trend note']} dense>
+      <Section title={L('Effort & rest', 'Усилие и отдых')}>
+        <Table head={[L('Date', 'Дата'), L('Avg RIR', 'Ср. RIR'), L('Avg rest', 'Ср. отдых'), L('Trend note', 'Примечание')]} dense>
           {[...p.sessions].reverse().map((s) => (
             <tr key={s.workoutId + s.date}>
               <Td right={false}>{formatDate(s.date, { day: 'numeric', month: 'short' })}</Td>
               <Td>{fmt(s.avgRir)}</Td>
               <Td>{formatDuration(s.restAvgSec)}</Td>
-              <Td className="whitespace-normal text-[11px]">{!s.representative ? 'not a benchmark' : s.fatigued ? 'high fatigue / short sleep' : ''}</Td>
+              <Td className="whitespace-normal text-[11px]">{!s.representative ? L('not a benchmark', 'не для сравнения') : s.fatigued ? L('high fatigue / short sleep', 'сильная усталость / мало сна') : ''}</Td>
             </tr>
           ))}
         </Table>
         <p className="mt-2 text-[11px] text-ink-500">{p.trend.evidence}</p>
       </Section>
 
-      <Section title="Warm-up" hint={warm.sets.length ? warm.sets.map((s) => `${s.weight != null ? `${fmt(s.weight, 2)} kg` : 'BW'} × ${s.reps}`).join(' → ') : 'none needed'}>
-        <p className="text-xs text-ink-500">{warm.reason} Assumes this is your first exercise for these muscles.</p>
+      <Section title={L('Warm-up', 'Разминка')} hint={warm.sets.length ? warm.sets.map((s) => `${s.weight != null ? `${fmt(s.weight, 2)} ${KG()}` : BW()} × ${s.reps}`).join(' → ') : L('none needed', 'не нужна')}>
+        <p className="text-xs text-ink-500">{warm.reason} {L('Assumes this is your first exercise for these muscles.', 'Расчёт для случая, когда это первое упражнение на эти мышцы.')}</p>
       </Section>
     </div>
   );
@@ -255,20 +269,20 @@ function FeedbackTable({ p }: { p: ProgressionSeries }) {
   return (
     <div className="scroll-x">
       <table className="w-full min-w-[340px] text-xs tabular-nums">
-        <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="px-4 py-1 sm:px-0">Date</th><th>kg</th><th>Reps</th><th>Felt</th><th className="pr-4 text-right sm:pr-0">RIR</th></tr></thead>
+        <thead><tr className="text-left text-[10px] uppercase tracking-wider text-ink-400"><th className="px-4 py-1 sm:px-0">{L('Date', 'Дата')}</th><th>{KG()}</th><th>{L('Reps', 'Повт.')}</th><th>{L('Felt', 'Ощущение')}</th><th className="pr-4 text-right sm:pr-0">RIR</th></tr></thead>
         <tbody className="divide-y divide-ink-100 dark:divide-ink-800">
           {rows.map(({ s, x, i }) => (
             <tr key={`${s.workoutId}-${i}`} className={cx(!x.benchmark && 'text-ink-400')}>
               <td className="px-4 py-1.5 sm:px-0">{i === 0 ? formatDate(s.date, { day: 'numeric', month: 'short' }) : ''}</td>
-              <td>{x.side ? `${x.side === 'left' ? 'L' : 'R'} ` : ''}{x.weight != null ? fmt(x.weight, 2) : 'BW'}</td>
+              <td>{x.side ? `${x.side === 'left' ? L('L', 'Л') : L('R', 'П')} ` : ''}{x.weight != null ? fmt(x.weight, 2) : BW()}</td>
               <td>{x.reps ?? '?'}</td>
-              <td className="max-w-[120px] truncate" title={x.excluded ? `Not a benchmark: ${x.excluded}` : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
+              <td className="max-w-[120px] truncate" title={x.excluded ? L(`Not a benchmark: ${x.excluded}`, `Не для сравнения: ${x.excluded}`) : ''}>{feelText(x)}{x.excluded ? ' ⚑' : ''}</td>
               <td className="pr-4 text-right sm:pr-0">{x.rir != null ? x.rir : x.effort ? <span className="text-ink-400">≈{formatRirRange(EFFORT_RIR_ESTIMATE[x.effort])}</span> : '—'}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="mt-2 px-4 text-[11px] text-ink-500 sm:px-0">⚑ = kept but not used to judge progress (wrong weight, pain or broken technique). ≈ = RIR estimated from how the set felt, not logged.</p>
+      <p className="mt-2 px-4 text-[11px] text-ink-500 sm:px-0">{L('⚑ = kept but not used to judge progress (wrong weight, pain or broken technique). ≈ = RIR estimated from how the set felt, not logged.', '⚑ = сохранён, но в оценке прогресса не участвует (не тот вес, боль или нарушена техника). ≈ = RIR оценён по ощущению от подхода, а не записан.')}</p>
     </div>
   );
 }
@@ -285,8 +299,8 @@ function PersonalBests({ p, bw }: { p: ProgressionSeries; bw: boolean }) {
   }
   return (
     <dl className="grid grid-cols-2 gap-3 text-xs">
-      {!bw && <div><dt className="text-ink-500">Heaviest</dt><dd className="text-sm font-semibold tabular-nums">{heaviest ? `${fmt(heaviest.weight, 2)} kg × ${heaviest.reps}` : '—'}</dd><dd className="text-ink-400">{heaviest ? formatDate(heaviest.date) : ''}</dd></div>}
-      <div><dt className="text-ink-500">Most reps</dt><dd className="text-sm font-semibold tabular-nums">{mostReps ? `${mostReps.reps}${mostReps.weight != null && !bw ? ` @ ${fmt(mostReps.weight, 2)} kg` : ''}` : '—'}</dd><dd className="text-ink-400">{mostReps ? formatDate(mostReps.date) : ''}</dd></div>
+      {!bw && <div><dt className="text-ink-500">{L('Heaviest', 'Самый тяжёлый')}</dt><dd className="text-sm font-semibold tabular-nums">{heaviest ? `${fmt(heaviest.weight, 2)} ${KG()} × ${heaviest.reps}` : '—'}</dd><dd className="text-ink-400">{heaviest ? formatDate(heaviest.date) : ''}</dd></div>}
+      <div><dt className="text-ink-500">{L('Most reps', 'Больше всего повт.')}</dt><dd className="text-sm font-semibold tabular-nums">{mostReps ? `${mostReps.reps}${mostReps.weight != null && !bw ? ` @ ${fmt(mostReps.weight, 2)} ${KG()}` : ''}` : '—'}</dd><dd className="text-ink-400">{mostReps ? formatDate(mostReps.date) : ''}</dd></div>
     </dl>
   );
 }
@@ -302,26 +316,26 @@ function AssignAngle({ p, name }: { p: ProgressionSeries; name: string }) {
   const n = p.sessions.length;
   const apply = async () => {
     if (angle == null) return;
-    if (!confirmAction(`Set ${angle}° on ${n} earlier session${n === 1 ? '' : 's'} of ${name} that had no angle? Weights and reps stay as logged; the angle can change how those sets are credited to upper chest / front delts. Each workout gets an audit note.`)) return;
+    if (!confirmAction(L(`Set ${angle}° on ${n} earlier session${n === 1 ? '' : 's'} of ${name} that had no angle? Weights and reps stay as logged; the angle can change how those sets are credited to upper chest / front delts. Each workout gets an audit note.`, `Указать ${angle}° для ${n} ${ruPlural(n, 'прошлой тренировки', 'прошлых тренировок', 'прошлых тренировок')} без угла (${name})? Вес и повторения останутся как записаны; угол может изменить, как эти подходы засчитываются верху груди / передним дельтам. В каждой тренировке появится запись об исправлении.`))) return;
     const def = a.registry.get(p.exerciseId);
     const changed = assignBenchAngle(data.workouts, { workoutIds: p.sessions.map((s) => s.workoutId), exerciseId: p.exerciseId, equipmentId: p.equipmentId, exerciseName: name, matches: (e, w) => progressionKey(e, w, def) === p.key }, angle, new Date().toISOString());
     for (const w of changed) await store.saveWorkout(w);
-    toast(`${changed.length} workout${changed.length === 1 ? '' : 's'} updated`);
+    toast(L(`${changed.length} workout${changed.length === 1 ? '' : 's'} updated`, `Обновлено тренировок: ${changed.length}`));
     setOpen(false);
   };
-  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-2 min-h-[40px] text-left text-xs text-accent-600 underline decoration-dotted underline-offset-2 dark:text-accent-400">These {n} session{n === 1 ? '' : 's'} have no bench angle — assign the angle you used</button>;
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-2 min-h-[40px] text-left text-xs text-accent-600 underline decoration-dotted underline-offset-2 dark:text-accent-400">{L(`These ${n} session${n === 1 ? '' : 's'} have no bench angle — assign the angle you used`, `Тренировок без угла скамьи: ${n} — укажите, какой был угол`)}</button>;
   return (
     <div className="mt-3 rounded-xl bg-ink-50 p-3 dark:bg-ink-950">
-      <div className="text-xs font-medium text-ink-700 dark:text-ink-200">Angle used in these {n} session{n === 1 ? '' : 's'}</div>
+      <div className="text-xs font-medium text-ink-700 dark:text-ink-200">{L(`Angle used in these ${n} session${n === 1 ? '' : 's'}`, `Угол скамьи в этих тренировках (${n})`)}</div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {(incline ? [15, 30, 45] : [0, 15, 30, 45]).map((d) => (
           <button key={d} type="button" onClick={() => setAngle(d)} aria-pressed={angle === d}
-            className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium', angle === d ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{d === 0 ? 'Flat' : `${d}°`}</button>
+            className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium', angle === d ? 'bg-accent-500 text-ink-950' : 'bg-white text-ink-600 shadow-sm dark:bg-ink-800 dark:text-ink-300')}>{d === 0 ? L('Flat', 'Горизонт.') : `${d}°`}</button>
         ))}
-        <div className="w-24"><NumInput value={angle != null && ![0, 15, 30, 45].includes(angle) ? angle : null} onChange={setAngle} placeholder="other °" /></div>
+        <div className="w-24"><NumInput value={angle != null && ![0, 15, 30, 45].includes(angle) ? angle : null} onChange={setAngle} placeholder={L('other °', 'другой °')} /></div>
       </div>
-      <p className="mt-2 text-[11px] text-ink-500">Only entries without an angle change. Weights and reps stay as logged; each workout records the correction.</p>
-      <div className="mt-2 flex gap-2"><Button size="sm" variant="primary" disabled={angle == null} onClick={apply}>Apply</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button></div>
+      <p className="mt-2 text-[11px] text-ink-500">{L('Only entries without an angle change. Weights and reps stay as logged; each workout records the correction.', 'Меняются только записи без угла. Вес и повторения остаются как записаны; в каждой тренировке сохраняется запись об исправлении.')}</p>
+      <div className="mt-2 flex gap-2"><Button size="sm" variant="primary" disabled={angle == null} onClick={apply}>{L('Apply', 'Применить')}</Button><Button size="sm" variant="ghost" onClick={() => setOpen(false)}>{L('Cancel', 'Отмена')}</Button></div>
     </div>
   );
 }
@@ -338,9 +352,9 @@ function BodyContext({ p, kind, repTop }: { p: ProgressionSeries; kind: 'system'
   const advice = pullUpLoadingAdvice(p, repTop);
   return (
     <Card>
-      <div className="mb-2 text-sm font-semibold">Body weight</div>
+      <div className="mb-2 text-sm font-semibold">{L('Body weight', 'Вес тела')}</div>
       {/* Short headers so all columns (incl. the estimated total) fit on a 390 px phone. */}
-      <Table dense head={['Date', 'Body', kind === 'system' ? (p.loadMode === 'assisted' ? '− Assist' : '+ Belt') : 'Bar', 'Reps', ...(kind === 'system' ? ['≈ Total'] : [])]}>
+      <Table dense head={[L('Date', 'Дата'), L('Body', 'Тело'), kind === 'system' ? (p.loadMode === 'assisted' ? L('− Assist', '− Помощь') : L('+ Belt', '+ Пояс')) : L('Bar', 'Штанга'), L('Reps', 'Повт.'), ...(kind === 'system' ? [L('≈ Total', '≈ Всего')] : [])]}>
         {rows.map((r) => (
           <tr key={r.workoutId}>
             <Td right={false}>{formatDate(r.date, { day: 'numeric', month: 'short' })}</Td>
@@ -353,7 +367,7 @@ function BodyContext({ p, kind, repTop }: { p: ProgressionSeries; kind: 'system'
       </Table>
       {note && <p className="mt-2 text-xs text-ink-600 dark:text-ink-300">{note}</p>}
       {advice && <p className="mt-1 text-xs font-medium text-accent-700 dark:text-accent-300">{advice}</p>}
-      <p className="mt-1 text-[11px] text-ink-400">kg. Body = latest weigh-in before each session{kind === 'system' ? (p.loadMode === 'assisted' ? '; ≈ total = body − assistance, an estimate' : '; ≈ total = body + belt, an estimate') : '; never added to the bar'}. Reps = best set. * weigh-in older than 7 days.</p>
+      <p className="mt-1 text-[11px] text-ink-400">{L('kg. Body = latest weigh-in before each session', 'кг. Тело = последнее взвешивание перед тренировкой')}{kind === 'system' ? (p.loadMode === 'assisted' ? L('; ≈ total = body − assistance, an estimate', '; ≈ всего = тело − помощь, оценка') : L('; ≈ total = body + belt, an estimate', '; ≈ всего = тело + пояс, оценка')) : L('; never added to the bar', '; к штанге не прибавляется')}{L('. Reps = best set. * weigh-in older than 7 days.', '. Повт. = лучший подход. * взвешивание старше 7 дней.')}</p>
     </Card>
   );
 }
@@ -367,10 +381,10 @@ function ProgressTable() {
   if (!rows.length) return null;
   const reps = (p: ProgressionSeries) => p.sessions.at(-1)?.indexKind === 'reps';
   const val = (p: ProgressionSeries, w: number | null | undefined, idx: number | undefined) =>
-    reps(p) ? (idx != null ? `${fmt(idx)} reps` : '—') : w != null ? `${fmt(w, 2)} kg` : '—';
+    reps(p) ? (idx != null ? `${fmt(idx)} ${REPS()}` : '—') : w != null ? `${fmt(w, 2)} ${KG()}` : '—';
   return (
     <Card padded={false}>
-      <div className="flex items-baseline justify-between gap-2 px-4 pt-3 sm:px-5"><span className="text-sm font-semibold">Progress vs baseline</span><span className="text-[10px] uppercase tracking-wider text-ink-400">first 4 weeks → last 4</span></div>
+      <div className="flex items-baseline justify-between gap-2 px-4 pt-3 sm:px-5"><span className="text-sm font-semibold">{L('Progress vs baseline', 'Прогресс от базового уровня')}</span><span className="text-[10px] uppercase tracking-wider text-ink-400">{L('first 4 weeks → last 4', 'первые 4 нед. → последние 4')}</span></div>
       <ul className="mt-1 divide-y divide-ink-100 dark:divide-ink-800">
         {rows.map(({ p, s }) => {
           // Which machine / configuration: two pec decks must never look like the same row.
@@ -382,14 +396,14 @@ function ProgressTable() {
                 <div className="text-xs tabular-nums text-ink-500">{val(p, s.baseline?.topWeight, s.baseline?.index)} → {s.current ? val(p, s.current.topWeight, s.current.index) : '—'}</div>
               </div>
               <div className="shrink-0 text-right">
-                <div className={cx('text-base font-semibold tabular-nums', s.pct == null ? 'text-ink-400' : s.pct >= 2 ? 'text-emerald-600 dark:text-emerald-400' : s.pct <= -2 ? 'text-amber-600 dark:text-amber-400' : 'text-ink-900 dark:text-white')}>{s.pct == null ? 'MORE DATA' : `${s.pct > 0 ? '+' : ''}${fmt(s.pct)}%`}</div>
-                <div className="text-[10px] uppercase tracking-wider text-ink-400">{s.pct == null ? '' : reps(p) ? 'reps' : 'est. strength'}</div>
+                <div className={cx('text-base font-semibold tabular-nums', s.pct == null ? 'text-ink-400' : s.pct >= 2 ? 'text-emerald-600 dark:text-emerald-400' : s.pct <= -2 ? 'text-amber-600 dark:text-amber-400' : 'text-ink-900 dark:text-white')}>{s.pct == null ? L('MORE DATA', 'МАЛО ДАННЫХ') : `${s.pct > 0 ? '+' : ''}${fmt(s.pct)}%`}</div>
+                <div className="text-[10px] uppercase tracking-wider text-ink-400">{s.pct == null ? '' : reps(p) ? REPS() : L('est. strength', 'оценка силы')}</div>
               </div>
             </li>
           );
         })}
       </ul>
-      <div className="px-4 pb-3 sm:px-5"><Why label="How"><p>% = estimated strength on that exact machine and setup: weight, reps and RIR of the best clean set (RIR-adjusted Epley), median of the last ≤ 3 sessions in the last 4 weeks vs the first 4 weeks of that history (≥ 2 sessions each). Bodyweight work ("reps") uses reps + RIR instead. The kg shown are the median top weights. Wrong-weight, pain and technique-issue sets never count. An estimate of strength, not muscle growth.</p></Why></div>
+      <div className="px-4 pb-3 sm:px-5"><Why label={L('How', 'Как считается')}><p>{L('% = estimated strength on that exact machine and setup: weight, reps and RIR of the best clean set (RIR-adjusted Epley), median of the last ≤ 3 sessions in the last 4 weeks vs the first 4 weeks of that history (≥ 2 sessions each). Bodyweight work ("reps") uses reps + RIR instead. The kg shown are the median top weights. Wrong-weight, pain and technique-issue sets never count. An estimate of strength, not muscle growth.', '% = оценка силы именно на этом тренажёре и в этой настройке: вес, повторения и RIR лучшего чистого подхода (формула Эпли с поправкой на RIR), медиана последних ≤ 3 тренировок за последние 4 недели против первых 4 недель этой истории (не менее 2 тренировок в каждом периоде). Для упражнений с весом тела («повт.») вместо этого берутся повторения + RIR. Показанные кг — медианы лучших весов. Подходы с не тем весом, болью или нарушенной техникой не учитываются. Это оценка силы, а не роста мышц.')}</p></Why></div>
     </Card>
   );
 }

@@ -378,3 +378,16 @@ describe('F.7 personal bias: effort answers vs the next set', () => {
     expect(crossCheck(set(60, 12, 2), undefined)).toMatchObject({ use: 'reported' });
   });
 });
+
+describe('step 0 review: effort tap on a set from before Part 6', () => {
+  it('a set marked with the old Fail chip can be changed to another answer (the mark is cleared)', () => {
+    const old = bare(60, 10, { toFailure: true });
+    expect(effortTapOf(old)).toBe('failed');
+    const next = { ...old, ...effortTapPatch(old, 'good') };
+    expect(effortTapOf(next)).toBe('good');
+    expect(next.toFailure).toBeUndefined();
+    // Tapping FAILED again on such a set clears the answer completely.
+    const cleared = { ...old, ...effortTapPatch(old, 'failed') };
+    expect(effortTapOf(cleared)).toBeNull();
+  });
+});

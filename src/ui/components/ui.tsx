@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
-import { getLang, L } from '../../i18n';
+import { getLang, L, num } from '../../i18n';
 import type { TargetConfidence } from '../../domain/types';
 import { IconChevronDown, IconInfo, IconX } from './icons';
 
@@ -132,12 +132,12 @@ export function Stepper({ value, onChange, step = 1, min = 0, label, suffix }: {
   const bump = (d: number) => onChange(Math.max(min, Math.round(((value ?? 0) + d) * 100) / 100));
   return (
     <div className="flex h-12 items-stretch overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700">
-      <button type="button" aria-label={`Decrease ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(-step)}>−</button>
+      <button type="button" aria-label={L(`Decrease ${label ?? ''}`, `Уменьшить: ${label ?? ''}`)} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(-step)}>−</button>
       <div className="relative min-w-0 flex-1">
         <NumInput value={value} onChange={onChange} className="h-full rounded-none border-0 px-1 text-base font-semibold focus:ring-0 dark:bg-ink-950" aria-label={label} />
         {suffix && <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-400">{suffix}</span>}
       </div>
-      <button type="button" aria-label={`Increase ${label ?? ''}`} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(step)}>+</button>
+      <button type="button" aria-label={L(`Increase ${label ?? ''}`, `Увеличить: ${label ?? ''}`)} className="w-8 shrink-0 bg-ink-50 text-xl text-ink-500 active:bg-ink-200 dark:bg-ink-850 dark:active:bg-ink-700 min-[360px]:w-10 min-[380px]:w-11" onClick={() => bump(step)}>+</button>
     </div>
   );
 }
@@ -186,8 +186,8 @@ export function Badge({ tone = 'neutral', children, className, title }: { tone?:
 }
 
 export function ConfidenceBadge({ c, provisional }: { c: TargetConfidence; provisional?: boolean }) {
-  if (provisional) return <Badge tone="warn" title="Learning Mode — reference value, not individualized">Provisional</Badge>;
-  return <Badge tone={c === 'high' ? 'good' : c === 'moderate' ? 'info' : 'neutral'} title="Confidence in this target">{c} confidence</Badge>;
+  if (provisional) return <Badge tone="warn" title={L('Learning Mode — reference value, not individualized', 'Режим знакомства — ориентир, а не индивидуальное значение')}>{L('Provisional', 'Предварит.')}</Badge>;
+  return <Badge tone={c === 'high' ? 'good' : c === 'moderate' ? 'info' : 'neutral'} title={L('Confidence in this target', 'Уверенность в этой цели')}>{L(`${c} confidence`, `увер.: ${c === 'high' ? 'высокая' : c === 'moderate' ? 'средняя' : 'низкая'}`)}</Badge>;
 }
 
 export function Stat({ label, value, sub, tone }: { label: ReactNode; value: ReactNode; sub?: ReactNode; tone?: 'good' | 'warn' | 'bad' }) {
@@ -213,13 +213,13 @@ export function VolumeBar({ completed, min, preferred, max, uncertain = 0, heigh
     <div className="relative w-full rounded-full bg-ink-100 dark:bg-ink-800" style={{ height }}>
       <div className={cx('absolute inset-y-0 left-0 rounded-full opacity-40', color)} style={{ width: pct(completed) }} />
       <div className={cx('absolute inset-y-0 left-0 rounded-full', color)} style={{ width: pct(certain) }} />
-      {min > 0 && min < preferred && <div className="absolute -top-0.5 h-[calc(100%+4px)] w-px bg-ink-400/70 dark:bg-ink-500" style={{ left: pct(min) }} title={`Lower end ${min}`} />}
-      <div className="absolute -top-1 h-[calc(100%+8px)] w-0.5 rounded bg-ink-900 dark:bg-white" style={{ left: pct(preferred) }} title={`Target ${preferred}`} />
+      {min > 0 && min < preferred && <div className="absolute -top-0.5 h-[calc(100%+4px)] w-px bg-ink-400/70 dark:bg-ink-500" style={{ left: pct(min) }} title={L(`Lower end ${min}`, `Нижняя граница ${num(min)}`)} />}
+      <div className="absolute -top-1 h-[calc(100%+8px)] w-0.5 rounded bg-ink-900 dark:bg-white" style={{ left: pct(preferred) }} title={L(`Target ${preferred}`, `Цель ${num(preferred)}`)} />
     </div>
   );
 }
 
-export function Why({ children, label = 'Why?' }: { children: ReactNode; label?: string }) {
+export function Why({ children, label = L('Why?', 'Почему?') }: { children: ReactNode; label?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
@@ -333,7 +333,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
       <div className={cx('relative flex max-h-[92vh] w-full flex-col rounded-t-3xl border border-ink-200 bg-white shadow-2xl dark:border-ink-800 dark:bg-ink-900 sm:rounded-3xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}>
         <div className="flex items-center justify-between gap-3 border-b border-ink-100 px-5 py-2.5 dark:border-ink-800">
           <h3 id={id} className="text-base font-semibold text-ink-900 dark:text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label="Close"><IconX size={20} /></button>
+          <button type="button" onClick={onClose} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-ink-500 hover:bg-ink-100 dark:hover:bg-ink-800" aria-label={L('Close', 'Закрыть')}><IconX size={20} /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-ink-100 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-ink-800">{footer}</div>}

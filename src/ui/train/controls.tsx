@@ -105,10 +105,12 @@ export function WeightControl({ value, onChange, step, onStepClick, unit }: { va
     settle.current = window.setTimeout(() => {
       const target = Math.round(el.scrollLeft / TICK) * TICK;
       if (Math.abs(el.scrollLeft - target) > 0.75) el.scrollTo({ left: target, behavior: 'smooth' });
-      window.setTimeout(() => { byUser.current = false; }, 220);
+      window.setTimeout(() => { byUser.current = false; settle.current = null; }, 220);
     }, 140);
   };
   const grab = () => { byUser.current = true; };
+  // A touch that did not move the ruler must not leave it deaf to later value changes.
+  const release = () => { window.setTimeout(() => { if (!settle.current) byUser.current = false; }, 260); };
   useEffect(() => () => { if (settle.current) window.clearTimeout(settle.current); }, []);
 
   const major = step * 5;
@@ -129,7 +131,7 @@ export function WeightControl({ value, onChange, step, onStepClick, unit }: { va
         <button type="button" data-testid="weight-plus" className={stepBtn} aria-label={L(`Increase weight by ${num(step)} kg`, `Увеличить вес на ${num(step)} кг`)} onClick={() => onChange(stepFrom(value, step, 1))}>+{num(step)}</button>
       </div>
       <div className="relative mt-1 h-11" aria-hidden>
-        <div ref={ref} data-testid="weight-ruler" className="t-ruler absolute inset-0 overflow-x-scroll" onScroll={onScroll} onPointerDown={grab} onTouchStart={grab} onWheel={grab}>
+        <div ref={ref} data-testid="weight-ruler" className="t-ruler absolute inset-0 overflow-x-scroll" onScroll={onScroll} onPointerDown={grab} onTouchStart={grab} onWheel={grab} onPointerUp={release} onTouchEnd={release} onPointerCancel={release}>
           <div className="relative h-full" style={{ width: width + pad * 2 }}>
             <div className="t-ruler-track absolute top-0 h-6" style={{ left: pad, width: width + 2 }} />
             {labels.map((v) => (

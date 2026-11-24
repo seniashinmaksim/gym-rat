@@ -3,6 +3,7 @@ import type { AppData } from './appdata';
 import { addDays, diffDays, type WeekRange } from './dates';
 import { mean, median, type WeekBucket } from './history';
 import { TRACKED_MUSCLES, muscleName } from './muscles';
+import { L, byLang, getLang, num, ruPlural } from '../i18n/core';
 import { exerciseLabel, type Registry } from './registry';
 import { adviceFor, buildProgression, type ProgressionSeries } from './progression';
 import { failureImpliedRir, failureProfile, type FailureProfile } from './failure';
@@ -32,10 +33,10 @@ export function restAnalysis(workouts: Workout[], registry: Registry) {
   const byEx = new Map<string, number[]>();
   const betweenExercises: number[] = [];
   const buckets: { label: string; lo: number; hi: number; vals: number[] }[] = [
-    { label: '< 90 s', lo: 0, hi: 90, vals: [] },
-    { label: '90–150 s', lo: 90, hi: 150, vals: [] },
-    { label: '150–240 s', lo: 150, hi: 240, vals: [] },
-    { label: '> 240 s', lo: 240, hi: Infinity, vals: [] },
+    { label: L('< 90 s', '< 90 с'), lo: 0, hi: 90, vals: [] },
+    { label: L('90–150 s', '90–150 с'), lo: 90, hi: 150, vals: [] },
+    { label: L('150–240 s', '150–240 с'), lo: 150, hi: 240, vals: [] },
+    { label: L('> 240 s', '> 240 с'), lo: 240, hi: Infinity, vals: [] },
   ];
   for (const w of workouts) {
     for (const ex of w.exercises) {
@@ -116,28 +117,30 @@ export function weeklyReport(bucket: WeekBucket, a: Analysis, data: AppData): We
     const prevBest = before.length ? Math.max(...before.slice(-4).map((s) => s.index as number)) : null;
     const wkBest = Math.max(...weekSessions.map((s) => s.index as number));
     if (prevBest == null) continue;
-    const label = exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId);
-    if (wkBest > prevBest * 1.005) progressed.push({ exerciseId: p.exerciseId, scope: p.scopeLabel, evidence: `${label}: index ${wkBest.toFixed(1)} vs recent best ${prevBest.toFixed(1)}` });
-    else if (wkBest < prevBest * 0.95) declined.push({ exerciseId: p.exerciseId, scope: p.scopeLabel, evidence: `${label}: index ${wkBest.toFixed(1)} vs recent best ${prevBest.toFixed(1)} (−${(((prevBest - wkBest) / prevBest) * 100).toFixed(0)}%)` });
+    const label = exerciseLabel(a.registry.get(p.exerciseId), getLang(), p.exerciseId);
+    if (wkBest > prevBest * 1.005) progressed.push({ exerciseId: p.exerciseId, scope: p.scopeLabel, evidence: L(`${label}: index ${wkBest.toFixed(1)} vs recent best ${prevBest.toFixed(1)}`, `${label}: индекс ${num(wkBest, 1)} против недавнего лучшего ${num(prevBest, 1)}`) });
+    else if (wkBest < prevBest * 0.95) declined.push({ exerciseId: p.exerciseId, scope: p.scopeLabel, evidence: L(`${label}: index ${wkBest.toFixed(1)} vs recent best ${prevBest.toFixed(1)} (−${(((prevBest - wkBest) / prevBest) * 100).toFixed(0)}%)`, `${label}: индекс ${num(wkBest, 1)} против недавнего лучшего ${num(prevBest, 1)} (−${(((prevBest - wkBest) / prevBest) * 100).toFixed(0)}%)`) });
   }
   const logs = data.daily.filter((d) => inWeek(d.date));
   const recoveryNotes: string[] = [];
   const sleep = logs.map((l) => l.sleepHours).filter((x): x is number => x != null);
-  if (sleep.length) recoveryNotes.push(`Average logged sleep ${mean(sleep).toFixed(1)} h over ${sleep.length} night(s).`);
+  if (sleep.length) recoveryNotes.push(L(`Average logged sleep ${mean(sleep).toFixed(1)} h over ${sleep.length} night(s).`, `Средний записанный сон ${num(mean(sleep), 1)} ч за ${sleep.length} ${ruPlural(sleep.length, 'ночь', 'ночи', 'ночей')}.`));
   const fatigue = [...logs.map((l) => l.fatigue), ...bucket.workouts.map((w) => w.wellness?.fatigue)].filter((x): x is number => x != null);
-  if (fatigue.length) recoveryNotes.push(`Average fatigue ${mean(fatigue).toFixed(1)}/5.`);
-  if (!sleep.length && !fatigue.length) recoveryNotes.push('No sleep or fatigue data logged this week.');
-  if (declined.length >= 2) recoveryNotes.push(`${declined.length} exercises performed noticeably below recent bests.`);
+  if (fatigue.length) recoveryNotes.push(L(`Average fatigue ${mean(fatigue).toFixed(1)}/5.`, `Средняя усталость ${num(mean(fatigue), 1)}/5.`));
+  if (!sleep.length && !fatigue.length) recoveryNotes.push(L('No sleep or fatigue data logged this week.', 'Данных о сне и усталости за эту неделю нет.'));
+  if (declined.length >= 2) recoveryNotes.push(L(`${declined.length} exercises performed noticeably below recent bests.`, `Упражнений с результатом заметно ниже недавних лучших: ${declined.length}.`));
 
   const reached = rows.filter((r) => r.result === 'met' || r.result === 'excess').map((r) => r.muscle);
   const short = rows.filter((r) => r.result === 'short').map((r) => r.muscle);
   const excessive = rows.filter((r) => r.result === 'excess').map((r) => r.muscle);
   const recommendations: string[] = [];
-  if (short.length) recommendations.push(`${short.slice(0, 3).map((m) => muscleName(m)).join(', ')} finished below the lower end of their range — give them priority early in the following week (without cramming).`);
-  if (excessive.length) recommendations.push(`${excessive.map((m) => muscleName(m)).join(', ')} went past the diminishing-returns range. That isn't harmful, but some of those sets would likely do more for muscles that are short.`);
-  if (declined.length >= 2 && fatigue.length && mean(fatigue) >= 3.5) recommendations.push('Several declines alongside high fatigue — keep volume steady rather than adding sets next week.');
-  if (bucket.workouts.length === 0) recommendations.push('No sessions this week. Missing volume is not a failure — resume normally rather than compensating with extra sets.');
-  if (!recommendations.length) recommendations.push('Volume distribution looked reasonable. Keep progressing loads/reps on your main exercises.');
+  if (short.length) recommendations.push(L(`${short.slice(0, 3).map((m) => muscleName(m, getLang())).join(', ')} finished below the lower end of their range — give them priority early in the following week (without cramming).`,
+    `${short.slice(0, 3).map((m) => muscleName(m, getLang())).join(', ')}: неделя закончилась ниже нижней границы диапазона — в начале следующей недели займитесь ими в первую очередь (не пытаясь наверстать всё сразу).`));
+  if (excessive.length) recommendations.push(L(`${excessive.map((m) => muscleName(m, getLang())).join(', ')} went past the diminishing-returns range. That isn't harmful, but some of those sets would likely do more for muscles that are short.`,
+    `${excessive.map((m) => muscleName(m, getLang())).join(', ')}: объём вышел за диапазон убывающей отдачи. Это не вредно, но часть этих подходов, вероятно, принесла бы больше пользы отстающим мышцам.`));
+  if (declined.length >= 2 && fatigue.length && mean(fatigue) >= 3.5) recommendations.push(L('Several declines alongside high fatigue — keep volume steady rather than adding sets next week.', 'Несколько снижений на фоне высокой усталости — на следующей неделе держите объём прежним, не добавляйте подходы.'));
+  if (bucket.workouts.length === 0) recommendations.push(L('No sessions this week. Missing volume is not a failure — resume normally rather than compensating with extra sets.', 'На этой неделе тренировок не было. Пропущенный объём — не провал: продолжайте как обычно, не компенсируя лишними подходами.'));
+  if (!recommendations.length) recommendations.push(L('Volume distribution looked reasonable. Keep progressing loads/reps on your main exercises.', 'Распределение объёма выглядело разумно. Продолжайте повышать вес и повторения в основных упражнениях.'));
   const failure = failureProfile({ workouts: stripPlanned(bucket.workouts) }, bucket.range, a.registry);
   return {
     range: bucket.range, sessions: bucket.workouts.length, totalWorkingSets: bucket.volume.totalWorkingSets, rows, reached, short, excessive,
@@ -168,12 +171,12 @@ export function weeklySummary(report: WeeklyReport, a: Analysis, progression: Pr
     .filter((r) => r.left > 0)
     .sort((x, y) => y.left - x.left);
   const inWeek = (d: string) => d >= report.range.start && d <= report.range.end;
-  const out: WeeklySummary = { behind, progressing: report.progressed.map((p) => `${exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId)} (${p.scope})`), increase: [], keep: [], reduce: [], plateaus: [], failureLine: report.failure?.line ?? null };
+  const out: WeeklySummary = { behind, progressing: report.progressed.map((p) => `${exerciseLabel(a.registry.get(p.exerciseId), getLang(), p.exerciseId)} (${p.scope})`), increase: [], keep: [], reduce: [], plateaus: [], failureLine: report.failure?.line ?? null };
   for (const p of progression) {
     if (!p.sessions.some((s) => inWeek(s.date))) continue;
-    const name = `${exerciseLabel(a.registry.get(p.exerciseId), 'en', p.exerciseId)} (${p.scopeLabel})`;
+    const name = `${exerciseLabel(a.registry.get(p.exerciseId), getLang(), p.exerciseId)} (${p.scopeLabel})`;
     const adv = adviceFor(p);
-    const w = p.next.weight != null ? ` → ${p.next.weight} kg` : '';
+    const w = p.next.weight != null ? L(` → ${p.next.weight} kg`, ` → ${num(p.next.weight)} кг`) : '';
     if (adv.kind === 'increase') out.increase.push(name + w);
     else if (adv.kind === 'reduce') out.reduce.push(name + w);
     else if (adv.kind === 'plateau') out.plateaus.push(name);
@@ -205,7 +208,8 @@ export function buildSnapshot(bucket: WeekBucket, targets: Record<MuscleId, Musc
     targets: t,
     effective,
     sessions: bucket.workouts.length,
-    coefficientNote: `Quality model RIR credits [${data.settings.quality.rirCredit.join(', ')}], unknown RIR ${data.settings.quality.unknownRirCredit}; ${data.exerciseOverrides.length} coefficient override(s).`,
+    coefficientNote: L(`Quality model RIR credits [${data.settings.quality.rirCredit.join(', ')}], unknown RIR ${data.settings.quality.unknownRirCredit}; ${data.exerciseOverrides.length} coefficient override(s).`,
+      `Модель качества: зачёт по RIR [${data.settings.quality.rirCredit.map((x) => num(x)).join('; ')}], RIR неизвестен — ${num(data.settings.quality.unknownRirCredit)}; изменённых коэффициентов: ${data.exerciseOverrides.length}.`),
   };
 }
 
@@ -242,7 +246,13 @@ export interface BaselineReport {
   dataQuality: string[];
 }
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW: string[] = byLang(() => [L('Sun', 'Вс'), L('Mon', 'Пн'), L('Tue', 'Вт'), L('Wed', 'Ср'), L('Thu', 'Чт'), L('Fri', 'Пт'), L('Sat', 'Сб')]);
+
+/** Trend class as shown in a sentence ("insufficient data" / «мало данных»). */
+function trendClsText(cls: string): string {
+  const ru: Record<string, string> = { progressing: 'прогресс', stable: 'стабильно', plateau: 'возможное плато', declining: 'снижение', insufficient_data: 'мало данных' };
+  return L(cls.replace('_', ' '), ru[cls] ?? cls.replace('_', ' '));
+}
 
 export function baselineReport(data: AppData, a: Analysis): BaselineReport | null {
   const start = a.learning.startDate;
@@ -298,7 +308,7 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
     }
     const g = [...groups].sort();
     for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
-      const k = `${muscleName(g[i] as MuscleId)} + ${muscleName(g[j] as MuscleId)}`;
+      const k = `${muscleName(g[i] as MuscleId, getLang())} + ${muscleName(g[j] as MuscleId, getLang())}`;
       pairCount.set(k, (pairCount.get(k) ?? 0) + 1);
     }
   }
@@ -316,8 +326,8 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
   const highIndirect = TRACKED_MUSCLES.filter((m) => allVol.muscles[m].effectiveIndirect >= 4 && allVol.muscles[m].effectiveIndirect > allVol.muscles[m].effectiveDirect);
 
   const series = a.progression.filter((p) => p.sessions.some((s) => s.date >= start && s.date <= end));
-  const earlyProgress = series.filter((p) => p.trend.cls === 'progressing').map((p) => `${exerciseLabel(reg.get(p.exerciseId), 'en', p.exerciseId)} (${p.scopeLabel}): ${p.trend.evidence}`);
-  const unclear = series.filter((p) => p.trend.cls !== 'progressing').map((p) => `${exerciseLabel(reg.get(p.exerciseId), 'en', p.exerciseId)} (${p.scopeLabel}): ${p.trend.cls.replace('_', ' ')}`);
+  const earlyProgress = series.filter((p) => p.trend.cls === 'progressing').map((p) => `${exerciseLabel(reg.get(p.exerciseId), getLang(), p.exerciseId)} (${p.scopeLabel}): ${p.trend.evidence}`);
+  const unclear = series.filter((p) => p.trend.cls !== 'progressing').map((p) => `${exerciseLabel(reg.get(p.exerciseId), getLang(), p.exerciseId)} (${p.scopeLabel}): ${trendClsText(p.trend.cls)}`);
 
   const halfway = addDays(start, Math.floor(days / 2));
   const firstHalf = new Set(ws.filter((w) => w.date < halfway).flatMap((w) => w.exercises.map((e) => e.exerciseId)));
@@ -326,15 +336,15 @@ export function baselineReport(data: AppData, a: Analysis): BaselineReport | nul
   const perWeekSessions = weeks.map((w) => w.workouts.length);
   const dq: string[] = [];
   const rirPct = totalSets ? Math.round((rirKnown / totalSets) * 100) : 0;
-  if (rirPct < 70) dq.push(`RIR recorded on ${rirPct}% of working sets — effort-adjusted volume is uncertain for the rest.`);
+  if (rirPct < 70) dq.push(L(`RIR recorded on ${rirPct}% of working sets — effort-adjusted volume is uncertain for the rest.`, `RIR записан в ${rirPct}% рабочих подходов — для остальных объём с поправкой на усилие неточен.`));
   const restSamples = ws.flatMap((w) => w.exercises.flatMap((e) => e.sets.slice(1))).filter((s) => s.restSecBefore != null).length;
-  if (restSamples < totalSets * 0.3) dq.push('Few rest intervals recorded — rest-vs-performance findings are tentative.');
+  if (restSamples < totalSets * 0.3) dq.push(L('Few rest intervals recorded — rest-vs-performance findings are tentative.', 'Записано мало интервалов отдыха — выводы о связи отдыха и результата предварительные.'));
   const unknownEq = ws.flatMap((w) => w.exercises).filter((e) => !e.equipmentId && ['machine', 'cable', 'plate_loaded', 'smith'].includes(reg.get(e.exerciseId)?.equipmentKind ?? '')).length;
-  if (unknownEq) dq.push(`${unknownEq} machine/cable exercise entries have no identified equipment instance.`);
+  if (unknownEq) dq.push(L(`${unknownEq} machine/cable exercise entries have no identified equipment instance.`, `Записей упражнений в тренажёре / на блоке без указанного тренажёра: ${unknownEq}.`));
   const uncertainLoc = ws.filter((w) => !w.locationId || w.locationConfidence === 'uncertain' || w.locationConfidence === 'unknown').length;
-  if (uncertainLoc) dq.push(`${uncertainLoc} session(s) have an unknown or uncertain gym.`);
-  if (!durations.length) dq.push('No session durations recorded.');
-  dq.push('One month of data describes training BEHAVIOUR. It cannot show which muscles grow faster or slower.');
+  if (uncertainLoc) dq.push(L(`${uncertainLoc} session(s) have an unknown or uncertain gym.`, `Тренировок с неизвестным или неточно указанным залом: ${uncertainLoc}.`));
+  if (!durations.length) dq.push(L('No session durations recorded.', 'Длительность тренировок не записана.'));
+  dq.push(L('One month of data describes training BEHAVIOUR. It cannot show which muscles grow faster or slower.', 'Месяц данных описывает ваше тренировочное ПОВЕДЕНИЕ. Он не может показать, какие мышцы растут быстрее или медленнее.'));
 
   const latestByKey = a.progression.filter((p) => p.current).map((p) => ({
     key: p.key, exerciseId: p.exerciseId, scope: p.scopeLabel, weight: p.current!.topWeight, reps: p.current!.topReps, rir: p.current!.topRir, date: p.current!.date,
@@ -396,7 +406,7 @@ export function assessDeload(data: AppData, a: Analysis): DeloadAssessment {
   const indicators: DeloadAssessment['indicators'] = [];
   const recent = a.progression.filter((p) => p.trend.cls !== 'insufficient_data' && p.current && diffDays(a.today, p.current.date) <= 21);
   const declining = recent.filter((p) => p.trend.cls === 'declining');
-  indicators.push({ label: 'Multiple exercises declining', present: declining.length >= 2 && declining.length >= recent.length * 0.3, detail: `${declining.length} of ${recent.length} active exercises show a declining trend.` });
+  indicators.push({ label: L('Multiple exercises declining', 'Снижение в нескольких упражнениях'), present: declining.length >= 2 && declining.length >= recent.length * 0.3, detail: L(`${declining.length} of ${recent.length} active exercises show a declining trend.`, `Тренд на снижение: ${declining.length} из ${recent.length} активных упражнений.`) });
 
   // Effort creep: same/lower performance with lower RIR (sets feel harder).
   let creep = 0;
@@ -411,34 +421,40 @@ export function assessDeload(data: AppData, a: Analysis): DeloadAssessment {
     const r1 = s[s.length - 1].avgRir;
     if (r0 != null && r1 != null && r1 < r0 - 0.9 && (s[s.length - 1].index as number) <= (s[0].index as number)) creep++;
   }
-  indicators.push({ label: 'Same performance feels harder', present: creep >= 2, detail: `${creep} exercise(s) show falling RIR without better performance.` });
+  indicators.push({ label: L('Same performance feels harder', 'Тот же результат даётся тяжелее'), present: creep >= 2, detail: L(`${creep} exercise(s) show falling RIR without better performance.`, `Упражнений, где RIR падает без роста результата: ${creep}.`) });
 
   const since14 = addDays(a.today, -13);
   const fat = [...data.daily.filter((d) => d.date >= since14).map((d) => d.fatigue), ...data.workouts.filter((w) => w.date >= since14).map((w) => w.wellness?.fatigue)].filter((x): x is number => x != null);
-  indicators.push({ label: 'Elevated fatigue', present: fat.length >= 3 && mean(fat) >= 3.5, detail: fat.length ? `Average fatigue ${mean(fat).toFixed(1)}/5 over ${fat.length} entries (14 days).` : 'No fatigue data in the last 14 days.' });
+  indicators.push({ label: L('Elevated fatigue', 'Повышенная усталость'), present: fat.length >= 3 && mean(fat) >= 3.5, detail: fat.length
+    ? L(`Average fatigue ${mean(fat).toFixed(1)}/5 over ${fat.length} entries (14 days).`, `Средняя усталость ${num(mean(fat), 1)}/5 по ${fat.length} ${ruPlural(fat.length, 'записи', 'записям', 'записям')} (14 дней).`)
+    : L('No fatigue data in the last 14 days.', 'Нет данных об усталости за последние 14 дней.') });
 
   const sleep = [...data.daily.filter((d) => d.date >= since14).map((d) => d.sleepHours), ...data.workouts.filter((w) => w.date >= since14).map((w) => w.wellness?.sleepHours)].filter((x): x is number => x != null);
-  indicators.push({ label: 'Short sleep', present: sleep.length >= 3 && mean(sleep) < 6.5, detail: sleep.length ? `Average sleep ${mean(sleep).toFixed(1)} h.` : 'No sleep data in the last 14 days.' });
+  indicators.push({ label: L('Short sleep', 'Недосып'), present: sleep.length >= 3 && mean(sleep) < 6.5, detail: sleep.length ? L(`Average sleep ${mean(sleep).toFixed(1)} h.`, `Средний сон ${num(mean(sleep), 1)} ч.`) : L('No sleep data in the last 14 days.', 'Нет данных о сне за последние 14 дней.') });
 
   const sore = data.daily.filter((d) => d.date >= since14).flatMap((d) => Object.values(d.soreness ?? {})).filter((x): x is number => x != null);
-  indicators.push({ label: 'Persistent soreness', present: sore.filter((x) => x >= 3).length >= 4, detail: `${sore.filter((x) => x >= 3).length} high-soreness entries in 14 days.` });
+  indicators.push({ label: L('Persistent soreness', 'Стойкая болезненность'), present: sore.filter((x) => x >= 3).length >= 4, detail: L(`${sore.filter((x) => x >= 3).length} high-soreness entries in 14 days.`, `Записей с сильной болезненностью за 14 дней: ${sore.filter((x) => x >= 3).length}.`) });
 
   const lastTwo = a.weeks.filter((w) => w.complete).slice(-2);
   const overMax = TRACKED_MUSCLES.filter((m) => lastTwo.length === 2 && lastTwo.every((w) => w.volume.muscles[m].effective > a.targets[m].max)).length;
-  indicators.push({ label: 'Volume above range for 2+ weeks', present: overMax >= 3, detail: `${overMax} muscle(s) above their upper bound in each of the last 2 weeks.` });
+  indicators.push({ label: L('Volume above range for 2+ weeks', 'Объём выше диапазона 2+ недели'), present: overMax >= 3, detail: L(`${overMax} muscle(s) above their upper bound in each of the last 2 weeks.`, `Мышц выше своей верхней границы в каждую из последних 2 недель: ${overMax}.`) });
 
   const block = currentBlock(data, a.today);
   const blockWeeks = block ? Math.floor(diffDays(a.today, block.startDate) / 7) + 1 : null;
   const stalled = recent.filter((p) => p.trend.cls === 'plateau' || p.trend.cls === 'declining').length;
-  indicators.push({ label: 'Long block with stalling', present: blockWeeks != null && blockWeeks >= 6 && stalled >= recent.length * 0.5 && recent.length >= 3, detail: blockWeeks != null ? `Current block week ${blockWeeks}; ${stalled}/${recent.length} exercises stalled or declining.` : 'No active training block.' });
+  indicators.push({ label: L('Long block with stalling', 'Долгий блок с застоем'), present: blockWeeks != null && blockWeeks >= 6 && stalled >= recent.length * 0.5 && recent.length >= 3, detail: blockWeeks != null
+    ? L(`Current block week ${blockWeeks}; ${stalled}/${recent.length} exercises stalled or declining.`, `Неделя текущего блока: ${blockWeeks}; застой или снижение — ${stalled}/${recent.length} упражнений.`)
+    : L('No active training block.', 'Активного тренировочного блока нет.') });
 
   const score = indicators.filter((i) => i.present).length;
   const recommend = score >= 3;
   const summary = recommend
-    ? `${score} independent fatigue indicators are present. A deload (≈ 1 week at ~50% of sets, loads kept moderate, RIR 3–4) may help performance rebound.`
+    ? L(`${score} independent fatigue indicators are present. A deload (≈ 1 week at ~50% of sets, loads kept moderate, RIR 3–4) may help performance rebound.`,
+      `Есть ${score} ${ruPlural(score, 'независимый признак', 'независимых признака', 'независимых признаков')} усталости. Разгрузка (≈ 1 неделя на ~50% подходов, умеренные веса, RIR 3–4) может помочь результатам восстановиться.`)
     : score > 0
-      ? `${score} indicator(s) present — not enough to recommend a deload. Monitor; deloads are suggested only when several signs coincide.`
-      : 'No meaningful fatigue indicators. No deload is needed.';
+      ? L(`${score} indicator(s) present — not enough to recommend a deload. Monitor; deloads are suggested only when several signs coincide.`,
+        `Есть ${score} ${ruPlural(score, 'признак', 'признака', 'признаков')} — этого мало, чтобы рекомендовать разгрузку. Наблюдайте: разгрузка предлагается, только когда совпадает несколько признаков.`)
+      : L('No meaningful fatigue indicators. No deload is needed.', 'Значимых признаков усталости нет. Разгрузка не нужна.');
   return { recommend, score, indicators, summary };
 }
 
@@ -480,8 +496,8 @@ export function monthlyBodyReport(data: AppData, today: string) {
     return { field: f, current: a.length ? Math.round(mean(a) * 10) / 10 : null, previous: b.length ? Math.round(mean(b) * 10) / 10 : null };
   });
   const notes: string[] = [
-    'Body-weight changes over days to weeks are dominated by water, glycogen and gut content; use weekly averages.',
-    'Neither body weight nor circumference can measure muscle mass precisely. Trends across months are more meaningful than single readings.',
+    L('Body-weight changes over days to weeks are dominated by water, glycogen and gut content; use weekly averages.', 'Изменения веса тела за дни и недели в основном объясняются водой, гликогеном и содержимым кишечника; ориентируйтесь на недельные средние.'),
+    L('Neither body weight nor circumference can measure muscle mass precisely. Trends across months are more meaningful than single readings.', 'Ни вес тела, ни обхваты не позволяют точно измерить мышечную массу. Тренды за месяцы значат больше, чем отдельные замеры.'),
   ];
   const w = rows.find((r) => r.field === 'weightKg')!;
   const waist = rows.find((r) => r.field === 'waistCm')!;
@@ -489,9 +505,9 @@ export function monthlyBodyReport(data: AppData, today: string) {
     // Both values are shown to 0.1; the difference is rounded the same way so 80.3 − 80.0 and 80.4 − 80.1 are both 0.3.
     const dw = Math.round((w.current - w.previous) * 10) / 10;
     const dwaist = Math.round((waist.current - waist.previous) * 10) / 10;
-    if (dw > 0.3 && dwaist <= 0.5) notes.push('Weight up with a roughly stable waist — consistent with (but not proof of) lean-mass gain.');
-    else if (dw > 0.3 && dwaist > 1) notes.push('Weight and waist both rising — some of the gain is likely fat; consider a smaller surplus if that is not intended.');
-    else if (dw < -0.3) notes.push('Weight trending down — a calorie deficit makes muscle gain harder for most trained lifters.');
+    if (dw > 0.3 && dwaist <= 0.5) notes.push(L('Weight up with a roughly stable waist — consistent with (but not proof of) lean-mass gain.', 'Вес растёт при примерно стабильной талии — это согласуется с набором сухой массы (но не доказывает его).'));
+    else if (dw > 0.3 && dwaist > 1) notes.push(L('Weight and waist both rising — some of the gain is likely fat; consider a smaller surplus if that is not intended.', 'Растут и вес, и талия — часть прибавки, вероятно, жир; если это не входит в планы, уменьшите профицит калорий.'));
+    else if (dw < -0.3) notes.push(L('Weight trending down — a calorie deficit makes muscle gain harder for most trained lifters.', 'Вес снижается — при дефиците калорий большинству тренированных людей труднее набирать мышцы.'));
   }
   return { rows, notes };
 }

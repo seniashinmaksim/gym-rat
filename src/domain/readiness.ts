@@ -15,6 +15,7 @@
  */
 import type { AppData } from './appdata';
 import { diffDays } from './dates';
+import { L, byLang, num, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import type { ProgressionSeries, SessionPerf } from './progression';
 import { isCounted } from './quality';
@@ -27,10 +28,10 @@ type Analysis = ReturnType<typeof analyze>;
 export type ReadinessLevel = 'INSUFFICIENT_DATA' | 'DEVELOPING' | 'SUFFICIENT' | 'WELL_CALIBRATED';
 export type OperatingMode = 'learning' | 'provisional' | 'full';
 
-export const LEVEL_LABEL: Record<ReadinessLevel, string> = {
-  INSUFFICIENT_DATA: 'INSUFFICIENT DATA', DEVELOPING: 'DEVELOPING', SUFFICIENT: 'SUFFICIENT', WELL_CALIBRATED: 'WELL CALIBRATED',
-};
-export const MODE_LABEL: Record<OperatingMode, string> = { learning: 'LEARNING', provisional: 'PROVISIONAL', full: 'ADAPTIVE' };
+export const LEVEL_LABEL: Record<ReadinessLevel, string> = byLang(() => ({
+  INSUFFICIENT_DATA: L('INSUFFICIENT DATA', 'МАЛО ДАННЫХ'), DEVELOPING: L('DEVELOPING', 'НАБИРАЕТСЯ'), SUFFICIENT: L('SUFFICIENT', 'ДОСТАТОЧНО'), WELL_CALIBRATED: L('WELL CALIBRATED', 'ОТКАЛИБРОВАНО'),
+}));
+export const MODE_LABEL: Record<OperatingMode, string> = byLang(() => ({ learning: L('LEARNING', 'ЗНАКОМСТВО'), provisional: L('PROVISIONAL', 'ПРЕДВАРИТЕЛЬНЫЙ'), full: L('ADAPTIVE', 'АДАПТИВНЫЙ') }));
 const RANK: Record<ReadinessLevel, number> = { INSUFFICIENT_DATA: 0, DEVELOPING: 1, SUFFICIENT: 2, WELL_CALIBRATED: 3 };
 export const atLeast = (l: ReadinessLevel, min: ReadinessLevel) => RANK[l] >= RANK[min];
 
@@ -51,13 +52,13 @@ const MACHINE_KINDS = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
 // ---------------------------------------------------------------- workout documentation
 
 export type DocGap = 'no_gym' | 'no_times' | 'missing_load_or_reps' | 'effort_missing' | 'no_working_sets';
-export const GAP_LABEL: Record<DocGap, string> = {
-  no_gym: 'gym not recorded',
-  no_times: 'no start/end time or duration',
-  missing_load_or_reps: 'a working set without weight or reps',
-  effort_missing: 'effort (RIR or how it felt) on fewer than 70 % of sets',
-  no_working_sets: 'no working sets',
-};
+export const GAP_LABEL: Record<DocGap, string> = byLang(() => ({
+  no_gym: L('gym not recorded', 'не указан зал'),
+  no_times: L('no start/end time or duration', 'нет времени начала и конца или длительности'),
+  missing_load_or_reps: L('a working set without weight or reps', 'рабочий подход без веса или повторений'),
+  effort_missing: L('effort (RIR or how it felt) on fewer than 70 % of sets', 'усилие (RIR или ощущение) указано меньше чем в 70 % подходов'),
+  no_working_sets: L('no working sets', 'нет рабочих подходов'),
+}));
 
 export const effortKnown = (s: WorkoutSet) => s.rir != null || !!s.feel || !!s.effort || s.toFailure === true || s.failure === 'muscular';
 
@@ -112,7 +113,7 @@ export function keyReadiness(series: ProgressionSeries, registry: Registry, toda
   const share = recentWorkouts ? new Set(inWindow.map((s) => s.workoutId)).size / recentWorkouts : 0;
   return {
     key: series.key, exerciseId: series.exerciseId, equipmentId: series.equipmentId,
-    label: `${def?.name.en ?? series.exerciseId} · ${series.scopeLabel}`,
+    label: `${def ? L(def.name.en, def.name.ru || def.name.en) : series.exerciseId} · ${series.scopeLabel}`,
     comparable, level: levelFor(comparable), share, frequent: share >= MODE_THRESHOLDS.frequentShare && inWindow.length >= 2,
     lastUsed: series.current?.date ?? null,
   };
@@ -173,7 +174,7 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
     const cur = eqLevels.get(k.equipmentId);
     if (!cur || RANK[k.level] > RANK[cur]) eqLevels.set(k.equipmentId, k.level);
   }
-  const equipment = [...eqLevels].map(([id, level]) => ({ equipmentId: id, name: data.equipment.find((e) => e.id === id)?.name ?? 'Unknown machine', level }));
+  const equipment = [...eqLevels].map(([id, level]) => ({ equipmentId: id, name: data.equipment.find((e) => e.id === id)?.name ?? L('Unknown machine', 'Неизвестный тренажёр'), level }));
 
   // Per muscle: best calibrated history that trains it directly; direct exposures in 8 weeks.
   const muscles: MuscleReadiness[] = TRACKED_MUSCLES.map((m) => {
@@ -183,7 +184,8 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
     const level: ReadinessLevel = !best ? 'INSUFFICIENT_DATA'
       : best.level === 'WELL_CALIBRATED' && directSessions8w >= 4 ? 'WELL_CALIBRATED'
         : atLeast(best.level, 'SUFFICIENT') ? 'SUFFICIENT' : best.comparable > 0 || directSessions8w > 0 ? 'DEVELOPING' : 'INSUFFICIENT_DATA';
-    const detail = !best ? 'No direct exercise logged' : `${best.label}: ${best.comparable} comparable session${best.comparable === 1 ? '' : 's'}; ${directSessions8w} direct session${directSessions8w === 1 ? '' : 's'} in 8 weeks`;
+    const detail = !best ? L('No direct exercise logged', 'Прямых упражнений не записано')
+      : L(`${best.label}: ${best.comparable} comparable session${best.comparable === 1 ? '' : 's'}; ${directSessions8w} direct session${directSessions8w === 1 ? '' : 's'} in 8 weeks`, `${best.label}: сопоставимых тренировок — ${best.comparable}; прямых тренировок за 8 недель — ${directSessions8w}`);
     return { muscle: m, level, bestKey: best?.key ?? null, directSessions8w, detail };
   });
 
@@ -200,14 +202,14 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
 
   const next: string[] = [];
   if (!prov) {
-    if (wd.length < T.provisional.workouts) next.push(`${wd.length} / ${T.provisional.workouts} well-documented workouts`);
-    if (spanDays < T.provisional.spanDays) next.push(`${spanDays} / ${T.provisional.spanDays} days of well-documented training`);
-    if (calibratedFrequent < T.provisional.calibratedFrequent) next.push(`${calibratedFrequent} / ${T.provisional.calibratedFrequent} regular exercises calibrated (≥ 2 comparable sessions with effort)`);
-    if (equipmentIdentified < T.provisional.equipmentIdentified) next.push(`${Math.round(equipmentIdentified * 100)} % / 80 % of machine exercises linked to a machine`);
+    if (wd.length < T.provisional.workouts) next.push(L(`${wd.length} / ${T.provisional.workouts} well-documented workouts`, `${wd.length} / ${T.provisional.workouts} хорошо записанных тренировок`));
+    if (spanDays < T.provisional.spanDays) next.push(L(`${spanDays} / ${T.provisional.spanDays} days of well-documented training`, `${spanDays} / ${T.provisional.spanDays} дней хорошо записанных тренировок`));
+    if (calibratedFrequent < T.provisional.calibratedFrequent) next.push(L(`${calibratedFrequent} / ${T.provisional.calibratedFrequent} regular exercises calibrated (≥ 2 comparable sessions with effort)`, `откалибровано регулярных упражнений: ${calibratedFrequent} / ${T.provisional.calibratedFrequent} (≥ 2 сопоставимые тренировки с указанным усилием)`));
+    if (equipmentIdentified < T.provisional.equipmentIdentified) next.push(L(`${Math.round(equipmentIdentified * 100)} % / 80 % of machine exercises linked to a machine`, `${Math.round(equipmentIdentified * 100)} % / 80 % упражнений в тренажёрах привязаны к тренажёру`));
   } else if (!full) {
-    if (wd.length < T.full.workouts) next.push(`${wd.length} / ${T.full.workouts} well-documented workouts`);
-    if (spanDays < T.full.spanDays) next.push(`${spanDays} / ${T.full.spanDays} days of well-documented training`);
-    if (coverage < T.full.coverage) next.push(`${Math.round(coverage * 100)} % / 80 % of major-muscle targets covered by calibrated exercises`);
+    if (wd.length < T.full.workouts) next.push(L(`${wd.length} / ${T.full.workouts} well-documented workouts`, `${wd.length} / ${T.full.workouts} хорошо записанных тренировок`));
+    if (spanDays < T.full.spanDays) next.push(L(`${spanDays} / ${T.full.spanDays} days of well-documented training`, `${spanDays} / ${T.full.spanDays} дней хорошо записанных тренировок`));
+    if (coverage < T.full.coverage) next.push(L(`${Math.round(coverage * 100)} % / 80 % of major-muscle targets covered by calibrated exercises`, `${Math.round(coverage * 100)} % / 80 % целей по крупным мышцам покрыты откалиброванными упражнениями`));
   }
 
   const recoveryKnown = recent.length ? recent.filter((w) => !documentationGaps(w).includes('no_times')).length / recent.length : 0;
@@ -216,21 +218,21 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
   const strengthKeys = analysis.progression.filter((p) => p.trend.cls !== 'insufficient_data').length;
   const lv = (n: number, a: number, b: number, c: number): ReadinessLevel => (n >= c ? 'WELL_CALIBRATED' : n >= b ? 'SUFFICIENT' : n >= a ? 'DEVELOPING' : 'INSUFFICIENT_DATA');
   const areas: AreaReadiness[] = [
-    { area: 'Exercise history', level: lv(wd.length, 3, 8, 12), detail: `${wd.length} well-documented of ${recent.length} workouts in 12 weeks` },
-    { area: 'Equipment calibration', level: lv(keys.filter((k) => atLeast(k.level, 'SUFFICIENT')).length, 1, 3, 6), detail: `${keys.filter((k) => atLeast(k.level, 'SUFFICIENT')).length} exercise/machine histories calibrated; ${Math.round(equipmentIdentified * 100)} % of machine exercises linked` },
-    { area: 'Strength data', level: lv(strengthKeys, 1, 3, 6), detail: `${strengthKeys} histories with a trend (≥ 3 sessions)` },
-    { area: 'Frequency and structure', level: lv(weeksWithData, 2, 3, 6), detail: `${weeksWithData} weeks with training; ~${analysis.avgSessionsPerWeek} sessions/week` },
-    { area: 'Weekly volume history', level: lv(analysis.weeks.filter((b) => b.complete && b.workouts.length).length, 1, 4, 8), detail: `${analysis.weeks.filter((b) => b.complete && b.workouts.length).length} complete weeks with data` },
-    { area: 'Recovery information', level: recoveryKnown >= 0.7 ? (subjective >= Math.max(3, recent.length * 0.3) ? 'WELL_CALIBRATED' : 'SUFFICIENT') : recoveryKnown > 0 ? 'DEVELOPING' : 'INSUFFICIENT_DATA', detail: `session times known for ${Math.round(recoveryKnown * 100)} %; ${subjective} sleep/soreness/fatigue entries (optional — missing ones never block)` },
-    { area: 'Preference consistency', level: lv(keys.filter((k) => k.frequent).length, 1, 3, 5), detail: `${keys.filter((k) => k.frequent).length} exercises in ≥ 30 % of recent sessions` },
+    { area: L('Exercise history', 'История упражнений'), level: lv(wd.length, 3, 8, 12), detail: L(`${wd.length} well-documented of ${recent.length} workouts in 12 weeks`, `хорошо записано ${wd.length} из ${recent.length} тренировок за 12 недель`) },
+    { area: L('Equipment calibration', 'Калибровка оборудования'), level: lv(keys.filter((k) => atLeast(k.level, 'SUFFICIENT')).length, 1, 3, 6), detail: L(`${keys.filter((k) => atLeast(k.level, 'SUFFICIENT')).length} exercise/machine histories calibrated; ${Math.round(equipmentIdentified * 100)} % of machine exercises linked`, `откалибровано историй «упражнение + тренажёр»: ${keys.filter((k) => atLeast(k.level, 'SUFFICIENT')).length}; ${Math.round(equipmentIdentified * 100)} % упражнений в тренажёрах привязаны к тренажёру`) },
+    { area: L('Strength data', 'Данные о силе'), level: lv(strengthKeys, 1, 3, 6), detail: L(`${strengthKeys} histories with a trend (≥ 3 sessions)`, `историй с трендом (≥ 3 тренировки): ${strengthKeys}`) },
+    { area: L('Frequency and structure', 'Частота и структура'), level: lv(weeksWithData, 2, 3, 6), detail: L(`${weeksWithData} weeks with training; ~${analysis.avgSessionsPerWeek} sessions/week`, `недель с тренировками: ${weeksWithData}; ~${num(analysis.avgSessionsPerWeek)} трен. в неделю`) },
+    { area: L('Weekly volume history', 'История недельного объёма'), level: lv(analysis.weeks.filter((b) => b.complete && b.workouts.length).length, 1, 4, 8), detail: L(`${analysis.weeks.filter((b) => b.complete && b.workouts.length).length} complete weeks with data`, `полных недель с данными: ${analysis.weeks.filter((b) => b.complete && b.workouts.length).length}`) },
+    { area: L('Recovery information', 'Данные о восстановлении'), level: recoveryKnown >= 0.7 ? (subjective >= Math.max(3, recent.length * 0.3) ? 'WELL_CALIBRATED' : 'SUFFICIENT') : recoveryKnown > 0 ? 'DEVELOPING' : 'INSUFFICIENT_DATA', detail: L(`session times known for ${Math.round(recoveryKnown * 100)} %; ${subjective} sleep/soreness/fatigue entries (optional — missing ones never block)`, `время тренировок известно для ${Math.round(recoveryKnown * 100)} %; записей о сне, болезненности мышц и усталости: ${subjective} (необязательно — их отсутствие ничего не блокирует)`) },
+    { area: L('Preference consistency', 'Постоянство предпочтений'), level: lv(keys.filter((k) => k.frequent).length, 1, 3, 5), detail: L(`${keys.filter((k) => k.frequent).length} exercises in ≥ 30 % of recent sessions`, `упражнений в ≥ 30 % недавних тренировок: ${keys.filter((k) => k.frequent).length}`) },
   ];
 
   const dataGaps: string[] = [];
-  for (const [g, n] of gapCount) dataGaps.push(`${n} workout${n === 1 ? '' : 's'}: ${GAP_LABEL[g]}`);
-  if (machineEx > machineIdentified) dataGaps.push(`${machineEx - machineIdentified} machine exercise entr${machineEx - machineIdentified === 1 ? 'y' : 'ies'} without a machine`);
+  for (const [g, n] of gapCount) dataGaps.push(L(`${n} workout${n === 1 ? '' : 's'}: ${GAP_LABEL[g]}`, `${n} ${ruPlural(n, 'тренировка', 'тренировки', 'тренировок')}: ${GAP_LABEL[g]}`));
+  if (machineEx > machineIdentified) dataGaps.push(L(`${machineEx - machineIdentified} machine exercise entr${machineEx - machineIdentified === 1 ? 'y' : 'ies'} without a machine`, `записей упражнений в тренажёрах без указанного тренажёра: ${machineEx - machineIdentified}`));
   for (const m of MAJOR_MUSCLES) {
     const r = muscles.find((x) => x.muscle === m)!;
-    if (r.directSessions8w === 0) dataGaps.push(`${muscleName(m)}: no direct exercise in 8 weeks (not planned with loads)`);
+    if (r.directSessions8w === 0) dataGaps.push(L(`${muscleName(m)}: no direct exercise in 8 weeks (not planned with loads)`, `${muscleName(m, 'ru')}: за 8 недель нет прямых упражнений (вес для них не планируется)`));
   }
 
   return {

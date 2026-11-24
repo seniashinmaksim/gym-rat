@@ -6,6 +6,7 @@ import { AUDIT_REFERENCES } from './references-audit';
 import { ORDER_REFERENCES } from './references-order';
 import { PERCEPTION_REFERENCES } from './references-perception';
 import { TEMPO_REFERENCES } from './references-tempo';
+import { L, byLang } from '../../i18n/core';
 
 export type EvidenceDesign =
   | 'meta_analysis'
@@ -47,7 +48,7 @@ export interface Reference {
 /** Outcomes that are acute or mechanistic: may only support findings marked indirect. */
 export const INDIRECT_OUTCOMES: readonly EvidenceOutcome[] = ['emg_activation', 'acute_mps_or_damage'];
 
-const CORE_REFERENCES: Reference[] = [
+const CORE_REFERENCES: Reference[] = byLang(() => [
   {
     id: "chaves2020_incline",
     title: "Effects of Horizontal and Incline Bench Press on Neuromuscular Adaptations in Untrained Young Men.",
@@ -60,7 +61,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "47 untrained young men randomised to flat, incline or combined bench press, once weekly for 8 weeks, equal set numbers",
-    finding: "Isometric strength rose by similar amounts in all three groups. Pectoral thickness changes differed at only one of three ultrasound sites: at the 2nd intercostal space (upper chest) the incline group gained more than the flat and combined groups. EMG change differed at only one of four sites.",
+    finding: L("Isometric strength rose by similar amounts in all three groups. Pectoral thickness changes differed at only one of three ultrasound sites: at the 2nd intercostal space (upper chest) the incline group gained more than the flat and combined groups. EMG change differed at only one of four sites.", "Изометрическая сила выросла примерно одинаково во всех трёх группах. Изменения толщины грудных различались только в одной из трёх точек УЗИ: во 2-м межреберье (верх груди) группа наклонного жима прибавила больше, чем группы горизонтального и комбинированного. Изменение ЭМГ различалось только в одной из четырёх точек."),
     muscles: [
       "chest",
       "upper_chest"
@@ -81,7 +82,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "13 men, one session of four sets each of flat and 45 degree incline bench press",
-    finding: "On the 45 degree incline the clavicular head showed more EMG and a larger immediate post-exercise rise in cross-sectional area than the sternocostal head; on the flat bench the pattern reversed. These are acute swelling and excitation responses, not long-term growth.",
+    finding: L("On the 45 degree incline the clavicular head showed more EMG and a larger immediate post-exercise rise in cross-sectional area than the sternocostal head; on the flat bench the pattern reversed. These are acute swelling and excitation responses, not long-term growth.", "На наклоне 45 градусов ключичная головка показала большую ЭМГ и больший прирост площади поперечного сечения сразу после нагрузки, чем грудино-рёберная; на горизонтальной скамье картина была обратной. Это острые реакции отёка и возбуждения, а не долгосрочный рост."),
     muscles: [
       "chest",
       "upper_chest",
@@ -103,7 +104,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "26 recreationally trained young men (about 3 years of training), twice weekly for 10 weeks, weekly sets individualised to prior chest volume",
-    finding: "Both dumbbell bench press and dumbbell fly thickened the pectoralis major over time, with no group difference at the medial, middle or lateral sites or their sum. Neither exercise gave more whole-muscle or regional growth.",
+    finding: L("Both dumbbell bench press and dumbbell fly thickened the pectoralis major over time, with no group difference at the medial, middle or lateral sites or their sum. Neither exercise gave more whole-muscle or regional growth.", "И жим гантелей лёжа, и разводка гантелей со временем увеличили толщину большой грудной мышцы без различий между группами в медиальной, средней и латеральной точках и в их сумме. Ни одно из упражнений не дало большего роста всей мышцы или её отдельных участков."),
     muscles: [
       "chest"
     ],
@@ -123,7 +124,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "15 untrained young men, within-subject design (one side 1 set, other side 3 sets), pec deck to failure for 12 weeks",
-    finding: "Twelve weeks of pec deck training thickened the clavicular portion by about 17-18% and the sternocostal portion by about 21%. One set and three sets gave the same gains in size and strength, and the pec deck showed no regional emphasis.",
+    finding: L("Twelve weeks of pec deck training thickened the clavicular portion by about 17-18% and the sternocostal portion by about 21%. One set and three sets gave the same gains in size and strength, and the pec deck showed no regional emphasis.", "Двенадцать недель тренировок в пек-деке увеличили толщину ключичной части примерно на 17–18%, а грудино-рёберной — примерно на 21%. Один подход и три подхода дали одинаковый прирост размера и силы; регионального акцента у пек-дека не обнаружено."),
     muscles: [
       "chest",
       "upper_chest",
@@ -145,7 +146,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "24 healthy men (13 in a bench-press training group, 11 controls); training status not stated in the abstract",
-    finding: "Ten weeks of bench press only (3x/week, 3-4 sets of 12 at 50-55% 1RM, 3 min rest) increased MRI cross-sectional area of pectoralis major, pectoralis minor, anterior deltoid and triceps more than in controls. The medial (side) deltoid showed a smaller increase than every other muscle measured and was not among the muscles reported to differ from controls.",
+    finding: L("Ten weeks of bench press only (3x/week, 3-4 sets of 12 at 50-55% 1RM, 3 min rest) increased MRI cross-sectional area of pectoralis major, pectoralis minor, anterior deltoid and triceps more than in controls. The medial (side) deltoid showed a smaller increase than every other muscle measured and was not among the muscles reported to differ from controls.", "Десять недель одного только жима лёжа (3 раза в неделю, 3–4 подхода по 12 с 50–55% 1RM, отдых 3 мин) увеличили площадь поперечного сечения (МРТ) большой и малой грудных, передней дельты и трицепса больше, чем в контрольной группе. Средняя (боковая) дельта выросла меньше всех остальных измеренных мышц и не вошла в число мышц, по которым сообщалось об отличии от контроля."),
     muscles: [
       "front_delts",
       "side_delts",
@@ -168,7 +169,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "13 studies (1016 adults aged 18-60), at least 6 weeks of free-weight vs machine training; 5 studies had hypertrophy outcomes",
-    finding: "Muscle growth did not differ between free-weight and machine training. Strength gains tended to favour the modality that was trained and tested, so the authors leave the choice to preference and goals.",
+    finding: L("Muscle growth did not differ between free-weight and machine training. Strength gains tended to favour the modality that was trained and tested, so the authors leave the choice to preference and goals.", "Рост мышц не различался между тренировками со свободными весами и в тренажёрах. Прирост силы, как правило, был больше в том виде нагрузки, в котором тренировались и тестировались, поэтому авторы оставляют выбор на усмотрение человека и его целей."),
     muscles: [
       "chest"
     ],
@@ -188,7 +189,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "Training studies comparing free weights and machines (search to Sept 2020), three-level meta-analysis",
-    finding: "Muscle growth and power changes did not differ between machines and free weights. Strength favoured whichever modality matched the test, and was similar when tested on a neutral device.",
+    finding: L("Muscle growth and power changes did not differ between machines and free weights. Strength favoured whichever modality matched the test, and was similar when tested on a neutral device.", "Рост мышц и изменения мощности не различались между тренажёрами и свободными весами. Сила была выше в том виде нагрузки, который совпадал с тестом, и схожей при тестировании на нейтральном устройстве."),
     muscles: [
       "chest"
     ],
@@ -208,7 +209,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "38 resistance-trained men, 8 weeks of full squat, bench press, prone bench pull and shoulder press with barbells or machines",
-    finding: "Barbell and machine versions of the same lifts gave similar overall strength gains and similar growth in every muscle scanned (quadriceps, pectoralis major, rectus abdominis). Joint discomfort did not differ between groups.",
+    finding: L("Barbell and machine versions of the same lifts gave similar overall strength gains and similar growth in every muscle scanned (quadriceps, pectoralis major, rectus abdominis). Joint discomfort did not differ between groups.", "Варианты одних и тех же упражнений со штангой и в тренажёре дали схожий общий прирост силы и схожий рост всех обследованных мышц (квадрицепс, большая грудная, прямая мышца живота). Дискомфорт в суставах между группами не различался."),
     muscles: [
       "chest",
       "quads",
@@ -230,7 +231,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "18 young men, bench press at 40% 1RM vs push-ups adjusted to the same load, twice weekly for 8 weeks",
-    finding: "Push-ups adjusted to about 40% of bench 1RM increased pectoralis major and triceps thickness and bench 1RM, comparable to low-load bench press.",
+    finding: L("Push-ups adjusted to about 40% of bench 1RM increased pectoralis major and triceps thickness and bench 1RM, comparable to low-load bench press.", "Отжимания, подобранные примерно под 40% от 1RM в жиме лёжа, увеличили толщину большой грудной и трицепса и 1RM в жиме — сопоставимо с жимом лёжа с малым весом."),
     muscles: [
       "chest",
       "triceps"
@@ -251,7 +252,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "81 recreationally active participants; pectoral static stretching 15 min/day 4 days/week, resistance training 3 days/week 5x12, or control, 8 weeks",
-    finding: "Both prolonged daily pectoral stretching and resistance training increased pectoral thickness and strength, with no difference between them. Only stretching improved flexibility. The authors note the long stretch durations and equipment limit practical use.",
+    finding: L("Both prolonged daily pectoral stretching and resistance training increased pectoral thickness and strength, with no difference between them. Only stretching improved flexibility. The authors note the long stretch durations and equipment limit practical use.", "И длительная ежедневная растяжка грудных, и силовая тренировка увеличили толщину и силу грудных без различий между ними. Гибкость улучшила только растяжка. Авторы отмечают, что большая длительность растяжки и оборудование ограничивают практическое применение."),
     muscles: [
       "chest"
     ],
@@ -271,7 +272,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "12 studies in young adults that changed mean muscle length through range of motion or exercise selection",
-    finding: "In a Bayesian meta-analysis, training at longer or shorter mean muscle lengths produced practically equivalent growth at proximal, mid and distal sites. A small, non-decisive trend toward longer lengths increased from proximal to distal. The length difference between compared conditions was modest (about 22%), so the authors urge caution.",
+    finding: L("In a Bayesian meta-analysis, training at longer or shorter mean muscle lengths produced practically equivalent growth at proximal, mid and distal sites. A small, non-decisive trend toward longer lengths increased from proximal to distal. The length difference between compared conditions was modest (about 22%), so the authors urge caution.", "В байесовском метаанализе тренировка при большей или меньшей средней длине мышцы дала практически равноценный рост в проксимальных, средних и дистальных точках. Небольшая, не решающая тенденция в пользу большей длины усиливалась от проксимальной точки к дистальной. Разница в длине между сравниваемыми условиями была умеренной (около 22%), поэтому авторы призывают к осторожности."),
     muscles: [],
     limitations: "The abstract does not list which muscles were included (muscles left empty for that reason); small muscle-length contrasts between conditions; regional sites only.",
     confidence: "moderate",
@@ -289,7 +290,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "long_term_hypertrophy",
     population: "11 studies comparing full and partial ROM",
-    finding: "Full ROM and partials in the initial (stretched) part of the range grew quadriceps, biceps and brachialis more than partials in the final part; full ROM also beat final-range partials for gluteus maximus and adductors. Exceptions: initial partials beat full ROM for proximal rectus femoris, and one study found mid-range partials better for triceps.",
+    finding: L("Full ROM and partials in the initial (stretched) part of the range grew quadriceps, biceps and brachialis more than partials in the final part; full ROM also beat final-range partials for gluteus maximus and adductors. Exceptions: initial partials beat full ROM for proximal rectus femoris, and one study found mid-range partials better for triceps.", "Полная амплитуда и частичные повторения в начальной (растянутой) части амплитуды сильнее развивали квадрицепс, бицепс и плечевую мышцу, чем частичные в конечной части; полная амплитуда также превзошла частичные в конечной части для большой ягодичной и приводящих. Исключения: частичные в начальной части превзошли полную амплитуду для проксимальной части прямой мышцы бедра, а в одном исследовании частичные в середине амплитуды оказались лучше для трицепса."),
     muscles: [
       "quads",
       "biceps",
@@ -313,7 +314,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "strength",
     population: "50 recreationally to highly trained men; full, two-thirds or one-third ROM bench press for 10 weeks, or training cessation",
-    finding: "Full-ROM bench press gave the largest gains in 1RM and bar velocity on all three test ROMs. Partial versions improved less as the trained range got shorter. Muscle size was not measured.",
+    finding: L("Full-ROM bench press gave the largest gains in 1RM and bar velocity on all three test ROMs. Partial versions improved less as the trained range got shorter. Muscle size was not measured.", "Жим лёжа в полной амплитуде дал наибольший прирост 1RM и скорости штанги на всех трёх тестовых амплитудах. Частичные варианты улучшали результат тем меньше, чем короче была тренируемая амплитуда. Размер мышц не измеряли."),
     muscles: [
       "chest"
     ],
@@ -333,7 +334,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "22 trained men, 10 weeks of powerlifting-style bench training three times weekly, with or without an elastic bench press device (EBD group 10% heavier)",
-    finding: "Both groups increased 1RM and pectoralis major thickness with no between-group difference, so the device gave no extra benefit. Triceps thickness did not change significantly in either group.",
+    finding: L("Both groups increased 1RM and pectoralis major thickness with no between-group difference, so the device gave no extra benefit. Triceps thickness did not change significantly in either group.", "Обе группы увеличили 1RM и толщину большой грудной без различий между группами, то есть устройство не дало дополнительной пользы. Толщина трицепса значимо не изменилась ни в одной группе."),
     muscles: [
       "chest"
     ],
@@ -353,7 +354,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "30 trained adults, bench press at 0, 15, 30, 45 and 60 degrees at 60% 1RM",
-    finding: "Upper pectoral EMG peaked at 30 degrees, and the middle and lower portions were highest when flat. Anterior deltoid EMG was highest at 60 degrees. Beyond 45 degrees deltoid activity rose and pectoral output fell. Triceps EMG was similar at all angles.",
+    finding: L("Upper pectoral EMG peaked at 30 degrees, and the middle and lower portions were highest when flat. Anterior deltoid EMG was highest at 60 degrees. Beyond 45 degrees deltoid activity rose and pectoral output fell. Triceps EMG was similar at all angles.", "ЭМГ верха грудных была максимальной при 30 градусах, а средней и нижней частей — на горизонтальной скамье. ЭМГ передней дельты была наибольшей при 60 градусах. Выше 45 градусов активность дельты росла, а вклад грудных падал. ЭМГ трицепса была схожей при всех углах."),
     muscles: [
       "upper_chest",
       "chest",
@@ -377,7 +378,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "8 volunteers, flat and 45 degree incline bench press at 50% and 70% 1RM, high-density EMG over 15 regions",
-    finding: "High-density EMG showed the centre of pectoral excitation moving toward the clavicular region from flat to 45 degree incline. Flat pressing concentrated excitation over the sternocostal region.",
+    finding: L("High-density EMG showed the centre of pectoral excitation moving toward the clavicular region from flat to 45 degree incline. Flat pressing concentrated excitation over the sternocostal region.", "ЭМГ высокой плотности показала, что центр возбуждения грудной мышцы смещается к ключичной области при переходе от горизонтальной скамьи к наклону 45 градусов. Горизонтальный жим концентрировал возбуждение в грудино-рёберной области."),
     muscles: [
       "upper_chest",
       "lower_chest",
@@ -399,7 +400,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "10 competitive bodybuilders; flat, 45 degree incline and -15 degree decline barbell bench press and a chest press machine, 4 reps at 80% 1RM",
-    finding: "In the concentric phase, clavicular excitation was highest on the incline and lowest on the chest press machine. Sternocostal excitation was similar for flat, decline and machine and lower on the incline. Triceps excitation was highest on flat and decline, anterior deltoid lowest on decline, and lateral deltoid lower on the machine than on all three barbell presses.",
+    finding: L("In the concentric phase, clavicular excitation was highest on the incline and lowest on the chest press machine. Sternocostal excitation was similar for flat, decline and machine and lower on the incline. Triceps excitation was highest on flat and decline, anterior deltoid lowest on decline, and lateral deltoid lower on the machine than on all three barbell presses.", "В концентрической фазе возбуждение ключичной части было наибольшим на наклонной скамье и наименьшим в тренажёре для жима от груди. Возбуждение грудино-рёберной части было схожим в горизонтальном жиме, жиме с отрицательным наклоном и в тренажёре и ниже на наклонной. Возбуждение трицепса было наибольшим в горизонтальном жиме и жиме с отрицательным наклоном, передней дельты — наименьшим при отрицательном наклоне, а средней дельты — ниже в тренажёре, чем во всех трёх жимах со штангой."),
     muscles: [
       "upper_chest",
       "lower_chest",
@@ -424,7 +425,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "14 resistance-trained men, barbell bench press at 0, 30, 45 and -15 degrees, one set of 6 reps at 65% 1RM",
-    finding: "Across the whole concentric phase, upper pectoral EMG did not differ between angles. The 30 and 45 degree inclines were higher only in an early part of the lift. Lower pectoral EMG was higher on the decline than at 45 degrees. The authors judged a flat bench adequate for both regions.",
+    finding: L("Across the whole concentric phase, upper pectoral EMG did not differ between angles. The 30 and 45 degree inclines were higher only in an early part of the lift. Lower pectoral EMG was higher on the decline than at 45 degrees. The authors judged a flat bench adequate for both regions.", "За всю концентрическую фазу ЭМГ верха грудных между углами не различалась. Наклоны 30 и 45 градусов давали больше только в начальной части подъёма. ЭМГ низа грудных была выше при отрицательном наклоне, чем при 45 градусах. Авторы сочли горизонтальную скамью достаточной для обеих областей."),
     muscles: [
       "upper_chest",
       "lower_chest",
@@ -446,7 +447,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "18 healthy young novices, 8-week progressive resistance training, randomised to normal (0.85 g/kg/day) or high (1.8 g/kg/day) protein intake",
-    finding: "Eight weeks of progressive training raised latissimus dorsi whole-muscle cross-sectional area (MRI) and single-fibre area (biopsy) in all participants, with about 17% more strength. Fibre force grew in step with fibre size. The higher protein intake did not add growth. One of very few studies measuring lat size directly.",
+    finding: L("Eight weeks of progressive training raised latissimus dorsi whole-muscle cross-sectional area (MRI) and single-fibre area (biopsy) in all participants, with about 17% more strength. Fibre force grew in step with fibre size. The higher protein intake did not add growth. One of very few studies measuring lat size directly.", "Восемь недель прогрессивных тренировок увеличили площадь поперечного сечения всей широчайшей мышцы спины (МРТ) и площадь отдельных волокон (биопсия) у всех участников, сила выросла примерно на 17%. Сила волокон росла вместе с их размером. Повышенное потребление белка роста не добавило. Одно из очень немногих исследований, где размер широчайших измеряли напрямую."),
     muscles: [
       "lats"
     ],
@@ -466,7 +467,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "9 women, 10 weeks of strength training; biopsies from the upper (descending) trapezius",
-    finding: "After 10 weeks of strength training, upper-trapezius fibre cross-sectional area rose by roughly a third, accompanied by more myonuclei and satellite cells. Shows at fibre level that the upper trapezius can hypertrophy with training.",
+    finding: L("After 10 weeks of strength training, upper-trapezius fibre cross-sectional area rose by roughly a third, accompanied by more myonuclei and satellite cells. Shows at fibre level that the upper trapezius can hypertrophy with training.", "После 10 недель силовых тренировок площадь поперечного сечения волокон верхней части трапеции выросла примерно на треть, вместе с числом миоядер и клеток-сателлитов. На уровне волокон это показывает, что верх трапеции способен гипертрофироваться от тренировок."),
     muscles: [
       "traps"
     ],
@@ -486,7 +487,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "42 women with trapezius myalgia randomised to 10 weeks of specific neck/shoulder strength training, general fitness training or no training; 20 healthy controls for the case-control part",
-    finding: "Specific high-intensity neck/shoulder strength training improved repeated maximal shoulder-elevation force more than general fitness training or no training, bringing it to the level of healthy controls; this was accompanied by trapezius fibre hypertrophy and higher capillarisation in the strength-training group.",
+    finding: L("Specific high-intensity neck/shoulder strength training improved repeated maximal shoulder-elevation force more than general fitness training or no training, bringing it to the level of healthy controls; this was accompanied by trapezius fibre hypertrophy and higher capillarisation in the strength-training group.", "Специальная высокоинтенсивная силовая тренировка шеи и плеч улучшила повторную максимальную силу подъёма плеч больше, чем общая физическая подготовка или отсутствие тренировок, доведя её до уровня здоровых людей из контрольной группы; это сопровождалось гипертрофией волокон трапеции и большей капилляризацией в группе силовых тренировок."),
     muscles: [
       "traps"
     ],
@@ -506,7 +507,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "21 resistance-trained men, 10 weeks, total-body vs split routine",
-    finding: "Both programme styles increased ultrasound muscle thickness of the upper trapezius, pectoralis major and vastus lateralis in already-trained men. Trapezius thickness gains did not differ between groups; only vastus lateralis thickness favoured the split routine.",
+    finding: L("Both programme styles increased ultrasound muscle thickness of the upper trapezius, pectoralis major and vastus lateralis in already-trained men. Trapezius thickness gains did not differ between groups; only vastus lateralis thickness favoured the split routine.", "Оба стиля программы увеличили толщину (УЗИ) верха трапеции, большой грудной и латеральной широкой мышцы бедра у уже тренированных мужчин. Прирост толщины трапеции между группами не различался; только по толщине латеральной широкой преимущество было у сплита."),
     muscles: [
       "traps"
     ],
@@ -526,7 +527,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "12 women aged 30-60 with trapezius myalgia",
-    finding: "Trapezius surface EMG was highest in shrugs (around maximal), with lateral raises and upright rows close behind even though they used much lighter loads; most tested exercises (including one-arm rows and reverse flys) exceeded about 60% of maximal activation. Acute activation only.",
+    finding: L("Trapezius surface EMG was highest in shrugs (around maximal), with lateral raises and upright rows close behind even though they used much lighter loads; most tested exercises (including one-arm rows and reverse flys) exceeded about 60% of maximal activation. Acute activation only.", "Поверхностная ЭМГ трапеции была наибольшей в шрагах (около максимальной), махи в стороны и тяга к подбородку шли следом, хотя веса в них были намного меньше; большинство проверенных упражнений (включая тягу одной рукой и обратные разведения) превышали примерно 60% максимальной активации. Только острая активация."),
     muscles: [
       "traps"
     ],
@@ -546,7 +547,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "30 healthy adults, 10 shoulder exercises",
-    finding: "A one-arm shrug produced the highest upper-trapezius EMG. Middle-trapezius EMG peaked in prone horizontal shoulder extension with external rotation (a rear-delt-fly-like pattern) and a prone overhead arm raise; the prone overhead raise also peaked for the lower trapezius.",
+    finding: L("A one-arm shrug produced the highest upper-trapezius EMG. Middle-trapezius EMG peaked in prone horizontal shoulder extension with external rotation (a rear-delt-fly-like pattern) and a prone overhead arm raise; the prone overhead raise also peaked for the lower trapezius.", "Шраги одной рукой дали наибольшую ЭМГ верха трапеции. ЭМГ средней части трапеции была максимальной при горизонтальном разгибании плеча лёжа на животе с наружной ротацией (движение, похожее на разводку на заднюю дельту) и при подъёме руки над головой лёжа на животе; этот же подъём дал максимум и для нижней части трапеции."),
     muscles: [
       "traps",
       "upper_back"
@@ -567,7 +568,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "12 healthy men, front lat pull-down at 70% 1RM, four grip variations",
-    finding: "In a front pulldown, an overhand (pronated) grip gave significantly higher latissimus EMG than an underhand grip, regardless of narrow or wide width. Grip type did not change middle-trapezius or biceps EMG.",
+    finding: L("In a front pulldown, an overhand (pronated) grip gave significantly higher latissimus EMG than an underhand grip, regardless of narrow or wide width. Grip type did not change middle-trapezius or biceps EMG.", "В тяге верхнего блока к груди хват сверху (пронированный) дал значимо большую ЭМГ широчайших, чем хват снизу, независимо от ширины — узкой или широкой. Тип хвата не менял ЭМГ средней части трапеции и бицепса."),
     muscles: [
       "lats",
       "upper_back",
@@ -589,7 +590,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "15 men, 6RM lat pull-down with pronated narrow, medium and wide grips (1, 1.5 and 2 times biacromial width)",
-    finding: "Over the whole movement, lat, trapezius and infraspinatus EMG were similar across the three grip widths. Narrow and medium grips allowed slightly heavier 6RM loads than the wide grip; the wide grip showed higher lat EMG than the narrow grip only in the lowering phase, and the medium grip showed more biceps EMG than narrow in the lifting phase.",
+    finding: L("Over the whole movement, lat, trapezius and infraspinatus EMG were similar across the three grip widths. Narrow and medium grips allowed slightly heavier 6RM loads than the wide grip; the wide grip showed higher lat EMG than the narrow grip only in the lowering phase, and the medium grip showed more biceps EMG than narrow in the lifting phase.", "За всё движение ЭМГ широчайших, трапеции и подостной мышцы была схожей при трёх ширинах хвата. Узкий и средний хваты позволяли брать немного больший вес на 6 повторений, чем широкий; широкий хват показал большую ЭМГ широчайших, чем узкий, только в фазе опускания, а средний — большую ЭМГ бицепса, чем узкий, в фазе подъёма."),
     muscles: [
       "lats",
       "traps",
@@ -611,7 +612,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "40 men with at least 5 years of resistance training, 7 lat pulldown variants at 70% of repetition maximum",
-    finding: "Across seven pulldown variants differing in grip type, width and torso lean, activation of the lats, middle and lower trapezius, biceps and infraspinatus did not differ significantly. Only posterior deltoid EMG was higher with a wide overhand grip plus about 30 degrees of torso lean.",
+    finding: L("Across seven pulldown variants differing in grip type, width and torso lean, activation of the lats, middle and lower trapezius, biceps and infraspinatus did not differ significantly. Only posterior deltoid EMG was higher with a wide overhand grip plus about 30 degrees of torso lean.", "В семи вариантах тяги верхнего блока, различавшихся типом и шириной хвата и наклоном корпуса, активация широчайших, средней и нижней частей трапеции, бицепса и подостной мышцы значимо не различалась. Только ЭМГ задней дельты была выше при широком хвате сверху с наклоном корпуса примерно на 30 градусов."),
     muscles: [
       "lats",
       "upper_back",
@@ -634,7 +635,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "Healthy participants (number not stated in abstract); 10-second isometric holds in wide-grip pulldown, reverse-grip pulldown and seated rows with and without scapular retraction",
-    finding: "The seated row produced the highest middle trapezius/rhomboid EMG; the wide-grip pulldown and seated row had the highest lat-to-biceps activation ratio. Biceps EMG did not differ between tasks, and deliberately retracting the shoulder blades did not change mid-trap/rhomboid activity. Variations changed activation only slightly.",
+    finding: L("The seated row produced the highest middle trapezius/rhomboid EMG; the wide-grip pulldown and seated row had the highest lat-to-biceps activation ratio. Biceps EMG did not differ between tasks, and deliberately retracting the shoulder blades did not change mid-trap/rhomboid activity. Variations changed activation only slightly.", "Тяга сидя дала наибольшую ЭМГ средней части трапеции и ромбовидных; у тяги верхнего блока широким хватом и тяги сидя было наибольшее отношение активации широчайших к бицепсу. ЭМГ бицепса между заданиями не различалась, а намеренное сведение лопаток не меняло активность средней части трапеции и ромбовидных. Варианты меняли активацию лишь незначительно."),
     muscles: [
       "lats",
       "upper_back",
@@ -656,7 +657,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "25 young adults (21 men, 4 women), bodyweight pull-up, chin-up and rotating-handle pull-up",
-    finding: "Lat EMG was very high in all three variants. The underhand chin-up gave significantly higher biceps and pectoralis major EMG than the overhand pull-up, while the pull-up gave more lower-trapezius activity. Rotating handles did not increase activation.",
+    finding: L("Lat EMG was very high in all three variants. The underhand chin-up gave significantly higher biceps and pectoralis major EMG than the overhand pull-up, while the pull-up gave more lower-trapezius activity. Rotating handles did not increase activation.", "ЭМГ широчайших была очень высокой во всех трёх вариантах. Подтягивания хватом снизу дали значимо большую ЭМГ бицепса и большой грудной, чем подтягивания хватом сверху, а хват сверху — большую активность нижней части трапеции. Вращающиеся рукояти активацию не повысили."),
     muscles: [
       "lats",
       "biceps",
@@ -678,7 +679,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "narrative_review",
     outcome: "emg_activation",
     population: "23 EMG studies of pulldowns, pullovers, seated, barbell and bent-over rows and pull-ups",
-    finding: "Pulling the bar down in front of the face was the pulldown setup most consistently tied to higher lat EMG, while grip-width effects were inconsistent. In seated rows, a narrower grip and less elbow flare were each tied to higher lat EMG in separate studies. Pull-up grips gave similar lat activation; the pullover favoured the pecs. Authors stress these are acute EMG results, not training outcomes.",
+    finding: L("Pulling the bar down in front of the face was the pulldown setup most consistently tied to higher lat EMG, while grip-width effects were inconsistent. In seated rows, a narrower grip and less elbow flare were each tied to higher lat EMG in separate studies. Pull-up grips gave similar lat activation; the pullover favoured the pecs. Authors stress these are acute EMG results, not training outcomes.", "Тяга рукояти вниз перед лицом — тот вариант тяги верхнего блока, который наиболее устойчиво связывали с большей ЭМГ широчайших; влияние ширины хвата было непоследовательным. В тяге сидя более узкий хват и меньшее разведение локтей связывали с большей ЭМГ широчайших — каждое в отдельных исследованиях. Хваты в подтягиваниях давали схожую активацию широчайших; пуловер больше нагружал грудные. Авторы подчёркивают: это острые результаты ЭМГ, а не итоги тренировок."),
     muscles: [
       "lats"
     ],
@@ -698,7 +699,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "29 untrained young men, 10 weeks, twice weekly: lat pulldowns only vs biceps curls only",
-    finding: "Training only with lat pulldowns increased elbow-flexor muscle thickness by about 6%, similar to training only with biceps curls, with similar strength gains and no between-group differences. A multi-joint vertical pull therefore produced meaningful elbow-flexor growth in novices.",
+    finding: L("Training only with lat pulldowns increased elbow-flexor muscle thickness by about 6%, similar to training only with biceps curls, with similar strength gains and no between-group differences. A multi-joint vertical pull therefore produced meaningful elbow-flexor growth in novices.", "Тренировка только тягой верхнего блока увеличила толщину сгибателей локтя примерно на 6% — схоже с тренировкой только сгибаниями на бицепс, при схожем приросте силы и без различий между группами. Таким образом, многосуставная вертикальная тяга дала у новичков заметный рост сгибателей локтя."),
     muscles: [
       "biceps"
     ],
@@ -718,7 +719,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "narrative_review",
     outcome: "other",
     population: "Methodological critique of acute surface-EMG research",
-    finding: "The authors argue that surface EMG amplitude has little validation as a predictor of long-term muscle growth and rests on a weak mechanistic basis, so acute EMG comparisons of exercises should be viewed sceptically when choosing exercises for hypertrophy.",
+    finding: L("The authors argue that surface EMG amplitude has little validation as a predictor of long-term muscle growth and rests on a weak mechanistic basis, so acute EMG comparisons of exercises should be viewed sceptically when choosing exercises for hypertrophy.", "Авторы утверждают, что амплитуда поверхностной ЭМГ слабо подтверждена как предсказатель долгосрочного роста мышц и опирается на слабую механистическую основу, поэтому к острым ЭМГ-сравнениям упражнений при выборе упражнений для гипертрофии стоит относиться скептически."),
     muscles: [],
     limitations: "Conceptual/critical review, not a new data analysis.",
     confidence: "high",
@@ -736,7 +737,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "24 resistance-trained men and women; within-participant design (arms randomly allocated to cable or dumbbell lateral raise)",
-    finding: "Eight weeks of lateral raises (2 sessions/week, 5 sets to momentary failure, shoulder range of motion matched) increased ultrasound side-delt thickness by roughly 3-5%. Bayesian analyses at both proximal and distal sites favoured no difference between dumbbell and cable versions.",
+    finding: L("Eight weeks of lateral raises (2 sessions/week, 5 sets to momentary failure, shoulder range of motion matched) increased ultrasound side-delt thickness by roughly 3-5%. Bayesian analyses at both proximal and distal sites favoured no difference between dumbbell and cable versions.", "Восемь недель махов в стороны (2 тренировки в неделю, 5 подходов до момента отказа, амплитуда в плечевом суставе уравнена) увеличили толщину средней дельты (УЗИ) примерно на 3–5%. Байесовский анализ в проксимальной и дистальной точках говорил в пользу отсутствия разницы между вариантами с гантелями и на блоке."),
     muscles: [
       "side_delts"
     ],
@@ -756,7 +757,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "emg_activation",
     population: "33 surface-EMG studies of loaded shoulder exercises (>=60% 1RM or bodyweight), normalised values",
-    finding: "Grouping and averaging normalised surface EMG, incline and flat horizontal-adduction movements ranked highest for the anterior deltoid (incline dumbbell fly highest individually); abduction and horizontal-abduction movements ranked highest for the middle deltoid, with internally rotated lateral raises highest individually; pull-ups and suspension inverted rows ranked highest for the posterior deltoid.",
+    finding: L("Grouping and averaging normalised surface EMG, incline and flat horizontal-adduction movements ranked highest for the anterior deltoid (incline dumbbell fly highest individually); abduction and horizontal-abduction movements ranked highest for the middle deltoid, with internally rotated lateral raises highest individually; pull-ups and suspension inverted rows ranked highest for the posterior deltoid.", "При группировке и усреднении нормализованной поверхностной ЭМГ движения горизонтального приведения на наклонной и горизонтальной скамье заняли первые места для передней дельты (по отдельности выше всех — разводка гантелей на наклонной); движения отведения и горизонтального отведения — для средней дельты (по отдельности выше всех — махи в стороны с внутренней ротацией); подтягивания и обратные тяги в петлях — для задней дельты."),
     muscles: [
       "front_delts",
       "side_delts",
@@ -778,7 +779,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "13 resistance-trained men; one set of 12 reps at 60% 1RM per exercise",
-    finding: "Of bench press, dumbbell fly, shoulder press and lateral raise, the shoulder press gave the highest anterior-deltoid EMG while the other three were similar. Lateral raise and shoulder press activated the middle deltoid far more than bench press or fly, which were very low. Among these four exercises the lateral raise gave the highest posterior-deltoid EMG.",
+    finding: L("Of bench press, dumbbell fly, shoulder press and lateral raise, the shoulder press gave the highest anterior-deltoid EMG while the other three were similar. Lateral raise and shoulder press activated the middle deltoid far more than bench press or fly, which were very low. Among these four exercises the lateral raise gave the highest posterior-deltoid EMG.", "Из жима лёжа, разводки гантелей, жима над головой и махов в стороны наибольшую ЭМГ передней дельты дал жим над головой, остальные три были схожи. Махи в стороны и жим над головой активировали среднюю дельту намного сильнее, чем жим лёжа или разводка, где активация была очень низкой. Среди этих четырёх упражнений наибольшую ЭМГ задней дельты дали махи в стороны."),
     muscles: [
       "front_delts",
       "side_delts",
@@ -800,7 +801,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "10 competitive bodybuilders",
-    finding: "Middle-deltoid EMG was higher with a neutral humerus than with external rotation, a bent elbow or a frontal raise (no medial-delt difference versus internal rotation was reported). Internal rotation raised posterior-deltoid, upper-trapezius and triceps EMG above all other variants; the frontal raise mainly activated anterior deltoid and pectoralis major.",
+    finding: L("Middle-deltoid EMG was higher with a neutral humerus than with external rotation, a bent elbow or a frontal raise (no medial-delt difference versus internal rotation was reported). Internal rotation raised posterior-deltoid, upper-trapezius and triceps EMG above all other variants; the frontal raise mainly activated anterior deltoid and pectoralis major.", "ЭМГ средней дельты была выше при нейтральном положении плечевой кости, чем при наружной ротации, согнутом локте или подъёме перед собой (о различии для средней дельты в сравнении с внутренней ротацией не сообщалось). Внутренняя ротация повышала ЭМГ задней дельты, верха трапеции и трицепса выше всех остальных вариантов; подъём перед собой в основном активировал переднюю дельту и большую грудную."),
     muscles: [
       "side_delts",
       "front_delts",
@@ -823,7 +824,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "8 competitive bodybuilders",
-    finding: "Behind-the-neck barbell pressing gave more middle- and posterior-deltoid EMG than front barbell pressing, while front pressing favoured pectoralis major. The authors concluded that barbell pressing excites the shoulder muscles more than a machine shoulder press (e.g. back barbell versus back machine for anterior and middle delt).",
+    finding: L("Behind-the-neck barbell pressing gave more middle- and posterior-deltoid EMG than front barbell pressing, while front pressing favoured pectoralis major. The authors concluded that barbell pressing excites the shoulder muscles more than a machine shoulder press (e.g. back barbell versus back machine for anterior and middle delt).", "Жим штанги из-за головы дал большую ЭМГ средней и задней дельты, чем жим штанги с груди, а жим с груди сильнее нагружал большую грудную. Авторы заключили, что жим штанги возбуждает мышцы плеча сильнее, чем жим в тренажёре (например, штанга из-за головы против тренажёра из-за головы — для передней и средней дельты)."),
     muscles: [
       "front_delts",
       "side_delts",
@@ -845,7 +846,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "19 resistance-trained men",
-    finding: "On a reverse fly machine, sets to failure with a neutral grip produced modestly higher mean posterior-deltoid and infraspinatus EMG than a pronated grip.",
+    finding: L("On a reverse fly machine, sets to failure with a neutral grip produced modestly higher mean posterior-deltoid and infraspinatus EMG than a pronated grip.", "В тренажёре для обратных разведений подходы до отказа нейтральным хватом дали умеренно большую среднюю ЭМГ задней дельты и подостной мышцы, чем пронированным хватом."),
     muscles: [
       "rear_delts"
     ],
@@ -865,7 +866,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "mixed",
     population: "8 studies, 241 young men",
-    finding: "Exercise variation chosen systematically on anatomical and biomechanical grounds appears to help regional hypertrophy and strength, whereas redundant exercises or frequent random rotation of exercises may hinder gains.",
+    finding: L("Exercise variation chosen systematically on anatomical and biomechanical grounds appears to help regional hypertrophy and strength, whereas redundant exercises or frequent random rotation of exercises may hinder gains.", "Вариативность упражнений, подобранная систематически по анатомическим и биомеханическим основаниям, по-видимому, помогает региональной гипертрофии и силе, тогда как дублирующие упражнения или частая случайная смена упражнений могут мешать прогрессу."),
     muscles: [],
     limitations: "Few studies, young men only, none deltoid-specific; qualitative synthesis.",
     confidence: "moderate",
@@ -883,7 +884,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "21 adults, within-subject (one arm overhead, the other neutral), cable elbow extensions 90-0 deg, 5x10 at ~70% 1RM, 2x/week for 12 weeks; MRI muscle volume",
-    finding: "Cable elbow extensions with the arm overhead grew the whole triceps about 1.4 times as much as the same movement with the arm at the side (about 20% vs 14%), with the largest difference in the long head (about 1.5 times), even though overhead loads were roughly a third lower. Strength gains in the trained movement were similar.",
+    finding: L("Cable elbow extensions with the arm overhead grew the whole triceps about 1.4 times as much as the same movement with the arm at the side (about 20% vs 14%), with the largest difference in the long head (about 1.5 times), even though overhead loads were roughly a third lower. Strength gains in the trained movement were similar.", "Разгибания рук на блоке с рукой над головой увеличили весь трицепс примерно в 1,4 раза больше, чем то же движение с рукой у бока (около 20% против 14%), с наибольшей разницей в длинной головке (примерно в 1,5 раза), хотя веса над головой были примерно на треть меньше. Прирост силы в тренируемом движении был схожим."),
     muscles: [
       "triceps"
     ],
@@ -903,7 +904,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "21 untrained adults, within-subject (incline curl one arm, preacher curl the other), 5x10 at 70% 1RM, 2x/week for 12 weeks; MRI volumes of biceps, brachialis, brachioradialis",
-    finding: "Incline (shoulder-extended) curls grew the biceps somewhat more, while preacher (shoulder-flexed) curls grew the brachialis and brachioradialis somewhat more; total elbow flexor growth was not significantly different (about 18% vs 19%). The muscle-specific differences were small to moderate and regional growth patterns were similar.",
+    finding: L("Incline (shoulder-extended) curls grew the biceps somewhat more, while preacher (shoulder-flexed) curls grew the brachialis and brachioradialis somewhat more; total elbow flexor growth was not significantly different (about 18% vs 19%). The muscle-specific differences were small to moderate and regional growth patterns were similar.", "Сгибания на наклонной скамье (плечо разогнуто) развивали бицепс несколько больше, а сгибания на скамье Скотта (плечо согнуто) — несколько больше плечевую и плечелучевую мышцы; суммарный рост сгибателей локтя значимо не различался (около 18% против 19%). Различия по отдельным мышцам были от малых до умеренных, а региональные картины роста — схожими."),
     muscles: [
       "biceps",
       "forearms"
@@ -924,7 +925,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "15 young men, within-subject with randomized arm allocation, unilateral cable preacher curl vs cable curl with shoulder extended (Bayesian), 3-5 sets of 8-12RM, 2x/week for 10 weeks; ultrasound muscle thickness",
-    finding: "With resistance profiles matched by using cables, shoulder-flexed and shoulder-extended cable curls both increased biceps (proximal, mid, distal) and brachialis thickness and strength, with no significant differences between them; biceps gains were numerically a little higher for the shoulder-extended curl (about 9% vs 6-7%).",
+    finding: L("With resistance profiles matched by using cables, shoulder-flexed and shoulder-extended cable curls both increased biceps (proximal, mid, distal) and brachialis thickness and strength, with no significant differences between them; biceps gains were numerically a little higher for the shoulder-extended curl (about 9% vs 6-7%).", "При уравненных с помощью блоков профилях сопротивления сгибания на блоке с согнутым и с разогнутым плечом увеличили толщину бицепса (проксимально, в середине, дистально) и плечевой мышцы и силу без значимых различий между ними; прирост бицепса был численно немного выше при разогнутом плече (около 9% против 6–7%)."),
     muscles: [
       "biceps"
     ],
@@ -944,7 +945,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "35 young adults (25 men, 10 women), between-group, preacher curl 3x8-12, 3x/week for 10 weeks; ultrasound biceps thickness, isokinetic torque at 3 angles",
-    finding: "Barbell preacher curls (hardest with the elbow extended) and cable preacher curls (hardest near full flexion) grew the biceps by a similar amount (about 8% vs 7%); the barbell version gave larger strength gains only at the most extended (long-muscle-length) test angle.",
+    finding: L("Barbell preacher curls (hardest with the elbow extended) and cable preacher curls (hardest near full flexion) grew the biceps by a similar amount (about 8% vs 7%); the barbell version gave larger strength gains only at the most extended (long-muscle-length) test angle.", "Сгибания на скамье Скотта со штангой (тяжелее всего при разогнутом локте) и на блоке (тяжелее всего ближе к полному сгибанию) увеличили бицепс примерно одинаково (около 8% против 7%); вариант со штангой дал больший прирост силы только на самом разогнутом тестовом угле (при большой длине мышцы)."),
     muscles: [
       "biceps"
     ],
@@ -964,7 +965,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "19 untrained young women, within-subject with randomized arm allocation, seated dumbbell preacher curl in the initial (0-68 deg, elbow extended) vs final (68-135 deg) range, 3x/week for 8 weeks; biceps CSA at 50% and 70% of humerus length",
-    finding: "Partial preacher curls in the elbow-extended (stretched) part of the range grew the distal biceps more than partials near full flexion; growth at the mid site and summed across both sites did not differ significantly. The lengthened-partial arm also gained more full-range 1RM strength.",
+    finding: L("Partial preacher curls in the elbow-extended (stretched) part of the range grew the distal biceps more than partials near full flexion; growth at the mid site and summed across both sites did not differ significantly. The lengthened-partial arm also gained more full-range 1RM strength.", "Частичные сгибания на скамье Скотта в разогнутой (растянутой) части амплитуды развивали дистальную часть бицепса больше, чем частичные ближе к полному сгибанию; рост в средней точке и в сумме по обеим точкам значимо не различался. Рука с частичными в растянутом положении также больше прибавила в 1RM в полной амплитуде."),
     muscles: [
       "biceps"
     ],
@@ -984,7 +985,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "32 non-resistance-trained young adults randomized to extended-angle (0-50 deg) or flexed-angle (80-130 deg) arm curls or control; 2x/week for 5 weeks; ultrasound elbow flexor (biceps and brachialis) thickness",
-    finding: "Curling only in the elbow-extended (lengthened) range increased elbow flexor thickness more than curling only in the flexed range (about 9% vs 3%), and only the extended-range group gained strength significantly.",
+    finding: L("Curling only in the elbow-extended (lengthened) range increased elbow flexor thickness more than curling only in the flexed range (about 9% vs 3%), and only the extended-range group gained strength significantly.", "Сгибания только в разогнутой (растянутой) части амплитуды увеличили толщину сгибателей локтя больше, чем сгибания только в согнутой части (около 9% против 3%), и значимо прибавила в силе только группа разогнутой части."),
     muscles: [
       "biceps"
     ],
@@ -1004,7 +1005,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "44 resistance-trained men, elbow extensions 3x8RM, partial (45-90 deg) vs full (0-120 deg) ROM, 3x/week for 8 weeks; triceps CSA (plus acute oxygenation, lactate and EMG measures)",
-    finding: "Both groups grew the triceps, but mid-range partial elbow extensions increased triceps CSA more than full-range extensions (about 49% vs 28%). The proposed hypoxia mechanism rests on acute oxygenation, lactate and EMG measurements and correlations, so it remains a hypothesis.",
+    finding: L("Both groups grew the triceps, but mid-range partial elbow extensions increased triceps CSA more than full-range extensions (about 49% vs 28%). The proposed hypoxia mechanism rests on acute oxygenation, lactate and EMG measurements and correlations, so it remains a hypothesis.", "Трицепс вырос в обеих группах, но частичные разгибания в середине амплитуды увеличили площадь поперечного сечения трицепса больше, чем разгибания в полной амплитуде (около 49% против 28%). Предложенный механизм гипоксии опирается на острые измерения оксигенации, лактата и ЭМГ и на корреляции, поэтому остаётся гипотезой."),
     muscles: [
       "triceps"
     ],
@@ -1024,7 +1025,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "10 untrained men, within-subject: one arm unilateral dumbbell rows, other arm biceps curls, 4-6 sets of 8-12 to concentric failure, 2x/week for 8 weeks; ultrasound elbow flexor thickness",
-    finding: "The arm that did curls gained roughly twice as much elbow flexor thickness as the arm that did dumbbell rows (about 11% vs 5%); 10RM strength improved most in whichever exercise each arm trained.",
+    finding: L("The arm that did curls gained roughly twice as much elbow flexor thickness as the arm that did dumbbell rows (about 11% vs 5%); 10RM strength improved most in whichever exercise each arm trained.", "Рука, выполнявшая сгибания, прибавила примерно вдвое больше толщины сгибателей локтя, чем рука, выполнявшая тягу гантели (около 11% против 5%); сила на 10 повторений выросла больше в том упражнении, которое выполняла каждая рука."),
     muscles: [
       "biceps"
     ],
@@ -1044,7 +1045,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "29 untrained young men, 10 weeks: lat pulldown + bench press only vs the same plus elbow flexion and extension exercises; ultrasound elbow flexor thickness, isokinetic peak torque",
-    finding: "Elbow flexor thickness rose similarly (about 6.5% vs 7%) whether or not curls and extensions were added to pulldowns and bench presses; no significant extra benefit of the isolation work was detected in beginners.",
+    finding: L("Elbow flexor thickness rose similarly (about 6.5% vs 7%) whether or not curls and extensions were added to pulldowns and bench presses; no significant extra benefit of the isolation work was detected in beginners.", "Толщина сгибателей локтя выросла схоже (около 6,5% против 7%) независимо от того, добавляли ли сгибания и разгибания к тяге верхнего блока и жиму лёжа; значимой дополнительной пользы от изолирующей работы у начинающих не обнаружено."),
     muscles: [
       "biceps"
     ],
@@ -1064,7 +1065,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "20 men with at least 2 years of training, 8 weeks: multi-joint only vs multi-joint plus single-joint arm exercises; flexed arm circumference, arm muscle circumference and 1RM",
-    finding: "In trained men, adding arm isolation exercises to a multi-joint program produced no significant difference in arm circumference or elbow flexion/extension strength gains compared with multi-joint training alone.",
+    finding: L("In trained men, adding arm isolation exercises to a multi-joint program produced no significant difference in arm circumference or elbow flexion/extension strength gains compared with multi-joint training alone.", "У тренированных мужчин добавление изолирующих упражнений на руки к многосуставной программе не дало значимой разницы в обхвате руки и в приросте силы сгибания и разгибания локтя по сравнению с одной многосуставной тренировкой."),
     muscles: [
       "biceps",
       "triceps"
@@ -1085,7 +1086,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "7 previously untrained young men, free-weight bench press only 3x10 at 75% 1RM, 3x/week for 24 weeks; ultrasound pectoralis, triceps and biceps thickness",
-    finding: "Bench press alone increased pectoralis thickness (significant from week 1) and triceps thickness (from week 5), while no change in biceps thickness was detected over 24 weeks.",
+    finding: L("Bench press alone increased pectoralis thickness (significant from week 1) and triceps thickness (from week 5), while no change in biceps thickness was detected over 24 weeks.", "Один только жим лёжа увеличил толщину грудных (значимо с 1-й недели) и трицепса (с 5-й недели), а изменений толщины бицепса за 24 недели не обнаружено."),
     muscles: [
       "triceps",
       "chest",
@@ -1107,7 +1108,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "mixed",
     population: "12 young men, 12 weeks (3x/week) of a multi-joint exercise for the elbow extensors (not named in the abstract); MRI triceps CSA along its length plus T2-MRI activation after the first session",
-    finding: "A multi-joint elbow-extension exercise grew the triceps unevenly: middle regions grew more than the most proximal region, and the same regions showed greater acute activation (T2-MRI) in the first session. The link to activation is an association from an acute, indirect measure.",
+    finding: L("A multi-joint elbow-extension exercise grew the triceps unevenly: middle regions grew more than the most proximal region, and the same regions showed greater acute activation (T2-MRI) in the first session. The link to activation is an association from an acute, indirect measure.", "Многосуставное упражнение на разгибание локтя развивало трицепс неравномерно: средние области выросли больше, чем самая проксимальная, и те же области показали большую острую активацию (T2-МРТ) на первой тренировке. Связь с активацией — ассоциация по острому, косвенному показателю."),
     muscles: [
       "triceps"
     ],
@@ -1127,7 +1128,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "38 recreationally trained women, incline curl vs preacher curl, 4x12 to volitional failure, 3x/week for 9 weeks; ultrasound arm muscle thickness at 50/60/70% of upper-arm length",
-    finding: "Only the preacher-curl group showed a significant within-group increase, at the distal arm site; the incline-curl group showed no significant growth. However, there were no significant differences between groups or regions, so the study does not show preacher curls are superior.",
+    finding: L("Only the preacher-curl group showed a significant within-group increase, at the distal arm site; the incline-curl group showed no significant growth. However, there were no significant differences between groups or regions, so the study does not show preacher curls are superior.", "Значимый прирост внутри группы показала только группа сгибаний на скамье Скотта — в дистальной точке руки; в группе сгибаний на наклонной скамье значимого роста не было. При этом значимых различий между группами и областями не было, так что исследование не показывает превосходства скамьи Скотта."),
     muscles: [
       "biceps"
     ],
@@ -1147,7 +1148,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "17 men randomised to full (n=8) or half (n=9) squat training, twice weekly for 10 weeks; MRI muscle volumes plus 1RM",
-    finding: "Knee-extensor volume rose about 5% with both squat depths, but rectus femoris and hamstring volumes did not change in either group. Adductor and gluteus maximus volumes rose in both groups, and the gains were significantly larger with full squats (about 6-7% vs 2-3%).",
+    finding: L("Knee-extensor volume rose about 5% with both squat depths, but rectus femoris and hamstring volumes did not change in either group. Adductor and gluteus maximus volumes rose in both groups, and the gains were significantly larger with full squats (about 6-7% vs 2-3%).", "Объём разгибателей колена вырос примерно на 5% при обеих глубинах приседа, а объёмы прямой мышцы бедра и бицепсов бедра не изменились ни в одной группе. Объёмы приводящих и большой ягодичной выросли в обеих группах, и прирост был значимо больше при полных приседаниях (около 6–7% против 2–3%)."),
     muscles: [
       "quads",
       "hamstrings",
@@ -1170,7 +1171,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "17 male students randomised to deep (0-120 deg knee flexion) or shallow (0-60 deg) squats, 12 weeks",
-    finding: "Deep squats increased front-thigh cross-sectional area more than shallow squats (about 4-7%), along with more isometric knee-extension strength at longer knee angles and better squat-jump performance. Each group gained the most 1RM strength at the depth it trained.",
+    finding: L("Deep squats increased front-thigh cross-sectional area more than shallow squats (about 4-7%), along with more isometric knee-extension strength at longer knee angles and better squat-jump performance. Each group gained the most 1RM strength at the depth it trained.", "Глубокие приседания увеличили площадь поперечного сечения передней поверхности бедра больше, чем неглубокие (примерно на 4–7%), вместе с большей изометрической силой разгибания колена при больших углах сгибания и лучшим результатом в прыжке из приседа. Каждая группа больше всего прибавила в 1RM на той глубине, на которой тренировалась."),
     muscles: [
       "quads"
     ],
@@ -1190,7 +1191,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "16 training studies comparing full vs partial range of motion",
-    finding: "Pooled across 16 studies, full-range training produced greater strength gains and greater lower-limb hypertrophy than partial-range training. Muscle thickness and architecture measures (pennation angle, fascicle length) showed no significant difference between the two.",
+    finding: L("Pooled across 16 studies, full-range training produced greater strength gains and greater lower-limb hypertrophy than partial-range training. Muscle thickness and architecture measures (pennation angle, fascicle length) showed no significant difference between the two.", "По объединённым данным 16 исследований тренировка в полной амплитуде дала больший прирост силы и большую гипертрофию нижних конечностей, чем в частичной амплитуде. Толщина мышц и показатели архитектуры (угол перистости, длина пучков) значимых различий между ними не показали."),
     muscles: [
       "quads",
       "glutes",
@@ -1212,7 +1213,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "22 untrained men, within-participant (legs randomised to 40 vs 90 deg hip flexion), twice weekly for 10 weeks; ultrasound",
-    finding: "Leg extensions done with a reclined hip (40 deg flexion, rectus femoris more lengthened) grew the rectus femoris clearly more than the usual upright seat (90 deg). Vastus lateralis growth was the same in both positions.",
+    finding: L("Leg extensions done with a reclined hip (40 deg flexion, rectus femoris more lengthened) grew the rectus femoris clearly more than the usual upright seat (90 deg). Vastus lateralis growth was the same in both positions.", "Разгибания ног с откинутой спинкой (сгибание в тазобедренном суставе 40 градусов, прямая мышца бедра растянута сильнее) развивали прямую мышцу бедра заметно больше, чем обычное вертикальное сиденье (90 градусов). Рост латеральной широкой мышцы был одинаковым в обоих положениях."),
     muscles: [
       "quads"
     ],
@@ -1232,7 +1233,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "63 untrained young women randomised to Smith machine back squat or leg extension, 3 sets of 8-12RM, twice weekly for 8 weeks; ultrasound",
-    finding: "Leg extension produced more rectus femoris growth at all three sites (proximal, middle and distal), while the Smith squat produced more growth in the distal vastus lateralis. Squat strength improved more with squats, and leg-extension strength improved similarly in both groups.",
+    finding: L("Leg extension produced more rectus femoris growth at all three sites (proximal, middle and distal), while the Smith squat produced more growth in the distal vastus lateralis. Squat strength improved more with squats, and leg-extension strength improved similarly in both groups.", "Разгибания ног дали больший рост прямой мышцы бедра во всех трёх точках (проксимальной, средней и дистальной), а приседания в Смите — больший рост дистальной части латеральной широкой мышцы. Сила в приседе росла больше от приседаний, а сила в разгибаниях ног росла схоже в обеих группах."),
     muscles: [
       "quads"
     ],
@@ -1252,7 +1253,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "17 untrained adults, knee extension on one leg and leg press on the other, 5x10 at 70% 1RM, twice weekly for 12 weeks; MRI of 17 muscles",
-    finding: "Vasti and whole-quadriceps growth was similar for leg press and knee extension, but only knee extension grew the rectus femoris (about 13% vs 1%). Leg press also grew the gluteus maximus (about 15%) and adductor magnus (about 6%), which knee extension did not. A separate EMG experiment showed activation patterns that roughly matched these growth results.",
+    finding: L("Vasti and whole-quadriceps growth was similar for leg press and knee extension, but only knee extension grew the rectus femoris (about 13% vs 1%). Leg press also grew the gluteus maximus (about 15%) and adductor magnus (about 6%), which knee extension did not. A separate EMG experiment showed activation patterns that roughly matched these growth results.", "Рост широких мышц бедра и всего квадрицепса был схожим в жиме ногами и в разгибаниях колена, но прямую мышцу бедра развивали только разгибания (около 13% против 1%). Жим ногами также развивал большую ягодичную (около 15%) и большую приводящую (около 6%), чего разгибания не давали. Отдельный ЭМГ-эксперимент показал картины активации, примерно совпавшие с этими результатами роста."),
     muscles: [
       "quads",
       "glutes",
@@ -1274,7 +1275,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "Two randomised groups with matched volume and intensity: Smith machine squat vs leg extension",
-    finding: "In the leg-extension group all three rectus femoris regions grew significantly. In the Smith-squat group only the middle region of the vastus lateralis grew significantly. This supports the idea that exercise choice affects where the quadriceps grows.",
+    finding: L("In the leg-extension group all three rectus femoris regions grew significantly. In the Smith-squat group only the middle region of the vastus lateralis grew significantly. This supports the idea that exercise choice affects where the quadriceps grows.", "В группе разгибаний ног значимо выросли все три области прямой мышцы бедра. В группе приседаний в Смите значимо выросла только средняя область латеральной широкой мышцы. Это поддерживает идею, что выбор упражнения влияет на то, где растёт квадрицепс."),
     muscles: [
       "quads"
     ],
@@ -1294,7 +1295,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "mixed",
     population: "20 healthy adults, seated leg curl on one leg and prone curl on the other, 5x10 at 70% 1RM, twice weekly for 12 weeks; MRI",
-    finding: "Seated leg curls (hip flexed, hamstrings lengthened) grew the whole hamstrings more than prone curls (about 14% vs 9%). The extra growth was in the two-joint hamstring muscles; the one-joint muscle grew about the same (about 10% vs 9%). Both protected similarly against later eccentric muscle damage.",
+    finding: L("Seated leg curls (hip flexed, hamstrings lengthened) grew the whole hamstrings more than prone curls (about 14% vs 9%). The extra growth was in the two-joint hamstring muscles; the one-joint muscle grew about the same (about 10% vs 9%). Both protected similarly against later eccentric muscle damage.", "Сгибания ног сидя (тазобедренный сустав согнут, бицепсы бедра растянуты) развивали все мышцы задней поверхности бедра больше, чем сгибания лёжа (около 14% против 9%). Дополнительный рост пришёлся на двусуставные мышцы; односуставная выросла примерно одинаково (около 10% против 9%). Оба варианта схоже защищали от последующего эксцентрического повреждения мышц."),
     muscles: [
       "hamstrings"
     ],
@@ -1314,7 +1315,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "mixed",
     population: "42 healthy young men: Nordic hamstring training vs weight-stack eccentric knee flexion in a strongly hip-flexed position vs control (n=14 each), 12 weeks; MRI",
-    finding: "Eccentric knee flexion with the hip strongly flexed grew the hamstrings (about 18% vs 11%) and the biceps femoris long head (about 19% vs 5%) more than Nordic curls. The hip-flexed regime grew knee flexors that also extend the hip; Nordics grew knee flexors that do not extend the hip.",
+    finding: L("Eccentric knee flexion with the hip strongly flexed grew the hamstrings (about 18% vs 11%) and the biceps femoris long head (about 19% vs 5%) more than Nordic curls. The hip-flexed regime grew knee flexors that also extend the hip; Nordics grew knee flexors that do not extend the hip.", "Эксцентрическое сгибание колена при сильно согнутом тазобедренном суставе развивало мышцы задней поверхности бедра (около 18% против 11%) и длинную головку бицепса бедра (около 19% против 5%) больше, чем нордические сгибания. Режим с согнутым тазобедренным суставом развивал сгибатели колена, которые также разгибают бедро; нордические — сгибатели колена, которые бедро не разгибают."),
     muscles: [
       "hamstrings"
     ],
@@ -1334,7 +1335,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "30 recreationally active male athletes allocated to hip extension, Nordic or control (n=10 each), 10 weeks; MRI for muscle size, ultrasound for fascicle length",
-    finding: "Biceps femoris long head volume increased more with a hip-extension exercise than with Nordic curls. Both exercises grew the semitendinosus similarly and both lengthened long-head fascicles.",
+    finding: L("Biceps femoris long head volume increased more with a hip-extension exercise than with Nordic curls. Both exercises grew the semitendinosus similarly and both lengthened long-head fascicles.", "Объём длинной головки бицепса бедра вырос больше от упражнения на разгибание бедра, чем от нордических сгибаний. Оба упражнения схоже развивали полусухожильную мышцу, и оба удлинили пучки длинной головки."),
     muscles: [
       "hamstrings"
     ],
@@ -1354,7 +1355,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "34 untrained college-aged adults randomised to set-matched hip thrust (n=18) or back squat (n=16), 9 weeks; MRI",
-    finding: "Glute growth was similar with hip thrusts and squats, with only a small and uncertain lean toward hip thrusts. Squats grew the quadriceps and adductors more. Neither exercise grew the hamstrings or gluteus medius/minimus much. Higher first-session glute EMG during hip thrusts did not consistently predict glute growth.",
+    finding: L("Glute growth was similar with hip thrusts and squats, with only a small and uncertain lean toward hip thrusts. Squats grew the quadriceps and adductors more. Neither exercise grew the hamstrings or gluteus medius/minimus much. Higher first-session glute EMG during hip thrusts did not consistently predict glute growth.", "Рост ягодичных был схожим при ягодичном мосте и приседаниях, лишь с небольшим и неопределённым перевесом моста. Приседания сильнее развивали квадрицепсы и приводящие. Ни одно из упражнений заметно не развивало бицепсы бедра и среднюю/малую ягодичные. Более высокая ЭМГ ягодичных в мосте на первой тренировке не предсказывала рост ягодичных устойчиво."),
     muscles: [
       "glutes",
       "quads",
@@ -1377,7 +1378,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "mixed",
     population: "22 well-trained women, back squat (n=12) vs hip thrust (n=10), 12 weeks; ultrasound muscle thickness",
-    finding: "Both groups grew. Squats increased quadriceps thickness (about 12% vs 2%) and gluteus maximus thickness (about 9% vs 4%) more than hip thrusts, and also increased squat 1RM more; hip-thrust 1RM rose similarly in both groups.",
+    finding: L("Both groups grew. Squats increased quadriceps thickness (about 12% vs 2%) and gluteus maximus thickness (about 9% vs 4%) more than hip thrusts, and also increased squat 1RM more; hip-thrust 1RM rose similarly in both groups.", "Выросли обе группы. Приседания увеличили толщину квадрицепса (около 12% против 2%) и большой ягодичной (около 9% против 4%) больше, чем ягодичный мост, и сильнее повысили 1RM в приседе; 1RM в ягодичном мосте вырос схоже в обеих группах."),
     muscles: [
       "glutes",
       "quads"
@@ -1398,7 +1399,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "12 training studies of loaded hip-extension exercise that measured gluteus maximus size",
-    finding: "Resistance training had a moderate effect on gluteus maximus size, whether one exercise or a combination was used. Parallel or deeper squats, leg press, kneeling hip extensions and hip thrusts all grew the muscle. The authors suggest single-joint hip extension such as the hip thrust when the glutes are the priority, but this is their interpretation rather than a pooled comparison.",
+    finding: L("Resistance training had a moderate effect on gluteus maximus size, whether one exercise or a combination was used. Parallel or deeper squats, leg press, kneeling hip extensions and hip thrusts all grew the muscle. The authors suggest single-joint hip extension such as the hip thrust when the glutes are the priority, but this is their interpretation rather than a pooled comparison.", "Силовая тренировка умеренно влияла на размер большой ягодичной мышцы — и с одним упражнением, и с сочетанием. Мышцу развивали приседания до параллели и глубже, жим ногами, разгибания бедра на коленях и ягодичный мост. Авторы предлагают односуставное разгибание бедра, например ягодичный мост, когда ягодичные в приоритете, но это их интерпретация, а не объединённое сравнение."),
     muscles: [
       "glutes"
     ],
@@ -1418,7 +1419,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "13 trained women, single session at estimated 10RM",
-    finding: "Acute surface EMG of the upper and lower gluteus maximus and the biceps femoris was higher in the hip thrust than in the back squat, while vastus lateralis EMG did not differ. The authors noted that training studies were needed to know whether this matters for growth.",
+    finding: L("Acute surface EMG of the upper and lower gluteus maximus and the biceps femoris was higher in the hip thrust than in the back squat, while vastus lateralis EMG did not differ. The authors noted that training studies were needed to know whether this matters for growth.", "Острая поверхностная ЭМГ верхней и нижней частей большой ягодичной и бицепса бедра была выше в ягодичном мосте, чем в приседе со штангой, а ЭМГ латеральной широкой не различалась. Авторы отметили, что нужны тренировочные исследования, чтобы узнать, важно ли это для роста."),
     muscles: [
       "glutes",
       "hamstrings",
@@ -1440,7 +1441,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "42 young women randomised to calf raises on a pin-loaded horizontal leg press: full ROM, stretched-half partials or shortened-half partials; 3x15-20RM, 3x/week for 8 weeks; ultrasound",
-    finding: "Partials in the stretched (dorsiflexed) half grew the medial gastrocnemius more than full range or top-half partials (about 15% vs 7% vs 3%). For the lateral gastrocnemius, stretched-half partials beat top-half partials, but the advantage over full range was not statistically significant.",
+    finding: L("Partials in the stretched (dorsiflexed) half grew the medial gastrocnemius more than full range or top-half partials (about 15% vs 7% vs 3%). For the lateral gastrocnemius, stretched-half partials beat top-half partials, but the advantage over full range was not statistically significant.", "Частичные повторения в растянутой половине (стопа согнута к голени) развивали медиальную икроножную больше, чем полная амплитуда или частичные в верхней половине (около 15% против 7% и 3%). Для латеральной икроножной частичные в растянутой половине превзошли частичные в верхней, но преимущество перед полной амплитудой не было статистически значимым."),
     muscles: [
       "calves"
     ],
@@ -1460,7 +1461,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "14 untrained adults, standing (knee straight) calf raises on one leg and seated (knee 90 deg) on the other, 5x10 at 70% 1RM, twice weekly for 12 weeks; MRI",
-    finding: "Standing calf raises grew both gastrocnemius heads (about 9-12%), while seated raises produced no significant gastrocnemius growth. The soleus grew modestly and similarly in both positions. Whole-calf growth was therefore about 5.6% standing vs 2.1% seated.",
+    finding: L("Standing calf raises grew both gastrocnemius heads (about 9-12%), while seated raises produced no significant gastrocnemius growth. The soleus grew modestly and similarly in both positions. Whole-calf growth was therefore about 5.6% standing vs 2.1% seated.", "Подъёмы на носки стоя развивали обе головки икроножной мышцы (около 9–12%), а подъёмы сидя не дали значимого роста икроножной. Камбаловидная выросла умеренно и схоже в обоих положениях. Поэтому рост всей голени составил около 5,6% стоя против 2,1% сидя."),
     muscles: [
       "calves"
     ],
@@ -1480,7 +1481,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "61 untrained young women randomised to 6, 9 or 12 weekly calf sets (15-20RM), 3x/week for 6 weeks; ultrasound",
-    finding: "All volumes grew the calves. Twelve weekly sets beat six for lateral gastrocnemius, soleus and summed calf thickness, but not significantly for the medial gastrocnemius. Nine sets did not differ significantly from either.",
+    finding: L("All volumes grew the calves. Twelve weekly sets beat six for lateral gastrocnemius, soleus and summed calf thickness, but not significantly for the medial gastrocnemius. Nine sets did not differ significantly from either.", "Икры выросли при всех объёмах. Двенадцать подходов в неделю превзошли шесть по толщине латеральной икроножной, камбаловидной и суммарной толщине, но для медиальной икроножной — незначимо. Девять подходов значимо не отличались ни от того, ни от другого."),
     muscles: [
       "calves"
     ],
@@ -1500,7 +1501,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "64 older adults (60+ years, mean ~70), 12 weeks training plus 6 weeks detraining",
-    finding: "Adding 12 weeks of trunk strengthening and motor-control exercises to walking and balance work enlarged the rectus abdominis, lumbar multifidus and lateral abdominal muscles on ultrasound and raised trunk strength versus walking and balance alone. After 6 weeks without trunk work some gains declined but remained above baseline.",
+    finding: L("Adding 12 weeks of trunk strengthening and motor-control exercises to walking and balance work enlarged the rectus abdominis, lumbar multifidus and lateral abdominal muscles on ultrasound and raised trunk strength versus walking and balance alone. After 6 weeks without trunk work some gains declined but remained above baseline.", "Добавление 12 недель упражнений на укрепление корпуса и двигательный контроль к ходьбе и работе на равновесие увеличило по УЗИ прямую мышцу живота, поясничную многораздельную и боковые мышцы живота и повысило силу корпуса по сравнению с одной ходьбой и равновесием. После 6 недель без работы на корпус часть прироста снизилась, но осталась выше исходного уровня."),
     muscles: [
       "abs",
       "spinal_erectors"
@@ -1521,7 +1522,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "long_term_hypertrophy",
     population: "28 male youth soccer players aged 12-13, 6 months",
-    finding: "Over 6 months, MRI cross-sectional areas of rectus abdominis, obliques, psoas, quadratus lumborum and erector spinae grew similarly with soccer training alone or with an added bodyweight stabilization program (plank-type holds, side bridge, one-leg squat, push-up). The added program did improve hip extension torque and jump height.",
+    finding: L("Over 6 months, MRI cross-sectional areas of rectus abdominis, obliques, psoas, quadratus lumborum and erector spinae grew similarly with soccer training alone or with an added bodyweight stabilization program (plank-type holds, side bridge, one-leg squat, push-up). The added program did improve hip extension torque and jump height.", "За 6 месяцев площади поперечного сечения (МРТ) прямой мышцы живота, косых, поясничной, квадратной мышцы поясницы и разгибателей спины выросли схоже при одних футбольных тренировках и с добавленной программой стабилизации с весом тела (удержания типа планки, боковая планка, присед на одной ноге, отжимания). Добавленная программа всё же улучшила момент силы разгибания бедра и высоту прыжка."),
     muscles: [
       "abs",
       "spinal_erectors"
@@ -1542,7 +1543,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "64 healthy career firefighters, cluster-randomized by station, 24 weeks",
-    finding: "Supervised back and core exercise twice weekly for 24 weeks did not change ultrasound-measured L4 and L5 lumbar multifidus cross-sectional area or side-to-side asymmetry compared with controls.",
+    finding: L("Supervised back and core exercise twice weekly for 24 weeks did not change ultrasound-measured L4 and L5 lumbar multifidus cross-sectional area or side-to-side asymmetry compared with controls.", "Упражнения для спины и корпуса под наблюдением дважды в неделю в течение 24 недель не изменили площадь поперечного сечения поясничной многораздельной мышцы на уровнях L4 и L5 (УЗИ) и асимметрию сторон по сравнению с контролем."),
     muscles: [
       "spinal_erectors"
     ],
@@ -1562,7 +1563,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "65 adults with nociceptive mechanical low back pain, 2 months",
-    finding: "Two months of deadlift training and of low-load motor-control exercise had no different effect on lumbar multifidus thickness; in both groups the thinner side gained relative to the thicker side, regardless of load or pain.",
+    finding: L("Two months of deadlift training and of low-load motor-control exercise had no different effect on lumbar multifidus thickness; in both groups the thinner side gained relative to the thicker side, regardless of load or pain.", "Два месяца тренировок со становой тягой и упражнений на двигательный контроль с малой нагрузкой не различались по влиянию на толщину поясничной многораздельной мышцы; в обеих группах более тонкая сторона прибавила относительно более толстой независимо от нагрузки и боли."),
     muscles: [
       "spinal_erectors"
     ],
@@ -1582,7 +1583,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "narrative_review",
     outcome: "mixed",
     population: "Review of acute activation and training studies of lumbar extensor exercises",
-    finding: "Bench and Roman chair extensions, free-weight lifts, floor and ball exercises and machines all activate the lumbar extensors, yet training studies suggest those without pelvic restraint produce weaker specific lumbar-extensor adaptations, likely because hip extensors share the work. Pelvis-restrained isolated lumbar extension machines had better support.",
+    finding: L("Bench and Roman chair extensions, free-weight lifts, floor and ball exercises and machines all activate the lumbar extensors, yet training studies suggest those without pelvic restraint produce weaker specific lumbar-extensor adaptations, likely because hip extensors share the work. Pelvis-restrained isolated lumbar extension machines had better support.", "Разгибания на скамье и римском стуле, упражнения со свободными весами, упражнения на полу и на мяче и тренажёры — все активируют разгибатели поясницы, но тренировочные исследования указывают, что упражнения без фиксации таза дают более слабые специфические адаптации разгибателей поясницы, вероятно потому, что работу делят разгибатели бедра. Тренажёры для изолированного разгибания поясницы с фиксацией таза были подтверждены лучше."),
     muscles: [
       "spinal_erectors"
     ],
@@ -1602,7 +1603,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "strength",
     population: "36 trained young men, 10 weeks",
-    finding: "Ten weeks of Romanian deadlifts raised RDL 1RM but not isometric lumbar extension torque on a pelvis-restrained machine; isolated lumbar extension training raised both lumbar extension torque and RDL 1RM. Controls did not change.",
+    finding: L("Ten weeks of Romanian deadlifts raised RDL 1RM but not isometric lumbar extension torque on a pelvis-restrained machine; isolated lumbar extension training raised both lumbar extension torque and RDL 1RM. Controls did not change.", "Десять недель румынской тяги повысили 1RM в ней, но не изометрический момент силы разгибания поясницы в тренажёре с фиксацией таза; изолированная тренировка разгибания поясницы повысила и момент силы разгибания, и 1RM в румынской тяге. В контрольной группе изменений не было."),
     muscles: [
       "spinal_erectors",
       "hamstrings",
@@ -1624,7 +1625,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "16 participants, single session",
-    finding: "Squats and deadlifts at 80% 1RM produced far higher lumbar-sacral and upper lumbar erector EMG than bodyweight versions, superman or side bridge; the squat led for the lower erectors and the deadlift for the upper erectors. Lower abdominal and external oblique EMG did not differ.",
+    finding: L("Squats and deadlifts at 80% 1RM produced far higher lumbar-sacral and upper lumbar erector EMG than bodyweight versions, superman or side bridge; the squat led for the lower erectors and the deadlift for the upper erectors. Lower abdominal and external oblique EMG did not differ.", "Приседания и становая тяга с 80% 1RM дали намного большую ЭМГ разгибателей спины в пояснично-крестцовой и верхней поясничной областях, чем варианты с весом тела, «супермен» или боковая планка; присед лидировал для нижней части разгибателей, становая тяга — для верхней. ЭМГ нижней части живота и наружной косой не различалась."),
     muscles: [
       "spinal_erectors",
       "abs"
@@ -1645,7 +1646,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "10 young adults, single session",
-    finding: "The prone bridge (plank) gave higher rectus abdominis EMG than back squat, front squat or military press at light-to-moderate loads. Erector spinae EMG was highest in the front squat and the superman, which did not differ from each other.",
+    finding: L("The prone bridge (plank) gave higher rectus abdominis EMG than back squat, front squat or military press at light-to-moderate loads. Erector spinae EMG was highest in the front squat and the superman, which did not differ from each other.", "Планка на предплечьях дала большую ЭМГ прямой мышцы живота, чем присед со штангой на спине, фронтальный присед или армейский жим с лёгкими и умеренными весами. ЭМГ разгибателей спины была наибольшей во фронтальном приседе и «супермене», которые между собой не различались."),
     muscles: [
       "abs",
       "spinal_erectors"
@@ -1666,7 +1667,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "emg_activation",
     population: "17 EMG studies, 252 healthy adults",
-    finding: "Moderate-level evidence that lumbar multifidus EMG is higher in free-weight exercises than in ball or device exercises; multifidus and transversus abdominis activity were similar between core-stability and ball/device exercises. No studies of quadratus lumborum were found.",
+    finding: L("Moderate-level evidence that lumbar multifidus EMG is higher in free-weight exercises than in ball or device exercises; multifidus and transversus abdominis activity were similar between core-stability and ball/device exercises. No studies of quadratus lumborum were found.", "Данные умеренного уровня: ЭМГ поясничной многораздельной мышцы выше в упражнениях со свободными весами, чем в упражнениях на мяче или с приспособлениями; активность многораздельной и поперечной мышцы живота была схожей в упражнениях на стабилизацию корпуса и в упражнениях на мяче/с приспособлениями. Исследований квадратной мышцы поясницы не найдено."),
     muscles: [
       "spinal_erectors",
       "abs"
@@ -1687,7 +1688,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "emg_activation",
     population: "EMG studies 2012-2020 in healthy adults",
-    finding: "Free-weight exercises gave the highest rectus abdominis, external oblique and erector spinae EMG; core-stability exercises gave the highest internal oblique and traditional core exercises the highest multifidus activity. Transversus abdominis data were scarce and EMG methods inconsistent.",
+    finding: L("Free-weight exercises gave the highest rectus abdominis, external oblique and erector spinae EMG; core-stability exercises gave the highest internal oblique and traditional core exercises the highest multifidus activity. Transversus abdominis data were scarce and EMG methods inconsistent.", "Упражнения со свободными весами дали наибольшую ЭМГ прямой мышцы живота, наружной косой и разгибателей спины; упражнения на стабилизацию корпуса — наибольшую активность внутренней косой, а традиционные упражнения на корпус — многораздельной. Данных по поперечной мышце живота было мало, а методы ЭМГ различались."),
     muscles: [
       "abs",
       "spinal_erectors"
@@ -1708,7 +1709,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "6 healthy men, 38 exercises, single session",
-    finding: "Hip flexors (including fine-wire iliacus) were highly active only when the hip flexed. Abdominals were markedly active in both trunk-flexion and hip-flexion sit-ups; their activity rose with flexion angle in trunk-curl sit-ups but fell in hip-flexion sit-ups. Two-leg, not one-leg, lifts required abdominal activation.",
+    finding: L("Hip flexors (including fine-wire iliacus) were highly active only when the hip flexed. Abdominals were markedly active in both trunk-flexion and hip-flexion sit-ups; their activity rose with flexion angle in trunk-curl sit-ups but fell in hip-flexion sit-ups. Two-leg, not one-leg, lifts required abdominal activation.", "Сгибатели бедра (включая подвздошную мышцу, записанную игольчатыми электродами) были высокоактивны только при сгибании бедра. Мышцы живота были заметно активны в подъёмах туловища и со сгибанием корпуса, и со сгибанием бедра; их активность росла с углом сгибания в подъёмах со скручиванием корпуса, но падала в подъёмах за счёт сгибания бедра. Активации мышц живота требовали подъёмы двух ног, но не одной."),
     muscles: [
       "abs"
     ],
@@ -1728,7 +1729,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "8 healthy adults with intramuscular electrodes",
-    finding: "Every sit-up form recruited psoas more (about 15-35% of max) than the curl-up (under 10%); psoas peaked in maximal hip-flexion efforts and stayed modest during barbell lifting. Among isometric options, the side bridge best combined high abdominal-wall activity with low psoas activity.",
+    finding: L("Every sit-up form recruited psoas more (about 15-35% of max) than the curl-up (under 10%); psoas peaked in maximal hip-flexion efforts and stayed modest during barbell lifting. Among isometric options, the side bridge best combined high abdominal-wall activity with low psoas activity.", "Любой вариант подъёма туловища вовлекал поясничную мышцу сильнее (примерно 15–35% от максимума), чем скручивание (менее 10%); максимум для поясничной был при максимальных усилиях сгибания бедра, а при подъёме штанги её активность оставалась умеренной. Среди изометрических вариантов боковая планка лучше всего сочетала высокую активность брюшной стенки с низкой активностью поясничной мышцы."),
     muscles: [
       "abs"
     ],
@@ -1748,7 +1749,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_emg",
     outcome: "emg_activation",
     population: "21 healthy men and women aged 23-43, single session",
-    finding: "Power Wheel variations, hanging knee-ups in straps and a 30-degree inclined reverse crunch gave the highest upper and lower rectus abdominis, internal oblique and latissimus EMG. Rectus femoris was highest in Power Wheel pike/knee-up, inclined reverse crunch and bent-knee sit-up. Lumbar paraspinal activity was low throughout.",
+    finding: L("Power Wheel variations, hanging knee-ups in straps and a 30-degree inclined reverse crunch gave the highest upper and lower rectus abdominis, internal oblique and latissimus EMG. Rectus femoris was highest in Power Wheel pike/knee-up, inclined reverse crunch and bent-knee sit-up. Lumbar paraspinal activity was low throughout.", "Варианты с роликом Power Wheel, подъёмы коленей в петлях в висе и обратные скручивания на наклоне 30 градусов дали наибольшую ЭМГ верхней и нижней частей прямой мышцы живота, внутренней косой и широчайшей. Прямая мышца бедра была наиболее активна в «складке»/подтягивании коленей на Power Wheel, обратных скручиваниях на наклоне и подъёмах туловища с согнутыми коленями. Активность поясничных околопозвоночных мышц везде была низкой."),
     muscles: [
       "abs"
     ],
@@ -1768,7 +1769,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "67 studies, 2058 participants (79% male, mean age about 25), trained and untrained",
-    finding: "Sets were classed as direct or indirect for the measured muscle; counting indirect sets as half a set had the strongest relative evidence. More weekly sets gave more growth and strength, with diminishing returns that were much steeper for strength. Frequency had a negligible-compatible effect on hypertrophy but a positive effect on strength.",
+    finding: L("Sets were classed as direct or indirect for the measured muscle; counting indirect sets as half a set had the strongest relative evidence. More weekly sets gave more growth and strength, with diminishing returns that were much steeper for strength. Frequency had a negligible-compatible effect on hypertrophy but a positive effect on strength.", "Подходы делили на прямые и косвенные для измеряемой мышцы; наиболее сильную относительную поддержку получил учёт косвенного подхода как половины подхода. Больше подходов в неделю давало больше роста и силы с убывающей отдачей, которая для силы была намного круче. Влияние частоты на гипертрофию было совместимо с пренебрежимо малым, а на силу — положительным."),
     muscles: [],
     limitations: "Meta-regression of between-study data; set classification is the authors' judgement; only weekly volume and frequency modelled (no per-session volume model in the abstract); details beyond the abstract not re-verified (paywalled).",
     confidence: "high",
@@ -1786,7 +1787,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "systematic_review",
     outcome: "mixed",
     population: "137 systematic reviews of randomized trials, >30,000 healthy adults, programmes 6-52 weeks",
-    finding: "Umbrella review: few prescription variables changed outcomes. Hypertrophy benefited from higher volume (10 or more sets per week) and eccentric overload; strength from heavier loads (80% 1RM or more), full ROM and at least two sessions weekly. Training to momentary failure, equipment type, set structure and periodization had no consistent effect.",
+    finding: L("Umbrella review: few prescription variables changed outcomes. Hypertrophy benefited from higher volume (10 or more sets per week) and eccentric overload; strength from heavier loads (80% 1RM or more), full ROM and at least two sessions weekly. Training to momentary failure, equipment type, set structure and periodization had no consistent effect.", "Зонтичный обзор: лишь немногие параметры программы меняли результаты. Гипертрофии помогали больший объём (10 и более подходов в неделю) и эксцентрическая перегрузка; силе — более тяжёлые веса (80% 1RM и более), полная амплитуда и не менее двух тренировок в неделю. Тренировка до момента отказа, тип оборудования, структура подхода и периодизация устойчивого эффекта не имели."),
     muscles: [],
     limitations: "Overview of reviews inherits the quality of included reviews; whole-body conclusions, not muscle-specific.",
     confidence: "high",
@@ -1804,7 +1805,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "15 studies, 34 treatment groups",
-    finding: "Weekly set count showed a graded relationship with muscle growth: each extra weekly set was linked to roughly 0.37 percentage points more gain. Higher-volume arms beat lower-volume arms within studies; the three-level comparison (<5, 5-9, 10+ sets) only trended toward significance.",
+    finding: L("Weekly set count showed a graded relationship with muscle growth: each extra weekly set was linked to roughly 0.37 percentage points more gain. Higher-volume arms beat lower-volume arms within studies; the three-level comparison (<5, 5-9, 10+ sets) only trended toward significance.", "Число подходов в неделю показало ступенчатую связь с ростом мышц: каждый дополнительный подход в неделю был связан примерно с 0,37 процентного пункта большего прироста. Внутри исследований группы с большим объёмом превосходили группы с меньшим; сравнение трёх уровней (<5, 5–9, 10+ подходов) лишь приближалось к значимости."),
     muscles: [],
     limitations: "Small number of studies; volume categories coarse; direct vs indirect sets not distinguished. Print year 2017 (online 2016).",
     confidence: "high",
@@ -1822,7 +1823,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "7 RCTs (6 pooled) in men 18-35 y with at least 1 year of training",
-    finding: "Moderate (12-20 weekly sets) and high (>20) volumes did not differ for quadriceps or biceps growth, while the triceps grew more with high volume. The authors proposed 12-20 weekly sets per muscle as a reasonable default for trained young men.",
+    finding: L("Moderate (12-20 weekly sets) and high (>20) volumes did not differ for quadriceps or biceps growth, while the triceps grew more with high volume. The authors proposed 12-20 weekly sets per muscle as a reasonable default for trained young men.", "Умеренный (12–20 подходов в неделю) и высокий (>20) объёмы не различались по росту квадрицепса и бицепса, а трицепс рос больше при высоком объёме. Авторы предложили 12–20 подходов в неделю на мышцу как разумный вариант по умолчанию для тренированных молодых мужчин."),
     muscles: [
       "quads",
       "biceps",
@@ -1844,7 +1845,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "34 resistance-trained men, 8 weeks, 3 sessions/week of 1, 3 or 5 sets per exercise",
-    finding: "Strength and endurance improved similarly in all three volume groups. Muscle thickness gains significantly favoured the higher-volume groups for the elbow flexors and mid and lateral thigh, but not for the elbow extensors, indicating a dose-response for hypertrophy but not strength in this sample.",
+    finding: L("Strength and endurance improved similarly in all three volume groups. Muscle thickness gains significantly favoured the higher-volume groups for the elbow flexors and mid and lateral thigh, but not for the elbow extensors, indicating a dose-response for hypertrophy but not strength in this sample.", "Сила и выносливость улучшились схоже во всех трёх группах объёма. Прирост толщины мышц значимо был больше в группах с большим объёмом для сгибателей локтя и средней и боковой частей бедра, но не для разгибателей локтя, что указывает на зависимость «доза — эффект» для гипертрофии, но не для силы в этой выборке."),
     muscles: [
       "biceps",
       "triceps",
@@ -1866,7 +1867,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "15 studies in healthy adults of any age and training status",
-    finding: "Training to any definition of set failure had only a trivial edge over stopping short; when failure meant momentary muscular failure the difference was not significant, and higher velocity-loss thresholds were not better. The authors suggest a non-linear link between closeness to failure and growth.",
+    finding: L("Training to any definition of set failure had only a trivial edge over stopping short; when failure meant momentary muscular failure the difference was not significant, and higher velocity-loss thresholds were not better. The authors suggest a non-linear link between closeness to failure and growth.", "Тренировка до отказа в любом его определении имела лишь незначительный перевес над остановкой чуть раньше; когда отказ означал момент мышечного отказа, разница не была значимой, а более высокие пороги потери скорости не были лучше. Авторы предполагают нелинейную связь между близостью к отказу и ростом."),
     muscles: [],
     limitations: "Heterogeneous failure definitions; RIR of non-failure groups often not reported. Print year 2023 (online 2022).",
     confidence: "high",
@@ -1884,7 +1885,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "Studies comparing failure/non-failure, velocity loss and set structures; RIR estimated from study descriptions",
-    finding: "Hypertrophy increased as sets were stopped closer to failure (fewer estimated RIR), whereas strength gains were similar across a wide RIR range. Model fit was modest and RIR was estimated, so the exact curve remains uncertain.",
+    finding: L("Hypertrophy increased as sets were stopped closer to failure (fewer estimated RIR), whereas strength gains were similar across a wide RIR range. Model fit was modest and RIR was estimated, so the exact curve remains uncertain.", "Гипертрофия росла по мере того, как подходы заканчивали ближе к отказу (меньше оценочных RIR), тогда как прирост силы был схожим в широком диапазоне RIR. Соответствие модели было скромным, а RIR оценивался, поэтому точная кривая остаётся неопределённой."),
     muscles: [],
     limitations: "Exploratory; RIR values back-estimated by the authors rather than measured.",
     confidence: "moderate",
@@ -1902,7 +1903,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "long_term_hypertrophy",
     population: "18 resistance-trained adults (12 men, 6 women), within-subject legs, 8 weeks",
-    finding: "One leg trained leg press and leg extension to momentary failure, the other stopped at about 2 and 1 RIR respectively. Average quadriceps thickness gains were essentially identical; failure produced more acute fatigue (velocity and rep loss) with similar total volume.",
+    finding: L("One leg trained leg press and leg extension to momentary failure, the other stopped at about 2 and 1 RIR respectively. Average quadriceps thickness gains were essentially identical; failure produced more acute fatigue (velocity and rep loss) with similar total volume.", "Одна нога выполняла жим ногами и разгибания ног до момента отказа, другая останавливалась примерно за 2 и 1 RIR соответственно. Средний прирост толщины квадрицепса был по сути одинаковым; отказ давал больше острого утомления (потеря скорости и повторений) при схожем общем объёме."),
     muscles: [
       "quads"
     ],
@@ -1922,7 +1923,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "42 resistance-trained men and women, one set of 9 exercises twice weekly for 8 weeks",
-    finding: "Both failure and 2-RIR groups improved most outcomes. With one set per exercise, several hypertrophy measures tended to favour failure, with generally modest absolute differences; strength and endurance were similar. RIR estimation was better on bench press than squat and improved over the study.",
+    finding: L("Both failure and 2-RIR groups improved most outcomes. With one set per exercise, several hypertrophy measures tended to favour failure, with generally modest absolute differences; strength and endurance were similar. RIR estimation was better on bench press than squat and improved over the study.", "И группа отказа, и группа 2 RIR улучшили большинство показателей. При одном подходе на упражнение несколько показателей гипертрофии склонялись в пользу отказа, как правило с умеренными абсолютными различиями; сила и выносливость были схожими. Оценка RIR была точнее в жиме лёжа, чем в приседе, и улучшалась в ходе исследования."),
     muscles: [
       "biceps",
       "triceps",
@@ -1944,7 +1945,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "other",
     population: "12 studies, 414 healthy participants predicting reps to failure",
-    finding: "People underpredicted the reps they could still do by about one on average, with very high between-study heterogeneity. Predictions were more accurate close to failure, in sets of 12 reps or fewer and slightly in later sets; training status and upper vs lower body did not matter.",
+    finding: L("People underpredicted the reps they could still do by about one on average, with very high between-study heterogeneity. Predictions were more accurate close to failure, in sets of 12 reps or fewer and slightly in later sets; training status and upper vs lower body did not matter.", "Люди недооценивали число повторений, которые ещё могли сделать, в среднем примерно на одно, при очень высокой неоднородности между исследованиями. Прогнозы были точнее ближе к отказу, в подходах на 12 повторений и меньше и немного — в более поздних подходах; тренированность и верх или низ тела значения не имели."),
     muscles: [],
     limitations: "Exploratory; very high heterogeneity; acute prediction accuracy, not adaptation. Print year 2022 (online 2021).",
     confidence: "moderate",
@@ -1962,7 +1963,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "21 studies of at least 6 weeks, sets taken to momentary failure",
-    finding: "With sets taken to failure, loads of 60% 1RM or less and loads above 60% produced similar hypertrophy, while 1RM strength gains favoured heavier loads; isometric strength did not differ.",
+    finding: L("With sets taken to failure, loads of 60% 1RM or less and loads above 60% produced similar hypertrophy, while 1RM strength gains favoured heavier loads; isometric strength did not differ.", "Когда подходы доводили до отказа, веса 60% 1RM и меньше и веса выше 60% дали схожую гипертрофию, а прирост 1RM был больше с тяжёлыми весами; изометрическая сила не различалась."),
     muscles: [],
     limitations: "Applies to sets taken to failure; very light loads less studied in trained people.",
     confidence: "high",
@@ -1980,7 +1981,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "mixed",
     population: "28 studies, 747 healthy adults, sets to volitional failure",
-    finding: "Low (>15RM), moderate (9-15RM) and high (8RM or fewer) loads gave no detectable difference in hypertrophy; strength favoured moderate and high loads over low. Untrained people grew more, and those with training experience benefited from more sessions.",
+    finding: L("Low (>15RM), moderate (9-15RM) and high (8RM or fewer) loads gave no detectable difference in hypertrophy; strength favoured moderate and high loads over low. Untrained people grew more, and those with training experience benefited from more sessions.", "Малые (>15RM), умеренные (9–15RM) и большие (8RM и меньше) веса не дали обнаружимой разницы в гипертрофии; для силы умеренные и большие веса были лучше малых. Нетренированные люди росли больше, а людям с опытом тренировок помогало большее число тренировок."),
     muscles: [],
     limitations: "All protocols to failure; network estimates partly indirect.",
     confidence: "high",
@@ -1998,7 +1999,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "9 randomized studies, 19 measurements (thigh, arm, whole body) in healthy adults",
-    finding: "Short and longer rests overlapped substantially; for arm and thigh the central estimates leaned toward longer rests but credible intervals included zero. The authors infer a small benefit from resting more than about 60 s, possibly via preserved volume load, and no appreciable difference beyond about 90 s. Failure vs non-failure did not change this.",
+    finding: L("Short and longer rests overlapped substantially; for arm and thigh the central estimates leaned toward longer rests but credible intervals included zero. The authors infer a small benefit from resting more than about 60 s, possibly via preserved volume load, and no appreciable difference beyond about 90 s. Failure vs non-failure did not change this.", "Результаты короткого и более длинного отдыха существенно перекрывались; для руки и бедра центральные оценки склонялись к более длинному отдыху, но доверительные интервалы включали ноль. Авторы делают вывод о небольшой пользе отдыха дольше примерно 60 с — возможно, за счёт сохранения тоннажа — и об отсутствии заметной разницы свыше примерно 90 с. Работа до отказа или без него этого не меняла."),
     muscles: [],
     limitations: "Few studies, wide credible intervals crossing zero, substantial heterogeneity.",
     confidence: "moderate",
@@ -2016,7 +2017,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "21 resistance-trained young men, 8 weeks, 3 full-body sessions/week",
-    finding: "Three-minute rests produced greater squat and bench 1RM gains and more anterior thigh growth than one-minute rests, with a non-significant trend for the triceps; muscular endurance gains were similar.",
+    finding: L("Three-minute rests produced greater squat and bench 1RM gains and more anterior thigh growth than one-minute rests, with a non-significant trend for the triceps; muscular endurance gains were similar.", "Отдых три минуты дал больший прирост 1RM в приседе и жиме лёжа и больший рост передней поверхности бедра, чем отдых одну минуту, с незначимой тенденцией для трицепса; прирост мышечной выносливости был схожим."),
     muscles: [
       "quads",
       "triceps"
@@ -2037,7 +2038,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "25 studies",
-    finding: "When weekly volume was equated, training a muscle more often did not meaningfully change growth, including in trained people and for upper and lower body separately. Without volume matching, higher frequency helped modestly.",
+    finding: L("When weekly volume was equated, training a muscle more often did not meaningfully change growth, including in trained people and for upper and lower body separately. Without volume matching, higher frequency helped modestly.", "При уравненном недельном объёме более частая тренировка мышцы не меняла рост заметным образом — в том числе у тренированных людей и отдельно для верха и низа тела. Без уравнивания объёма большая частота умеренно помогала."),
     muscles: [],
     limitations: "Mostly short studies; frequencies above 3 per week sparse. Print year 2019 (online 2018).",
     confidence: "high",
@@ -2055,7 +2056,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "30 resistance-trained adults, within-participant arms, 8 weeks upper-body training",
-    finding: "Lengthened partial reps and full ROM produced similar elbow flexor and extensor thickness gains and similar unilateral lat pulldown 10RM gains, with Bayes factors moderately supporting no difference. Emphasising the stretched position by either method looks reasonable.",
+    finding: L("Lengthened partial reps and full ROM produced similar elbow flexor and extensor thickness gains and similar unilateral lat pulldown 10RM gains, with Bayes factors moderately supporting no difference. Emphasising the stretched position by either method looks reasonable.", "Частичные повторения в растянутом положении и полная амплитуда дали схожий прирост толщины сгибателей и разгибателей локтя и схожий прирост результата на 10 повторений в тяге верхнего блока одной рукой; байесовские факторы умеренно поддерживали отсутствие разницы. Акцент на растянутом положении любым из способов выглядит разумным."),
     muscles: [
       "biceps",
       "triceps"
@@ -2076,7 +2077,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "43 trained men and women (>=1 year lower-body training), 8 weeks",
-    finding: "Adding reps at a fixed load and adding load at a fixed rep range produced broadly similar quadriceps and calf growth; rectus femoris modestly favoured rep progression and Smith squat 1RM slightly favoured load progression, both of questionable practical size.",
+    finding: L("Adding reps at a fixed load and adding load at a fixed rep range produced broadly similar quadriceps and calf growth; rectus femoris modestly favoured rep progression and Smith squat 1RM slightly favoured load progression, both of questionable practical size.", "Добавление повторений при постоянном весе и добавление веса при постоянном диапазоне повторений дали в целом схожий рост квадрицепса и икр; для прямой мышцы бедра умеренный перевес был у прогрессии по повторениям, а для 1RM в приседе в Смите — небольшой у прогрессии по весу; практическая величина обоих различий сомнительна."),
     muscles: [
       "quads",
       "calves"
@@ -2097,7 +2098,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "39 resistance-trained young men and women, 9 weeks",
-    finding: "A full week off training at mid-programme did not change quadriceps or triceps surae growth, power or endurance versus continuous training, but lower-body strength gains were smaller and continuous training scored slightly better on readiness questionnaires.",
+    finding: L("A full week off training at mid-programme did not change quadriceps or triceps surae growth, power or endurance versus continuous training, but lower-body strength gains were smaller and continuous training scored slightly better on readiness questionnaires.", "Полная неделя без тренировок в середине программы не изменила рост квадрицепса и трёхглавой мышцы голени, мощность и выносливость по сравнению с непрерывными тренировками, но прирост силы низа тела был меньше, а непрерывные тренировки показали чуть лучшие оценки в опросниках готовности."),
     muscles: [
       "quads",
       "calves"
@@ -2118,7 +2119,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "rct",
     outcome: "mixed",
     population: "19 untrained young men, within-subject limbs, 8 weeks of unilateral leg extension and biceps curl",
-    finding: "Cutting to once weekly with 2 sets in weeks 4 and 8 gave quadriceps and biceps thickness and 10RM gains similar to continuous training (6-8 sets twice weekly); no interaction effects were found and between-condition effects were small.",
+    finding: L("Cutting to once weekly with 2 sets in weeks 4 and 8 gave quadriceps and biceps thickness and 10RM gains similar to continuous training (6-8 sets twice weekly); no interaction effects were found and between-condition effects were small.", "Сокращение до одной тренировки в неделю с 2 подходами на 4-й и 8-й неделях дало прирост толщины квадрицепса и бицепса и результата на 10 повторений, схожий с непрерывными тренировками (6–8 подходов дважды в неделю); эффектов взаимодействия не найдено, а различия между условиями были малыми."),
     muscles: [
       "quads",
       "biceps"
@@ -2139,7 +2140,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "cross_sectional",
     outcome: "other",
     population: "Expert strength and physique coaches (34 in round 1, 21 by round 3)",
-    finding: "Coaches reached consensus on design principles and defined a deload as a planned period of reduced training stress to reduce fatigue, aid recovery and prepare for further training. This is expert opinion, not outcome data.",
+    finding: L("Coaches reached consensus on design principles and defined a deload as a planned period of reduced training stress to reduce fatigue, aid recovery and prepare for further training. This is expert opinion, not outcome data.", "Тренеры пришли к консенсусу о принципах построения и определили разгрузку как запланированный период сниженной тренировочной нагрузки, чтобы уменьшить утомление, помочь восстановлению и подготовиться к дальнейшим тренировкам. Это мнение экспертов, а не данные о результатах."),
     muscles: [],
     limitations: "Delphi consensus of coaches (expert opinion); no physiological or hypertrophy outcomes; coded cross_sectional only because the schema lacks a consensus category.",
     confidence: "low",
@@ -2157,7 +2158,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_other",
     outcome: "other",
     population: "10 resistance-trained men, bench press and full squat, crossover",
-    finding: "Sets to failure caused larger acute drops in jump height and bar velocity than the same volume split into non-failure sets, and neuromuscular, hormonal and damage markers recovered more slowly, out to roughly 24-48 h.",
+    finding: L("Sets to failure caused larger acute drops in jump height and bar velocity than the same volume split into non-failure sets, and neuromuscular, hormonal and damage markers recovered more slowly, out to roughly 24-48 h.", "Подходы до отказа вызывали большее острое снижение высоты прыжка и скорости штанги, чем тот же объём, разбитый на подходы без отказа, а нервно-мышечные, гормональные показатели и маркеры повреждения восстанавливались медленнее — примерно до 24–48 ч."),
     muscles: [],
     limitations: "Acute markers only; very small sample; no hypertrophy outcome.",
     confidence: "moderate",
@@ -2175,7 +2176,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "longitudinal_trial",
     outcome: "acute_mps_or_damage",
     population: "10 untrained young men, 10 weeks, vastus lateralis biopsies",
-    finding: "Muscle damage and protein synthesis were highest after the first-week session, when synthesis did not relate to later growth; by weeks 3 and 10 damage had faded and post-session synthesis correlated strongly with fibre hypertrophy, which was detectable only at week 10.",
+    finding: L("Muscle damage and protein synthesis were highest after the first-week session, when synthesis did not relate to later growth; by weeks 3 and 10 damage had faded and post-session synthesis correlated strongly with fibre hypertrophy, which was detectable only at week 10.", "Повреждение мышц и синтез белка были наибольшими после тренировки первой недели, когда синтез не был связан с последующим ростом; к 3-й и 10-й неделям повреждение сошло на нет, а синтез после тренировки сильно коррелировал с гипертрофией волокон, которая обнаруживалась только на 10-й неделе."),
     muscles: [
       "quads"
     ],
@@ -2195,7 +2196,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "narrative_review",
     outcome: "acute_mps_or_damage",
     population: "Narrative review of human training studies",
-    finding: "Early size increases in a new programme (first few sessions) are largely damage-related swelling; modest real hypertrophy follows after about 10 sessions as damage subsides. Protocols causing little damage still produce similar growth, so damage is not what drives hypertrophy.",
+    finding: L("Early size increases in a new programme (first few sessions) are largely damage-related swelling; modest real hypertrophy follows after about 10 sessions as damage subsides. Protocols causing little damage still produce similar growth, so damage is not what drives hypertrophy.", "Раннее увеличение размера в новой программе (первые несколько тренировок) — в основном отёк, связанный с повреждением; умеренная настоящая гипертрофия следует примерно после 10 тренировок, когда повреждение стихает. Протоколы с малым повреждением всё равно дают схожий рост, значит, не повреждение запускает гипертрофию."),
     muscles: [],
     limitations: "Narrative review by the same group; session-count thresholds are approximate. Print year 2018 (online 2017).",
     confidence: "moderate",
@@ -2213,7 +2214,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "narrative_review",
     outcome: "other",
     population: "Narrative review of fatigue time-course literature",
-    finding: "Peripheral fatigue factors seem unlikely to build up over time and central fatigue has an unclear time course with no shown accumulation. Muscle damage may be what gets interpreted as accumulated fatigue; overall evidence for fatigue accumulation is equivocal.",
+    finding: L("Peripheral fatigue factors seem unlikely to build up over time and central fatigue has an unclear time course with no shown accumulation. Muscle damage may be what gets interpreted as accumulated fatigue; overall evidence for fatigue accumulation is equivocal.", "Факторы периферического утомления вряд ли накапливаются со временем, а у центрального утомления неясная динамика, и его накопление не показано. Возможно, за накопленное утомление принимают повреждение мышц; в целом данные о накоплении утомления неоднозначны."),
     muscles: [],
     limitations: "Narrative, not systematic; no quantitative synthesis. Print year 2022 (online 2021).",
     confidence: "moderate",
@@ -2231,7 +2232,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_other",
     outcome: "other",
     population: "15 men, randomized crossover, 4 sets to failure at 80% 1RM on bench press, squat and arm curl",
-    finding: "No warm-up, a specific warm-up, an aerobic warm-up and a combined warm-up gave similar total reps and between-set fatigue in all three exercises.",
+    finding: L("No warm-up, a specific warm-up, an aerobic warm-up and a combined warm-up gave similar total reps and between-set fatigue in all three exercises.", "Отсутствие разминки, специальная разминка, аэробная разминка и комбинированная разминка дали схожее общее число повторений и схожее утомление между подходами во всех трёх упражнениях."),
     muscles: [],
     limitations: "Small acute study; performance only; no injury or long-term outcome.",
     confidence: "low",
@@ -2249,7 +2250,7 @@ const CORE_REFERENCES: Reference[] = [
     design: "acute_other",
     outcome: "other",
     population: "15 men with at least 6 months of training, crossover",
-    finding: "A warm-up of 5 reps at 80% of the 10RM load gave more total session volume (bench press, inclined leg press and lat pulldown, 3 sets to failure each) than warm-ups at 60% for 10 reps or 40% for 15 reps; per exercise, the difference was clear only for bench press versus 60%.",
+    finding: L("A warm-up of 5 reps at 80% of the 10RM load gave more total session volume (bench press, inclined leg press and lat pulldown, 3 sets to failure each) than warm-ups at 60% for 10 reps or 40% for 15 reps; per exercise, the difference was clear only for bench press versus 60%.", "Разминка из 5 повторений с 80% от веса на 10 повторений дала больший общий объём тренировки (жим лёжа, наклонный жим ногами и тяга верхнего блока, по 3 подхода до отказа), чем разминки с 60% на 10 повторений или с 40% на 15 повторений; по отдельным упражнениям разница была явной только для жима лёжа в сравнении с 60%."),
     muscles: [],
     limitations: "Small acute crossover; session volume only; per-exercise differences mostly non-significant.",
     confidence: "low",
@@ -2267,15 +2268,15 @@ const CORE_REFERENCES: Reference[] = [
     design: "meta_analysis",
     outcome: "long_term_hypertrophy",
     population: "6 studies (5 pooled), 142 participants aged about 19-27",
-    finding: "Drop-set and traditional training both increased muscle size, with no significant difference between them; some drop-set protocols needed only a half to a third of the time.",
+    finding: L("Drop-set and traditional training both increased muscle size, with no significant difference between them; some drop-set protocols needed only a half to a third of the time.", "И дроп-сеты, и традиционная тренировка увеличили размер мышц без значимой разницы между ними; некоторым протоколам с дроп-сетами требовалось лишь от половины до трети времени."),
     muscles: [],
     limitations: "Few small studies; heterogeneous protocols.",
     confidence: "moderate",
     verifiedOn: "2026-11-21"
   }
-];
+]);
 
 /** Core library + the tempo/execution review + the exercise-order pass (deduplicated by DOI). */
-export const REFERENCES: Reference[] = [...CORE_REFERENCES, ...TEMPO_REFERENCES, ...ORDER_REFERENCES, ...AUDIT_REFERENCES, ...PERCEPTION_REFERENCES];
+export const REFERENCES: Reference[] = byLang(() => [...CORE_REFERENCES, ...TEMPO_REFERENCES, ...ORDER_REFERENCES, ...AUDIT_REFERENCES, ...PERCEPTION_REFERENCES]);
 
-export const REFERENCE_BY_ID: Record<string, Reference> = Object.fromEntries(REFERENCES.map((r) => [r.id, r]));
+export const REFERENCE_BY_ID: Record<string, Reference> = byLang(() => Object.fromEntries(REFERENCES.map((r) => [r.id, r])));

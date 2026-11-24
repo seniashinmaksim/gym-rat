@@ -49,13 +49,34 @@ const historyArb = fc.array(workoutArb, { minLength: 1, maxLength: 12 });
 const eff = (ws: Workout[]) => computeVolume(ws, reg, model).muscles;
 
 describe('volume invariants', () => {
-  it('adding a valid working set never decreases any muscle\'s weekly volume', () => {
+  // Part 6 (F.4): a heavier set added later can show that an earlier, unreported light set was a warm-up, so
+  // "more sets never means less volume" holds (1) always with the numbers check switched off, and (2) with it
+  // switched on whenever the added set repeats the weight of the exercise's last set (no new best set).
+  it('adding a valid working set never decreases any muscle\'s weekly volume (numbers check off)', () => {
+    const off = { ...model, useNumbersCheck: false };
+    const effOff = (ws: Workout[]) => computeVolume(ws, reg, off).muscles;
     fc.assert(fc.property(historyArb, fc.nat(), fc.integer({ min: 1, max: 20 }), fc.option(fc.integer({ min: 0, max: 8 }), { nil: null }), (ws, pick, reps, rir) => {
-      const before = eff(ws);
+      const before = effOff(ws);
       const wi = pick % ws.length;
       const w = ws[wi];
       const ei = pick % w.exercises.length;
       const added: WorkoutSet = { id: `add${uidN++}`, type: 'working', weightKg: 20, loadMode: 'total', reps, rir, rirSource: rir == null ? 'unknown' : 'reported', restSecBefore: null };
+      const ws2 = ws.map((x, i) => (i !== wi ? x : { ...x, exercises: x.exercises.map((e, j) => (j !== ei ? e : { ...e, sets: [...e.sets, added] })) }));
+      const after = effOff(ws2);
+      for (const m of Object.keys(before) as (keyof typeof before)[]) expect(after[m].effective).toBeGreaterThanOrEqual(before[m].effective - 1e-9);
+    }), cfg());
+  });
+
+  it('repeating the last set (same weight, same reps) never decreases any muscle\'s weekly volume (numbers check on)', () => {
+    fc.assert(fc.property(historyArb, fc.nat(), fc.option(fc.integer({ min: 0, max: 8 }), { nil: null }), (ws, pick, rir) => {
+      const before = eff(ws);
+      const wi = pick % ws.length;
+      const w = ws[wi];
+      const ei = pick % w.exercises.length;
+      const lastSet = w.exercises[ei].sets.filter((x) => x.type === 'working').at(-1);
+      // (Left / right pairs average the two sides, so a new side set can lower a pair: sides are left out here.)
+      if (!lastSet || lastSet.weightKg == null || lastSet.reps == null || w.exercises[ei].sets.some((x) => x.side)) return;
+      const added: WorkoutSet = { id: `add${uidN++}`, type: 'working', weightKg: lastSet.weightKg, loadMode: lastSet.loadMode, reps: lastSet.reps, rir, rirSource: rir == null ? 'unknown' : 'reported', restSecBefore: null, ...(lastSet.side ? { side: lastSet.side } : {}) };
       const ws2 = ws.map((x, i) => (i !== wi ? x : { ...x, exercises: x.exercises.map((e, j) => (j !== ei ? e : { ...e, sets: [...e.sets, added] })) }));
       const after = eff(ws2);
       for (const m of Object.keys(before) as (keyof typeof before)[]) expect(after[m].effective).toBeGreaterThanOrEqual(before[m].effective - 1e-9);

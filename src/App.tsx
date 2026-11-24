@@ -29,6 +29,7 @@ function loadChunk<T>(fn: () => Promise<T>): Promise<T> {
 const LoggerPage = lazy(() => loadChunk(() => import('./ui/pages/Train')).then((m) => ({ default: m.LogPage })));
 const ImportPage = lazy(() => loadChunk(() => import('./ui/pages/Import')).then((m) => ({ default: m.ImportPage })));
 const HistoryPage = lazy(() => loadChunk(() => import('./ui/pages/History')).then((m) => ({ default: m.HistoryPage })));
+const WorkoutCheckPage = lazy(() => loadChunk(() => import('./ui/pages/WorkoutCheck')).then((m) => ({ default: m.WorkoutCheckPage })));
 const MusclesPage = lazy(() => loadChunk(() => import('./ui/pages/Muscles')).then((m) => ({ default: m.MusclesPage })));
 const RecoveryPage = lazy(() => loadChunk(() => import('./ui/pages/Recovery')).then((m) => ({ default: m.RecoveryPage })));
 const StrengthPage = lazy(() => loadChunk(() => import('./ui/pages/Strength')).then((m) => ({ default: m.StrengthPage })));
@@ -77,6 +78,7 @@ export function App() {
           <Route path="/log/:id" element={<LoggerPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/check/:id" element={<WorkoutCheckPage />} />
           <Route path="/muscles" element={<MusclesPage />} />
           <Route path="/recovery" element={<RecoveryPage />} />
           <Route path="/strength" element={<StrengthPage />} />

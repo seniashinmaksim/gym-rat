@@ -10,12 +10,13 @@ import { store, useData } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import { useAnalysis, useDraftSync, useNames } from '../hooks';
 import { Badge, Button, Card, cx, fmt, Select, toast, Why } from './ui';
+import { byLang, KG, L, ruPlural } from '../../i18n';
 
 interface PlanDraft {
   date: string; loc: string | null; exclude: string[]; force: { exerciseId: string; equipmentId: string | null; variation?: Variation }[];
   skipped: string[]; edits: Record<string, ItemEdit>; decisions: PlanDecision[]; replaced: { from: string; to: string }[];
 }
-const REASONS: [PlanDecisionReason, string][] = [['busy', 'Machine busy'], ['time', 'No time'], ['preference', 'Prefer another'], ['pain', 'Pain']];
+const REASONS: [PlanDecisionReason, string][] = byLang(() => [['busy', L('Machine busy', 'Тренажёр занят')], ['time', L('No time', 'Нет времени')], ['preference', L('Prefer another', 'Хочу другое')], ['pain', L('Pain', 'Боль')]]);
 const restText = (r: [number, number]) => { const f = (x: number) => `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`; return r[0] === r[1] ? f(r[0]) : `${f(r[0])}–${f(r[1])}`; };
 
 /**
@@ -74,14 +75,14 @@ export function NextWorkoutCard() {
       if (!data.settings.learning.startDate) await store.saveSettings({ learning: { ...data.settings.learning, startDate: now.date } });
       nav(`/log/${w.id}`);
     } catch {
-      toast('Could not start the workout', 'bad');
+      toast(L('Could not start the workout', 'Не удалось начать тренировку'), 'bad');
       setBusy(false);
     }
   };
 
   const header = (
     <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
-      <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Your next workout</h2>
+      <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Your next workout', 'Следующая тренировка')}</h2>
       <Badge tone={tone}>{MODE_LABEL[mode]}</Badge>
     </div>
   );
@@ -91,8 +92,8 @@ export function NextWorkoutCard() {
       <Card padded={false}>
         {header}
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5" data-testid="next-workout-learning">
-          <span className="min-w-0 text-sm text-ink-700 dark:text-ink-200">Learning: {readiness.next[0] ?? `${readiness.wellDocumented} well-documented workouts`}</span>
-          <Button size="sm" variant="ghost" onClick={() => setShowLearning(true)}>Suggestions</Button>
+          <span className="min-w-0 text-sm text-ink-700 dark:text-ink-200">{L('Learning', 'Знакомство')}: {readiness.next[0] ?? L(`${readiness.wellDocumented} well-documented workouts`, `${readiness.wellDocumented} ${ruPlural(readiness.wellDocumented, 'хорошо записанная тренировка', 'хорошо записанные тренировки', 'хорошо записанных тренировок')}`)}</span>
+          <Button size="sm" variant="ghost" onClick={() => setShowLearning(true)}>{L('Suggestions', 'Предложения')}</Button>
         </div>
       </Card>
     );
@@ -102,17 +103,17 @@ export function NextWorkoutCard() {
     <Card padded={false}>
       {header}
       <div className="space-y-2 px-4 pt-3 sm:px-5">
-        {learning && <p className="text-xs text-amber-700 dark:text-amber-300">PROVISIONAL suggestions — still learning ({readiness.next.join(' · ')}).</p>}
-        {mode === 'provisional' && readiness.next.length > 0 && <p className="text-xs text-ink-500">Full adaptive after: {readiness.next.join(' · ')}</p>}
+        {learning && <p className="text-xs text-amber-700 dark:text-amber-300">{L(`PROVISIONAL suggestions — still learning (${readiness.next.join(' · ')}).`, `ПРЕДВАРИТЕЛЬНЫЕ предложения — приложение ещё знакомится с вашими тренировками (${readiness.next.join(' · ')}).`)}</p>}
+        {mode === 'provisional' && readiness.next.length > 0 && <p className="text-xs text-ink-500">{L('Full adaptive after', 'Полный адаптивный режим после')}: {readiness.next.join(' · ')}</p>}
         {data.locations.length > 1 && (
-          <Select aria-label="Gym" value={loc ?? ''} onChange={(e) => { setLoc(e.target.value || null); setExclude([]); setForce([]); setSkipped([]); setEdits({}); setReplaced([]); }}>
+          <Select aria-label={L('Gym', 'Зал')} value={loc ?? ''} onChange={(e) => { setLoc(e.target.value || null); setExclude([]); setForce([]); setSkipped([]); setEdits({}); setReplaced([]); }}>
             {data.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </Select>
         )}
-        {gen.returning && <p className="text-xs text-amber-700 dark:text-amber-300">{gen.notes.find((n) => n.startsWith('Returning'))}</p>}
+        {gen.returning && <p className="text-xs text-amber-700 dark:text-amber-300">{gen.notes.find((n) => /^(Returning|Возвра)/.test(n))}</p>}
       </div>
       {items.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-ink-600 dark:text-ink-300 sm:px-5">{gen.notes.find((n) => n.startsWith('Nothing')) ?? 'Nothing planned — every muscle is done or recovering.'}</p>
+        <p className="px-4 py-3 text-sm text-ink-600 dark:text-ink-300 sm:px-5">{gen.notes.find((n) => /^(Nothing|Ничего|Сегодня нич)/.test(n)) ?? L('Nothing planned — every muscle is done or recovering.', 'Ничего не запланировано — по всем мышцам цель выполнена или идёт восстановление.')}</p>
       ) : (
         <ol className="mt-2 divide-y divide-ink-100 dark:divide-ink-800/70" data-testid="next-workout-list">
           {items.map((it, i) => (
@@ -139,27 +140,27 @@ export function NextWorkoutCard() {
       <div className="space-y-2 px-4 pb-4 pt-2 sm:px-5">
         {(skipped.length > 0 || replaced.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5" data-testid="plan-changes">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Changed</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Changed', 'Изменено')}</span>
             {skipped.map((id) => (
-              <button key={`s-${id}`} type="button" aria-label={`Bring back ${names.ex(a.registry.get(id))}`} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
-                onClick={() => { setSkipped((s) => s.filter((x) => x !== id)); setDecisions((ds) => ds.filter((d) => !(d.action === 'skipped' && d.exerciseId === id))); }}>↺ {names.ex(a.registry.get(id))} <span className="text-ink-400">skipped</span></button>
+              <button key={`s-${id}`} type="button" aria-label={L(`Bring back ${names.ex(a.registry.get(id))}`, `Вернуть: ${names.ex(a.registry.get(id))}`)} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
+                onClick={() => { setSkipped((s) => s.filter((x) => x !== id)); setDecisions((ds) => ds.filter((d) => !(d.action === 'skipped' && d.exerciseId === id))); }}>↺ {names.ex(a.registry.get(id))} <span className="text-ink-400">{L('skipped', 'пропущено')}</span></button>
             ))}
             {replaced.map((r) => (
-              <button key={`r-${r.from}`} type="button" aria-label={`Undo replacing ${names.ex(a.registry.get(r.from))}`} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
+              <button key={`r-${r.from}`} type="button" aria-label={L(`Undo replacing ${names.ex(a.registry.get(r.from))}`, `Отменить замену: ${names.ex(a.registry.get(r.from))}`)} className="h-11 rounded-full bg-ink-100 px-3.5 text-xs font-medium text-ink-700 active:scale-95 dark:bg-ink-800 dark:text-ink-200"
                 onClick={() => {
                   setExclude((x) => x.filter((y) => y !== r.from)); setForce((f) => f.filter((y) => y.exerciseId !== r.to)); setReplaced((xs) => xs.filter((y) => y !== r));
                   setDecisions((ds) => ds.filter((d) => !(d.action === 'replaced' && d.exerciseId === r.from)));
                 }}>↺ {names.ex(a.registry.get(r.from))} <span className="text-ink-400">→ {names.ex(a.registry.get(r.to))}</span></button>
             ))}
-            <button type="button" className="h-11 px-2 text-xs font-medium text-ink-500 underline decoration-dotted underline-offset-2" onClick={reset}>Reset plan</button>
+            <button type="button" className="h-11 px-2 text-xs font-medium text-ink-500 underline decoration-dotted underline-offset-2" onClick={reset}>{L('Reset plan', 'Сбросить план')}</button>
           </div>
         )}
-        {gen.skippedMuscles.length > 0 && <p className="text-xs text-ink-500">Not today: {gen.skippedMuscles.slice(0, 5).map((s) => `${names.muscle(s.muscle).toLowerCase()} (${s.reason})`).join(' · ')}</p>}
-        {items.length > 0 && <Button variant="primary" size="lg" className="w-full" disabled={busy} onClick={start}>Start</Button>}
-        <Why label="How this was planned">
-          <p>Sets cover today's open share per muscle (capped, never catch-up), counting indirect work, from exercises you already do at this gym; heavy lifts first. Loads come only from that machine's own history.</p>
+        {gen.skippedMuscles.length > 0 && <p className="text-xs text-ink-500">{L('Not today', 'Не сегодня')}: {gen.skippedMuscles.slice(0, 5).map((s) => `${names.muscle(s.muscle).toLowerCase()} (${s.reason})`).join(' · ')}</p>}
+        {items.length > 0 && <Button variant="primary" size="lg" className="w-full" disabled={busy} onClick={start}>{L('Start', 'Начать')}</Button>}
+        <Why label={L('How this was planned', 'Как составлен план')}>
+          <p>{L("Sets cover today's open share per muscle (capped, never catch-up), counting indirect work, from exercises you already do at this gym; heavy lifts first. Loads come only from that machine's own history.", 'Подходы закрывают оставшуюся долю на сегодня по каждой мышце (с ограничением, без навёрстывания) с учётом косвенной работы — упражнениями, которые вы уже делаете в этом зале; тяжёлые упражнения идут первыми. Веса берутся только из истории этого же тренажёра.')}</p>
           {gen.notes.map((n, i) => <p key={i}>{n}</p>)}
-          <p>Mode {MODE_LABEL[mode]}: {readiness.wellDocumented} well-documented workouts over {readiness.spanDays} days; {readiness.calibratedFrequent} regular exercises calibrated; {Math.round(readiness.coverage * 100)} % of major-muscle targets covered.</p>
+          <p>{L(`Mode ${MODE_LABEL[mode]}: ${readiness.wellDocumented} well-documented workouts over ${readiness.spanDays} days; ${readiness.calibratedFrequent} regular exercises calibrated; ${Math.round(readiness.coverage * 100)} % of major-muscle targets covered.`, `Режим ${MODE_LABEL[mode]}: хорошо записанных тренировок — ${readiness.wellDocumented} за ${readiness.spanDays} ${ruPlural(readiness.spanDays, 'день', 'дня', 'дней')}; откалибровано регулярных упражнений — ${readiness.calibratedFrequent}; покрыто ${Math.round(readiness.coverage * 100)} % целей по крупным мышцам.`)}</p>
         </Why>
       </div>
     </Card>
@@ -176,7 +177,7 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
   const sets = edit?.sets ?? it.setCount;
   const kg = edit?.weightKg !== undefined ? edit.weightKg : p.workingWeightKg;
   const reps = p.sets[0] ? (p.sets[0].repsMin === p.sets[0].repsMax ? `${p.sets[0].repsMin}` : `${p.sets[0].repsMin}–${p.sets[0].repsMax}`) : '—';
-  const mark = it.calibration === 'needs_data' ? <Badge tone="warn">calibrate</Badge> : it.calibration === 'provisional' ? <Badge tone="info">provisional</Badge> : null;
+  const mark = it.calibration === 'needs_data' ? <Badge tone="warn">{L('calibrate', 'калибровка')}</Badge> : it.calibration === 'provisional' ? <Badge tone="info">{L('provisional', 'предварит.')}</Badge> : null;
   const step = p.step || 2.5;
   const a = useAnalysis();
   const variant = variationParts(it.variation, a.registry.get(it.exerciseId)).map((x) => x.label).join(' · ') || null;
@@ -188,13 +189,13 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-sm font-semibold text-ink-900 dark:text-white">{name}</span>
             {mark}
-            {it.safety && <Badge tone="bad">pain</Badge>}
+            {it.safety && <Badge tone="bad">{L('pain', 'боль')}</Badge>}
           </span>
           {(eqName || variant) && <span className="block truncate text-xs text-ink-500">{[eqName, variant].filter(Boolean).join(' · ')}</span>}
           <span className="block text-xs tabular-nums text-ink-700 dark:text-ink-200">
-            {p.warmups.length > 0 && <span className="text-ink-500">{p.warmups.length} warm-up{p.warmups.length === 1 ? '' : 's'} · </span>}
-            <b className="font-semibold">{sets} × {kg == null ? (p.loadMode === 'bodyweight_plus' ? 'BW' : '? kg') : `${fmt(kg, 2)} kg`} × {reps}</b>
-            {' · '}RIR {p.rirTarget[0]}–{p.rirTarget[1]} · rest {restText(p.rest.range)}
+            {p.warmups.length > 0 && <span className="text-ink-500">{L(`${p.warmups.length} warm-up${p.warmups.length === 1 ? '' : 's'}`, `${p.warmups.length} разм.`)} · </span>}
+            <b className="font-semibold">{sets} × {kg == null ? (p.loadMode === 'bodyweight_plus' ? L('BW', 'свой вес') : `? ${KG()}`) : `${fmt(kg, 2)} ${KG()}`} × {reps}</b>
+            {' · '}RIR {p.rirTarget[0]}–{p.rirTarget[1]} · {L('rest', 'отдых')} {restText(p.rest.range)}
           </span>
         </span>
       </button>
@@ -202,33 +203,33 @@ function ItemRow({ n, it, edit, open, onToggle, name, eqName, onSkip, onEdit, re
         <div className="space-y-2 px-4 pb-3 sm:px-5">
           <ul className="space-y-0.5 text-xs text-ink-600 dark:text-ink-300">{it.why.map((t, i) => <li key={i}>{t}</li>)}</ul>
           {it.safety && <p className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-300">{it.safety}</p>}
-          <div className="flex flex-wrap items-center gap-2" aria-label="Edit">
-            <span className="text-xs text-ink-500">Sets</span>
-            <Button size="sm" aria-label="One set fewer" onClick={() => onEdit({ sets: Math.max(1, sets - 1) })}>−</Button>
+          <div className="flex flex-wrap items-center gap-2" aria-label={L('Edit', 'Изменить')}>
+            <span className="text-xs text-ink-500">{L('Sets', 'Подходы')}</span>
+            <Button size="sm" aria-label={L('One set fewer', 'На подход меньше')} onClick={() => onEdit({ sets: Math.max(1, sets - 1) })}>−</Button>
             <span className="w-6 text-center text-sm tabular-nums">{sets}</span>
-            <Button size="sm" aria-label="One set more" onClick={() => onEdit({ sets: Math.min(8, sets + 1) })}>+</Button>
+            <Button size="sm" aria-label={L('One set more', 'На подход больше')} onClick={() => onEdit({ sets: Math.min(8, sets + 1) })}>+</Button>
             {kg != null && p.loadMode !== 'assisted' && (
               <>
-                <span className="ml-2 text-xs text-ink-500">kg</span>
-                <Button size="sm" aria-label="Lighter" onClick={() => onEdit({ weightKg: stepLoad(kg, -step, step) })}>−</Button>
+                <span className="ml-2 text-xs text-ink-500">{KG()}</span>
+                <Button size="sm" aria-label={L('Lighter', 'Легче')} onClick={() => onEdit({ weightKg: stepLoad(kg, -step, step) })}>−</Button>
                 <span className="w-12 text-center text-sm tabular-nums">{fmt(kg, 2)}</span>
-                <Button size="sm" aria-label="Heavier" onClick={() => onEdit({ weightKg: stepLoad(kg, step, step) })}>+</Button>
+                <Button size="sm" aria-label={L('Heavier', 'Тяжелее')} onClick={() => onEdit({ weightKg: stepLoad(kg, step, step) })}>+</Button>
               </>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5" aria-label="Reason (optional)">
+          <div className="flex flex-wrap gap-1.5" aria-label={L('Reason (optional)', 'Причина (необязательно)')}>
             {REASONS.map(([r, label]) => (
               <button key={r} type="button" aria-pressed={reason === r} onClick={() => setReason(reason === r ? null : r)}
                 className={cx('h-9 rounded-full px-3 text-xs font-medium', reason === r ? 'bg-accent-500 text-ink-950' : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>{label}</button>
             ))}
           </div>
           <div className="flex gap-2">
-            <Button size="md" className="flex-1" onClick={onReplace}>Replace</Button>
-            <Button size="md" variant="ghost" className="flex-1" onClick={onSkip}>Skip</Button>
+            <Button size="md" className="flex-1" onClick={onReplace}>{L('Replace', 'Заменить')}</Button>
+            <Button size="md" variant="ghost" className="flex-1" onClick={onSkip}>{L('Skip', 'Пропустить')}</Button>
           </div>
           {replacing && (
             <div className="space-y-1.5" data-testid="replace-options">
-              {options.length === 0 && <p className="text-xs text-ink-500">No familiar alternative here for this muscle.</p>}
+              {options.length === 0 && <p className="text-xs text-ink-500">{L('No familiar alternative here for this muscle.', 'В этом зале нет знакомой замены для этой мышцы.')}</p>}
               {options.map((o) => (
                 <button key={o.exerciseId} type="button" onClick={() => onPickReplacement(o)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
                   <span className="text-sm font-medium text-ink-900 dark:text-white">{exName(o.exerciseId)}</span>

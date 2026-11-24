@@ -23,37 +23,40 @@ export function useLiveWorkout(initial: Workout, describe: (exerciseId: string) 
   const initialRef = useRef(initial);
   const describeRef = useRef(describe);
   describeRef.current = describe;
+  // The newest copy, updated synchronously by `update` (several changes in one tick build on each other).
   const latest = useRef(w);
-  latest.current = w;
   // Writes of one workout are strictly ordered: an Undo saved right after a removal can never be
   // overtaken by the earlier (slower) write.
   const chain = useRef<Promise<unknown>>(Promise.resolve());
-  const write = useCallback((next: Workout) => {
-    const p = chain.current.catch(() => undefined).then(() => store.saveWorkout(next));
+  const queue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    const p = chain.current.catch(() => undefined).then(job);
     chain.current = p;
     return p;
   }, []);
+  const write = useCallback((next: Workout) => queue(() => store.saveWorkout(next)), [queue]);
 
   const update: WorkoutUpdate = useCallback((fn, opts) => {
     if (!mounted.current) {
       const other = liveEditors.get(initialRef.current.id);
       if (other && other !== updateRef.current) { other(fn, opts); return; }
       const cur = store.getState().data?.workouts.find((x) => x.id === initialRef.current.id);
-      if (cur) void store.saveWorkout(withCorrections(initialRef.current, fn(cur), new Date().toISOString(), (id) => describeRef.current(id)));
+      if (cur) void write(withCorrections(initialRef.current, fn(cur), new Date().toISOString(), (id) => describeRef.current(id))).catch(() => undefined);
       return;
     }
-    setW((prev) => {
-      const next = withCorrections(initialRef.current, fn(prev), new Date().toISOString(), (id) => describeRef.current(id));
-      if (next === prev) return prev;
-      if (saveTimer.current) window.clearTimeout(saveTimer.current);
-      if (opts?.now) {
-        saveTimer.current = null;
-        void write(next).catch(() => toast(L('Could not save — the set is kept on screen; it will be saved with the next change', 'Не удалось сохранить — подход остаётся на экране и сохранится со следующим изменением'), 'bad'));
-      } else {
-        saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void write(next); }, 350);
-      }
-      return next;
-    });
+    // Computed from the latest copy OUTSIDE the state updater: an updater may run twice (StrictMode) and
+    // must not start timers or writes.
+    const prev = latest.current;
+    const next = withCorrections(initialRef.current, fn(prev), new Date().toISOString(), (id) => describeRef.current(id));
+    if (next === prev) return;
+    latest.current = next;
+    setW(next);
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    if (opts?.now) {
+      saveTimer.current = null;
+      void write(next).catch(() => toast(L('Could not save — the set is kept on screen; it will be saved with the next change', 'Не удалось сохранить — подход остаётся на экране и сохранится со следующим изменением'), 'bad'));
+    } else {
+      saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void write(latest.current).catch(() => undefined); }, 350);
+    }
   }, [write]);
   const updateRef = useRef(update);
   updateRef.current = update;
@@ -77,14 +80,14 @@ export function useLiveWorkout(initial: Workout, describe: (exerciseId: string) 
   /** Drop a pending debounced save (before delete / finish): the unmount flush must not write it back. */
   const cancelSave = useCallback(() => { if (saveTimer.current) window.clearTimeout(saveTimer.current); saveTimer.current = null; }, []);
   /** Replace the in-memory copy without scheduling a write (the caller saves). */
-  const replace = useCallback((next: Workout) => { cancelSave(); setW(next); }, [cancelSave]);
+  const replace = useCallback((next: Workout) => { cancelSave(); latest.current = next; setW(next); }, [cancelSave]);
 
   useEffect(() => {
     const flush = () => {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current);
         saveTimer.current = null;
-        void store.saveWorkout(latest.current);
+        void write(latest.current).catch(() => undefined);
       }
     };
     const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
@@ -97,7 +100,7 @@ export function useLiveWorkout(initial: Workout, describe: (exerciseId: string) 
       window.removeEventListener('pagehide', flush);
       flush();
     };
-  }, []);
+  }, [write]);
 
-  return { w, update, undoable, cancelSave, replace, latest };
+  return { w, update, undoable, cancelSave, replace, latest, queue };
 }

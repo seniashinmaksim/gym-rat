@@ -18,7 +18,7 @@ const LANGS = (process.env.TRAIN_LANG ? [process.env.TRAIN_LANG] : ['en', 'ru'])
 
 const T = {
   en: { choose: 'Choose a password', repeat: 'Repeat password', setPw: /Set password/, gym: 'e.g. Gym A', start: /Start session/, pw: 'Password', unlock: /Unlock|Open/, cont: 'Continue', undo: 'Undo', incline: 'incline dumbbell', inclineName: /^Incline dumbbell press/, pec: 'pec deck', pecName: /^Pec deck/, saved: /Workout saved/, back: /Back to workout/, doneBtn: /^Done$/ },
-  ru: { choose: 'Придумайте пароль', repeat: 'Повторите пароль', setPw: /Установить пароль/, gym: 'например, Зал А', start: /Начать тренировку/, pw: 'Пароль', unlock: /Разблокировать|Открыть/, cont: 'Продолжить', undo: 'Отменить', incline: 'жим гантелей на наклонной', inclineName: /^Жим гантелей на наклонной/, pec: 'пек-дек', pecName: /^Пек-дек/, saved: /Тренировка сохранена/, back: /Назад к тренировке/, doneBtn: /^Готово$/ },
+  ru: { choose: 'Придумайте пароль', repeat: 'Повторите пароль', setPw: /Задать пароль/, gym: 'например, Зал А', start: /Начать тренировку/, pw: 'Пароль', unlock: /Разблокировать/, cont: 'Продолжить', undo: 'Отменить', incline: 'жим гантелей на наклонной', inclineName: /^Жим гантелей на наклонной/, pec: 'пек-дек', pecName: /^Пек-дек/, saved: /Тренировка сохранена/, back: /Назад к тренировке/, doneBtn: /^Готово$/ },
 };
 
 async function continueChoice(page: Page, lang: 'en' | 'ru') {
@@ -186,6 +186,9 @@ for (const lang of LANGS) {
     await typeNumber(page, 'reps-value', '12');
     await page.getByTestId('log-set').click();
     await expect(page.getByTestId('finish')).toHaveCount(0); // never on the rest screen
+    // a direct way to the next exercise is always on the rest screen (before the target: the quiet link)
+    await expect(page.locator('[data-testid="stop-early"], [data-testid="next-exercise"]')).toHaveCount(1);
+    await designRules(page, 'rest (second exercise)');
     await shot('05-rest-second-exercise');
 
     // ---- landscape keeps the primary action on screen
@@ -200,8 +203,23 @@ for (const lang of LANGS) {
       await page.setViewportSize(v);
     } else await nextSet(page);
 
+    // ---- stop an exercise before (or at) the target from its menu; Undo brings it back
+    await page.getByTestId('exercise-menu').click();
+    await page.getByTestId('finish-exercise').click();
+    const early = page.getByTestId('toast').getByRole('button', { name: t.undo });
+    if (await early.count()) {
+      await early.click();
+      await expect(train).toHaveAttribute('data-view', 'set');
+      await expect(page.getByTestId('exercise-name')).toHaveText(t.pecName.source.includes('Pec') ? /pec deck/i : /пек-дек/i);
+      await expect(page.getByTestId('set-chip')).toHaveCount(1);
+      await page.getByTestId('exercise-menu').click();
+      await page.getByTestId('finish-exercise').click();
+    }
+    if ((await train.getAttribute('data-view')) !== 'overview') await page.getByTestId('to-overview').click();
+    await expect(page.getByTestId('ov-row').nth(1)).toHaveAttribute('data-state', 'done');
+    await shot('09-overview-after-stop');
+
     // ---- finish → summary → back to workout → finish
-    await page.getByTestId('to-overview').click();
     await page.getByTestId('finish').click();
     await expect(page.getByRole('dialog')).toContainText(t.saved);
     await shot('08-summary');

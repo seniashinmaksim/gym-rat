@@ -18,6 +18,7 @@ import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
 import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, VolumeBar, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { getLang, KG, L, ruPlural } from '../../i18n';
 
 /**
  * Main screen — deliberately simple. It answers two questions:
@@ -46,29 +47,29 @@ export function DashboardPage() {
   }, [a.muscles]);
 
   const subtitle = (
-    <span>{formatDate(a.week.start, { day: 'numeric', month: 'short' })} – {formatDate(a.week.end, { day: 'numeric', month: 'short' })} · {a.daysLeft} day{a.daysLeft === 1 ? '' : 's'} left</span>
+    <span>{formatDate(a.week.start, { day: 'numeric', month: 'short' })} – {formatDate(a.week.end, { day: 'numeric', month: 'short' })} · {L(`${a.daysLeft} day${a.daysLeft === 1 ? '' : 's'} left`, `${ruPlural(a.daysLeft, 'остался', 'осталось', 'осталось')} ${a.daysLeft} ${ruPlural(a.daysLeft, 'день', 'дня', 'дней')}`)}</span>
   );
 
   if (!data.workouts.length) {
     return (
-      <Page title="This week" subtitle={subtitle}>
-        <Empty title="No workouts yet" action={<div className="flex flex-wrap justify-center gap-2"><Link to="/log"><Button variant="primary"><IconPlus size={16} />Log a workout</Button></Link><Link to="/import"><Button><IconImport size={16} />Import from Claude</Button></Link></div>}>
-          Log your first session, or describe it to Claude and paste the JSON. For the first 30 days the weekly targets are provisional while the app learns how you train.
+      <Page title={L('This week', 'Эта неделя')} subtitle={subtitle}>
+        <Empty title={L('No workouts yet', 'Тренировок пока нет')} action={<div className="flex flex-wrap justify-center gap-2"><Link to="/log"><Button variant="primary"><IconPlus size={16} />{L('Log a workout', 'Записать тренировку')}</Button></Link><Link to="/import"><Button><IconImport size={16} />{L('Import from Claude', 'Импорт из Claude')}</Button></Link></div>}>
+          {L('Log your first session, or describe it to Claude and paste the JSON. For the first 30 days the weekly targets are provisional while the app learns how you train.', 'Запишите первую тренировку или опишите её Claude и вставьте JSON. Первые 30 дней недельные цели предварительные: приложение знакомится с тем, как вы тренируетесь.')}
         </Empty>
       </Page>
     );
   }
 
   return (
-    <Page title="This week" subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? 'Resume' : 'Log workout'}</Button></Link>}>
+    <Page title={L('This week', 'Эта неделя')} subtitle={subtitle} actions={<Link to={active ? `/log/${active.id}` : '/log'}><Button variant="primary"><IconPlus size={16} />{active ? L('Resume', 'Продолжить') : L('Log workout', 'Тренировка')}</Button></Link>}>
       {effort.nudge && (
-        <Callout tone="info" title={`${effort.missing} / ${effort.counted} sets without RIR or feel`}>
-          Counted as provisional (0.75). One tap after ✓ fixes it.
+        <Callout tone="info" title={L(`${effort.missing} / ${effort.counted} sets without RIR or feel`, `${effort.missing} / ${effort.counted} подх. без RIR и без оценки ощущений`)}>
+          {L('Counted as provisional (0.75). One tap after ✓ fixes it.', 'Засчитаны предварительно (0,75). Одно касание после ✓ это исправит.')}
         </Callout>
       )}
       {deload.recommend && (
-        <Callout tone="warn" icon={<IconAlert size={18} />} title="Possible accumulated fatigue">
-          {deload.summary} <Link to="/periodization" className="font-semibold underline">See why</Link>
+        <Callout tone="warn" icon={<IconAlert size={18} />} title={L('Possible accumulated fatigue', 'Возможно, накопилась усталость')}>
+          {deload.summary} <Link to="/periodization" className="font-semibold underline">{L('See why', 'Почему')}</Link>
         </Callout>
       )}
 
@@ -76,14 +77,14 @@ export function DashboardPage() {
 
       <Card padded={false}>
         <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5">
-          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Quality sets</h2>
+          <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Quality sets', 'Качественные подходы')}</h2>
           <span className="flex items-center gap-1.5">
-            {a.learning.active && <Badge tone="warn">PROVISIONAL</Badge>}
-            <span className="text-xs tabular-nums text-ink-500">{fmt(weekQualitySets(a, data))} sets done</span>
+            {a.learning.active && <Badge tone="warn">{L('PROVISIONAL', 'ПРЕДВ.')}</Badge>}
+            <span className="text-xs tabular-nums text-ink-500">{fmt(weekQualitySets(a, data))} {L('sets done', 'подх.')}</span>
           </span>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-400 sm:px-5">
-          <span>Muscle</span><span className="w-[4.5rem] text-right">Done / target</span><span className="w-12 text-right">Left</span>
+          <span>{L('Muscle', 'Мышца')}</span><span className="w-[4.5rem] text-right">{L('Done / target', 'Вып. / цель')}</span><span className="w-12 text-right">{L('Left', 'Ост.')}</span>
         </div>
         <ul className="divide-y divide-ink-100 dark:divide-ink-800/70">
           {sorted.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
@@ -96,7 +97,7 @@ export function DashboardPage() {
 
       <div>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more} className="flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-ink-600 dark:text-ink-300">
-          More details <IconChevronDown size={14} className={cx('transition', more && 'rotate-180')} />
+          {L('More details', 'Подробнее')} <IconChevronDown size={14} className={cx('transition', more && 'rotate-180')} />
         </button>
         {more && <MoreDetails />}
       </div>
@@ -118,7 +119,7 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
             {statusChip(m)}
           </span>
           <span className="w-[4.5rem] text-right text-sm tabular-nums text-ink-600 dark:text-ink-300">{fmt(m.completed)} / {fmt(m.target.preferred)}</span>
-          <span className={cx('w-12 text-right text-base font-semibold tabular-nums', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{done ? (m.status === 'over' ? 'OVER' : 'DONE') : fmt(m.remainingToPreferred)}</span>
+          <span className={cx('w-12 text-right font-semibold tabular-nums', done && getLang() === 'ru' ? 'text-[11px]' : 'text-base', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{done ? (m.status === 'over' ? L('OVER', 'СВЕРХ') : L('DONE', 'ГОТОВО')) : fmt(m.remainingToPreferred)}</span>
         </div>
         <div className="mt-1.5"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={4} /></div>
       </button>
@@ -129,9 +130,9 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
 
 /** One small tag: today's share, or recovery (never both). */
 function statusChip(m: MuscleWeek) {
-  if (m.todayBlocked || m.recovery.status === 'recovering') return <Badge tone="warn">RECOVERING</Badge>;
+  if (m.todayBlocked || m.recovery.status === 'recovering') return <Badge tone="warn">{L('RECOVERING', 'ВОССТ.')}</Badge>;
   if (m.remainingToPreferred <= 0) return null;
-  if (m.todayLeft > 0) return <Badge tone="accent">today {fmt(m.todayLeft)}</Badge>;
+  if (m.todayLeft > 0) return <Badge tone="accent">{L('today', 'сегодня')} {fmt(m.todayLeft)}</Badge>;
   return null;
 }
 
@@ -150,21 +151,21 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
   return (
     <div className="space-y-3 text-sm">
       <p className="leading-relaxed text-ink-700 dark:text-ink-200">
-        {fmt(m.completed)} of {fmt(m.target.preferred)} quality sets done{m.target.provisional ? ' (provisional target)' : ''}. {m.todayShare > 0 ? `Today ≈ ${fmt(m.todayShare)}${m.doneToday > 0 ? ` (${fmt(m.doneToday)} done)` : ''}.` : m.todayNote ? `Today: ${m.todayNote}.` : ''}
+        {L(`${fmt(m.completed)} of ${fmt(m.target.preferred)} quality sets done${m.target.provisional ? ' (provisional target)' : ''}.`, `Сделано ${fmt(m.completed)} из ${fmt(m.target.preferred)} качественных подходов${m.target.provisional ? ' (предварительная цель)' : ''}.`)} {m.todayShare > 0 ? L(`Today ≈ ${fmt(m.todayShare)}${m.doneToday > 0 ? ` (${fmt(m.doneToday)} done)` : ''}.`, `Сегодня ≈ ${fmt(m.todayShare)}${m.doneToday > 0 ? ` (сделано ${fmt(m.doneToday)})` : ''}.`) : m.todayNote ? L(`Today: ${m.todayNote}.`, `Сегодня: ${m.todayNote}.`) : ''}
       </p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl bg-ink-50 p-3 text-xs dark:bg-ink-950 sm:grid-cols-4">
-        <Fact k="Sets performed" v={fmt(m.volume.rawWorkingSets)} />
-        <Fact k="Good quality" v={fmt(st.good - m.volume.goodEstimated)} />
-        {m.volume.goodEstimated > 0 && <Fact k="Good (estimated)" v={fmt(m.volume.goodEstimated)} />}
-        <Fact k="Too easy" v={fmt(st.easy)} />
-        <Fact k="Technique issues" v={fmt(st.compromised)} />
-        {st.pain > 0 && <Fact k="Pain flagged" v={fmt(st.pain)} />}
-        <Fact k="Uncertain volume" v={fmt(m.volume.uncertainEffective)} />
+        <Fact k={L('Sets performed', 'Выполнено подходов')} v={fmt(m.volume.rawWorkingSets)} />
+        <Fact k={L('Good quality', 'Качественные')} v={fmt(st.good - m.volume.goodEstimated)} />
+        {m.volume.goodEstimated > 0 && <Fact k={L('Good (estimated)', 'Качественные (оценка)')} v={fmt(m.volume.goodEstimated)} />}
+        <Fact k={L('Too easy', 'Слишком легко')} v={fmt(st.easy)} />
+        <Fact k={L('Technique issues', 'Проблемы с техникой')} v={fmt(st.compromised)} />
+        {st.pain > 0 && <Fact k={L('Pain flagged', 'С болью')} v={fmt(st.pain)} />}
+        <Fact k={L('Uncertain volume', 'Неопределённый объём')} v={fmt(m.volume.uncertainEffective)} />
       </dl>
       <p className="text-xs text-ink-500">{m.justification}</p>
       {spread && spread.exerciseIds.length > 0 && spread.high - spread.low >= 0.25 && (
         <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200" data-testid="mapping-spread">
-          Uncertain mapping: {spread.exerciseIds.map((id) => names.ex(a.registry.get(id))).join(', ')}. Counted {fmt(spread.effective)}; plausible {fmt(spread.low)}–{fmt(spread.high)} depending on how much it really trains {names.muscle(m.muscle).toLowerCase()}. Adjust it in Exercise database if you know better.
+          {L(`Uncertain mapping: ${spread.exerciseIds.map((id) => names.ex(a.registry.get(id))).join(', ')}. Counted ${fmt(spread.effective)}; plausible ${fmt(spread.low)}–${fmt(spread.high)} depending on how much it really trains ${names.muscle(m.muscle).toLowerCase()}. Adjust it in Exercise database if you know better.`, `Вклад оценён неточно: ${spread.exerciseIds.map((id) => names.ex(a.registry.get(id))).join(', ')}. Засчитано ${fmt(spread.effective)}; правдоподобно ${fmt(spread.low)}–${fmt(spread.high)} — зависит от того, насколько упражнение действительно нагружает эту мышцу (${names.muscle(m.muscle).toLowerCase()}). Если знаете точнее, измените коэффициент в базе упражнений.`)}
         </p>
       )}
       {series.length > 0 && (
@@ -172,12 +173,12 @@ function MuscleDetail({ m }: { m: MuscleWeek }) {
           {series.map((p) => <AdviceRow key={p.key} p={p} />)}
         </ul>
       )}
-      <Why label="How this is calculated">
+      <Why label={L('How this is calculated', 'Как это считается')}>
         <p>{m.explanation}</p>
         <p>{m.justification}</p>
-        <p>Target {fmt(m.target.min)}–{fmt(m.target.max)} (preferred {fmt(m.target.preferred)}) <ConfidenceBadge c={m.target.confidence} provisional={m.target.provisional} /></p>
+        <p>{L(`Target ${fmt(m.target.min)}–${fmt(m.target.max)} (preferred ${fmt(m.target.preferred)})`, `Цель ${fmt(m.target.min)}–${fmt(m.target.max)} (желательно ${fmt(m.target.preferred)})`)} <ConfidenceBadge c={m.target.confidence} provisional={m.target.provisional} /></p>
         {m.target.rationale.map((r, i) => <p key={i}>{r}</p>)}
-        <p className="text-ink-500">Quality sets = direct + indirect fractional sets × set quality (RIR or how the set felt, technique). Warm-ups never count. Numbers are estimates, not a measure of muscle growth. {names.muscle(m.muscle)} recovery: {m.recovery.factors.join(' ')}</p>
+        <p className="text-ink-500">{L(`Quality sets = direct + indirect fractional sets × set quality (RIR or how the set felt, technique). Warm-ups never count. Numbers are estimates, not a measure of muscle growth. ${names.muscle(m.muscle)} recovery: ${m.recovery.factors.join(' ')}`, `Качественные подходы = прямые + косвенные дробные подходы × качество подхода (RIR или ощущение от подхода, техника). Разминка не считается. Числа — оценки, а не мера роста мышц. Восстановление (${names.muscle(m.muscle).toLowerCase()}): ${m.recovery.factors.join(' ')}`)}</p>
       </Why>
     </div>
   );
@@ -231,12 +232,12 @@ function NextWeights() {
   return (
     <Card>
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Next weights</h2>
-        <Link to="/strength" className="inline-flex min-h-[40px] items-center text-xs font-medium text-accent-600 dark:text-accent-400">All exercises</Link>
+        <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Next weights', 'Следующие веса')}</h2>
+        <Link to="/strength" className="inline-flex min-h-[40px] items-center text-xs font-medium text-accent-600 dark:text-accent-400">{L('All exercises', 'Все упражнения')}</Link>
       </div>
       <ul className="space-y-1.5">{shown.map((p) => <AdviceRow key={p.key} p={p} />)}</ul>
       {recent.length > 6 && (
-        <button type="button" onClick={() => setAll(!all)} className="mt-1 min-h-[40px] text-xs font-medium text-ink-500">{all ? 'Show fewer' : `Show all ${recent.length}`}</button>
+        <button type="button" onClick={() => setAll(!all)} className="mt-1 min-h-[40px] text-xs font-medium text-ink-500">{all ? L('Show fewer', 'Показать меньше') : L(`Show all ${recent.length}`, `Показать все ${recent.length}`)}</button>
       )}
     </Card>
   );
@@ -257,16 +258,16 @@ function WeekStrip() {
     <Card className="!py-3">
       {eff.total > 0 && (
         <div className="grid grid-cols-6 gap-1 text-center">
-          {cell('RIR 0', String(eff.rir0))}{cell('RIR 1', String(eff.rir1))}{cell('RIR 2', String(eff.rir2))}{cell('3+', String(eff.rir3plus))}{cell('?', String(eff.unknown))}{cell('Avg', eff.avgRir != null ? fmt(eff.avgRir) : '—')}
+          {cell('RIR 0', String(eff.rir0))}{cell('RIR 1', String(eff.rir1))}{cell('RIR 2', String(eff.rir2))}{cell('3+', String(eff.rir3plus))}{cell('?', String(eff.unknown))}{cell(L('Avg', 'Средн.'), eff.avgRir != null ? fmt(eff.avgRir) : '—')}
         </div>
       )}
       <div className={cx('flex items-center justify-between gap-2', eff.total > 0 && 'mt-3 border-t border-ink-100 pt-3 dark:border-ink-800')}>
         <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
-          {cell('Body', last ? `${fmt(last.kg)} kg` : '—')}
-          {cell('7-day', avg ? `${fmt(avg.kg)} kg` : '—')}
-          {cell('Week', trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 2)} kg` : '—')}
+          {cell(L('Body', 'Вес тела'), last ? `${fmt(last.kg)} ${KG()}` : '—')}
+          {cell(L('7-day', '7 дней'), avg ? `${fmt(avg.kg)} ${KG()}` : '—')}
+          {cell(L('Week', 'Неделя'), trend != null ? `${trend > 0 ? '+' : ''}${fmt(trend, 2)} ${KG()}` : '—')}
         </div>
-        <Button size="sm" onClick={() => setAdd(true)}><IconPlus size={14} />Weight</Button>
+        <Button size="sm" onClick={() => setAdd(true)}><IconPlus size={14} />{L('Weight', 'Вес')}</Button>
       </div>
       <AddBodyWeight open={add} onClose={() => setAdd(false)} />
     </Card>
@@ -292,21 +293,21 @@ function MoreDetails() {
   return (
     <div className="mt-2 space-y-4">
       <Card>
-        <div className="mb-2 flex items-center justify-between"><span className="text-sm font-semibold">Body map</span><Segmented size="sm" value={mapMode} onChange={setMapMode} options={[{ value: 'volume', label: 'Volume' }, { value: 'recovery', label: 'Recovery' }]} /></div>
+        <div className="mb-2 flex items-center justify-between"><span className="text-sm font-semibold">{L('Body map', 'Карта мышц')}</span><Segmented size="sm" value={mapMode} onChange={setMapMode} options={[{ value: 'volume', label: L('Volume', 'Объём') }, { value: 'recovery', label: L('Recovery', 'Восстановление') }]} /></div>
         <BodyMap muscles={a.muscles} mode={mapMode} selected={null} onSelect={(m) => document.getElementById(`row-${m}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} compact />
       </Card>
       <Card>
         <dl className="grid grid-cols-2 gap-3 text-xs">
-          <Fact k="Sessions this week" v={a.sessionsThisWeek} />
-          <Fact k="Quality sets (each set once)" v={fmt(quality)} />
-          <Fact k="Working sets" v={a.current.totalWorkingSets} />
-          <Fact k="Sets with unknown effort" v={unknownEffort} />
+          <Fact k={L('Sessions this week', 'Тренировок за неделю')} v={a.sessionsThisWeek} />
+          <Fact k={L('Quality sets (each set once)', 'Качественные подходы (каждый один раз)')} v={fmt(quality)} />
+          <Fact k={L('Working sets', 'Рабочие подходы')} v={a.current.totalWorkingSets} />
+          <Fact k={L('Sets with unknown effort', 'Подходы без оценки усилия')} v={unknownEffort} />
         </dl>
       </Card>
       {lastReport && (
         <Card>
-          <div className="flex items-baseline justify-between"><span className="text-sm font-semibold">Last week</span><Link to="/reports" className="inline-flex min-h-[40px] items-center text-xs font-medium text-accent-600 dark:text-accent-400">Weekly report</Link></div>
-          <p className="text-xs text-ink-600 dark:text-ink-300">{lastReport.reached.length} of {lastReport.rows.length} muscles at target{lastReport.short.length ? ` · short: ${lastReport.short.map((m) => names.muscle(m)).join(', ')}` : ''}.</p>
+          <div className="flex items-baseline justify-between"><span className="text-sm font-semibold">{L('Last week', 'Прошлая неделя')}</span><Link to="/reports" className="inline-flex min-h-[40px] items-center text-xs font-medium text-accent-600 dark:text-accent-400">{L('Weekly report', 'Недельный отчёт')}</Link></div>
+          <p className="text-xs text-ink-600 dark:text-ink-300">{L(`${lastReport.reached.length} of ${lastReport.rows.length} muscles at target${lastReport.short.length ? ` · short: ${lastReport.short.map((m) => names.muscle(m)).join(', ')}` : ''}.`, `Цель достигнута: ${lastReport.reached.length} из ${lastReport.rows.length} мышц${lastReport.short.length ? ` · не хватило: ${lastReport.short.map((m) => names.muscle(m)).join(', ')}` : ''}.`)}</p>
         </Card>
       )}
     </div>

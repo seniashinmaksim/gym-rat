@@ -10,12 +10,13 @@ import { BodyMap } from '../components/BodyMap';
 import { IconChevronDown } from '../components/icons';
 import { Badge, Button, Card, CardTitle, cx, Field, fmt, Input, NumInput, Page, Segmented, toast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { L, byLang, num, ruPlural } from '../../i18n';
 
-const STATUS: Record<RecoveryStatus, { label: string; tone: 'good' | 'warn' | 'neutral'; bar: string }> = {
-  likely_recovered: { label: 'READY', tone: 'good', bar: 'bg-emerald-500' },
-  recovering: { label: 'RECOVERING', tone: 'warn', bar: 'bg-amber-500' },
-  insufficient_data: { label: 'UNKNOWN', tone: 'neutral', bar: 'bg-ink-400' },
-};
+const STATUS: Record<RecoveryStatus, { label: string; short: string; tone: 'good' | 'warn' | 'neutral'; bar: string }> = byLang(() => ({
+  likely_recovered: { label: L('READY', 'ГОТОВА'), short: L('READY', 'ГОТОВА'), tone: 'good', bar: 'bg-emerald-500' },
+  recovering: { label: L('RECOVERING', 'ВОССТАНАВЛИВАЕТСЯ'), short: L('RECOVERING', 'ВОССТАН.'), tone: 'warn', bar: 'bg-amber-500' },
+  insufficient_data: { label: L('UNKNOWN', 'НЕТ ДАННЫХ'), short: L('UNKNOWN', 'НЕТ ДАННЫХ'), tone: 'neutral', bar: 'bg-ink-400' },
+}));
 const ORDER: Record<RecoveryStatus, number> = { recovering: 0, likely_recovered: 1, insufficient_data: 2 };
 
 export function RecoveryPage() {
@@ -42,17 +43,17 @@ export function RecoveryPage() {
   };
 
   return (
-    <Page title="Recovery" subtitle="Estimates per muscle — not a measurement. Counted from when each session ended.">
+    <Page title={L('Recovery', 'Восстановление')} subtitle={L('Estimates per muscle — not a measurement. Counted from when each session ended.', 'Оценка по каждой мышце — не измерение. Отсчёт идёт от конца тренировки.')}>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,340px)_1fr]">
         <Card>
-          <CardTitle hint="Colour = estimated status, intensity = readiness.">Readiness map</CardTitle>
+          <CardTitle hint={L('Colour = estimated status, intensity = readiness.', 'Цвет — оценка состояния, насыщенность — готовность.')}>{L('Readiness map', 'Карта готовности')}</CardTitle>
           <BodyMap muscles={a.muscles} mode="recovery" selected={selected} onSelect={select} />
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             {(['recovering', 'likely_recovered', 'insufficient_data'] as RecoveryStatus[]).map((s) => (
               <div key={s} className="rounded-xl bg-ink-50 py-2 dark:bg-ink-950">
                 <div className="text-lg font-semibold tabular-nums text-ink-900 dark:text-white">{counts[s]}</div>
-                <div className="text-[10px] uppercase tracking-wide text-ink-500">{STATUS[s].label}</div>
+                <div className="text-[10px] uppercase tracking-wide text-ink-500">{STATUS[s].short}</div>
               </div>
             ))}
           </div>
@@ -60,15 +61,15 @@ export function RecoveryPage() {
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">Per muscle</h2>
+            <h2 className="text-[15px] font-semibold text-ink-900 dark:text-white">{L('Per muscle', 'По мышцам')}</h2>
             <Segmented<'all' | RecoveryStatus> size="sm" value={filter} onChange={setFilter} options={[
-              { value: 'all', label: 'All' }, { value: 'recovering', label: 'Recovering' }, { value: 'likely_recovered', label: 'Ready' }, { value: 'insufficient_data', label: 'Unknown' },
+              { value: 'all', label: L('All', 'Все') }, { value: 'recovering', label: L('Recovering', 'Восстанавливается') }, { value: 'likely_recovered', label: L('Ready', 'Готова') }, { value: 'insufficient_data', label: L('Unknown', 'Нет данных') },
             ]} />
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {shown.map((m) => <RecoveryCard key={m.muscle} m={m} active={selected === m.muscle} onClick={() => setSelected(m.muscle)} />)}
           </div>
-          {shown.length === 0 && <p className="py-6 text-center text-sm text-ink-500">No muscles in this category.</p>}
+          {shown.length === 0 && <p className="py-6 text-center text-sm text-ink-500">{L('No muscles in this category.', 'В этой категории мышц нет.')}</p>}
         </div>
       </div>
 
@@ -98,33 +99,33 @@ function RecoveryCard({ m, active, onClick }: { m: MuscleWeek; active: boolean; 
       {r.status !== 'insufficient_data' ? (
         <>
           <div className="mt-3 flex items-baseline justify-between text-xs">
-            <span className="text-ink-500">Estimated readiness</span>
-            <span className="tabular-nums font-medium text-ink-800 dark:text-ink-100">{Math.round(readiness * 100)}%{hoursLeft ? ` · ~${hoursLeft} h to go` : ''}</span>
+            <span className="text-ink-500">{L('Estimated readiness', 'Готовность (оценка)')}</span>
+            <span className="tabular-nums font-medium text-ink-800 dark:text-ink-100">{Math.round(readiness * 100)}%{hoursLeft ? L(` · ~${hoursLeft} h to go`, ` · ещё ~${num(hoursLeft)} ч`) : ''}</span>
           </div>
           <div className="mt-1 h-2 rounded-full bg-ink-100 dark:bg-ink-800">
             <div className={cx('h-2 rounded-full transition-all', st.bar)} style={{ width: `${Math.round(readiness * 100)}%` }} />
           </div>
           <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
-            <KV k="Since last" v={r.hoursSince != null ? `${r.hoursSince} h` : '—'} />
-            <KV k="Window" v={r.windowHours != null ? `${r.windowHours} h` : '—'} />
-            <KV k="Last stimulus" v={r.lastStimulusDate ? `${formatDate(r.lastStimulusDate, { day: 'numeric', month: 'short' })}${r.lastStimulusTime ? `, ${r.lastStimulusTime}${r.lastStimulusTimeSource === 'assumed' ? '?' : ''}` : ''}` : '—'} />
-            <KV k="Last sets" v={fmt(r.lastStimulusSets)} />
-            <KV k="7-day eff." v={fmt(r.recent7dEffective)} />
-            <KV k="7-day dir / ind" v={`${r.recent7dDirect} / ${r.recent7dIndirect}`} />
-            <KV k="Exposures 14 d" v={r.exposures14d} />
-            <KV k="Soreness" v={r.soreness != null ? `${r.soreness}/4` : '—'} />
-            <KV k="Weekly left" v={fmt(m.remainingToPreferred)} />
+            <KV k={L('Since last', 'Прошло')} v={r.hoursSince != null ? L(`${r.hoursSince} h`, `${num(r.hoursSince)} ч`) : '—'} />
+            <KV k={L('Window', 'Окно')} v={r.windowHours != null ? L(`${r.windowHours} h`, `${num(r.windowHours)} ч`) : '—'} />
+            <KV k={L('Last stimulus', 'Посл. нагрузка')} v={r.lastStimulusDate ? `${formatDate(r.lastStimulusDate, { day: 'numeric', month: 'short' })}${r.lastStimulusTime ? `, ${r.lastStimulusTime}${r.lastStimulusTimeSource === 'assumed' ? '?' : ''}` : ''}` : '—'} />
+            <KV k={L('Last sets', 'Посл. подходы')} v={fmt(r.lastStimulusSets)} />
+            <KV k={L('7-day eff.', 'Эфф. за 7 дн.')} v={fmt(r.recent7dEffective)} />
+            <KV k={L('7-day dir / ind', 'Прям. / косв., 7 дн.')} v={`${r.recent7dDirect} / ${r.recent7dIndirect}`} />
+            <KV k={L('Exposures 14 d', 'Нагрузок, 14 дн.')} v={r.exposures14d} />
+            <KV k={L('Soreness', 'Крепатура')} v={r.soreness != null ? `${r.soreness}/4` : '—'} />
+            <KV k={L('Weekly left', 'Осталось на нед.')} v={fmt(m.remainingToPreferred)} />
           </dl>
         </>
       ) : (
-        <p className="mt-2 text-xs leading-relaxed text-ink-500">No session with enough effective sets for this muscle is on record, so readiness cannot be estimated.
-          {r.recent7dEffective > 0 && <> Recent indirect work: {fmt(r.recent7dEffective)} effective sets in 7 days.</>}</p>
+        <p className="mt-2 text-xs leading-relaxed text-ink-500">{L('No session with enough effective sets for this muscle is on record, so readiness cannot be estimated.', 'Нет записанной тренировки с достаточным числом эффективных подходов на эту мышцу, поэтому готовность оценить нельзя.')}
+          {r.recent7dEffective > 0 && <> {L(`Recent indirect work: ${fmt(r.recent7dEffective)} effective sets in 7 days.`, `Недавняя косвенная работа: ${fmt(r.recent7dEffective)} ${ruPlural(Math.round(r.recent7dEffective * 10) / 10, 'эффективный подход', 'эффективных подхода', 'эффективных подходов')} за 7 дней.`)}</>}</p>
       )}
 
       <div className="mt-3">
-        <Why label="Reasoning">
+        <Why label={L('Reasoning', 'Обоснование')}>
           {r.factors.map((f, i) => <p key={i}>• {f}</p>)}
-          <p className="text-ink-400">Heuristic estimate, not a measurement. Recovery varies with experience, nutrition, stress and exercise choice.</p>
+          <p className="text-ink-400">{L('Heuristic estimate, not a measurement. Recovery varies with experience, nutrition, stress and exercise choice.', 'Эвристическая оценка, не измерение. Восстановление зависит от стажа, питания, стресса и выбора упражнений.')}</p>
         </Why>
       </div>
     </div>
@@ -186,7 +187,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
     setBusy(true);
     try {
       await store.saveDaily({ ...log, id: today, date: today });
-      toast('Check-in saved');
+      toast(L('Check-in saved', 'Отметка сохранена'));
     } finally {
       setBusy(false);
     }
@@ -194,20 +195,20 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
 
   return (
     <Card>
-      <CardTitle hint={<>Takes ~20 seconds. Soreness, sleep and fatigue lengthen the recovery estimates. Everything is optional; leave unknown fields blank (blank ≠ 0).</>}
-        right={<Badge tone={existing ? 'good' : 'neutral'}>{existing ? 'Saved today' : formatDate(today)}</Badge>}>
-        Daily check-in
+      <CardTitle hint={<>{L('Takes ~20 seconds. Soreness, sleep and fatigue lengthen the recovery estimates. Everything is optional; leave unknown fields blank (blank ≠ 0).', 'Занимает около 20 секунд. Крепатура, сон и усталость удлиняют оценку восстановления. Всё по желанию; неизвестные поля оставляйте пустыми (пусто ≠ 0).')}</>}
+        right={<Badge tone={existing ? 'good' : 'neutral'}>{existing ? L('Saved today', 'Сохранено сегодня') : formatDate(today)}</Badge>}>
+        {L('Daily check-in', 'Ежедневная отметка')}
       </CardTitle>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Field label="Sleep last night (hours)"><NumInput value={log.sleepHours} onChange={(v) => set('sleepHours', v)} step={0.25} placeholder="e.g. 7.5" /></Field>
-        <Field label="Sleep quality"><Rating value={log.sleepQuality} onChange={(v) => set('sleepQuality', v)} labels={['Poor', 'Excellent']} /></Field>
-        <Field label="Energy"><Rating value={log.energy} onChange={(v) => set('energy', v)} labels={['Very low', 'Excellent']} /></Field>
-        <Field label="General fatigue"><Rating value={log.fatigue} onChange={(v) => set('fatigue', v)} labels={['Fresh', 'Exhausted']} /></Field>
+        <Field label={L('Sleep last night (hours)', 'Сон прошлой ночью (часы)')}><NumInput value={log.sleepHours} onChange={(v) => set('sleepHours', v)} step={0.25} placeholder={L('e.g. 7.5', 'напр. 7,5')} /></Field>
+        <Field label={L('Sleep quality', 'Качество сна')}><Rating value={log.sleepQuality} onChange={(v) => set('sleepQuality', v)} labels={[L('Poor', 'Плохое'), L('Excellent', 'Отличное')]} /></Field>
+        <Field label={L('Energy', 'Энергия')}><Rating value={log.energy} onChange={(v) => set('energy', v)} labels={[L('Very low', 'Очень мало'), L('Excellent', 'Отлично')]} /></Field>
+        <Field label={L('General fatigue', 'Общая усталость')}><Rating value={log.fatigue} onChange={(v) => set('fatigue', v)} labels={[L('Fresh', 'Свежесть'), L('Exhausted', 'Без сил')]} /></Field>
       </div>
 
       <div className="mt-5">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-xs font-medium text-ink-600 dark:text-ink-300">Muscle soreness (0 none · 4 severe). Tap again to clear.</span>
+          <span className="text-xs font-medium text-ink-600 dark:text-ink-300">{L('Muscle soreness (0 none · 4 severe). Tap again to clear.', 'Крепатура (0 — нет · 4 — сильная). Нажмите ещё раз, чтобы убрать.')}</span>
           <span className="flex gap-1">{[0, 1, 2, 3, 4].map((n) => <span key={n} className={cx('rounded px-1.5 text-[10px] font-semibold', SORE_CLS[n])}>{n}</span>)}</span>
         </div>
         <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -218,7 +219,7 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
                 <span className="min-w-[6rem] flex-1 truncate text-sm text-ink-700 dark:text-ink-200">{names.muscle(m)}</span>
                 <div className="flex shrink-0 gap-1">
                   {[0, 1, 2, 3, 4].map((n) => (
-                    <button key={n} type="button" onClick={() => setSore(m, n)} aria-label={`${names.muscle(m)} soreness ${n}`}
+                    <button key={n} type="button" onClick={() => setSore(m, n)} aria-label={L(`${names.muscle(m)} soreness ${n}`, `${names.muscle(m)}: крепатура ${n}`)}
                       className={cx('h-10 w-10 rounded-lg text-sm font-semibold tabular-nums transition active:scale-95 sm:h-7 sm:w-7 sm:text-xs',
                         v === n ? SORE_CLS[n] : 'bg-ink-100 text-ink-400 hover:bg-ink-200 dark:bg-ink-850 dark:text-ink-500 dark:hover:bg-ink-800')}>
                       {n}
@@ -234,23 +235,23 @@ function CheckInForm({ today, existing, showOptional, names }: { today: string; 
       {showOptional && (
         <div className="mt-5 rounded-2xl border border-ink-200 dark:border-ink-800">
           <button type="button" onClick={() => setOptOpen(!optOpen)} className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-ink-700 dark:text-ink-200">
-            Nutrition & supplements (optional)
+            {L('Nutrition & supplements (optional)', 'Питание и добавки (по желанию)')}
             <IconChevronDown size={16} className={cx('transition', optOpen && 'rotate-180')} />
           </button>
           {optOpen && (
             <div className="grid grid-cols-1 gap-3 border-t border-ink-200 p-4 dark:border-ink-800 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Protein (g)"><NumInput value={log.proteinG} onChange={(v) => set('proteinG', v)} /></Field>
-              <Field label="Calories (kcal)"><NumInput value={log.calories} onChange={(v) => set('calories', v)} /></Field>
-              <Field label="Creatine (g)"><NumInput value={log.creatineG} onChange={(v) => set('creatineG', v)} step={0.5} /></Field>
-              <Field label="Whey (servings)"><NumInput value={log.wheyServings} onChange={(v) => set('wheyServings', v)} step={0.5} /></Field>
-              <Field label="Notes" className="sm:col-span-2 lg:col-span-4"><Input value={log.notes ?? ''} onChange={(e) => set('notes', e.target.value || undefined)} placeholder="Stress, illness, travel…" /></Field>
+              <Field label={L('Protein (g)', 'Белок (г)')}><NumInput value={log.proteinG} onChange={(v) => set('proteinG', v)} /></Field>
+              <Field label={L('Calories (kcal)', 'Калории (ккал)')}><NumInput value={log.calories} onChange={(v) => set('calories', v)} /></Field>
+              <Field label={L('Creatine (g)', 'Креатин (г)')}><NumInput value={log.creatineG} onChange={(v) => set('creatineG', v)} step={0.5} /></Field>
+              <Field label={L('Whey (servings)', 'Протеин (порции)')}><NumInput value={log.wheyServings} onChange={(v) => set('wheyServings', v)} step={0.5} /></Field>
+              <Field label={L('Notes', 'Заметки')} className="sm:col-span-2 lg:col-span-4"><Input value={log.notes ?? ''} onChange={(e) => set('notes', e.target.value || undefined)} placeholder={L('Stress, illness, travel…', 'Стресс, болезнь, поездки…')} /></Field>
             </div>
           )}
         </div>
       )}
 
       <div className="mt-4 flex justify-end">
-        <Button variant="primary" onClick={save} disabled={busy}>{existing ? 'Update check-in' : 'Save check-in'}</Button>
+        <Button variant="primary" onClick={save} disabled={busy}>{existing ? L('Update check-in', 'Обновить отметку') : L('Save check-in', 'Сохранить отметку')}</Button>
       </div>
     </Card>
   );
@@ -276,9 +277,9 @@ function WellnessChart() {
 
   return (
     <Card>
-      <CardTitle hint="Sleep in hours (bars, left axis); fatigue 1–5 and peak soreness 0–4 (lines, right axis). Gaps = nothing logged.">Last 14 days</CardTitle>
+      <CardTitle hint={L('Sleep in hours (bars, left axis); fatigue 1–5 and peak soreness 0–4 (lines, right axis). Gaps = nothing logged.', 'Сон в часах (столбцы, левая ось); усталость 1–5 и максимальная крепатура 0–4 (линии, правая ось). Пропуски — ничего не записано.')}>{L('Last 14 days', 'Последние 14 дней')}</CardTitle>
       {!hasAny ? (
-        <p className="py-8 text-center text-sm text-ink-500">No check-ins yet. Daily check-ins make recovery estimates and deload signals more reliable.</p>
+        <p className="py-8 text-center text-sm text-ink-500">{L('No check-ins yet. Daily check-ins make recovery estimates and deload signals more reliable.', 'Отметок пока нет. С ежедневными отметками оценки восстановления и сигналы к разгрузке надёжнее.')}</p>
       ) : (
         <div className="h-60">
           <ResponsiveContainer width="100%" height="100%">
@@ -287,10 +288,10 @@ function WellnessChart() {
               <XAxis dataKey="day" tickLine={false} axisLine={false} interval="preserveStartEnd" />
               <YAxis yAxisId="h" tickLine={false} axisLine={false} domain={[0, 10]} />
               <YAxis yAxisId="s" orientation="right" tickLine={false} axisLine={false} domain={[0, 5]} width={28} />
-              <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} />
-              <Bar yAxisId="h" dataKey="sleep" name="Sleep (h)" fill="#0ea5e9" fillOpacity={0.6} radius={[4, 4, 0, 0]} />
-              <Line yAxisId="s" dataKey="fatigue" name="Fatigue (1–5)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
-              <Line yAxisId="s" dataKey="soreness" name="Peak soreness (0–4)" stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 2 }} connectNulls />
+              <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} formatter={(v: unknown) => (typeof v === 'number' ? num(v) : String(v))} />
+              <Bar yAxisId="h" dataKey="sleep" name={L('Sleep (h)', 'Сон (ч)')} fill="#0ea5e9" fillOpacity={0.6} radius={[4, 4, 0, 0]} />
+              <Line yAxisId="s" dataKey="fatigue" name={L('Fatigue (1–5)', 'Усталость (1–5)')} stroke="#f59e0b" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+              <Line yAxisId="s" dataKey="soreness" name={L('Peak soreness (0–4)', 'Макс. крепатура (0–4)')} stroke="#f43f5e" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 2 }} connectNulls />
               <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>
           </ResponsiveContainer>

@@ -39,9 +39,11 @@ const TAP_FIELDS: Record<EffortTap, { feel: SetFeel; effort: Effort }> = {
 export function effortTapPatch(set: WorkoutSet, tap: EffortTap | null): Partial<WorkoutSet> {
   const cur = effortTapOf(set);
   const wasFailed = cur === 'failed';
-  if (tap == null || tap === cur) return { feel: undefined, effort: undefined, ...(wasFailed ? { failure: undefined } : {}) };
+  // An older set marked with the Fail chip (`toFailure`) reads as FAILED; choosing another answer clears that mark too.
+  const clearFail = wasFailed ? { failure: undefined, ...(set.toFailure ? { toFailure: undefined } : {}) } : {};
+  if (tap == null || tap === cur) return { feel: undefined, effort: undefined, ...clearFail };
   const f = TAP_FIELDS[tap];
-  return { feel: f.feel, effort: f.effort, ...(tap === 'failed' ? { failure: 'muscular' as const } : wasFailed ? { failure: undefined } : {}) };
+  return { feel: f.feel, effort: f.effort, ...(tap === 'failed' ? { failure: 'muscular' as const } : clearFail) };
 }
 
 /** Which answer a set carries (also for sets logged before Part 6). */
@@ -92,7 +94,9 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
   const lastWork = prev.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number);
   const lastTop = lastWork.length ? Math.max(...lastWork) : null;
   const planW = target?.weightKg ?? null;
-  if (from === 'last' && weight != null && planW != null && lastTop != null && weight === lastTop && planW !== lastTop) {
+  // The owner already did a set at last time's top weight today (declined the plan): the plan is not pushed again.
+  const declined = lastTop != null && done.some((s) => s.weightKg === lastTop);
+  if (from === 'last' && weight != null && planW != null && lastTop != null && weight === lastTop && planW !== lastTop && !declined) {
     alt = { weightKg: weight, from: 'last' };
     weight = planW;
     from = 'plan';
@@ -107,6 +111,25 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
 }
 
 // ---------------------------------------------------------------- logging
+
+type WarmupModel = Pick<QualityModel, 'rirCredit' | 'useNumbersCheck' | 'useFeelWhenNoRir'>;
+
+/**
+ * "Last time" for an exercise entry: the most recent EARLIER entry of the same history (same exercise ×
+ * machine × configuration, by `keyOf` = progressionKey) that has at least one performed set. A different
+ * bench angle or machine is a different history; a card that was planned but never done is skipped.
+ */
+export function lastEntryFor(workouts: Workout[], w: Workout, ex: WorkoutExercise, keyOf: (e: WorkoutExercise, o: Workout) => string): WorkoutExercise | null {
+  const key = keyOf(ex, w);
+  const stamp = (o: Workout) => `${o.date}T${o.startTime ?? '00:00'}`;
+  const earlier = workouts.filter((o) => o.id !== w.id && o.date <= w.date).sort((a, b) => stamp(b).localeCompare(stamp(a)));
+  for (const o of earlier) {
+    for (const e of o.exercises) {
+      if (e.exerciseId === ex.exerciseId && e.sets.some((s) => !s.planned) && keyOf(e, o) === key) return e;
+    }
+  }
+  return null;
+}
 
 export interface SetEntry { weightKg: number | null; reps: number | null; loadMode: LoadMode; side?: Side }
 
@@ -123,7 +146,7 @@ export function isDoubleTap(ex: WorkoutExercise, entry: SetEntry, nowMs: number)
  * THIS exercise minus an estimate of the set's own duration (the second side of a left/right pair has
  * no rest). Warm-up tags of the whole exercise are then re-checked from the numbers.
  */
-export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: string, model: Pick<QualityModel, 'rirCredit'>): WorkoutExercise {
+export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: string, model: WarmupModel): WorkoutExercise {
   const done = performed(ex);
   const prevAt = done.map((s) => s.completedAt).filter((x): x is string => !!x).sort().pop();
   const secondSide = !!entry.side && done.filter((s) => s.side && s.side !== entry.side).length > done.filter((s) => s.side === entry.side).length;
@@ -137,7 +160,7 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
 }
 
 /** Edit or remove a logged set, then re-check warm-up tags. `patch: null` removes it. */
-export function editSet(ex: WorkoutExercise, setId: string, patch: Partial<WorkoutSet> | null, model: Pick<QualityModel, 'rirCredit'>): WorkoutExercise {
+export function editSet(ex: WorkoutExercise, setId: string, patch: Partial<WorkoutSet> | null, model: WarmupModel): WorkoutExercise {
   const sets = patch == null ? ex.sets.filter((s) => s.id !== setId) : ex.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s));
   return { ...ex, sets: reclassifyWarmups(sets, model) };
 }

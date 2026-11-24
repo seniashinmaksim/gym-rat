@@ -14,9 +14,9 @@
  */
 import type { AppData } from './appdata';
 import { diffDays, localNowParts } from './dates';
-import { L } from '../i18n/core';
+import { L, num, ruPlural } from '../i18n/core';
 import { availableEquipment, exerciseSessionCounts, priorWorkouts, safetyLine, usualExerciseCount } from './exerciseChoice';
-import { FATIGUE_RANK, fatigueCostOf, significantMuscles } from './fatigue';
+import { FATIGUE_LABEL, FATIGUE_RANK, fatigueCostOf, significantMuscles } from './fatigue';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import { prescribe, PRESCRIPTION_ENGINE, type Prescription } from './prescription';
 import { progressionKey } from './progression';
@@ -250,13 +250,13 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
   const skippedMuscles: GeneratedWorkout['skippedMuscles'] = [];
   for (const mw of analysis.muscles) {
     if (mw.todayBlocked) {
-      if (mw.remainingToPreferred > 0 && MAJOR_MUSCLES.includes(mw.muscle)) skippedMuscles.push({ muscle: mw.muscle, reason: `recovering (~${analysis.planRecovery[mw.muscle].hoursLeft} h left)` });
+      if (mw.remainingToPreferred > 0 && MAJOR_MUSCLES.includes(mw.muscle)) skippedMuscles.push({ muscle: mw.muscle, reason: L(`recovering (~${analysis.planRecovery[mw.muscle].hoursLeft} h left)`, `восстановление, ещё ~${analysis.planRecovery[mw.muscle].hoursLeft} ч`) });
       budget[mw.muscle] = 0;
       continue;
     }
     const open = Math.max(0, mw.todayShare - mw.doneToday);
     budget[mw.muscle] = open;
-    if (open <= 0 && (mw.status === 'done' || mw.status === 'over') && MAJOR_MUSCLES.includes(mw.muscle)) skippedMuscles.push({ muscle: mw.muscle, reason: 'weekly target met' });
+    if (open <= 0 && (mw.status === 'done' || mw.status === 'over') && MAJOR_MUSCLES.includes(mw.muscle)) skippedMuscles.push({ muscle: mw.muscle, reason: L('weekly target met', 'недельная цель выполнена') });
   }
   const remaining: Partial<Record<MuscleId, number>> = { ...budget };
   const blocked = (m: MuscleId) => analysis.muscles.find((x) => x.muscle === m)?.todayBlocked ?? false;
@@ -310,7 +310,7 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
     const target = significantMuscles(def, f.variation, 0.5)[0]?.muscle;
     if (!target) continue;
     const entry = library.find((e) => e.exerciseId === f.exerciseId && e.equipmentId === f.equipmentId) ?? null;
-    addItem(def, f.equipmentId, f.variation ?? entry?.variation, entry, target, ['Your choice (replacement).']);
+    addItem(def, f.equipmentId, f.variation ?? entry?.variation, entry, target, [L('Your choice (replacement).', 'Ваш выбор (замена).')]);
   }
 
   // Muscles that drive selection: the major ones, plus any the owner trains directly (a familiar exercise
@@ -370,9 +370,11 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
       .sort((a, b) => b.score - a.score);
     const best = scored[0];
     if (best) {
-      const why = [`${muscleName(m)}: ${fmt(remaining[m] ?? 0)} effective set${(remaining[m] ?? 0) === 1 ? '' : 's'} open today.`];
-      why.push(best.e.sessions8w ? `Familiar: ${best.e.sessions8w} session${best.e.sessions8w === 1 ? '' : 's'} in 8 weeks${best.e.preferred ? ' · one of your regular exercises' : ''}.` : `Done before (${best.e.sessions} session${best.e.sessions === 1 ? '' : 's'}), not recently.`);
-      if (preferHere.has(best.def.id)) why.push('You usually choose this one at this gym.');
+      const why = [L(`${muscleName(m)}: ${fmt(remaining[m] ?? 0)} effective set${(remaining[m] ?? 0) === 1 ? '' : 's'} open today.`, `${muscleName(m, 'ru')}: на сегодня открыто эффективных подходов — ${num(remaining[m] ?? 0, 1)}.`)];
+      why.push(best.e.sessions8w
+        ? L(`Familiar: ${best.e.sessions8w} session${best.e.sessions8w === 1 ? '' : 's'} in 8 weeks${best.e.preferred ? ' · one of your regular exercises' : ''}.`, `Знакомое упражнение: ${best.e.sessions8w} ${ruPlural(best.e.sessions8w, 'тренировка', 'тренировки', 'тренировок')} за 8 недель${best.e.preferred ? ' · одно из ваших регулярных' : ''}.`)
+        : L(`Done before (${best.e.sessions} session${best.e.sessions === 1 ? '' : 's'}), not recently.`, `Вы делали его раньше (тренировок: ${best.e.sessions}), но давно.`));
+      if (preferHere.has(best.def.id)) why.push(L('You usually choose this one at this gym.', 'В этом зале вы обычно выбираете именно его.'));
       addItem(best.def, best.av.equipmentId ?? best.e.equipmentId, best.e.variation, best.e, m, why);
       continue;
     }
@@ -391,7 +393,7 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
       if (seed) {
         // "New to you" only when it really is: an exercise with sessions on record is named as such.
         const before = counts.get(seed.d.id) ?? 0;
-        const deficit = L(`${muscleName(m)}: below the lower end of its weekly range for 2 weeks and no familiar exercise available here`, `${muscleName(m)}: две недели ниже нижней границы недельного диапазона, знакомого упражнения здесь нет`);
+        const deficit = L(`${muscleName(m)}: below the lower end of its weekly range for 2 weeks and no familiar exercise available here`, `${muscleName(m, 'ru')}: две недели ниже нижней границы недельного диапазона, знакомого упражнения здесь нет`);
         addItem(seed.d, seed.av.equipmentId, seed.d.defaultVariation as Variation | undefined, null, m, [before > 0
           ? L(`${deficit} — done before (${before} session${before === 1 ? '' : 's'}), but not in this setup, so it starts calibrating.`, `${deficit} — вы уже делали это упражнение (тренировок: ${before}), но не в этом варианте, поэтому оно начинает калибровку.`)
           : L(`${deficit} — new to you, so it starts calibrating.`, `${deficit} — упражнение для вас новое, поэтому оно начинает калибровку.`)]);
@@ -399,7 +401,9 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
       }
     }
     const held = rejectedFor.get(m);
-    if (MAJOR_MUSCLES.includes(m)) skippedMuscles.push({ muscle: m, reason: held?.size ? `familiar options also load ${[...held].map((n) => muscleName(n).toLowerCase()).join(', ')} (recovering)` : 'no familiar exercise available here' });
+    if (MAJOR_MUSCLES.includes(m)) skippedMuscles.push({ muscle: m, reason: held?.size
+      ? L(`familiar options also load ${[...held].map((n) => muscleName(n).toLowerCase()).join(', ')} (recovering)`, `знакомые варианты нагружают и то, что ещё восстанавливается: ${[...held].map((n) => muscleName(n, 'ru').toLowerCase()).join(', ')}`)
+      : L('no familiar exercise available here', 'здесь нет знакомого упражнения') });
     remaining[m] = 0;
   }
 
@@ -417,7 +421,9 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
   const lastDate = lastWorkout?.date ?? null;
   const daysOff = lastDate ? diffDays(today, lastDate) : null;
   const returning = daysOff != null && daysOff >= 10 ? { daysOff, stepDown: daysOff > 14 } : null;
-  if (returning) notes.push(returning.stepDown ? `Returning after ${daysOff} days: loads start one step below your last comparable session.` : `Returning after ${daysOff} days: loads as last time; judge the first set.`);
+  if (returning) notes.push(returning.stepDown
+    ? L(`Returning after ${daysOff} days: loads start one step below your last comparable session.`, `Возвращение после перерыва (${returning.daysOff} ${ruPlural(returning.daysOff, 'день', 'дня', 'дней')}): вес на один шаг ниже, чем в вашей последней сопоставимой тренировке.`)
+    : L(`Returning after ${daysOff} days: loads as last time; judge the first set.`, `Возвращение после перерыва (${returning.daysOff} ${ruPlural(returning.daysOff, 'день', 'дня', 'дней')}): вес как в прошлый раз; оцените первый подход.`));
 
   const out: PlanItem[] = [];
   ordered.forEach((it, i) => {
@@ -428,7 +434,7 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
     draft.exercises.push(we);
     const p = prescribe({
       data, analysis, now, workout: draft, exerciseIndex: i,
-      setCount: { count: it.setCount, reason: `Planned for the whole session: ${Object.entries(it.contributes).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => `${muscleName(m as MuscleId).toLowerCase()} ${fmt(v as number)}`).join(', ')} effective sets.` },
+      setCount: { count: it.setCount, reason: L(`Planned for the whole session: ${Object.entries(it.contributes).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => `${muscleName(m as MuscleId).toLowerCase()} ${fmt(v as number)}`).join(', ')} effective sets.`, `План на всю тренировку, эффективные подходы: ${Object.entries(it.contributes).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => `${muscleName(m as MuscleId, 'ru').toLowerCase()} ${num(v as number, 1)}`).join(', ')}.`) },
     });
     // (The > 14-day step-down is applied inside prescribe(), so live re-assessment keeps it too.)
     // Calibration = well-logged comparable sessions on THIS exercise × machine × configuration (readiness),
@@ -442,8 +448,8 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
       restSecBefore: null, completedAt: now.toISOString(),
     }));
     const why = [...it.why];
-    if (calibration === 'needs_data') why.push(`Calibrate: pick a load for ${registry.get(it.exerciseId)?.repRange.join('–') ?? '10–12'} reps at RIR 2–3 (no kg is transferred from other machines).`);
-    else if (calibration === 'provisional') why.push(`Provisional: ${p.confidenceReason}`);
+    if (calibration === 'needs_data') why.push(L(`Calibrate: pick a load for ${registry.get(it.exerciseId)?.repRange.join('–') ?? '10–12'} reps at RIR 2–3 (no kg is transferred from other machines).`, `Калибровка: подберите вес на ${registry.get(it.exerciseId)?.repRange.join('–') ?? '10–12'} повторений с RIR 2–3 (килограммы с других тренажёров не переносятся).`));
+    else if (calibration === 'provisional') why.push(L(`Provisional: ${p.confidenceReason}`, `Предварительно: ${p.confidenceReason}`));
     else why.push(p.decisionWhy);
     out.push({ ...it, order: i, prescription: p, calibration, setCount: p.setCount, why });
   });
@@ -453,9 +459,9 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
 
   const mode = readiness.mode;
   const stage: GeneratedWorkout['stage'] = mode === 'full' ? 'complete' : mode === 'provisional' ? 'prescriptions' : 'suggestions';
-  if (mode === 'learning') notes.push('Learning mode: suggestions only, labelled provisional — log well-documented workouts to unlock full plans.');
-  if (out.some((x) => x.calibration === 'needs_data')) notes.push('Items marked "calibrate" have no history on that machine yet.');
-  if (!out.length && data.workouts.length) notes.push('Nothing is open today: every muscle is done for the week or still recovering. Rest or a light session is a good choice.');
+  if (mode === 'learning') notes.push(L('Learning mode: suggestions only, labelled provisional — log well-documented workouts to unlock full plans.', 'Режим знакомства: только предложения с пометкой «предварительно» — записывайте тренировки подробно, чтобы открыть полные планы.'));
+  if (out.some((x) => x.calibration === 'needs_data')) notes.push(L('Items marked "calibrate" have no history on that machine yet.', 'У упражнений с пометкой «калибровка» ещё нет истории на этом тренажёре.'));
+  if (!out.length && data.workouts.length) notes.push(L('Nothing is open today: every muscle is done for the week or still recovering. Rest or a light session is a good choice.', 'Сегодня ничего не открыто: по каждой мышце недельная цель выполнена или ещё идёт восстановление. Отдых или лёгкая тренировка — хороший выбор.'));
   return {
     engine: PLANNER_ENGINE, createdAt: now.toISOString(), mode, stage, locationId, items: out, skippedMuscles, budget, planned, returning, notes, readiness,
   };
@@ -548,10 +554,10 @@ export function replanPending(data: AppData, analysis: Analysis, w: Workout, now
     while (n > 1 && n * primary.coef > need + 0.5) n--;
     const { contributions } = resolveCoefficients(def, e.variation);
     for (const [m, c] of Object.entries(contributions) as [MuscleId, number][]) open[m] = Math.max(0, (open[m] ?? 0) - n * c);
-    const doneTxt = Object.entries(doneHere).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => `${muscleName(m as MuscleId).toLowerCase()} ${fmt(v as number)}`).join(', ');
+    const doneTxt = Object.entries(doneHere).filter(([, v]) => (v ?? 0) >= 0.5).map(([m, v]) => L(`${muscleName(m as MuscleId).toLowerCase()} ${fmt(v as number)}`, `${muscleName(m as MuscleId, 'ru').toLowerCase()} ${num(v as number, 1)}`)).join(', ');
     const reason = n === 0
-      ? `${muscleName(primary.muscle)}: today's share is already covered by what you did${doneTxt ? ` (${doneTxt})` : ''} — optional now.`
-      : `Re-checked after what you actually did${doneTxt ? ` (${doneTxt})` : ''}: ${n} set${n === 1 ? '' : 's'} for ${muscleName(primary.muscle).toLowerCase()}.`;
+      ? L(`${muscleName(primary.muscle)}: today's share is already covered by what you did${doneTxt ? ` (${doneTxt})` : ''} — optional now.`, `${muscleName(primary.muscle, 'ru')}: доля на сегодня уже закрыта тем, что вы сделали${doneTxt ? ` (${doneTxt})` : ''} — теперь по желанию.`)
+      : L(`Re-checked after what you actually did${doneTxt ? ` (${doneTxt})` : ''}: ${n} set${n === 1 ? '' : 's'} for ${muscleName(primary.muscle).toLowerCase()}.`, `Пересчитано по тому, что вы сделали на самом деле${doneTxt ? ` (${doneTxt})` : ''}: ${n} ${ruPlural(n, 'подход', 'подхода', 'подходов')} — ${muscleName(primary.muscle, 'ru').toLowerCase()}.`);
     const p = prescribe({ data, analysis, now, workout: w, exerciseIndex: i, setCount: { count: n, reason } });
     out.push({ exerciseIndex: i, setCount: p.setCount, prescription: p, reason });
   });
@@ -614,7 +620,7 @@ export function replacementOptions(data: AppData, analysis: Analysis, w: Workout
   for (const eq of data.equipment) {
     if (eq.id === current || busySet.has(eq.id) || !eq.exerciseIds.includes(def.id) || (locationId && eq.locationId !== locationId)) continue;
     const used = history.filter((x) => x.exercises.some((e) => e.exerciseId === def.id && e.equipmentId === eq.id)).length;
-    out.push({ exerciseId: def.id, equipmentId: eq.id, sessions: used, why: `Same exercise on ${eq.name} — its own history${used ? ` (${used} session${used === 1 ? '' : 's'})` : ' · new machine: calibrate'}` });
+    out.push({ exerciseId: def.id, equipmentId: eq.id, sessions: used, why: L(`Same exercise on ${eq.name} — its own history${used ? ` (${used} session${used === 1 ? '' : 's'})` : ' · new machine: calibrate'}`, `То же упражнение на «${eq.name}» — своя история${used ? ` (тренировок: ${used})` : ' · новый тренажёр: калибровка'}`) });
   }
   for (const d of registry.values()) {
     if (d.id === def.id || inSession.has(d.id) || (d.contributions[primary] ?? 0) < 0.75) continue;
@@ -625,7 +631,7 @@ export function replacementOptions(data: AppData, analysis: Analysis, w: Workout
     if (blockedSyn) continue;
     out.push({
       exerciseId: d.id, equipmentId: av.equipmentId, variation: lib.get(d.id), sessions,
-      why: `${muscleName(primary)} ${(d.contributions[primary] ?? 0) >= 1 ? 'direct' : 'mostly'} · fatigue ${fatigueCostOf(d).toUpperCase()}${sessions ? ` · ${sessions} session${sessions === 1 ? '' : 's'} logged` : ' · new to you (calibrate)'}`,
+      why: L(`${muscleName(primary)} ${(d.contributions[primary] ?? 0) >= 1 ? 'direct' : 'mostly'} · fatigue ${fatigueCostOf(d).toUpperCase()}${sessions ? ` · ${sessions} session${sessions === 1 ? '' : 's'} logged` : ' · new to you (calibrate)'}`, `${muscleName(primary, 'ru')}: ${(d.contributions[primary] ?? 0) >= 1 ? 'прямая нагрузка' : 'в основном'} · утомление ${FATIGUE_LABEL[fatigueCostOf(d)]}${sessions ? ` · записано тренировок: ${sessions}` : ' · новое для вас (калибровка)'}`),
     });
   }
   return out.sort((a, b) => Number(b.exerciseId === def.id) - Number(a.exerciseId === def.id) || Number(b.sessions >= 2) - Number(a.sessions >= 2) || b.sessions - a.sessions).slice(0, 3);

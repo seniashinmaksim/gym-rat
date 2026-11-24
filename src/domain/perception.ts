@@ -37,6 +37,14 @@ export const SHORT_REST_SEC = 60;
 export const BACKOFF_ALLOWANCE = 1;
 /** Reported reserve at or above this counts as "reported easy". */
 export const REPORTED_EASY_RIR = 4;
+/**
+ * A ramp estimate may overrule a REPORTED effort only for a set at or below this share of the best set's
+ * load. Above it the set is a working weight and the estimate's own error (about ± 3 reps) is as large as
+ * the gap it would have to prove (80 × 8 @ RIR 2 before 100 × 5 must stay a working set).
+ */
+export const RAMP_OVERRIDE_MAX_LOAD = 0.75;
+/** A next set reported with at least this many reps in reserve was stopped on purpose: its lower reps prove nothing about the set before. */
+export const NEXT_SET_FREE_RIR = 3;
 
 export type ObjectiveKind = 'ramp' | 'backoff' | 'next_set' | 'none';
 export type ObjectiveBand = 'easy' | 'hard' | 'reserve' | null;
@@ -49,6 +57,8 @@ export interface Objective {
   band: ObjectiveBand;
   /** Reps the best set of the session implies at this set's load (ramp / back-off), for display. */
   possibleReps: number | null;
+  /** This set's load ÷ the best set's load (ramp / back-off), else null. */
+  loadRatio?: number | null;
 }
 
 const NONE: Objective = { kind: 'none', estRir: null, band: null, possibleReps: null };
@@ -69,23 +79,31 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
   // Recorded warm-ups are neither judged nor used as a reference: removing them never changes another set.
   const sets = all.filter((s) => !s.planned && s.type !== 'warmup');
 
-  // The session's best set: highest reps-only Epley value (the earliest one on a tie).
-  let best = -1;
-  let bestE = 0;
+  // The best set of the session — per side when sides are logged separately (a weaker arm is not a warm-up
+  // for the stronger one): highest reps-only Epley value (the earliest one on a tie).
+  const bestBySide = new Map<string, { i: number; e: number }>();
   sets.forEach((s, i) => {
     if (!loadComparable(s)) return;
     const e = epley0(s.weightKg as number, s.reps as number);
-    if (e > bestE + 1e-9) { bestE = e; best = i; }
+    const k = s.side ?? '';
+    const b = bestBySide.get(k);
+    if (!b || e > b.e + 1e-9) bestBySide.set(k, { i, e });
   });
 
   sets.forEach((s, i) => {
+    const b0 = bestBySide.get(s.side ?? '');
+    const best = b0 ? b0.i : -1;
+    const bestE = b0 ? b0.e : 0;
     // 1) Next-set evidence (same load, same side, normal rest).
     let next: Objective = NONE;
     const j = sets.findIndex((o, k) => k > i && (o.side ?? null) === (s.side ?? null));
     const n = j >= 0 ? sets[j] : null;
     if (n && s.reps != null && n.reps != null && s.type !== 'drop' && n.type !== 'drop' && n.weightKg === s.weightKg && n.loadMode === s.loadMode
       && !(n.restSecBefore != null && n.restSecBefore > 0 && n.restSecBefore < SHORT_REST_SEC)) {
-      if (s.reps - n.reps >= NEXT_SET_DROP) next = { kind: 'next_set', estRir: null, band: 'hard', possibleReps: null };
+      // A drop proves the earlier set was near its limit only if the next set was not stopped early on purpose.
+      const nextReport = reportedRir(n);
+      const nextFree = nextReport != null && nextReport >= NEXT_SET_FREE_RIR;
+      if (s.reps - n.reps >= NEXT_SET_DROP) { if (!nextFree) next = { kind: 'next_set', estRir: null, band: 'hard', possibleReps: null }; }
       else if (n.reps >= s.reps) next = { kind: 'next_set', estRir: null, band: 'reserve', possibleReps: null };
     }
     // 2) Load-based estimate against the best set.
@@ -95,7 +113,7 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
       const possible = 30 * (bestE / w - 1);
       if (i < best) {
         const est = Math.max(0, r1(possible - (s.reps as number)));
-        out.set(s.id, { kind: 'ramp', estRir: est, band: bandOf(est), possibleReps: r1(possible) });
+        out.set(s.id, { kind: 'ramp', estRir: est, band: bandOf(est), possibleReps: r1(possible), loadRatio: w / bw });
         return;
       }
       if (w < bw) {
@@ -103,7 +121,7 @@ export function objectiveForSets(all: WorkoutSet[]): Map<string, Objective> {
         const est = Math.max(0, r1(possible - (s.reps as number) - BACKOFF_ALLOWANCE * hardBefore));
         // A back-off estimate that is not clearly easy says nothing reliable; next-set evidence then decides.
         if (est >= CLEARLY_EASY_RIR || next.kind === 'none') {
-          out.set(s.id, { kind: 'backoff', estRir: est, band: est >= CLEARLY_EASY_RIR ? 'easy' : null, possibleReps: r1(possible) });
+          out.set(s.id, { kind: 'backoff', estRir: est, band: est >= CLEARLY_EASY_RIR ? 'easy' : null, possibleReps: r1(possible), loadRatio: w / bw });
           return;
         }
       }
@@ -141,8 +159,8 @@ export interface CrossCheck {
 
 /**
  * Reported effort vs the numbers.
- *  - report + ramp estimate ≥ 5 that is ≥ 3 reps further from failure → the numbers decide (a warm-up
- *    rated "good" stays a warm-up);
+ *  - report + ramp estimate ≥ 5 that is ≥ 3 reps further from failure, on a set at ≤ 75 % of the best set's
+ *    load → the numbers decide (a warm-up rated "good" stays a warm-up; a working weight keeps its report);
  *  - reported easy (≥ 4 in reserve) but reps collapsed on the next set → credited as a hard set;
  *  - reported at the limit (≤ 1, or failure) but the next set matched or beat it → credit unchanged
  *    (0–3 in reserve earn the same), flagged;
@@ -153,7 +171,7 @@ export function crossCheck(s: WorkoutSet, o: Objective | undefined, useFeel = tr
   const r = reportedRir(s, useFeel);
   if (!o || o.kind === 'none') return { use: r == null ? 'provisional' : 'reported', rir: null, capAtProvisional: false, disagreement: null };
   if (r != null) {
-    if (o.kind === 'ramp' && o.estRir != null && o.estRir >= CLEARLY_EASY_RIR && o.estRir - r >= RAMP_OVERRIDE_GAP) {
+    if (o.kind === 'ramp' && o.estRir != null && o.estRir >= CLEARLY_EASY_RIR && o.estRir - r >= RAMP_OVERRIDE_GAP && (o.loadRatio == null || o.loadRatio <= RAMP_OVERRIDE_MAX_LOAD)) {
       return { use: 'numbers', rir: o.estRir, capAtProvisional: false, disagreement: 'felt_harder' };
     }
     if (o.band === 'hard' && o.kind === 'next_set' && r >= REPORTED_EASY_RIR) return { use: 'numbers', rir: CLEARLY_HARD_RIR, capAtProvisional: false, disagreement: 'felt_easier' };
@@ -173,19 +191,26 @@ export function creditForRir(rir: number, m: Pick<QualityModel, 'rirCredit'>): n
 /**
  * Warm-ups by the numbers (F.4): a set before the session's best set whose estimated reserve earns no
  * credit is tagged `type: 'warmup', typeSource: 'auto'`; an auto tag that no longer holds goes back to
- * a working set. Tags the owner set (`typeSource: 'owner'`), drop sets and warm-ups recorded before
- * Part 6 or by an import (no `typeSource`) are never changed. Returns the same array when nothing changes.
+ * a working set. A set with a reported effort is tagged only where the numbers would overrule that report
+ * (`crossCheck`). Tags the owner set (`typeSource: 'owner'`), drop sets and warm-ups recorded before
+ * Part 6 or by an import (a warm-up without `typeSource`) are never changed. With the numbers check switched
+ * off (Settings) nothing is tagged and earlier automatic tags are removed. Only the live flow calls this;
+ * finished and imported workouts are never re-tagged. Returns the same array when nothing changes.
  */
-export function reclassifyWarmups(sets: WorkoutSet[], m: Pick<QualityModel, 'rirCredit'>): WorkoutSet[] {
+export function reclassifyWarmups(sets: WorkoutSet[], m: Pick<QualityModel, 'rirCredit' | 'useNumbersCheck' | 'useFeelWhenNoRir'>): WorkoutSet[] {
   const auto = (s: WorkoutSet) => !s.planned && s.typeSource !== 'owner' && (s.type === 'working' || (s.type === 'warmup' && s.typeSource === 'auto'));
   // Judge with auto tags removed, so a tag never depends on an earlier tag.
   const neutral = sets.map((s) => (s.type === 'warmup' && s.typeSource === 'auto' ? { ...s, type: 'working' as const } : s));
-  const obj = objectiveForSets(neutral);
+  const on = m.useNumbersCheck !== false;
+  const useFeel = m.useFeelWhenNoRir !== false;
+  const obj = on ? objectiveForSets(neutral) : new Map<string, Objective>();
   let changed = false;
   const out = sets.map((s) => {
     if (!auto(s)) return s;
     const o = obj.get(s.id);
-    const warm = !!o && o.kind === 'ramp' && o.estRir != null && creditForRir(o.estRir, m) === 0;
+    const base = s.type === 'warmup' ? { ...s, type: 'working' as const } : s;
+    const warm = !!o && o.kind === 'ramp' && o.estRir != null && creditForRir(o.estRir, m) === 0
+      && (reportedRir(base, useFeel) == null || crossCheck(base, o, useFeel).use === 'numbers');
     if (warm && s.type !== 'warmup') { changed = true; return { ...s, type: 'warmup' as const, typeSource: 'auto' as const }; }
     if (!warm && s.type === 'warmup') { changed = true; const { typeSource: _t, ...rest } = s; void _t; return { ...rest, type: 'working' as const }; }
     return s;

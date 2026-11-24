@@ -1,6 +1,12 @@
 import type { ChoiceAssessment, ChoiceStatus } from '../../domain/exerciseChoice';
 import type { ExerciseDef } from '../../domain/types';
 import { Badge, Button, cx, Why } from './ui';
+import { L } from '../../i18n';
+
+/** Stored enum values → the words shown in Russian (the English texts keep the raw values). */
+const costRu = (c: ChoiceAssessment['fatigueCost']) => ({ high: 'ВЫСОКОЕ', moderate: 'УМЕРЕННОЕ', low: 'НИЗКОЕ' }[c] ?? String(c).toUpperCase());
+const positionRu = (p: ChoiceAssessment['position']) => (p === 'FIRST HALF' ? 'ПЕРВАЯ ПОЛОВИНА' : p === 'SECOND HALF' ? 'ВТОРАЯ ПОЛОВИНА' : p);
+const confidenceRu = (c: ChoiceAssessment['confidence']) => ({ high: 'высокая', moderate: 'средняя', low: 'низкая' }[c] ?? c);
 
 export const STATUS_TONE: Record<ChoiceStatus, 'good' | 'warn' | 'bad'> = { good: 'good', acceptable: 'warn', reconsider: 'bad' };
 const DOT: Record<ChoiceStatus, string> = { good: 'bg-emerald-500', acceptable: 'bg-amber-500', reconsider: 'bg-rose-500' };
@@ -29,23 +35,23 @@ export function ChoiceCard({ a, name, altName, onContinue, onAlternative }: {
       </div>
       <ul className="mt-2 space-y-0.5 text-xs tabular-nums text-ink-600 dark:text-ink-300">
         {a.muscles.map((m) => <li key={m.muscle}>{m.text}</li>)}
-        <li>Fatigue cost: {a.fatigueCost.toUpperCase()} · Position: {a.position}</li>
+        <li>{L(`Fatigue cost: ${a.fatigueCost.toUpperCase()} · Position: ${a.position}`, `Утомление: ${costRu(a.fatigueCost)} · Место в тренировке: ${positionRu(a.position)}`)}</li>
       </ul>
       {a.safety && <p className="mt-2 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300">{a.safety}</p>}
       {a.status !== 'good' && a.why[0] && <p className="mt-2 text-xs text-ink-700 dark:text-ink-200">{a.why[0]}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {a.alternatives.map((alt) => (
           <Button key={alt.exerciseId} size="md" variant="primary" className="min-w-0 max-w-full" onClick={() => onAlternative(alt)}>
-            <span className="truncate">{alt.kind === 'do_first' ? 'First: ' : 'Use '}{altName(alt.exerciseId)}</span>
+            <span className="truncate">{alt.kind === 'do_first' ? L('First: ', 'Сначала: ') : L('Use ', 'Взять: ')}{altName(alt.exerciseId)}</span>
           </Button>
         ))}
-        <Button size="md" onClick={onContinue}>Continue</Button>
+        <Button size="md" onClick={onContinue}>{L('Continue', 'Продолжить')}</Button>
       </div>
       <div className="mt-1">
         <Why>
           {a.why.map((t, i) => <p key={i}>{t}</p>)}
-          {a.alternatives.map((alt) => <p key={alt.exerciseId}>Alternative — {alt.why}</p>)}
-          <p>Confidence: {a.confidence}. Advice only — it never blocks you.</p>
+          {a.alternatives.map((alt) => <p key={alt.exerciseId}>{L('Alternative', 'Замена')} — {alt.why}</p>)}
+          <p>{L(`Confidence: ${a.confidence}. Advice only — it never blocks you.`, `Уверенность: ${confidenceRu(a.confidence)}. Это только совет — он ничего не запрещает.`)}</p>
         </Why>
       </div>
     </div>

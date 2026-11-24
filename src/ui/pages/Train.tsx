@@ -13,12 +13,11 @@ import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
 import { loadStep } from '../../domain/increments';
 import {
-  adjustRest, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastLogged, logSet, mmss, prefillNext, restState, restTargetFor,
+  adjustRest, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, prefillNext, restState, restTargetFor,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
 import { progressionKey } from '../../domain/progression';
-import { mergeSides } from '../../domain/quality';
 import { loadUnitLabel } from '../../domain/registry';
 import { minutesBetween, summarizeSession, type SessionSummary } from '../../domain/sessionSummary';
 import type { Equipment, ExerciseDef, LoadMode, PlanDecision, PlanDecisionReason, Side, Workout, WorkoutExercise, WorkoutSet } from '../../domain/types';
@@ -113,7 +112,7 @@ function TrainSession({ initial }: { initial: Workout }) {
   const nav = useNavigate();
   const registryRef = useRef(a.registry);
   registryRef.current = a.registry;
-  const { w, update, undoable, cancelSave, replace, latest } = useLiveWorkout(initial, (id) => registryRef.current.get(id)?.name.en ?? id);
+  const { w, update, undoable, cancelSave, replace, latest, queue } = useLiveWorkout(initial, (id) => registryRef.current.get(id)?.name.en ?? id);
 
   const [curId, setCurId] = useState<string | null>(() => pickCurrent(initial));
   const [view, setView] = useState<View>(() => {
@@ -300,7 +299,7 @@ function TrainSession({ initial }: { initial: Workout }) {
       const exercises = snapshot.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => !s.planned) })).filter((e) => e.sets.length > 0).map((e, i) => ({ ...e, order: i }));
       cancelSave();
       if (!exercises.length) {
-        await store.deleteWorkout(snapshot.id);
+        await queue(() => store.deleteWorkout(snapshot.id));
         nav('/');
         undoToast(L('Nothing was logged — workout discarded', 'Ничего не записано — тренировка удалена'), async () => { await store.putWorkoutAsIs(snapshot); window.location.hash = `#/log/${snapshot.id}`; });
         return;
@@ -312,7 +311,8 @@ function TrainSession({ initial }: { initial: Workout }) {
         finishedAt: new Date().toISOString(), endTime: snapshot.endTime ?? (snapshot.date === now.date ? now.time : null), durationMin: durationMin && durationMin > 0 ? durationMin : null,
       };
       replace(final);
-      await store.saveWorkout(final);
+      // After every write still on its way (a set logged a moment ago must not land on top of the finished workout).
+      await queue(() => store.saveWorkout(final));
       setPreFinish(snapshot);
       toast(L('Workout saved', 'Тренировка сохранена'));
       setSummary({ ...summarizeSession(final, [...data.workouts.filter((o) => o.id !== final.id), final], a.registry, data.settings.quality, now), skippedExercises: skipped });
@@ -324,7 +324,7 @@ function TrainSession({ initial }: { initial: Workout }) {
     setSummary(null);
     setPreFinish(null);
     replace(s);
-    void store.putWorkoutAsIs({ ...s, updatedAt: new Date().toISOString() });
+    void queue(() => store.putWorkoutAsIs({ ...s, updatedAt: new Date().toISOString() }));
     setView('overview');
     toast(L('Back in the workout — nothing was lost', 'Вы снова в тренировке — ничего не потеряно'), 'info');
   };
@@ -332,14 +332,30 @@ function TrainSession({ initial }: { initial: Workout }) {
     if (!confirmAction(L('Delete this whole workout? You can undo it for a few seconds.', 'Удалить всю тренировку? Несколько секунд это можно отменить.'))) return;
     const copy = latest.current;
     cancelSave();
-    await store.deleteWorkout(copy.id);
+    await queue(() => store.deleteWorkout(copy.id)); // after any write still on its way
     nav('/history');
     undoToast(L('Workout deleted', 'Тренировка удалена'), async () => { await store.putWorkoutAsIs(copy); window.location.hash = `#/log/${copy.id}`; });
   };
 
   const open = (exId: string) => { setCurId(exId); setView('set'); if (w.exercises.find((e) => e.id === exId)?.doneAt) setEx(exId, (e) => ({ ...e, doneAt: undefined })); };
   const nextExercise = () => {
-    if (cur) setEx(cur.id, (e) => ({ ...e, doneAt: new Date().toISOString() }), true);
+    if (cur) {
+      const exId = cur.id;
+      const p = exerciseProgress(cur);
+      setEx(exId, (e) => ({ ...e, doneAt: new Date().toISOString() }), true);
+      // Stopped before the target: say so, and one tap brings the exercise back.
+      if (!p.reached && p.done > 0) {
+        const name = exName(cur);
+        undoToast(p.target ? L(`${name}: finished after ${p.done} of ${p.target} sets`, `${name}: завершено после ${p.done} из ${p.target} подх.`) : L(`${name}: finished`, `${name}: завершено`), () => {
+          const now = latest.current.exercises.find((e) => e.id === exId);
+          if (!now || !now.doneAt) return false;
+          setEx(exId, (e) => ({ ...e, doneAt: undefined }), true);
+          setCurId(exId);
+          setView('set');
+          return true;
+        });
+      }
+    }
     const next = w.exercises.find((e) => e.id !== cur?.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached);
     if (next) { setCurId(next.id); setView('set'); } else { setCurId(null); setView('overview'); }
   };
@@ -419,9 +435,12 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
   const eq = ex.equipmentId ? data.equipment.find((e) => e.id === ex.equipmentId) : undefined;
   const gym = data.locations.find((l) => l.id === w.locationId) ?? null;
   const sets = done(ex);
-  const last = useMemo(() => lastSessionFor(data.workouts.filter((x) => x.date <= w.date), ex.exerciseId, ex.equipmentId, w.id), [data.workouts, w.date, w.id, ex.exerciseId, ex.equipmentId]);
+  // Like with like: the same exercise × machine × configuration (bench angle, attachment, …), performed sets only.
+  const histKey = def ? progressionKey(ex, w, def) : `${ex.exerciseId}::${ex.equipmentId ?? ''}`;
+  const last = useMemo(() => lastEntryFor(data.workouts, w, ex, (e, o) => progressionKey(e, o, a.registry.get(e.exerciseId))), [data.workouts, w.id, w.date, w.locationId, histKey, a.registry]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSets = last ? done(last) : [];
-  const loadMode: LoadMode = sets[sets.length - 1]?.loadMode ?? lastSets.find((s) => s.type === 'working')?.loadMode ?? (def ? defaultLoadMode(def) : 'total');
+  const [modeChoice, setModeChoice] = useState<LoadMode | null>(null);
+  const loadMode: LoadMode = sets[sets.length - 1]?.loadMode ?? modeChoice ?? lastSets.find((s) => s.type === 'working')?.loadMode ?? (def ? defaultLoadMode(def) : 'total');
   const stepInfo = loadStep(eq, gym, eq?.kind ?? def?.equipmentKind, loadMode);
   const step = stepInfo.source === 'default' && sessionStep ? sessionStep : stepInfo.step;
   const sides = perSide ?? (sets.some((s) => s.side) || (!sets.length && (lastSets.some((s) => s.side))));
@@ -433,6 +452,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
   const [weight, setWeight] = useState<number | null>(fill.weightKg);
   const [reps, setReps] = useState<number | null>(fill.reps);
   const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}`;
+  const lastTapSide = useRef<Side | undefined>(undefined);
   const seenKey = useRef(fillKey);
   useEffect(() => {
     if (seenKey.current === fillKey) return;
@@ -463,13 +483,15 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
 
   const log = () => {
     const nowMs = Date.now();
-    if (nowMs - tapGuard.current < 1500) return;
+    // A second tap within 1.5 s is a double tap — unless it is the other side of a left / right pair.
+    if (nowMs - tapGuard.current < 1500 && lastTapSide.current === nextSide) return;
     if (reps == null || reps < 1) { toast(L('Enter the reps you did', 'Введите число повторений'), 'bad'); return; }
     const kg = weight ?? (loadMode === 'bodyweight_plus' ? 0 : null);
     if (kg == null) { toast(L('Enter the weight', 'Введите вес'), 'bad'); return; }
     const entry = { weightKg: kg, reps, loadMode, ...(nextSide ? { side: nextSide } : {}) };
     if (isDoubleTap(ex, entry, nowMs)) return;
     tapGuard.current = nowMs;
+    lastTapSide.current = nextSide;
     const id = uid('s');
     setEx(ex.id, (e) => logSet(e, entry, nowMs, id, model), true);
     setFlash(id);
@@ -493,10 +515,19 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
     setSheet(null);
     undoable(L('Set removed', 'Подход удалён'), (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== ex.id || e.sets.some((y) => y.id === s.id) ? e : editSet({ ...e, sets: [...e.sets.slice(0, i), s, ...e.sets.slice(i)] }, s.id, {}, model))) }));
   };
+  // Only what is asked for the NEXT sets changes; sets already logged per side stay exactly as logged.
   const toggleSides = () => {
-    if (sides && sets.some((s) => s.side)) setEx(ex.id, (e) => ({ ...e, sets: mergeSides(e.sets) }), true);
     setPerSide(!sides);
     setSheet(null);
+  };
+  const MODES: [LoadMode, string][] = [
+    ['total', L('Total weight', 'Общий вес')], ['per_side', L('Plates per side', 'Диски на сторону')],
+    ['assisted', L('Assistance (less = harder)', 'Помощь (меньше = тяжелее)')], ['bodyweight_plus', L('Added to body weight', 'Доп. вес к весу тела')],
+  ];
+  const chooseMode = (mode: LoadMode) => {
+    setModeChoice(mode);
+    // One machine, one way of counting: the sets of this exercise logged today follow.
+    if (sets.some((s) => s.loadMode !== mode)) setEx(ex.id, (e) => ({ ...e, sets: e.sets.map((s) => (s.loadMode === mode ? s : { ...s, loadMode: mode })) }), true);
   };
 
   const lastSet = sets[sets.length - 1] ?? null;
@@ -549,6 +580,12 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
         {def && <VariationChips def={def} v={ex.variation} onChange={(p) => setEx(ex.id, (e) => ({ ...e, variation: { ...(e.variation ?? {}), ...p } }))} notes={[]} sides="both" onSides={() => undefined} showSides={false} />}
         <div className="mt-3"><SettingsEditor settings={ex.settings ?? {}} template={def?.settingTemplate ?? []} onChange={(s) => setEx(ex.id, (e) => ({ ...e, settings: s }))}
           onSaveDefault={eq ? () => { void store.saveEquipment({ ...eq, settings: { ...eq.settings, ...Object.fromEntries(Object.entries(ex.settings ?? {}).filter(([, v]) => v.trim())) } }); toast(L('Remembered for this machine', 'Запомнено для этого тренажёра')); } : undefined} /></div>
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">{L('The weight you enter is', 'Вводимый вес — это')}</div>
+          <div className="flex flex-wrap gap-2" data-testid="load-mode">
+            {MODES.map(([mode, label]) => <Toggle key={mode} on={loadMode === mode} onClick={() => chooseMode(mode)}>{label}</Toggle>)}
+          </div>
+        </div>
         {def && <div className="mt-3"><ExecutionCue exerciseId={def.id} /></div>}
         <label className="mt-3 block text-xs font-medium text-ink-600 dark:text-ink-300">{L('Note', 'Заметка')}
           <Input className="mt-1" value={ex.notes ?? ''} onChange={(e) => setEx(ex.id, (x) => ({ ...x, notes: e.target.value || undefined }))} placeholder={L('Optional', 'Необязательно')} />
@@ -560,6 +597,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
           <Button size="lg" onClick={() => { setSheet(null); setPickEq(true); }}>{L('Change machine', 'Сменить тренажёр')}</Button>
           <Button size="lg" onClick={toggleSides} aria-pressed={sides}>{sides ? L('Log both sides together', 'Записывать обе стороны вместе') : L('Log left / right separately', 'Записывать левую / правую отдельно')}</Button>
           <Button size="lg" onClick={() => { setSheet(null); onChange(); }}>{L('Change exercise', 'Сменить упражнение')}</Button>
+          {sets.length > 0 && <Button size="lg" onClick={() => { setSheet(null); onNextExercise(); }} data-testid="finish-exercise">{progress.reached || progress.target == null ? L('Finish this exercise', 'Завершить упражнение') : L(`Finish this exercise (${progress.done} of ${progress.target} sets)`, `Завершить упражнение (${progress.done} из ${progress.target} подх.)`)}</Button>}
           {!sets.length && <Button size="lg" onClick={() => { setSheet(null); onLater(); }}>{L('Later', 'Позже')}</Button>}
           {!sets.length && <Button size="lg" variant="ghost" onClick={() => { setSheet(null); onSkip(); }}>{L('Skip this exercise', 'Пропустить упражнение')}</Button>}
         </div>
@@ -571,7 +609,12 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
       {(newEq || editEq) && (
         <EquipmentForm eq={editEq} defaultLocation={w.locationId} defaultExerciseId={def?.id} defaultKind={def?.equipmentKind}
           onClose={() => { setNewEq(false); setEditEq(null); }}
-          onSaved={(id) => { setNewEq(false); setEditEq(null); const saved = store.getState().data?.equipment.find((e) => e.id === id); if (saved) chooseEq(saved); }} />
+          onSaved={(id) => {
+            setNewEq(false); setEditEq(null);
+            const saved = store.getState().data?.equipment.find((e) => e.id === id);
+            // The store normally has it already; if not, the link is still made by id.
+            if (saved) chooseEq(saved); else setEx(ex.id, (x) => ({ ...x, equipmentId: id, equipmentConfidence: 'confirmed' }), true);
+          }} />
       )}
     </>
   );
@@ -606,7 +649,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, undoab
                 <dt className="t-label">{L('Today', 'Сегодня')}</dt>
                 <dd className="flex flex-wrap items-baseline gap-x-3">
                   <span className="t-num font-display text-xl font-bold text-t-accent">{target}</span>
-                  {fill.alt && sets.length === 0 && <button type="button" className="min-h-[44px] min-w-[44px] text-xs font-semibold text-t-dim underline" onClick={() => { setWeight(fill.alt!.weightKg); const r = lastSets[0]?.reps; if (r != null) setReps(r); }}>{L(`use last time's ${num(fill.alt.weightKg)} kg`, `взять прошлые ${num(fill.alt.weightKg)} кг`)}</button>}
+                  {fill.alt && <button type="button" className="min-h-[44px] min-w-[44px] text-xs font-semibold text-t-dim underline" onClick={() => { const alt = fill.alt!.weightKg; setWeight(alt); const r = lastSets[sets.length]?.weightKg === alt ? lastSets[sets.length]?.reps : lastSets.find((x) => x.weightKg === alt)?.reps; if (r != null) setReps(r); }} data-testid="use-last">{L(`use last time's ${num(fill.alt.weightKg)} kg`, `взять прошлые ${num(fill.alt.weightKg)} кг`)}</button>}
                   <button type="button" className="min-h-[44px] min-w-[44px] text-xs font-semibold text-t-dim underline" onClick={() => setSheet('why')} data-testid="why">{L('Why', 'Почему')}</button>
                 </dd>
               </div>
@@ -711,7 +754,14 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onEffort, onMore,
             <TButton variant="primary" onClick={guarded(onNextExercise)} data-testid="next-exercise">{L('To the overview', 'К обзору')}</TButton>
           </>
         ) : (
-          <TButton variant="primary" onClick={guarded(onNextSet)} data-testid="next-set">{L('Next set', 'Следующий подход')}</TButton>
+          <>
+            <TButton variant="primary" onClick={guarded(onNextSet)} data-testid="next-set">{L('Next set', 'Следующий подход')}</TButton>
+            <div className="flex justify-center pt-1">
+              <button type="button" className="min-h-[44px] px-3 text-sm font-semibold text-t-dim underline" onClick={guarded(onNextExercise)} data-testid="stop-early">
+                {hasNext ? L('Enough for this one — next exercise', 'Хватит — следующее упражнение') : L('Enough for this one — to the overview', 'Хватит — к обзору')}
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -4,9 +4,10 @@ import { store } from '../../lib/store';
 import { usePhotoUrl } from '../hooks';
 import { IconCamera, IconTrash, IconX } from './icons';
 import { cx, toast } from './ui';
+import { L } from '../../i18n';
 
 /** Decrypts and shows one encrypted photo. */
-export function PhotoThumb({ id, className, onClick, alt = 'Photo' }: { id: string; className?: string; onClick?: () => void; alt?: string }) {
+export function PhotoThumb({ id, className, onClick, alt = L('Photo', 'Фото') }: { id: string; className?: string; onClick?: () => void; alt?: string }) {
   const url = usePhotoUrl(id);
   return (
     <button type="button" onClick={onClick} className={cx('relative overflow-hidden rounded-xl bg-ink-100 dark:bg-ink-800', className)}>
@@ -21,8 +22,8 @@ export function PhotoViewer({ id, onClose, caption }: { id: string | null; onClo
   if (!id) return null;
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4" onClick={onClose} role="dialog" aria-modal="true">
-      <button type="button" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white" aria-label="Close" onClick={onClose}><IconX size={20} /></button>
-      {url && <img src={url} alt={caption ?? 'Photo'} className="max-h-full max-w-full rounded-xl object-contain" />}
+      <button type="button" className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white" aria-label={L('Close', 'Закрыть')} onClick={onClose}><IconX size={20} /></button>
+      {url && <img src={url} alt={caption ?? L('Photo', 'Фото')} className="max-h-full max-w-full rounded-xl object-contain" />}
       {caption && <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">{caption}</div>}
     </div>
   );
@@ -33,7 +34,7 @@ export function PhotoViewer({ id, onClose, caption }: { id: string | null; onClo
  * `onAdded` receives the stored Photo so the owner can link its id.
  */
 export function PhotoGrid({
-  photoIds, onAdd, onDelete, emptyLabel = 'No photos yet', size = 'md',
+  photoIds, onAdd, onDelete, emptyLabel = L('No photos yet', 'Фото пока нет'), size = 'md',
 }: {
   photoIds: string[];
   onAdd?: (file: File) => Promise<Photo | void>;
@@ -52,7 +53,7 @@ export function PhotoGrid({
     setBusy(true);
     try {
       for (const f of Array.from(files)) await onAdd(f);
-      toast(files.length > 1 ? `${files.length} photos encrypted and saved` : 'Photo encrypted and saved');
+      toast(files.length > 1 ? L(`${files.length} photos encrypted and saved`, `Фото зашифрованы и сохранены: ${files.length}`) : L('Photo encrypted and saved', 'Фото зашифровано и сохранено'));
     } catch (e) {
       toast((e as Error).message, 'bad');
     } finally {
@@ -68,9 +69,9 @@ export function PhotoGrid({
           <div key={id} className="group relative">
             <PhotoThumb id={id} className={dim} onClick={() => setView(id)} />
             {onDelete && (
-              <button type="button" aria-label="Delete photo"
+              <button type="button" aria-label={L('Delete photo', 'Удалить фото')}
                 onClick={async () => {
-                  if (!window.confirm('Delete this photo permanently?')) return;
+                  if (!window.confirm(L('Delete this photo permanently?', 'Удалить это фото навсегда?'))) return;
                   await onDelete(id);
                 }}
                 className="absolute right-1 top-1 rounded-lg bg-black/60 p-1 text-white opacity-90 transition hover:bg-rose-600 sm:opacity-0 sm:group-hover:opacity-100">
@@ -84,10 +85,10 @@ export function PhotoGrid({
             <button type="button" disabled={busy} onClick={() => input.current?.click()}
               className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 transition hover:border-accent-500 hover:text-accent-600 disabled:opacity-50 dark:border-ink-700 dark:hover:text-accent-400">
               <IconCamera size={16} />
-              {busy ? 'Encrypting…' : 'Camera'}
+              {busy ? L('Encrypting…', 'Шифрование…') : L('Camera', 'Камера')}
             </button>
             <button type="button" disabled={busy} onClick={() => gallery.current?.click()}
-              className="flex h-8 items-center justify-center rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 disabled:opacity-50 dark:border-ink-700">Gallery</button>
+              className="flex h-8 items-center justify-center rounded-xl border border-dashed border-ink-300 text-[11px] text-ink-500 disabled:opacity-50 dark:border-ink-700">{L('Gallery', 'Галерея')}</button>
           </div>
         )}
         {!onAdd && photoIds.length === 0 && <span className="text-xs text-ink-500">{emptyLabel}</span>}

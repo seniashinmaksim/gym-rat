@@ -12,13 +12,14 @@
  * So order advice here is about protecting performance where it matters most, not a growth rule.
  */
 import { isFailureSetForFatigue } from './failure';
+import { L, byLang } from '../i18n/core';
 import { isCounted, sideFactors } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { ExerciseDef, FatigueCost, MuscleId, QualityModel, Variation, Workout, WorkoutSet } from './types';
 import { sessionMuscleEffective } from './volume';
 
 export const FATIGUE_RANK: Record<FatigueCost, number> = { high: 0, moderate: 1, low: 2 };
-export const FATIGUE_LABEL: Record<FatigueCost, string> = { high: 'HIGH', moderate: 'MODERATE', low: 'LOW' };
+export const FATIGUE_LABEL: Record<FatigueCost, string> = byLang(() => ({ high: L('HIGH', 'ВЫСОКОЕ'), moderate: L('MODERATE', 'УМЕРЕННОЕ'), low: L('LOW', 'НИЗКОЕ') }));
 
 const LOWER_HEAVY_PATTERNS = new Set(['squat', 'hinge', 'lunge']);
 

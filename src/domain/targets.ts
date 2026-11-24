@@ -1,7 +1,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays } from './dates';
 import { cv, median, type WeekBucket } from './history';
-import { L } from '../i18n/core';
+import { L, getLang, num, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import type { ProgressionSeries } from './progression';
 import { roundHalf } from './quality';
@@ -34,24 +34,25 @@ export function learningState(data: AppData, today: string, weeks: WeekBucket[])
   const sessions = startDate ? data.workouts.filter((w) => w.date >= startDate).length : 0;
   const completeWeeks = weeks.filter((w) => w.complete && w.workouts.length > 0).length;
   if (!startDate) {
-    return { active: true, startDate: null, dayNumber: 0, lengthDays: learning.lengthDays, daysRemaining: learning.lengthDays, sessions: 0, completeWeeks: 0, extended: false, endedOn: null, message: 'Learning Mode starts with your first logged workout.' };
+    return { active: true, startDate: null, dayNumber: 0, lengthDays: learning.lengthDays, daysRemaining: learning.lengthDays, sessions: 0, completeWeeks: 0, extended: false, endedOn: null, message: L('Learning Mode starts with your first logged workout.', 'Режим знакомства начнётся с первой записанной тренировки.') };
   }
   const dayNumber = diffDays(today, startDate) + 1;
   const daysRemaining = Math.max(0, learning.lengthDays - dayNumber + 1);
   if (learning.endedOn) {
-    return { active: false, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining: 0, sessions, completeWeeks, extended: false, endedOn: learning.endedOn, message: `Learning Mode completed on ${learning.endedOn}.` };
+    return { active: false, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining: 0, sessions, completeWeeks, extended: false, endedOn: learning.endedOn, message: L(`Learning Mode completed on ${learning.endedOn}.`, `Режим знакомства завершён ${learning.endedOn}.`) };
   }
   const timeDone = dayNumber > learning.lengthDays;
   const enoughData = sessions >= MIN_LEARNING_SESSIONS && completeWeeks >= 3;
   if (timeDone && enoughData) {
-    return { active: false, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining: 0, sessions, completeWeeks, extended: false, endedOn: addDays(startDate, learning.lengthDays), message: 'Calibration period complete — individualized targets are active.' };
+    return { active: false, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining: 0, sessions, completeWeeks, extended: false, endedOn: addDays(startDate, learning.lengthDays), message: L('Calibration period complete — individualized targets are active.', 'Период калибровки завершён — действуют индивидуальные цели.') };
   }
   const extended = timeDone && !enoughData;
   return {
     active: true, startDate, dayNumber, lengthDays: learning.lengthDays, daysRemaining, sessions, completeWeeks, extended, endedOn: null,
     message: extended
-      ? `Learning extended: ${sessions}/${MIN_LEARNING_SESSIONS} sessions and ${completeWeeks}/3 complete training weeks recorded so far.`
-      : 'Observing your real training before individualizing targets.',
+      ? L(`Learning extended: ${sessions}/${MIN_LEARNING_SESSIONS} sessions and ${completeWeeks}/3 complete training weeks recorded so far.`,
+        `Режим знакомства продлён: пока записано ${sessions}/${MIN_LEARNING_SESSIONS} тренировок и ${completeWeeks}/3 полных тренировочных недель.`)
+      : L('Observing your real training before individualizing targets.', 'Наблюдаем за вашими реальными тренировками, прежде чем подбирать индивидуальные цели.'),
   };
 }
 
@@ -128,7 +129,7 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
 
   for (const m of TRACKED_MUSCLES) {
     const ref = referenceFor(m, data);
-    const name = muscleName(m);
+    const name = muscleName(m, getLang());
     const override = data.settings.targetOverrides[m];
     const series = usable.map((w) => w.volume.muscles[m].effective);
     const baseline = series.length ? roundHalf(median(series)) : null;
@@ -138,15 +139,15 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     // Confidence scoring (transparent).
     let score = 0;
     const conf: string[] = [];
-    if (usable.length >= 6) { score += 2; conf.push('6+ weeks of data'); } else if (usable.length >= 3) { score += 1; conf.push(`${usable.length} weeks of data`); } else conf.push(`only ${usable.length} complete week(s) of data`);
-    if (rirRatio >= 0.7) { score += 1; conf.push(`RIR recorded on ${Math.round(rirRatio * 100)}% of sets`); } else conf.push(`RIR recorded on only ${Math.round(rirRatio * 100)}% of sets`);
-    if (trend.overall !== 'unknown') { score += 1; conf.push(`progression evidence from ${trend.exercises} exercise(s)`); } else conf.push('no progression evidence yet');
-    if (series.length >= 3 && cv(series) < 0.35) { score += 1; conf.push('consistent weekly volume'); }
+    if (usable.length >= 6) { score += 2; conf.push(L('6+ weeks of data', '6+ недель данных')); } else if (usable.length >= 3) { score += 1; conf.push(L(`${usable.length} weeks of data`, `${usable.length} ${ruPlural(usable.length, 'неделя', 'недели', 'недель')} данных`)); } else conf.push(L(`only ${usable.length} complete week(s) of data`, `только ${usable.length} ${ruPlural(usable.length, 'полная неделя', 'полные недели', 'полных недель')} данных`));
+    if (rirRatio >= 0.7) { score += 1; conf.push(L(`RIR recorded on ${Math.round(rirRatio * 100)}% of sets`, `RIR записан в ${Math.round(rirRatio * 100)}% подходов`)); } else conf.push(L(`RIR recorded on only ${Math.round(rirRatio * 100)}% of sets`, `RIR записан только в ${Math.round(rirRatio * 100)}% подходов`));
+    if (trend.overall !== 'unknown') { score += 1; conf.push(L(`progression evidence from ${trend.exercises} exercise(s)`, `данные о прогрессии по ${trend.exercises} ${ruPlural(trend.exercises, 'упражнению', 'упражнениям', 'упражнениям')}`)); } else conf.push(L('no progression evidence yet', 'данных о прогрессии пока нет'));
+    if (series.length >= 3 && cv(series) < 0.35) { score += 1; conf.push(L('consistent weekly volume', 'стабильный недельный объём')); }
     let confidence: TargetConfidence = score >= 4 ? 'high' : score >= 2 ? 'moderate' : 'low';
 
     if (override) {
       out[m] = { muscle: m, min: override.min, preferred: override.preferred, max: override.max, confidence, provisional: false, source: 'manual', baseline,
-        rationale: [`Manually set target${override.note ? ` (${override.note})` : ''}.`, `Data confidence: ${conf.join(', ')}.`] };
+        rationale: [L(`Manually set target${override.note ? ` (${override.note})` : ''}.`, `Цель задана вручную${override.note ? ` (${override.note})` : ''}.`), L(`Data confidence: ${conf.join(', ')}.`, `Уверенность в данных: ${conf.join(', ')}.`)] };
       continue;
     }
 
@@ -154,8 +155,11 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
       out[m] = {
         muscle: m, ...ref, confidence: 'low', provisional: true, source: 'reference', baseline,
         rationale: [
-          `Provisional reference range ${ref.min}–${ref.max} (preferred ${ref.preferred}) effective sets/week, based on the volume dose-response literature and ${name.toLowerCase()}-specific indirect work.`,
-          learning.active ? 'Learning Mode: your personal baseline is still being measured, so this is not a quota.' : 'Not enough complete weeks to individualize.',
+          L(`Provisional reference range ${ref.min}–${ref.max} (preferred ${ref.preferred}) effective sets/week, based on the volume dose-response literature and ${name.toLowerCase()}-specific indirect work.`,
+            `Предварительный ориентир ${num(ref.min)}–${num(ref.max)} (предпочтительно ${num(ref.preferred)}) эффективных подходов в неделю — по исследованиям зависимости результата от объёма и с учётом косвенной нагрузки на эту мышцу (${name.toLowerCase()}).`),
+          learning.active
+            ? L('Learning Mode: your personal baseline is still being measured, so this is not a quota.', 'Режим знакомства: ваш личный базовый уровень ещё измеряется, поэтому это не норма, которую нужно выполнить.')
+            : L('Not enough complete weeks to individualize.', 'Полных недель пока мало для индивидуальной цели.'),
           MUSCLE_BY_ID[m].referenceNote,
         ],
       };
@@ -172,7 +176,7 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     if (data.settings.priorities[m] === 'high' && decision.neutral && !decision.evidence.recoveryPoor && decision.evidence.stableWeeks >= 3 && baseline < ref.max) {
       const step = baseline < 8 ? 1 : 2;
       preferred = Math.min(ref.max, baseline + step);
-      rationale.push(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`);
+      rationale.push(L(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`, `Отмечен высокий приоритет: +${step} ${ruPlural(step, 'подход', 'подхода', 'подходов')} в неделю (постепенно), оценка — по следующим неделям.`));
     }
     // "Maintain" never raises a muscle: an evidence-based increase is not applied (reductions still are).
     let action = decision.action;
@@ -184,9 +188,9 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     preferred = roundHalf(preferred);
     const min = roundHalf(Math.max(0, Math.min(preferred, preferred * 0.75)));
     const max = roundHalf(Math.max(ref.max, preferred + 4));
-    if (data.settings.priorities[m]) rationale.push(`Priority: ${data.settings.priorities[m]}.`);
+    if (data.settings.priorities[m]) rationale.push(L(`Priority: ${data.settings.priorities[m]}.`, `Приоритет: ${({ high: 'высокий', normal: 'обычный', maintain: 'поддерживать' } as Record<string, string>)[data.settings.priorities[m] as string] ?? data.settings.priorities[m]}.`));
     if (usable.length < 3) confidence = 'low';
-    rationale.push(`Confidence ${confidence}: ${conf.join(', ')}.`);
+    rationale.push(L(`Confidence ${confidence}: ${conf.join(', ')}.`, `Уверенность ${({ low: 'низкая', moderate: 'средняя', high: 'высокая' } as Record<string, string>)[confidence] ?? confidence}: ${conf.join(', ')}.`));
     out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale, volumeAction: action, evidence: decision.evidence };
   }
   if (deload) {
@@ -196,7 +200,7 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
       const t = out[m];
       out[m] = {
         ...t, min: roundHalf(t.min * 0.5), preferred: roundHalf(t.preferred * 0.5), max: roundHalf(t.max * 0.5),
-        rationale: [...t.rationale, `Deload block "${deload.name}" is active: targets are halved. Keep loads moderate and stop sets ~3–4 reps short of failure.`],
+        rationale: [...t.rationale, L(`Deload block "${deload.name}" is active: targets are halved. Keep loads moderate and stop sets ~3–4 reps short of failure.`, `Идёт блок разгрузки «${deload.name}»: цели уменьшены вдвое. Держите умеренные веса и заканчивайте подходы за ~3–4 повторения до отказа.`)],
       };
     }
   }

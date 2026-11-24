@@ -1,6 +1,7 @@
 import type { AppData } from './appdata';
 import { addDays, diffDays, sessionEndVirtualMs, type SessionTimeSource } from './dates';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
+import { L, byLang, num, ruPlural } from '../i18n/core';
 import { isFailureSetForFatigue } from './failure';
 import { sideFactors } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
@@ -31,13 +32,13 @@ export interface RecoveryEstimate {
   factors: string[];
 }
 
-export const TIME_SOURCE_LABEL: Record<SessionTimeSource, string> = {
-  last_set: 'when the last set was ticked',
-  end_time: 'session end time',
-  start_plus_duration: 'start time + duration',
-  start_time: 'start time — no end time recorded',
-  assumed: 'no time recorded — 18:00 assumed',
-};
+export const TIME_SOURCE_LABEL: Record<SessionTimeSource, string> = byLang(() => ({
+  last_set: L('when the last set was ticked', 'по отметке последнего подхода'),
+  end_time: L('session end time', 'время окончания тренировки'),
+  start_plus_duration: L('start time + duration', 'время начала + длительность'),
+  start_time: L('start time — no end time recorded', 'время начала — окончание не записано'),
+  assumed: L('no time recorded — 18:00 assumed', 'время не записано — принято 18:00'),
+}));
 
 /**
  * Exercise ids that are the SAME movement for the "new exercise" (+12 h) rule. Some exercises were
@@ -149,7 +150,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       out[m] = {
         ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusTime: null, lastStimulusTimeSource: null, lastStimulusSets: 0,
         windowHours: null, hoursLeft: 0,
-        factors: [`No session with ≥${significantStimulusSets} effective sets for this muscle is recorded.`],
+        factors: [L(`No session with ≥${significantStimulusSets} effective sets for this muscle is recorded.`, `Не записано ни одной тренировки, давшей этой мышце ≥${num(significantStimulusSets)} эффективных подходов.`)],
       };
       continue;
     }
@@ -158,12 +159,13 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     const src = endOf(last.workout).source;
     const hoursSince = Math.max(0, (nowVirtualMs - endedAt) / 3_600_000);
     const endedHHMM = new Date(endedAt).toISOString().slice(11, 16);
-    factors.push(`Counted from ${endedHHMM} on ${new Date(endedAt).toISOString().slice(0, 10)} (${TIME_SOURCE_LABEL[src]}) — ${Math.round(hoursSince)} h ago.`);
+    factors.push(L(`Counted from ${endedHHMM} on ${new Date(endedAt).toISOString().slice(0, 10)} (${TIME_SOURCE_LABEL[src]}) — ${Math.round(hoursSince)} h ago.`,
+      `Отсчёт от ${endedHHMM} ${new Date(endedAt).toISOString().slice(0, 10)} (${TIME_SOURCE_LABEL[src]}) — ${Math.round(hoursSince)} ч назад.`));
     let window = baseWindowHours(last.sets);
-    factors.push(`Last significant stimulus: ${last.sets.toFixed(1)} effective sets → baseline window ~${window} h.`);
+    factors.push(L(`Last significant stimulus: ${last.sets.toFixed(1)} effective sets → baseline window ~${window} h.`, `Последняя значимая нагрузка: ${num(last.sets, 1)} эффективных подходов → базовое окно ~${window} ч.`));
     if (MUSCLE_BY_ID[m].size === 'large' && last.sets > 9) {
       window += 12;
-      factors.push('Large muscle with a very high-volume session: +12 h.');
+      factors.push(L('Large muscle with a very high-volume session: +12 h.', 'Крупная мышца и очень объёмная тренировка: +12 ч.'));
     }
     // Sets taken to failure slow recovery by roughly a day (Morán-Navarro 2017); unfamiliar
     // exercises cause more damage than familiar ones (repeated-bout effect, Damas 2016/2018).
@@ -180,7 +182,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     }, 0);
     if (failureSets >= 2) {
       window += 12;
-      factors.push(`${failureSets} sets to failure in that session: +12 h.`);
+      factors.push(L(`${failureSets} sets to failure in that session: +12 h.`, `На той тренировке ${num(failureSets)} ${ruPlural(failureSets, 'подход', 'подхода', 'подходов')} до отказа: +12 ч.`));
     }
     const lastDate = last.date;
     // "New" needs at least one PERFORMED working set: a card holding only a warm-up or an unticked planned set
@@ -190,31 +192,31 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       !data.workouts.some((o) => o.date < lastDate && diffDays(lastDate, o.date) <= 21 && o.exercises.some((x) => sameMovement(x.exerciseId, e.exerciseId))));
     if (novel.length && data.workouts.some((o) => o.date < lastDate)) {
       window += 12;
-      factors.push('Exercise new to you in the last 3 weeks (more muscle damage expected): +12 h.');
+      factors.push(L('Exercise new to you in the last 3 weeks (more muscle damage expected): +12 h.', 'Упражнение, новое для вас за последние 3 недели (ожидается больше повреждения мышц): +12 ч.'));
     }
     if (soreness != null && soreness >= 3) {
       window += 24;
-      factors.push(`Reported soreness ${soreness}/4: +24 h.`);
+      factors.push(L(`Reported soreness ${soreness}/4: +24 h.`, `Отмеченная болезненность ${soreness}/4: +24 ч.`));
     } else if (soreness != null && soreness >= 2) {
       window += 12;
-      factors.push(`Reported soreness ${soreness}/4: +12 h.`);
+      factors.push(L(`Reported soreness ${soreness}/4: +12 h.`, `Отмеченная болезненность ${soreness}/4: +12 ч.`));
     }
     if (avgSleep != null && avgSleep < 6) {
       window += 12;
-      factors.push(`Recent sleep ~${avgSleep.toFixed(1)} h (<6 h): +12 h.`);
+      factors.push(L(`Recent sleep ~${avgSleep.toFixed(1)} h (<6 h): +12 h.`, `Сон в последние дни ~${num(avgSleep, 1)} ч (<6 ч): +12 ч.`));
     }
     if (maxFatigue != null && maxFatigue >= 4) {
       window += 12;
-      factors.push(`High reported fatigue (${maxFatigue}/5): +12 h.`);
+      factors.push(L(`High reported fatigue (${maxFatigue}/5): +12 h.`, `Высокая отмеченная усталость (${maxFatigue}/5): +12 ч.`));
     }
     const readiness = Math.max(0, Math.min(1, hoursSince / window));
     let status: RecoveryStatus = hoursSince >= window ? 'likely_recovered' : 'recovering';
     if (soreness != null && soreness >= 3 && status === 'likely_recovered') {
       status = 'recovering';
-      factors.push('Still reporting marked soreness — treated as recovering.');
+      factors.push(L('Still reporting marked soreness — treated as recovering.', 'Всё ещё отмечается выраженная болезненность — считается, что мышца восстанавливается.'));
     }
-    if (hoursSince > 240) factors.push('More than 10 days since the last significant stimulus.');
-    if (soreness == null && avgSleep == null) factors.push('No soreness/sleep data recently — estimate is based on training load only.');
+    if (hoursSince > 240) factors.push(L('More than 10 days since the last significant stimulus.', 'С последней значимой нагрузки прошло больше 10 дней.'));
+    if (soreness == null && avgSleep == null) factors.push(L('No soreness/sleep data recently — estimate is based on training load only.', 'Данных о болезненности и сне за последние дни нет — оценка только по тренировочной нагрузке.'));
     out[m] = {
       ...base, status, readiness: Math.round(readiness * 100) / 100, hoursSince: Math.round(hoursSince), lastStimulusDate: last.date,
       lastStimulusTime: endedHHMM, lastStimulusTimeSource: src,

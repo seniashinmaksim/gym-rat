@@ -11,9 +11,26 @@ import {
   Badge, Button, Callout, Card, CardTitle, Empty, Field, Input, Modal, NumInput, Page, Select, Table, Td, TextArea, cx, fmt, toast,
 } from '../components/ui';
 import { useAnalysis, useDraftSync, useNames } from '../hooks';
+import { KG, L, getLang, num, ruPlural } from '../../i18n';
 
 const KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith', 'barbell', 'dumbbell', 'kettlebell', 'bodyweight', 'band', 'other'];
-const pretty = (s: string) => s.replace(/_/g, ' ');
+// Equipment kinds, trend classes and setting names are stored codes / keys: only the shown label is translated.
+const KIND_RU: Record<string, string> = {
+  machine: 'тренажёр', plate_loaded: 'на дисках', cable: 'блок', smith: 'Смит', barbell: 'штанга', dumbbell: 'гантели',
+  kettlebell: 'гиря', bodyweight: 'свой вес', band: 'эспандер', other: 'другое',
+};
+const pretty = (s: string) => (getLang() === 'ru' ? KIND_RU[s] ?? s.replace(/_/g, ' ') : s.replace(/_/g, ' '));
+const TREND_RU: Record<string, string> = { progressing: 'прогресс', stable: 'стабильно', plateau: 'плато', declining: 'снижение', insufficient_data: 'мало данных' };
+const trendLabel = (cls: string) => (getLang() === 'ru' ? TREND_RU[cls] ?? cls.replace('_', ' ') : cls.replace('_', ' '));
+const SETTING_RU: Record<string, string> = {
+  seat: 'Сиденье', 'back pad': 'Спинка', backrest: 'Спинка', 'handle position': 'Положение рукояток', 'foot plate': 'Платформа для ног',
+  'foot position': 'Положение стоп', 'range limiter': 'Ограничитель амплитуды', 'arm pad': 'Подушка для рук', 'shin pad': 'Валик для голеней',
+  'ankle pad': 'Валик для лодыжек', 'thigh pad': 'Фиксатор бёдер', 'knee pad': 'Фиксатор коленей', 'chest pad': 'Упор для груди',
+  'shoulder pad': 'Плечевой упор', 'cable height': 'Высота блока', 'pulley height': 'Высота блока', 'strap setup': 'Настройка петель',
+  attachment: 'Рукоять', grip: 'Хват', depth: 'Глубина',
+};
+/** Shown name of a stored setting key (the key itself is never changed). */
+const settingLabel = (k: string) => (getLang() === 'ru' ? SETTING_RU[k.trim().toLowerCase()] ?? k : k);
 const UNASSIGNED = '__none__';
 
 export function EquipmentPage() {
@@ -52,7 +69,7 @@ export function EquipmentPage() {
   const match = (e: Equipment) => {
     if (!q.trim()) return true;
     const s = q.toLowerCase();
-    return [e.name, e.manufacturer, e.model, e.kind, ...e.exerciseIds.map((id) => a.registry.get(id)?.name.en ?? '')].some((x) => x?.toLowerCase().includes(s));
+    return [e.name, e.manufacturer, e.model, e.kind, ...e.exerciseIds.flatMap((id) => [a.registry.get(id)?.name.en ?? '', a.registry.get(id)?.name.ru ?? ''])].some((x) => x?.toLowerCase().includes(s));
   };
 
   const unidentified = data.equipment.filter((e) => !e.identified).length;
@@ -61,25 +78,26 @@ export function EquipmentPage() {
 
   return (
     <Page
-      title="Equipment & gyms"
-      subtitle={`${data.locations.length} gym${data.locations.length === 1 ? '' : 's'} · ${data.equipment.length} equipment instance${data.equipment.length === 1 ? '' : 's'}${unidentified ? ` · ${unidentified} to identify` : ''}`}
+      title={L('Equipment & gyms', 'Оборудование и залы')}
+      subtitle={L(`${data.locations.length} gym${data.locations.length === 1 ? '' : 's'} · ${data.equipment.length} equipment instance${data.equipment.length === 1 ? '' : 's'}${unidentified ? ` · ${unidentified} to identify` : ''}`,
+        `${data.locations.length} ${ruPlural(data.locations.length, 'зал', 'зала', 'залов')} · ${data.equipment.length} ${ruPlural(data.equipment.length, 'единица', 'единицы', 'единиц')} оборудования${unidentified ? ` · уточнить: ${unidentified}` : ''}`)}
       actions={<>
-        <Button onClick={() => setLocForm('new')}><IconMapPin size={16} /> Add gym</Button>
-        <Button variant="primary" onClick={() => setEqForm({ eq: null, locationId: data.locations[0]?.id ?? null })}><IconPlus size={16} /> Add equipment</Button>
+        <Button onClick={() => setLocForm('new')}><IconMapPin size={16} /> {L('Add gym', 'Добавить зал')}</Button>
+        <Button variant="primary" onClick={() => setEqForm({ eq: null, locationId: data.locations[0]?.id ?? null })}><IconPlus size={16} /> {L('Add equipment', 'Оборудование')}</Button>
       </>}
     >
-      <Callout tone="info" icon={<IconMachine size={18} />} title="Each machine has its own history">Loads are never compared between machines. Unknown make? Save it and identify it later.</Callout>
+      <Callout tone="info" icon={<IconMachine size={18} />} title={L('Each machine has its own history', 'У каждого тренажёра своя история')}>{L('Loads are never compared between machines. Unknown make? Save it and identify it later.', 'Веса между тренажёрами не сравниваются. Не знаете марку? Сохраните и уточните позже.')}</Callout>
 
       {data.equipment.length > 0 && (
         <div className="relative max-w-md">
           <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find equipment, brand or exercise…" className="pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L('Find equipment, brand or exercise…', 'Найти оборудование, марку или упражнение…')} className="pl-9" />
         </div>
       )}
 
       {data.locations.length === 0 && data.equipment.length === 0 ? (
-        <Empty title="No gyms yet" action={<Button variant="primary" onClick={() => setLocForm('new')}><IconMapPin size={16} /> Add your first gym</Button>}>
-          Add the gyms you train at, then the machines you use there. Claude can also create equipment records when you import a workout.
+        <Empty title={L('No gyms yet', 'Залов пока нет')} action={<Button variant="primary" onClick={() => setLocForm('new')}><IconMapPin size={16} /> {L('Add your first gym', 'Добавить первый зал')}</Button>}>
+          {L('Add the gyms you train at, then the machines you use there. Claude can also create equipment records when you import a workout.', 'Добавьте залы, где тренируетесь, затем тренажёры в них. Claude тоже может создавать записи оборудования при импорте тренировки.')}
         </Empty>
       ) : (
         <div className="space-y-5">
@@ -122,20 +140,20 @@ function LocationCard({ loc, sessions, equipment, totalEq, sessionsOnEq, exName,
             {loc ? <IconMapPin size={20} /> : <IconAlert size={20} />}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-ink-900 dark:text-white">{loc ? loc.name : 'Unassigned equipment'}</h2>
+            <h2 className="truncate text-base font-semibold text-ink-900 dark:text-white">{loc ? loc.name : L('Unassigned equipment', 'Оборудование без зала')}</h2>
             <p className="text-xs text-ink-500 dark:text-ink-400">
-              {loc ? <>{loc.address ? `${loc.address} · ` : ''}{sessions} session{sessions === 1 ? '' : 's'} · {totalEq} item{totalEq === 1 ? '' : 's'} · id <code className="text-[10px]">{loc.id}</code></> : 'Not linked to a gym — assign a location so Claude can match it.'}
+              {loc ? <>{loc.address ? `${loc.address} · ` : ''}{L(`${sessions} session${sessions === 1 ? '' : 's'} · ${totalEq} item${totalEq === 1 ? '' : 's'}`, `${sessions} ${ruPlural(sessions, 'тренировка', 'тренировки', 'тренировок')} · ${totalEq} шт.`)} · id <code className="text-[10px]">{loc.id}</code></> : L('Not linked to a gym — assign a location so Claude can match it.', 'Не привязано к залу — укажите зал, чтобы Claude мог его сопоставить.')}
             </p>
           </div>
         </div>
         <div className="flex gap-2">
-          {onEdit && <Button size="sm" variant="ghost" onClick={onEdit}><IconEdit size={14} /> Edit gym</Button>}
-          <Button size="sm" onClick={onAddEq}><IconPlus size={14} /> Equipment</Button>
+          {onEdit && <Button size="sm" variant="ghost" onClick={onEdit}><IconEdit size={14} /> {L('Edit gym', 'Изменить зал')}</Button>}
+          <Button size="sm" onClick={onAddEq}><IconPlus size={14} /> {L('Equipment', 'Оборудование')}</Button>
         </div>
       </div>
       {loc && loc.photoIds.length > 0 && <div className="border-b border-ink-100 px-4 py-3 dark:border-ink-800 sm:px-5"><PhotoGrid photoIds={loc.photoIds} size="sm" /></div>}
       {equipment.length === 0 ? (
-        <p className="p-5 text-sm text-ink-500">{totalEq ? 'No matches for this search.' : 'No equipment recorded here yet.'}</p>
+        <p className="p-5 text-sm text-ink-500">{totalEq ? L('No matches for this search.', 'Ничего не найдено.') : L('No equipment recorded here yet.', 'Здесь пока нет оборудования.')}</p>
       ) : (
         <ul className="divide-y divide-ink-100 dark:divide-ink-800">
           {equipment.map((e) => (
@@ -145,17 +163,17 @@ function LocationCard({ loc, sessions, equipment, totalEq, sessionsOnEq, exName,
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-ink-900 dark:text-white">{e.name}</span>
                     <Badge>{pretty(e.kind)}</Badge>
-                    {!e.identified && <Badge tone="warn">Unknown — identify later</Badge>}
+                    {!e.identified && <Badge tone="warn">{L('Unknown — identify later', 'Неизвестно — уточнить позже')}</Badge>}
                   </div>
                   <div className="mt-0.5 truncate text-xs text-ink-500 dark:text-ink-400">
-                    {[e.manufacturer, e.model].filter(Boolean).join(' ') || 'Make/model not recorded'}
-                    {e.incrementsKg.length ? ` · steps ${e.incrementsKg.join('/')} kg` : ''}
+                    {[e.manufacturer, e.model].filter(Boolean).join(' ') || L('Make/model not recorded', 'Марка и модель не указаны')}
+                    {e.incrementsKg.length ? L(` · steps ${e.incrementsKg.join('/')} kg`, ` · шаг ${e.incrementsKg.map((x) => num(x)).join('/')} кг`) : ''}
                     {e.exerciseIds.length ? ` · ${e.exerciseIds.slice(0, 3).map(exName).join(', ')}${e.exerciseIds.length > 3 ? '…' : ''}` : ''}
                   </div>
                 </div>
                 <div className="shrink-0 text-right text-xs text-ink-500">
                   <div className="font-semibold tabular-nums text-ink-800 dark:text-ink-100">{sessionsOnEq.get(e.id) ?? 0}</div>
-                  sessions
+                  {L('sessions', ruPlural(sessionsOnEq.get(e.id) ?? 0, 'тренировка', 'тренировки', 'тренировок'))}
                 </div>
               </button>
             </li>
@@ -176,7 +194,7 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
 
   const save = async (patch: Partial<Location> = {}) => {
     if (!name.trim()) {
-      toast('Gym name is required', 'bad');
+      toast(L('Gym name is required', 'Укажите название зала'), 'bad');
       return null;
     }
     const inc = [...new Set(fwInc.split(/[,;\s]+/).map((x) => Number(x.replace(',', '.'))).filter((x) => Number.isFinite(x) && x > 0))].sort((x, y) => x - y);
@@ -189,28 +207,29 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
     if (!loc) return;
     const eqs = data.equipment.filter((e) => e.locationId === loc.id);
     const ws = data.workouts.filter((w) => w.locationId === loc.id).length;
-    if (!window.confirm(`Delete "${loc.name}"?${eqs.length ? ` ${eqs.length} equipment item(s) become unassigned (their history is kept).` : ''}${ws ? ` ${ws} workout(s) keep their records but lose the gym link.` : ''}`)) return;
+    if (!window.confirm(L(`Delete "${loc.name}"?${eqs.length ? ` ${eqs.length} equipment item(s) become unassigned (their history is kept).` : ''}${ws ? ` ${ws} workout(s) keep their records but lose the gym link.` : ''}`,
+      `Удалить «${loc.name}»?${eqs.length ? ` Оборудование (${eqs.length} шт.) останется без зала, его история сохранится.` : ''}${ws ? ` Тренировки (${ws}) сохранят записи, но потеряют привязку к залу.` : ''}`))) return;
     for (const e of eqs) await store.saveEquipment({ ...e, locationId: null });
     for (const p of loc.photoIds) await store.deletePhoto(p);
     await store.deleteLocation(loc.id);
-    toast('Gym deleted');
+    toast(L('Gym deleted', 'Зал удалён'));
     onClose();
   };
 
   return (
-    <Modal open onClose={onClose} title={loc ? `Edit ${loc.name}` : 'Add gym'}
+    <Modal open onClose={onClose} title={loc ? L(`Edit ${loc.name}`, `Изменить: ${loc.name}`) : L('Add gym', 'Добавить зал')}
       footer={<>
-        {loc && <Button variant="danger" className="mr-auto" onClick={remove}><IconTrash size={14} /> Delete</Button>}
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={async () => { if (await save()) { toast('Gym saved'); onClose(); } }}>Save</Button>
+        {loc && <Button variant="danger" className="mr-auto" onClick={remove}><IconTrash size={14} /> {L('Delete', 'Удалить')}</Button>}
+        <Button onClick={onClose}>{L('Cancel', 'Отмена')}</Button>
+        <Button variant="primary" onClick={async () => { if (await save()) { toast(L('Gym saved', 'Зал сохранён')); onClose(); } }}>{L('Save', 'Сохранить')}</Button>
       </>}>
       <div className="space-y-3">
-        <Field label="Name" hint="Use a name you'll say to Claude, e.g. “Gym A” or “Downtown gym”."><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
-        <Field label="Address or area (optional)" hint="Stored encrypted. Keep it vague if you prefer."><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
-        <Field label="Dumbbell steps here (kg)" hint="The jumps between dumbbells at this gym, e.g. “2.5” or “1, 2”. Used for suggested weights. Empty = 2 kg default."><Input value={fwInc} onChange={(e) => setFwInc(e.target.value)} inputMode="decimal" placeholder="2.5" /></Field>
-        <Field label="Notes"><TextArea value={notes} onChange={(e) => setNotes(e.target.value)} className="font-sans text-sm" placeholder="Opening hours, busy times, what's missing…" /></Field>
+        <Field label={L('Name', 'Название')} hint={L("Use a name you'll say to Claude, e.g. “Gym A” or “Downtown gym”.", 'Название, которым вы будете называть зал в разговоре с Claude, напр. «Зал А» или «Зал в центре».')}><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+        <Field label={L('Address or area (optional)', 'Адрес или район (необязательно)')} hint={L('Stored encrypted. Keep it vague if you prefer.', 'Хранится в зашифрованном виде. Можно указать приблизительно.')}><Input value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
+        <Field label={L('Dumbbell steps here (kg)', 'Шаг гантелей в этом зале (кг)')} hint={L('The jumps between dumbbells at this gym, e.g. “2.5” or “1, 2”. Used for suggested weights. Empty = 2 kg default.', 'Разница между соседними гантелями в этом зале, напр. «2.5» или «1, 2» (дробную часть пишите через точку). Используется для предлагаемых весов. Пусто = 2 кг по умолчанию.')}><Input value={fwInc} onChange={(e) => setFwInc(e.target.value)} inputMode="decimal" placeholder="2.5" /></Field>
+        <Field label={L('Notes', 'Заметки')}><TextArea value={notes} onChange={(e) => setNotes(e.target.value)} className="font-sans text-sm" placeholder={L("Opening hours, busy times, what's missing…", 'Часы работы, часы пик, чего не хватает…')} /></Field>
         <div>
-          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Photos</div>
+          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Photos', 'Фото')}</div>
           {loc ? (
             <PhotoGrid photoIds={photoIds}
               onAdd={async (f) => {
@@ -226,7 +245,7 @@ function LocationForm({ loc, onClose }: { loc: Location | null; onClose: () => v
                 setPhotoIds(next);
                 await store.saveLocation({ ...loc, photoIds: next });
               }} />
-          ) : <p className="text-xs text-ink-500">Save the gym first, then add photos.</p>}
+          ) : <p className="text-xs text-ink-500">{L('Save the gym first, then add photos.', 'Сначала сохраните зал, затем добавьте фото.')}</p>}
         </div>
       </div>
     </Modal>
@@ -264,7 +283,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
   const identified = !!(manufacturer.trim() || model.trim());
 
   const save = async () => {
-    if (!name.trim()) return toast('Give the equipment a name, e.g. “Lat pulldown (left)”', 'bad');
+    if (!name.trim()) return toast(L('Give the equipment a name, e.g. “Lat pulldown (left)”', 'Дайте оборудованию название, напр. «Тяга верхнего блока (левая)»'), 'bad');
     setBusy(true);
     try {
       const now = new Date().toISOString();
@@ -297,7 +316,7 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
       };
       await store.saveEquipment(rec);
       clearEqDraft();
-      toast(eq ? 'Equipment updated' : 'Equipment added');
+      toast(eq ? L('Equipment updated', 'Оборудование обновлено') : L('Equipment added', 'Оборудование добавлено'));
       onSaved(id);
     } catch (e) {
       toast((e as Error).message, 'bad');
@@ -307,80 +326,80 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
   };
 
   return (
-    <Modal open onClose={onClose} wide title={eq ? `Edit ${eq.name}` : 'Add equipment'}
-      footer={<><Button onClick={() => { clearEqDraft(); onClose(); }}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></>}>
-      {d0 && <p className="mb-3 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs text-accent-700 dark:text-accent-300" data-testid="draft-restored">Unsaved machine restored — Cancel discards it.</p>}
+    <Modal open onClose={onClose} wide title={eq ? L(`Edit ${eq.name}`, `Изменить: ${eq.name}`) : L('Add equipment', 'Добавить оборудование')}
+      footer={<><Button onClick={() => { clearEqDraft(); onClose(); }}>{L('Cancel', 'Отмена')}</Button><Button variant="primary" onClick={save} disabled={busy}>{busy ? L('Saving…', 'Сохранение…') : L('Save', 'Сохранить')}</Button></>}>
+      {d0 && <p className="mb-3 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs text-accent-700 dark:text-accent-300" data-testid="draft-restored">{L('Unsaved machine restored — Cancel discards it.', 'Несохранённый тренажёр восстановлен — «Отмена» удалит его.')}</p>}
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Name" hint="How you'd describe it: “Lat pulldown”, “Hack squat (Gym B)”."><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
-          <Field label="Gym">
+          <Field label={L('Name', 'Название')} hint={L("How you'd describe it: “Lat pulldown”, “Hack squat (Gym B)”.", 'Как вы бы его описали: «Тяга верхнего блока», «Гакк-машина (зал Б)».')}><Input value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+          <Field label={L('Gym', 'Зал')}>
             <Select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-              <option value="">Unassigned</option>
+              <option value="">{L('Unassigned', 'Без зала')}</option>
               {data.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </Select>
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Type"><Select value={kind} onChange={(e) => setKind(e.target.value as EquipmentKind)}>{KINDS.map((k) => <option key={k} value={k}>{pretty(k)}</option>)}</Select></Field>
-          <Field label="Manufacturer" hint="Leave blank if unknown"><Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="Technogym, Matrix, Hammer…" /></Field>
-          <Field label="Model"><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Selection 900" /></Field>
+          <Field label={L('Type', 'Тип')}><Select value={kind} onChange={(e) => setKind(e.target.value as EquipmentKind)}>{KINDS.map((k) => <option key={k} value={k}>{pretty(k)}</option>)}</Select></Field>
+          <Field label={L('Manufacturer', 'Производитель')} hint={L('Leave blank if unknown', 'Оставьте пустым, если неизвестен')}><Input value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="Technogym, Matrix, Hammer…" /></Field>
+          <Field label={L('Model', 'Модель')}><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={L('e.g. Selection 900', 'напр. Selection 900')} /></Field>
         </div>
-        {!identified && <Callout tone="warn">No make/model — this will be saved as <b>Unknown — identify later</b>. A photo helps you or Claude identify it later.</Callout>}
+        {!identified && <Callout tone="warn">{L('No make/model — this will be saved as', 'Марка и модель не указаны — запись сохранится как')} <b>{L('Unknown — identify later', 'Неизвестно — уточнить позже')}</b>. {L('A photo helps you or Claude identify it later.', 'Фото поможет вам или Claude опознать его позже.')}</Callout>}
 
         <Card className="!p-3">
-          <CardTitle hint="Determines suggested load jumps. A 5 kg stack with a 2.5 kg add-on plate → “2.5, 5”. Plate-loaded → smallest plate pair.">Weight stack</CardTitle>
+          <CardTitle hint={L('Determines suggested load jumps. A 5 kg stack with a 2.5 kg add-on plate → “2.5, 5”. Plate-loaded → smallest plate pair.', 'Определяет предлагаемый шаг веса. Стек с шагом 5 кг и доп. грузом 2,5 кг → «2.5, 5» (дробную часть пишите через точку). Тренажёр на дисках → наименьшая пара дисков.')}>{L('Weight stack', 'Весовой стек')}</CardTitle>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Available increments (kg)"><Input value={increments} onChange={(e) => setIncrements(e.target.value)} placeholder="5 or 2.5, 5" /></Field>
-            <Field label="Min load (kg)"><NumInput value={minKg} onChange={setMinKg} /></Field>
-            <Field label="Max load (kg)"><NumInput value={maxKg} onChange={setMaxKg} /></Field>
+            <Field label={L('Available increments (kg)', 'Доступные шаги (кг)')}><Input value={increments} onChange={(e) => setIncrements(e.target.value)} placeholder={L('5 or 2.5, 5', '5 или 2.5, 5')} /></Field>
+            <Field label={L('Min load (kg)', 'Мин. вес (кг)')}><NumInput value={minKg} onChange={setMinKg} /></Field>
+            <Field label={L('Max load (kg)', 'Макс. вес (кг)')}><NumInput value={maxKg} onChange={setMaxKg} /></Field>
           </div>
           {(kind === 'barbell' || kind === 'smith') && (
-            <Field label="Empty bar weight (kg)" className="mt-3" hint="Only if you know it (e.g. weighed or labelled). Leave empty if unknown — it is never assumed."><NumInput value={barWeightKg} onChange={setBarWeightKg} step={0.5} placeholder="unknown" /></Field>
+            <Field label={L('Empty bar weight (kg)', 'Вес пустого грифа (кг)')} className="mt-3" hint={L('Only if you know it (e.g. weighed or labelled). Leave empty if unknown — it is never assumed.', 'Только если знаете точно (взвешен или есть маркировка). Если неизвестен — оставьте пустым: вес никогда не подставляется по умолчанию.')}><NumInput value={barWeightKg} onChange={setBarWeightKg} step={0.5} placeholder={L('unknown', 'неизвестно')} /></Field>
           )}
-          <Field label="Stack notes" className="mt-3"><Input value={stackNotes} onChange={(e) => setStackNotes(e.target.value)} placeholder="Numbers are pin positions, not kg; 2:1 pulley…" /></Field>
+          <Field label={L('Stack notes', 'Заметки о стеке')} className="mt-3"><Input value={stackNotes} onChange={(e) => setStackNotes(e.target.value)} placeholder={L('Numbers are pin positions, not kg; 2:1 pulley…', 'Цифры — номера отверстий, а не кг; блок 2:1…')} /></Field>
         </Card>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-xs font-medium text-ink-600 dark:text-ink-300">Personal settings</span>
-            <Button size="sm" variant="ghost" onClick={() => setSettings([...settings, ['', '']])}><IconPlus size={13} /> Add setting</Button>
+            <span className="text-xs font-medium text-ink-600 dark:text-ink-300">{L('Personal settings', 'Личные настройки')}</span>
+            <Button size="sm" variant="ghost" onClick={() => setSettings([...settings, ['', '']])}><IconPlus size={13} /> {L('Add setting', 'Добавить настройку')}</Button>
           </div>
           {settings.length === 0 && (
             <div className="flex flex-wrap gap-1.5">
               {['Seat', 'Back pad', 'Handle position', 'Foot plate', 'Range limiter'].map((k) => (
-                <button key={k} type="button" onClick={() => setSettings([...settings, [k, '']])} className="h-10 rounded-lg border border-dashed border-ink-300 px-3 text-xs text-ink-500 hover:border-accent-500 dark:border-ink-700">+ {k}</button>
+                <button key={k} type="button" onClick={() => setSettings([...settings, [k, '']])} className="h-10 rounded-lg border border-dashed border-ink-300 px-3 text-xs text-ink-500 hover:border-accent-500 dark:border-ink-700">+ {settingLabel(k)}</button>
               ))}
             </div>
           )}
           <div className="space-y-2">
             {settings.map(([k, v], i) => (
               <div key={i} className="flex gap-2">
-                <Input value={k} onChange={(e) => setSettings(settings.map((s, j) => (j === i ? [e.target.value, s[1]] : s)))} placeholder="Setting" className="flex-1" />
-                <Input value={v} onChange={(e) => setSettings(settings.map((s, j) => (j === i ? [s[0], e.target.value] : s)))} placeholder="Value" className="w-28" />
-                <Button variant="ghost" size="sm" className="h-10" aria-label="Remove setting" onClick={() => setSettings(settings.filter((_, j) => j !== i))}><IconX size={14} /></Button>
+                <Input value={k} onChange={(e) => setSettings(settings.map((s, j) => (j === i ? [e.target.value, s[1]] : s)))} placeholder={L('Setting', 'Настройка')} className="flex-1" />
+                <Input value={v} onChange={(e) => setSettings(settings.map((s, j) => (j === i ? [s[0], e.target.value] : s)))} placeholder={L('Value', 'Значение')} className="w-28" />
+                <Button variant="ghost" size="sm" className="h-10" aria-label={L('Remove setting', 'Удалить настройку')} onClick={() => setSettings(settings.filter((_, j) => j !== i))}><IconX size={14} /></Button>
               </div>
             ))}
           </div>
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">Exercises performed on it</div>
+          <div className="mb-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Exercises performed on it', 'Упражнения на этом оборудовании')}</div>
           <div className="mb-2 flex flex-wrap gap-1.5">
             {exerciseIds.map((id) => (
               <span key={id} className="inline-flex items-center gap-1 rounded-lg bg-accent-500/15 px-2 py-1 text-xs font-medium text-accent-600 dark:text-accent-400">
                 {names.ex(a.registry.get(id), id)}
-                <button type="button" aria-label="Remove" className="-my-2 -mr-2 flex h-9 w-9 items-center justify-center" onClick={() => setExerciseIds(exerciseIds.filter((x) => x !== id))}><IconX size={12} /></button>
+                <button type="button" aria-label={L('Remove', 'Убрать')} className="-my-2 -mr-2 flex h-9 w-9 items-center justify-center" onClick={() => setExerciseIds(exerciseIds.filter((x) => x !== id))}><IconX size={12} /></button>
               </span>
             ))}
-            {exerciseIds.length === 0 && <span className="text-xs text-ink-500">None linked yet — linking improves automatic matching on import.</span>}
+            {exerciseIds.length === 0 && <span className="text-xs text-ink-500">{L('None linked yet — linking improves automatic matching on import.', 'Пока ничего не привязано — привязка улучшает автоматическое сопоставление при импорте.')}</span>}
           </div>
-          <Input value={exQ} onChange={(e) => setExQ(e.target.value)} placeholder="Search exercise to link…" />
+          <Input value={exQ} onChange={(e) => setExQ(e.target.value)} placeholder={L('Search exercise to link…', 'Найти упражнение для привязки…')} />
           {suggestions.length > 0 && (
             <div className="mt-1 overflow-hidden rounded-xl border border-ink-200 dark:border-ink-700">
               {suggestions.map((d) => (
                 <button key={d.id} type="button" onClick={() => { setExerciseIds([...exerciseIds, d.id]); setExQ(''); }}
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-ink-50 dark:hover:bg-ink-850">
-                  <span>{d.name.en} <span className="text-xs text-ink-500">· {d.name.ru}</span></span>
+                  <span>{L(d.name.en, d.name.ru)} <span className="text-xs text-ink-500">· {L(d.name.ru, d.name.en)}</span></span>
                   <IconPlus size={14} />
                 </button>
               ))}
@@ -388,12 +407,12 @@ export function EquipmentForm({ eq, defaultLocation, onClose, onSaved, defaultEx
           )}
         </div>
 
-        <Field label="Notes"><TextArea value={notes} onChange={(e) => setNotes(e.target.value)} className="font-sans text-sm" placeholder="Feels heavier than the other one, cam is hardest at the top…" /></Field>
+        <Field label={L('Notes', 'Заметки')}><TextArea value={notes} onChange={(e) => setNotes(e.target.value)} className="font-sans text-sm" placeholder={L('Feels heavier than the other one, cam is hardest at the top…', 'Ощущается тяжелее соседнего, тяжелее всего в верхней точке…')} /></Field>
 
         {!eq && (
-          <Field label="Photos (encrypted)" hint="Optional. Helps identify the machine later.">
+          <Field label={L('Photos (encrypted)', 'Фото (шифруются)')} hint={L('Optional. Helps identify the machine later.', 'Необязательно. Поможет опознать тренажёр позже.')}>
             <PhotoPicker files={files} onChange={setFiles} />
-            {files.length > 0 && <span className="mt-1 block text-xs text-ink-500">{files.length} photo(s) will be encrypted on save.</span>}
+            {files.length > 0 && <span className="mt-1 block text-xs text-ink-500">{L(`${files.length} photo(s) will be encrypted on save.`, `Фото (${files.length}) будут зашифрованы при сохранении.`)}</span>}
           </Field>
         )}
       </div>
@@ -410,26 +429,26 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
 
   const remove = async () => {
     const used = series.reduce((s, p) => s + p.sessions.length, 0);
-    if (!window.confirm(used ? `Delete "${eq.name}"? ${used} logged session(s) reference it; they keep their data but will show as unidentified equipment.` : `Delete "${eq.name}"?`)) return;
+    if (!window.confirm(used ? L(`Delete "${eq.name}"? ${used} logged session(s) reference it; they keep their data but will show as unidentified equipment.`, `Удалить «${eq.name}»? На него ссылаются записанные тренировки (${used}); их данные сохранятся, но оборудование будет показано как неопознанное.`) : L(`Delete "${eq.name}"?`, `Удалить «${eq.name}»?`))) return;
     for (const p of eq.photoIds) await store.deletePhoto(p);
     await store.deleteEquipment(eq.id);
-    toast('Equipment deleted');
+    toast(L('Equipment deleted', 'Оборудование удалено'));
     onClose();
   };
 
   return (
     <Modal open onClose={onClose} wide title={eq.name}
-      footer={<><Button variant="danger" className="mr-auto" onClick={remove}><IconTrash size={14} /> Delete</Button><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={onEdit}><IconEdit size={14} /> Edit</Button></>}>
+      footer={<><Button variant="danger" className="mr-auto" onClick={remove}><IconTrash size={14} /> {L('Delete', 'Удалить')}</Button><Button onClick={onClose}>{L('Close', 'Закрыть')}</Button><Button variant="primary" onClick={onEdit}><IconEdit size={14} /> {L('Edit', 'Изменить')}</Button></>}>
       <div className="space-y-5">
         <div className="flex flex-wrap gap-1.5">
           <Badge>{pretty(eq.kind)}</Badge>
-          {eq.identified ? <Badge tone="good">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</Badge> : <Badge tone="warn">Unknown — identify later</Badge>}
-          <Badge tone="accent"><IconMapPin size={11} /> {loc?.name ?? 'Unassigned'}</Badge>
+          {eq.identified ? <Badge tone="good">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</Badge> : <Badge tone="warn">{L('Unknown — identify later', 'Неизвестно — уточнить позже')}</Badge>}
+          <Badge tone="accent"><IconMapPin size={11} /> {loc?.name ?? L('Unassigned', 'Без зала')}</Badge>
           <Badge>id {eq.id}</Badge>
         </div>
 
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Photos</h4>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{L('Photos', 'Фото')}</h4>
           <PhotoGrid photoIds={eq.photoIds}
             onAdd={async (f) => {
               const p = await store.addPhoto(f, { kind: 'equipment', ownerId: eq.id });
@@ -444,29 +463,29 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-2xl bg-ink-50 p-3 dark:bg-ink-950">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500">Weight stack</div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500">{L('Weight stack', 'Весовой стек')}</div>
             <dl className="space-y-1 text-sm">
-              <Row k="Increments" v={eq.incrementsKg.length ? `${eq.incrementsKg.join(' / ')} kg` : 'Not set (default used)'} />
-              <Row k="Range" v={eq.minKg != null || eq.maxKg != null ? `${fmt(eq.minKg)} – ${fmt(eq.maxKg)} kg` : '—'} />
-              {(eq.kind === 'barbell' || eq.kind === 'smith') && <Row k="Bar weight" v={eq.barWeightKg != null ? `${fmt(eq.barWeightKg, 2)} kg` : 'Unknown (not assumed)'} />}
-              {eq.stackNotes && <Row k="Notes" v={eq.stackNotes} />}
+              <Row k={L('Increments', 'Шаги')} v={eq.incrementsKg.length ? L(`${eq.incrementsKg.join(' / ')} kg`, `${eq.incrementsKg.map((x) => num(x)).join(' / ')} кг`) : L('Not set (default used)', 'Не заданы (по умолчанию)')} />
+              <Row k={L('Range', 'Диапазон')} v={eq.minKg != null || eq.maxKg != null ? `${fmt(eq.minKg)} – ${fmt(eq.maxKg)} ${KG()}` : '—'} />
+              {(eq.kind === 'barbell' || eq.kind === 'smith') && <Row k={L('Bar weight', 'Вес грифа')} v={eq.barWeightKg != null ? `${fmt(eq.barWeightKg, 2)} ${KG()}` : L('Unknown (not assumed)', 'Неизвестен (не подставляется)')} />}
+              {eq.stackNotes && <Row k={L('Notes', 'Заметки')} v={eq.stackNotes} />}
             </dl>
           </div>
           <div className="rounded-2xl bg-ink-50 p-3 dark:bg-ink-950">
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500">My settings</div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-500">{L('My settings', 'Мои настройки')}</div>
             {Object.keys(eq.settings).length ? (
-              <dl className="space-y-1 text-sm">{Object.entries(eq.settings).map(([k, v]) => <Row key={k} k={k} v={v || '—'} />)}</dl>
-            ) : <p className="text-sm text-ink-500">No settings saved.</p>}
+              <dl className="space-y-1 text-sm">{Object.entries(eq.settings).map(([k, v]) => <Row key={k} k={settingLabel(k)} v={v || '—'} />)}</dl>
+            ) : <p className="text-sm text-ink-500">{L('No settings saved.', 'Настройки не сохранены.')}</p>}
           </div>
         </div>
 
         {eq.notes && <p className="text-sm leading-relaxed text-ink-700 dark:text-ink-200">{eq.notes}</p>}
 
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">Training history on this machine</h4>
-          <Callout tone="warn" icon={<IconAlert size={16} />}>Loads below apply to <b>this machine only</b>. They are not comparable with the same exercise on other equipment.</Callout>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">{L('Training history on this machine', 'История тренировок на этом тренажёре')}</h4>
+          <Callout tone="warn" icon={<IconAlert size={16} />}>{L('Loads below apply to', 'Веса ниже относятся')} <b>{L('this machine only', 'только к этому тренажёру')}</b>. {L('They are not comparable with the same exercise on other equipment.', 'Их нельзя сравнивать с тем же упражнением на другом оборудовании.')}</Callout>
           {series.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-500">No logged sets on this equipment yet.</p>
+            <p className="mt-3 text-sm text-ink-500">{L('No logged sets on this equipment yet.', 'На этом оборудовании пока нет записанных подходов.')}</p>
           ) : (
             <div className="mt-3 space-y-4">
               {series.map((s) => (
@@ -474,16 +493,16 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium text-ink-900 dark:text-white">{names.ex(a.registry.get(s.exerciseId), s.exerciseId)}</span>
                     <span className="flex gap-1.5">
-                      <Badge tone={s.trend.cls === 'progressing' ? 'good' : s.trend.cls === 'declining' ? 'bad' : s.trend.cls === 'plateau' ? 'warn' : 'neutral'}>{s.trend.cls.replace('_', ' ')}</Badge>
-                      {s.best.weight != null && <Badge tone="accent">best {fmt(s.best.weight)} kg × {s.best.reps ?? '?'}</Badge>}
+                      <Badge tone={s.trend.cls === 'progressing' ? 'good' : s.trend.cls === 'declining' ? 'bad' : s.trend.cls === 'plateau' ? 'warn' : 'neutral'}>{trendLabel(s.trend.cls)}</Badge>
+                      {s.best.weight != null && <Badge tone="accent">{L('best', 'рекорд')} {fmt(s.best.weight)} {KG()} × {s.best.reps ?? '?'}</Badge>}
                     </span>
                   </div>
                   <p className="mb-2 text-xs text-ink-500">{s.trend.evidence}</p>
-                  <Table dense head={['Date', 'Top set', 'RIR', 'Sets', 'Index']}>
+                  <Table dense head={[L('Date', 'Дата'), L('Top set', 'Лучший подх.'), 'RIR', L('Sets', 'Подх.'), L('Index', 'Индекс')]}>
                     {[...s.sessions].reverse().slice(0, 8).map((p) => (
                       <tr key={p.workoutId}>
                         <Td right={false}>{formatDate(p.date)}</Td>
-                        <Td>{p.topWeight != null ? `${fmt(p.topWeight)} kg × ${p.topReps ?? '?'}` : `${p.topReps ?? '?'} reps`}</Td>
+                        <Td>{p.topWeight != null ? `${fmt(p.topWeight)} ${KG()} × ${p.topReps ?? '?'}` : `${p.topReps ?? '?'} ${L('reps', 'повт.')}`}</Td>
                         <Td>{p.topRir ?? '—'}</Td>
                         <Td>{p.sets.length}</Td>
                         <Td>{fmt(p.index)}</Td>
@@ -495,7 +514,7 @@ function EquipmentDetail({ eq, onClose, onEdit }: { eq: Equipment; onClose: () =
             </div>
           )}
         </div>
-        <p className="text-[11px] text-ink-500">Added {formatDate(eq.createdAt.slice(0, 10))} · updated {formatDate(eq.updatedAt.slice(0, 10))} · use the id <code>{eq.id}</code> when telling Claude which machine you used.</p>
+        <p className="text-[11px] text-ink-500">{L('Added', 'Добавлено')} {formatDate(eq.createdAt.slice(0, 10))} · {L('updated', 'обновлено')} {formatDate(eq.updatedAt.slice(0, 10))} · {L('use the id', 'указывайте id')} <code>{eq.id}</code>{L(' when telling Claude which machine you used.', ', когда сообщаете Claude, каким тренажёром пользовались.')}</p>
       </div>
     </Modal>
   );

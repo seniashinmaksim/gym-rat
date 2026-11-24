@@ -3,6 +3,11 @@ import type { MuscleWeek } from '../../domain/analysis';
 import { muscleName } from '../../domain/muscles';
 import type { MuscleId } from '../../domain/types';
 import { cx, fmt } from './ui';
+import { getLang, L } from '../../i18n';
+
+/** Recovery status (a stored value) → the words shown. */
+const recoveryLabel = (s: MuscleWeek['recovery']['status']) =>
+  L(s.replace('_', ' '), s === 'likely_recovered' ? 'вероятно восстановилась' : s === 'recovering' ? 'восстанавливается' : 'мало данных');
 
 /**
  * Front/back anatomical map. Each muscle is drawn once on the left half and mirrored.
@@ -101,7 +106,7 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
         onClick={() => onSelect?.(s.m)}
         role="button"
         tabIndex={0}
-        aria-label={muscleName(s.m)}
+        aria-label={muscleName(s.m, getLang())}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect?.(s.m)}
       />
     );
@@ -109,7 +114,7 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
 
   const figure = (shapes: Shape[], label: string, front: boolean) => (
     <figure className="flex flex-1 flex-col items-center">
-      <svg viewBox="30 20 160 432" className={cx('w-full text-ink-900 dark:text-white', compact ? 'max-h-[260px]' : 'max-h-[380px]')} role="img" aria-label={`${label} muscle map`}>
+      <svg viewBox="30 20 160 432" className={cx('w-full text-ink-900 dark:text-white', compact ? 'max-h-[260px]' : 'max-h-[380px]')} role="img" aria-label={L(`${label} muscle map`, `Карта мышц: ${label.toLowerCase()}`)}>
         <g className="fill-ink-200 dark:fill-ink-800">
           <ellipse cx="110" cy="42" rx="20" ry="25" />
           <path d={SILHOUETTE} />
@@ -133,19 +138,19 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
   return (
     <div>
       <div className="flex gap-2">
-        {figure(FRONT, 'Front', true)}
-        {figure(BACK, 'Back', false)}
+        {figure(FRONT, L('Front', 'Спереди'), true)}
+        {figure(BACK, L('Back', 'Сзади'), false)}
       </div>
       <div className="mt-3 min-h-[44px] rounded-xl bg-ink-50 px-3 py-2 text-xs dark:bg-ink-950">
         {info ? (
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className="font-semibold text-ink-900 dark:text-white">{muscleName(info.muscle)}</span>
+            <span className="font-semibold text-ink-900 dark:text-white">{muscleName(info.muscle, getLang())}</span>
             {mode === 'volume' ? (
               <span className="tabular-nums text-ink-600 dark:text-ink-300">
-                {fmt(info.completed)} / {fmt(info.target.preferred)} sets · <b>{fmt(info.remainingToPreferred)}</b> left
+                {fmt(info.completed)} / {fmt(info.target.preferred)} {L('sets', 'подх.')} · {L('', 'осталось ')}<b>{fmt(info.remainingToPreferred)}</b>{L(' left', '')}
               </span>
             ) : (
-              <span className="text-ink-600 dark:text-ink-300">{info.recovery.status.replace('_', ' ')}{info.recovery.hoursSince != null ? ` · ${info.recovery.hoursSince} h since` : ''}</span>
+              <span className="text-ink-600 dark:text-ink-300">{recoveryLabel(info.recovery.status)}{info.recovery.hoursSince != null ? L(` · ${info.recovery.hoursSince} h since`, ` · ${info.recovery.hoursSince} ч назад`) : ''}</span>
             )}
           </div>
         ) : (
@@ -158,14 +163,14 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
 
 function Legend({ mode }: { mode: BodyMapMode }) {
   const items = mode === 'volume'
-    ? [['done', 'Target met'], ['on_track', 'On track'], ['behind', 'Behind'], ['at_risk', 'At risk'], ['over', 'Above range']]
-    : [['likely_recovered', 'Likely recovered'], ['recovering', 'Recovering'], ['insufficient_data', 'No data']];
+    ? [['done', L('Target met', 'Цель достигнута')], ['on_track', L('On track', 'По плану')], ['behind', L('Behind', 'Отстаёт')], ['at_risk', L('At risk', 'Под угрозой')], ['over', L('Above range', 'Выше диапазона')]]
+    : [['likely_recovered', L('Likely recovered', 'Вероятно восстановилась')], ['recovering', L('Recovering', 'Восстанавливается')], ['insufficient_data', L('No data', 'Нет данных')]];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-ink-500 dark:text-ink-400">
       {items.map(([k, l]) => (
         <span key={k} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_FILL[k] }} />{l}</span>
       ))}
-      <span className="text-ink-400">· Tap a muscle</span>
+      <span className="text-ink-400">{L('· Tap a muscle', '· Нажмите на мышцу')}</span>
     </div>
   );
 }

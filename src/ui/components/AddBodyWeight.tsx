@@ -13,10 +13,11 @@ import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { useDraftSync } from '../hooks';
 import { Button, cx, Field, Input, Modal, NumInput, toast } from './ui';
+import { byLang, L, num } from '../../i18n';
 
-const CONDITIONS: [NonNullable<BodyMeasurement['condition']>, string][] = [
-  ['morning_fasted', 'Morning, fasted'], ['after_breakfast', 'After breakfast'], ['before_workout', 'Before workout'], ['after_workout', 'After workout'], ['evening', 'Evening'],
-];
+const CONDITIONS: [NonNullable<BodyMeasurement['condition']>, string][] = byLang(() => [
+  ['morning_fasted', L('Morning, fasted', 'Утром натощак')], ['after_breakfast', L('After breakfast', 'После завтрака')], ['before_workout', L('Before workout', 'До тренировки')], ['after_workout', L('After workout', 'После тренировки')], ['evening', L('Evening', 'Вечером')],
+]);
 const DRAFT = 'bodyweight:new';
 
 type ExtraKey = 'waistCm' | 'chestCm' | 'shouldersCm' | 'armsCm' | 'forearmsCm' | 'thighsCm' | 'calvesCm';
@@ -57,23 +58,23 @@ function AddBodyWeightSheet({ open, onClose, entry, extraFields = [] }: Props) {
     if (busy) return;
     const { kg, date, time } = f;
     const anyExtra = Object.values(f.extra).some((v) => v != null);
-    if ((kg == null && !(editing && anyExtra)) || (kg != null && (kg < 25 || kg > 400))) return toast('Enter your weight in kg', 'bad');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return toast('Pick the date you weighed yourself', 'bad');
-    if (date > localNowParts(data.settings.timezone).date) return toast('That date is in the future', 'bad');
+    if ((kg == null && !(editing && anyExtra)) || (kg != null && (kg < 25 || kg > 400))) return toast(L('Enter your weight in kg', 'Введите вес в кг'), 'bad');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return toast(L('Pick the date you weighed yourself', 'Укажите дату взвешивания'), 'bad');
+    if (date > localNowParts(data.settings.timezone).date) return toast(L('That date is in the future', 'Эта дата ещё не наступила'), 'bad');
     const t = /^\d{2}:\d{2}$/.test(time) ? time : null;
     const kgR = kg == null ? null : Math.round(kg * 10) / 10; // stored rounded → compare rounded
-    if (!editing && kgR != null && isDuplicateWeighIn(data.body, kgR, date, t)) return toast('Already saved for this time', 'bad');
+    if (!editing && kgR != null && isDuplicateWeighIn(data.body, kgR, date, t)) return toast(L('Already saved for this time', 'На это время запись уже есть'), 'bad');
     setBusy(true);
     try {
       if (entry) {
         const next: BodyMeasurement = { ...entry, date, time: t, condition: f.condition ?? null, weightKg: kgR, notes: f.note.trim() || undefined };
         for (const x of extraFields) next[x.key] = f.extra[x.key] ?? null;
         await store.saveBody(next);
-        toast(`Entry updated${kgR != null ? ` · ${kgR} kg` : ''} · ${date} ${t ?? ''}`);
+        toast(L(`Entry updated${kgR != null ? ` · ${kgR} kg` : ''} · ${date} ${t ?? ''}`, `Запись обновлена${kgR != null ? ` · ${num(kgR)} кг` : ''} · ${date} ${t ?? ''}`));
       } else {
         await store.saveBody({ id: uid('bm'), date, time: t, enteredAt: new Date().toISOString(), condition: f.condition ?? null, weightKg: kgR, photoIds: [], notes: f.note.trim() || undefined });
         clearDraft();
-        toast(`Saved ${kgR} kg · ${date} ${t ?? ''}`);
+        toast(L(`Saved ${kgR} kg · ${date} ${t ?? ''}`, `Сохранено: ${kgR == null ? '' : num(kgR)} кг · ${date} ${t ?? ''}`));
       }
       onClose();
     } finally {
@@ -84,21 +85,21 @@ function AddBodyWeightSheet({ open, onClose, entry, extraFields = [] }: Props) {
   const cancel = () => { if (!editing) clearDraft(); setRestored(false); onClose(); };
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? 'Edit entry' : 'Add body weight'} footer={<><Button variant="ghost" onClick={cancel}>Cancel</Button><Button variant="primary" onClick={save} disabled={busy || (f.kg == null && !editing)}>Save</Button></>}>
+    <Modal open={open} onClose={onClose} title={editing ? L('Edit entry', 'Изменить запись') : L('Add body weight', 'Добавить вес тела')} footer={<><Button variant="ghost" onClick={cancel}>{L('Cancel', 'Отмена')}</Button><Button variant="primary" onClick={save} disabled={busy || (f.kg == null && !editing)}>{L('Save', 'Сохранить')}</Button></>}>
       <div className="grid grid-cols-1 gap-3">
         {restored && (
           <p className="flex items-center justify-between gap-2 rounded-lg bg-accent-500/10 px-3 py-1.5 text-xs text-accent-700 dark:text-accent-300" data-testid="draft-restored">
-            <span>Unsaved entry restored.</span>
-            <button type="button" className="min-h-[36px] px-2 font-semibold" onClick={() => { clearDraft(); setRestored(false); setF(fresh()); setDirty(false); }}>Discard</button>
+            <span>{L('Unsaved entry restored.', 'Несохранённая запись восстановлена.')}</span>
+            <button type="button" className="min-h-[36px] px-2 font-semibold" onClick={() => { clearDraft(); setRestored(false); setF(fresh()); setDirty(false); }}>{L('Discard', 'Сбросить')}</button>
           </p>
         )}
-        <Field label="Weight (kg)"><NumInput value={f.kg} onChange={(v) => edit({ kg: v })} step={0.1} placeholder="e.g. 82.4" aria-label="Body weight in kg" /></Field>
+        <Field label={L('Weight (kg)', 'Вес (кг)')}><NumInput value={f.kg} onChange={(v) => edit({ kg: v })} step={0.1} placeholder={L('e.g. 82.4', 'напр. 82,4')} aria-label={L('Body weight in kg', 'Вес тела в кг')} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Measured on"><Input type="date" value={f.date} onChange={(e) => edit({ date: e.target.value })} /></Field>
-          <Field label="at"><Input type="time" value={f.time} onChange={(e) => edit({ time: e.target.value })} /></Field>
+          <Field label={L('Measured on', 'Дата замера')}><Input type="date" value={f.date} onChange={(e) => edit({ date: e.target.value })} /></Field>
+          <Field label={L('at', 'Время')}><Input type="time" value={f.time} onChange={(e) => edit({ time: e.target.value })} /></Field>
         </div>
         <div>
-          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">Condition <span className="font-normal text-ink-400">(optional)</span></div>
+          <div className="mb-1 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Condition', 'Условия')} <span className="font-normal text-ink-400">{L('(optional)', '(необязательно)')}</span></div>
           <div className="flex flex-wrap gap-1.5">
             {CONDITIONS.map(([v, l]) => (
               <button key={v} type="button" aria-pressed={f.condition === v} onClick={() => edit({ condition: f.condition === v ? null : v })}
@@ -113,8 +114,8 @@ function AddBodyWeightSheet({ open, onClose, entry, extraFields = [] }: Props) {
             ))}
           </div>
         )}
-        <Field label="Note (optional)"><Input value={f.note} onChange={(e) => edit({ note: e.target.value })} placeholder="Optional" /></Field>
-        <p className="text-[11px] text-ink-500">Set the time you actually weighed yourself — workouts use the latest weigh-in taken before they started.</p>
+        <Field label={L('Note (optional)', 'Заметка (необязательно)')}><Input value={f.note} onChange={(e) => edit({ note: e.target.value })} placeholder={L('Optional', 'Необязательно')} /></Field>
+        <p className="text-[11px] text-ink-500">{L('Set the time you actually weighed yourself — workouts use the latest weigh-in taken before they started.', 'Укажите время, когда вы действительно взвешивались, — для тренировки берётся последнее взвешивание до её начала.')}</p>
       </div>
     </Modal>
   );

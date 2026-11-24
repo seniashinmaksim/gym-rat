@@ -14,10 +14,11 @@ import {
   Badge, Button, Callout, Card, CardTitle, confirmAction, cx, Empty, Field, fmt, Input, Modal, Page, Select, Stat, Stepper, TextArea, toast, Why,
 } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
+import { L, byLang, getLang } from '../../i18n';
 
-const KIND_LABEL: Record<TrainingBlock['kind'], string> = {
-  accumulation: 'Accumulation', maintenance: 'Maintenance', deload: 'Deload', specialization: 'Specialization', other: 'Other',
-};
+const KIND_LABEL: Record<TrainingBlock['kind'], string> = byLang(() => ({
+  accumulation: L('Accumulation', 'Накопление'), maintenance: L('Maintenance', 'Поддержание'), deload: L('Deload', 'Разгрузка'), specialization: L('Specialization', 'Специализация'), other: L('Other', 'Другое'),
+}));
 
 export function PeriodizationPage() {
   const a = useAnalysis();
@@ -29,9 +30,9 @@ export function PeriodizationPage() {
 
   return (
     <Page
-      title="Periodization"
-      subtitle="Flexible training blocks, volume trends and evidence-based deload signals."
-      actions={<Button variant="primary" onClick={() => setEditing('new')}><IconPlus size={16} /> New block</Button>}
+      title={L('Periodization', 'Периодизация')}
+      subtitle={L('Flexible training blocks, volume trends and evidence-based deload signals.', 'Гибкие тренировочные блоки, тренды объёма и обоснованные сигналы к разгрузке.')}
+      actions={<Button variant="primary" onClick={() => setEditing('new')}><IconPlus size={16} /> {L('New block', 'Новый блок')}</Button>}
     >
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <CurrentBlockCard block={block} today={a.today} onEdit={(b) => setEditing(b)} onNew={() => setEditing('new')} />
@@ -43,9 +44,9 @@ export function PeriodizationPage() {
       <HeatTable />
 
       <Card>
-        <CardTitle hint="All blocks, newest first. Blocks organize your history. They don't change how volume is counted.">Block history</CardTitle>
+        <CardTitle hint={L("All blocks, newest first. Blocks organize your history. They don't change how volume is counted.", 'Все блоки, сначала новые. Блоки упорядочивают историю. На подсчёт объёма они не влияют.')}>{L('Block history', 'История блоков')}</CardTitle>
         {blocks.length === 0 ? (
-          <p className="text-sm text-ink-500">No blocks yet. Blocks are optional: a 4–8 week frame helps compare progress between phases.</p>
+          <p className="text-sm text-ink-500">{L('No blocks yet. Blocks are optional: a 4–8 week frame helps compare progress between phases.', 'Блоков пока нет. Они необязательны: рамка в 4–8 недель помогает сравнивать прогресс между этапами.')}</p>
         ) : (
           <ul className="divide-y divide-ink-100 dark:divide-ink-800">
             {blocks.map((b) => {
@@ -58,18 +59,18 @@ export function PeriodizationPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-ink-900 dark:text-white">{b.name}</span>
                       <Badge tone="neutral">{KIND_LABEL[b.kind]}</Badge>
-                      {active && <Badge tone="accent">Active</Badge>}
+                      {active && <Badge tone="accent">{L('Active', 'Активный')}</Badge>}
                     </div>
                     <div className="mt-0.5 text-xs text-ink-500">
-                      {formatDate(b.startDate)} → {end ? formatDate(end) : 'ongoing'} · {Math.max(0, weeks)} wk of {b.plannedWeeks} planned{b.focus ? ` · ${b.focus}` : ''}
+                      {formatDate(b.startDate)} → {end ? formatDate(end) : L('ongoing', 'идёт')} · {L(`${Math.max(0, weeks)} wk of ${b.plannedWeeks} planned`, `${Math.max(0, weeks)} нед. из ${b.plannedWeeks} по плану`)}{b.focus ? ` · ${b.focus}` : ''}
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(b)} aria-label="Edit block"><IconEdit size={15} /></Button>
-                    <Button size="sm" variant="ghost" aria-label="Delete block" onClick={async () => {
-                      if (!confirmAction(`Delete block "${b.name}"? Workouts are not affected.`)) return;
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(b)} aria-label={L('Edit block', 'Изменить блок')}><IconEdit size={15} /></Button>
+                    <Button size="sm" variant="ghost" aria-label={L('Delete block', 'Удалить блок')} onClick={async () => {
+                      if (!confirmAction(L(`Delete block "${b.name}"? Workouts are not affected.`, `Удалить блок «${b.name}»? Тренировки не затрагиваются.`))) return;
                       await store.deleteBlock(b.id);
-                      toast('Block deleted', 'info');
+                      toast(L('Block deleted', 'Блок удалён'), 'info');
                     }}><IconTrash size={15} /></Button>
                   </div>
                 </li>
@@ -88,9 +89,9 @@ function CurrentBlockCard({ block, today, onEdit, onNew }: { block: TrainingBloc
   if (!block) {
     return (
       <Card>
-        <CardTitle>Current block</CardTitle>
-        <Empty title="No active block" action={<Button variant="secondary" onClick={onNew}><IconLayers size={16} /> Start a block</Button>}>
-          Blocks are an organizational frame (typically 4–8 weeks), not a growth mechanism. Changing phases does not create more hypertrophy by itself.
+        <CardTitle>{L('Current block', 'Текущий блок')}</CardTitle>
+        <Empty title={L('No active block', 'Нет активного блока')} action={<Button variant="secondary" onClick={onNew}><IconLayers size={16} /> {L('Start a block', 'Начать блок')}</Button>}>
+          {L('Blocks are an organizational frame (typically 4–8 weeks), not a growth mechanism. Changing phases does not create more hypertrophy by itself.', 'Блоки — способ организации (обычно 4–8 недель), а не механизм роста. Смена этапа сама по себе не даёт больше гипертрофии.')}
         </Empty>
       </Card>
     );
@@ -99,18 +100,18 @@ function CurrentBlockCard({ block, today, onEdit, onNew }: { block: TrainingBloc
   const pct = Math.min(100, (week / Math.max(1, block.plannedWeeks)) * 100);
   const over = week > block.plannedWeeks;
   const endBlock = async () => {
-    if (!confirmAction(`End "${block.name}" today?`)) return;
+    if (!confirmAction(L(`End "${block.name}" today?`, `Завершить «${block.name}» сегодня?`))) return;
     await store.saveBlock({ ...block, endDate: today });
-    toast('Block ended');
+    toast(L('Block ended', 'Блок завершён'));
   };
   return (
     <Card>
-      <CardTitle right={<Badge tone="accent">{KIND_LABEL[block.kind]}</Badge>}>Current block</CardTitle>
+      <CardTitle right={<Badge tone="accent">{KIND_LABEL[block.kind]}</Badge>}>{L('Current block', 'Текущий блок')}</CardTitle>
       <div className="text-lg font-semibold text-ink-900 dark:text-white">{block.name}</div>
       {block.focus && <div className="text-sm text-ink-500">{block.focus}</div>}
       <div className="mt-4 flex items-baseline justify-between">
-        <span className="text-3xl font-semibold tabular-nums text-ink-900 dark:text-white">Week {week}</span>
-        <span className="text-sm text-ink-500">of {block.plannedWeeks} planned</span>
+        <span className="text-3xl font-semibold tabular-nums text-ink-900 dark:text-white">{L(`Week ${week}`, `Неделя ${week}`)}</span>
+        <span className="text-sm text-ink-500">{L(`of ${block.plannedWeeks} planned`, `из ${block.plannedWeeks} по плану`)}</span>
       </div>
       <div className="mt-2 flex gap-1">
         {Array.from({ length: Math.max(block.plannedWeeks, week) }, (_, i) => (
@@ -118,14 +119,14 @@ function CurrentBlockCard({ block, today, onEdit, onNew }: { block: TrainingBloc
         ))}
       </div>
       <p className="mt-2 text-xs text-ink-500">
-        Started {formatDate(block.startDate)}. {over
-          ? 'Past the planned length. That is fine if you are still progressing; the plan is a frame, not a deadline.'
-          : `${Math.round(pct)}% through the planned frame.`}
+        {L('Started', 'Начат')} {formatDate(block.startDate)}. {over
+          ? L('Past the planned length. That is fine if you are still progressing; the plan is a frame, not a deadline.', 'Плановый срок пройден. Это нормально, если прогресс продолжается: план — рамка, а не крайний срок.')
+          : L(`${Math.round(pct)}% through the planned frame.`, `Пройдено ${Math.round(pct)}% планового срока.`)}
       </p>
       {block.notes && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-ink-50 p-2.5 text-xs text-ink-600 dark:bg-ink-950 dark:text-ink-300">{block.notes}</p>}
       <div className="mt-4 flex gap-2">
-        <Button size="sm" onClick={() => onEdit(block)}><IconEdit size={14} /> Edit</Button>
-        <Button size="sm" variant="ghost" onClick={endBlock}>End block today</Button>
+        <Button size="sm" onClick={() => onEdit(block)}><IconEdit size={14} /> {L('Edit', 'Изменить')}</Button>
+        <Button size="sm" variant="ghost" onClick={endBlock}>{L('End block today', 'Завершить блок сегодня')}</Button>
       </div>
     </Card>
   );
@@ -134,11 +135,11 @@ function CurrentBlockCard({ block, today, onEdit, onNew }: { block: TrainingBloc
 function DeloadCard({ deload }: { deload: ReturnType<typeof assessDeload> }) {
   return (
     <Card>
-      <CardTitle hint="Deloads are NOT scheduled automatically every Nth week. One is suggested only when ≥3 independent fatigue indicators coincide."
-        right={<Badge tone={deload.recommend ? 'warn' : deload.score > 0 ? 'info' : 'good'}>{deload.score}/{deload.indicators.length} signals</Badge>}>
-        Deload assessment
+      <CardTitle hint={L('Deloads are NOT scheduled automatically every Nth week. One is suggested only when ≥3 independent fatigue indicators coincide.', 'Разгрузка НЕ назначается автоматически каждую N-ю неделю. Она предлагается, только когда совпадают ≥3 независимых признака усталости.')}
+        right={<Badge tone={deload.recommend ? 'warn' : deload.score > 0 ? 'info' : 'good'}>{L(`${deload.score}/${deload.indicators.length} signals`, `${deload.score}/${deload.indicators.length} сигналов`)}</Badge>}>
+        {L('Deload assessment', 'Нужна ли разгрузка')}
       </CardTitle>
-      <Callout tone={deload.recommend ? 'warn' : 'good'} icon={deload.recommend ? <IconAlert size={18} /> : <IconCheck size={18} />} title={deload.recommend ? 'A deload may help' : 'No deload needed'}>
+      <Callout tone={deload.recommend ? 'warn' : 'good'} icon={deload.recommend ? <IconAlert size={18} /> : <IconCheck size={18} />} title={deload.recommend ? L('A deload may help', 'Разгрузка может помочь') : L('No deload needed', 'Разгрузка не нужна')}>
         {deload.summary}
       </Callout>
       <ul className="mt-3 space-y-2">
@@ -156,21 +157,21 @@ function DeloadCard({ deload }: { deload: ReturnType<typeof assessDeload> }) {
       </ul>
       <div className="mt-3">
         <Why>
-          <p>Each indicator is an observation from your logs (performance trends, RIR, check-ins, weekly volume). None of them proves accumulated fatigue on its own, so the app waits for several to agree.</p>
-          <p>Deload research is limited. A short period of reduced volume (≈ half the sets, moderate loads, RIR 3–4) is a common, low-risk way to let performance rebound. It is not required on a fixed schedule.</p>
+          <p>{L('Each indicator is an observation from your logs (performance trends, RIR, check-ins, weekly volume). None of them proves accumulated fatigue on its own, so the app waits for several to agree.', 'Каждый признак — наблюдение из ваших записей (тренды результатов, RIR, самочувствие, недельный объём). Ни один из них сам по себе не доказывает накопленную усталость, поэтому приложение ждёт совпадения нескольких.')}</p>
+          <p>{L('Deload research is limited. A short period of reduced volume (≈ half the sets, moderate loads, RIR 3–4) is a common, low-risk way to let performance rebound. It is not required on a fixed schedule.', 'Исследований разгрузки мало. Короткий период сниженного объёма (≈ половина подходов, умеренные веса, RIR 3–4) — распространённый способ с низким риском дать результатам восстановиться. По жёсткому графику он не обязателен.')}</p>
         </Why>
       </div>
     </Card>
   );
 }
 
-const TREND_META: Record<TrendClass, { label: string; tone: 'good' | 'info' | 'warn' | 'bad' | undefined }> = {
-  progressing: { label: 'Progressing', tone: 'good' },
-  stable: { label: 'Stable', tone: undefined },
-  plateau: { label: 'Possible plateau', tone: 'warn' },
-  declining: { label: 'Declining', tone: 'bad' },
-  insufficient_data: { label: 'Too little data', tone: undefined },
-};
+const TREND_META: Record<TrendClass, { label: string; tone: 'good' | 'info' | 'warn' | 'bad' | undefined }> = byLang(() => ({
+  progressing: { label: L('Progressing', 'Прогресс'), tone: 'good' },
+  stable: { label: L('Stable', 'Стабильно'), tone: undefined },
+  plateau: { label: L('Possible plateau', 'Возможное плато'), tone: 'warn' },
+  declining: { label: L('Declining', 'Снижение'), tone: 'bad' },
+  insufficient_data: { label: L('Too little data', 'Мало данных'), tone: undefined },
+}));
 
 function ProgressionHealth() {
   const a = useAnalysis();
@@ -180,7 +181,7 @@ function ProgressionHealth() {
   const concerning = active.filter((p) => p.trend.cls === 'declining' || p.trend.cls === 'plateau');
   return (
     <Card>
-      <CardTitle hint="Exercise × equipment histories trained in the last 6 weeks. Each machine is tracked separately and loads are never compared across machines.">Progression health</CardTitle>
+      <CardTitle hint={L('Exercise × equipment histories trained in the last 6 weeks. Each machine is tracked separately and loads are never compared across machines.', 'Истории «упражнение × оборудование» за последние 6 недель. Каждый тренажёр ведётся отдельно, веса между тренажёрами не сравниваются.')}>{L('Progression health', 'Состояние прогрессии')}</CardTitle>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {counts.map(({ k, n }) => <Stat key={k} label={TREND_META[k].label} value={n} tone={n > 0 ? (TREND_META[k].tone === 'info' ? undefined : TREND_META[k].tone === 'bad' ? 'bad' : TREND_META[k].tone === 'warn' ? 'warn' : TREND_META[k].tone === 'good' ? 'good' : undefined) : undefined} />)}
       </div>
@@ -189,7 +190,7 @@ function ProgressionHealth() {
           {concerning.slice(0, 8).map((p) => (
             <li key={p.key} className="rounded-xl bg-ink-50 p-3 text-sm dark:bg-ink-950">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-ink-900 dark:text-white">{names.ex(a.registry.get(p.exerciseId), exerciseLabel(undefined, 'en', p.exerciseId))}</span>
+                <span className="font-medium text-ink-900 dark:text-white">{names.ex(a.registry.get(p.exerciseId), exerciseLabel(undefined, getLang(), p.exerciseId))}</span>
                 <span className="text-xs text-ink-500">{p.scopeLabel}</span>
                 <Badge tone={p.trend.cls === 'declining' ? 'bad' : 'warn'}>{TREND_META[p.trend.cls].label}</Badge>
               </div>
@@ -198,7 +199,7 @@ function ProgressionHealth() {
           ))}
         </ul>
       )}
-      {active.length === 0 && <p className="mt-3 text-sm text-ink-500">No recent exercise histories yet.</p>}
+      {active.length === 0 && <p className="mt-3 text-sm text-ink-500">{L('No recent exercise histories yet.', 'Недавних историй упражнений пока нет.')}</p>}
     </Card>
   );
 }
@@ -209,9 +210,9 @@ function VolumeTrendCard() {
   const rows = volumeTrend(a.weeks, 12, (ws) => qualitySetTotal(ws, a.registry, data.settings.quality));
   return (
     <Card>
-      <CardTitle hint="Quality sets — every working set counted once, weighted by effort (bars) and number of sessions (line) per week. Rising volume should come with stable or improving performance; if performance drops while volume rises, that is a warning sign.">Volume trend · last 12 weeks</CardTitle>
+      <CardTitle hint={L('Quality sets — every working set counted once, weighted by effort (bars) and number of sessions (line) per week. Rising volume should come with stable or improving performance; if performance drops while volume rises, that is a warning sign.', 'Качественные подходы — каждый рабочий подход считается один раз, с учётом усилия (столбцы) — и число тренировок (линия) по неделям. Объём должен расти при стабильных или растущих результатах; если результаты падают, а объём растёт — это тревожный признак.')}>{L('Volume trend · last 12 weeks', 'Тренд объёма · последние 12 недель')}</CardTitle>
       {rows.length === 0 ? (
-        <p className="py-8 text-center text-sm text-ink-500">No weekly history yet.</p>
+        <p className="py-8 text-center text-sm text-ink-500">{L('No weekly history yet.', 'Недельной истории пока нет.')}</p>
       ) : (
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -221,8 +222,8 @@ function VolumeTrendCard() {
               <YAxis yAxisId="v" tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis yAxisId="s" orientation="right" tickLine={false} axisLine={false} allowDecimals={false} width={24} />
               <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} />
-              <Bar yAxisId="v" dataKey="total" name="Quality sets" fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
-              <Line yAxisId="s" dataKey="sessions" name="Sessions" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
+              <Bar yAxisId="v" dataKey="total" name={L('Quality sets', 'Качественные подходы')} fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
+              <Line yAxisId="s" dataKey="sessions" name={L('Sessions', 'Тренировки')} stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
               <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -247,14 +248,14 @@ function HeatTable() {
   };
   return (
     <Card>
-      <CardTitle hint="Effective sets per muscle per week, coloured against the current target: amber = below lower end · blue = within range · green = target met · violet = above upper bound.">Weekly volume by muscle · last 8 weeks</CardTitle>
+      <CardTitle hint={L('Effective sets per muscle per week, coloured against the current target: amber = below lower end · blue = within range · green = target met · violet = above upper bound.', 'Эффективные подходы на мышцу по неделям; цвет — относительно текущей цели: жёлтый = ниже нижней границы · синий = в диапазоне · зелёный = цель выполнена · фиолетовый = выше верхней границы.')}>{L('Weekly volume by muscle · last 8 weeks', 'Недельный объём по мышцам · последние 8 недель')}</CardTitle>
       <div className="scroll-x">
         <table className="w-full min-w-[560px] border-separate border-spacing-1 text-xs">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-ink-400">
-              <th className="text-left font-medium">Muscle</th>
+              <th className="text-left font-medium">{L('Muscle', 'Мышца')}</th>
               {weeks.map((w) => <th key={w.range.start} className="font-medium tabular-nums">{w.range.start.slice(5)}{!w.complete && '*'}</th>)}
-              <th className="font-medium">Target</th>
+              <th className="font-medium">{L('Target', 'Цель')}</th>
             </tr>
           </thead>
           <tbody>
@@ -275,7 +276,7 @@ function HeatTable() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[11px] text-ink-400">* current, unfinished week. Colours use today's targets; frozen weekly snapshots are shown in Reports.</p>
+      <p className="mt-2 text-[11px] text-ink-400">{L("* current, unfinished week. Colours use today's targets; frozen weekly snapshots are shown in Reports.", '* текущая, незавершённая неделя. Цвета считаются по сегодняшним целям; зафиксированные недельные снимки — в «Отчётах».')}</p>
     </Card>
   );
 }
@@ -290,31 +291,31 @@ function BlockEditor({ block, today, onClose }: { block: TrainingBlock | null; t
     setBusy(true);
     try {
       await store.saveBlock({ ...b, name: b.name.trim(), focus: b.focus?.trim() || undefined, notes: b.notes?.trim() || undefined, endDate: b.endDate || null });
-      toast(block ? 'Block updated' : 'Block created');
+      toast(block ? L('Block updated', 'Блок обновлён') : L('Block created', 'Блок создан'));
       onClose();
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal open onClose={onClose} title={block ? 'Edit block' : 'New training block'}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" onClick={save} disabled={!valid || busy}>Save</Button></>}>
+    <Modal open onClose={onClose} title={block ? L('Edit block', 'Изменить блок') : L('New training block', 'Новый тренировочный блок')}
+      footer={<><Button variant="ghost" onClick={onClose}>{L('Cancel', 'Отмена')}</Button><Button variant="primary" onClick={save} disabled={!valid || busy}>{L('Save', 'Сохранить')}</Button></>}>
       <div className="space-y-3">
-        <Field label="Name"><Input value={b.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Winter accumulation" autoFocus /></Field>
+        <Field label={L('Name', 'Название')}><Input value={b.name} onChange={(e) => set('name', e.target.value)} placeholder={L('e.g. Winter accumulation', 'напр. Зимнее накопление')} autoFocus /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Type">
+          <Field label={L('Type', 'Тип')}>
             <Select value={b.kind} onChange={(e) => set('kind', e.target.value as TrainingBlock['kind'])}>
               {Object.entries(KIND_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </Select>
           </Field>
-          <Field label="Planned weeks" hint={b.plannedWeeks < 4 || b.plannedWeeks > 8 ? 'Outside the usual 4–8 week frame. That is fine if intentional.' : 'Typical frame: 4–8 weeks'}>
-            <Stepper value={b.plannedWeeks} onChange={(v) => set('plannedWeeks', Math.max(1, Math.min(16, Math.round(v ?? 1))))} min={1} label="Planned weeks" />
+          <Field label={L('Planned weeks', 'Недель по плану')} hint={b.plannedWeeks < 4 || b.plannedWeeks > 8 ? L('Outside the usual 4–8 week frame. That is fine if intentional.', 'Вне обычной рамки 4–8 недель. Это нормально, если так задумано.') : L('Typical frame: 4–8 weeks', 'Обычная рамка: 4–8 недель')}>
+            <Stepper value={b.plannedWeeks} onChange={(v) => set('plannedWeeks', Math.max(1, Math.min(16, Math.round(v ?? 1))))} min={1} label={L('Planned weeks', 'Недель по плану')} />
           </Field>
-          <Field label="Start date"><Input type="date" value={b.startDate} onChange={(e) => set('startDate', e.target.value)} /></Field>
-          <Field label="End date (optional)"><Input type="date" value={b.endDate ?? ''} onChange={(e) => set('endDate', e.target.value || null)} /></Field>
+          <Field label={L('Start date', 'Дата начала')}><Input type="date" value={b.startDate} onChange={(e) => set('startDate', e.target.value)} /></Field>
+          <Field label={L('End date (optional)', 'Окончание (необяз.)')}><Input type="date" value={b.endDate ?? ''} onChange={(e) => set('endDate', e.target.value || null)} /></Field>
         </div>
-        <Field label="Focus (optional)"><Input value={b.focus ?? ''} onChange={(e) => set('focus', e.target.value)} placeholder="e.g. bring up side delts & hamstrings" /></Field>
-        <Field label="Notes (optional)"><TextArea value={b.notes ?? ''} onChange={(e) => set('notes', e.target.value)} className="font-sans text-sm" /></Field>
+        <Field label={L('Focus (optional)', 'Акцент (необязательно)')}><Input value={b.focus ?? ''} onChange={(e) => set('focus', e.target.value)} placeholder={L('e.g. bring up side delts & hamstrings', 'напр. подтянуть средние дельты и бицепс бедра')} /></Field>
+        <Field label={L('Notes (optional)', 'Заметки (необязательно)')}><TextArea value={b.notes ?? ''} onChange={(e) => set('notes', e.target.value)} className="font-sans text-sm" /></Field>
       </div>
     </Modal>
   );
