@@ -28,10 +28,6 @@ import { KG, L, num, ruPlural } from '../../i18n';
  * Everything else (body map, statistics, last week) is one tap away under "More details".
  * All numbers come from the domain layer (analysis.ts / progression.ts) — nothing is computed here.
  */
-/**
- * Part 7 #14: one optional extra short session when the usual days cannot finish the week. A suggestion with Why,
- * never a requirement; "Not this week" hides it until next week (with Undo).
- */
 /** Part 8: exercises moved to a later day — kept in the plan until done; Cancel only on the owner's tap (with Undo). */
 function MovedCard() {
   const data = useData();
@@ -59,6 +55,10 @@ function MovedCard() {
   );
 }
 
+/**
+ * Part 7 #14: one optional extra short session when the usual days cannot finish the week. A suggestion with Why,
+ * never a requirement; "Not this week" hides it until next week (with Undo).
+ */
 function ExtraSessionCard() {
   const a = useAnalysis();
   const data = useData();

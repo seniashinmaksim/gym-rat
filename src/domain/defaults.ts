@@ -32,6 +32,7 @@ export function defaultSettings(): Settings {
     /* keep UTC */
   }
   return {
+    formulaRevision: 7,
     id: 'settings',
     timezone: tz,
     weekStartsOn: 1,

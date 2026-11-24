@@ -17,9 +17,11 @@ describe('G.1 #3 — the index basis is decided over the sessions the trend uses
   const recent = ['2026-10-20', '2026-10-27', '2026-11-03', '2026-11-10'].map((d, i) => workout(d, [ex('pec_deck', [set(50, 10, rirs[i]), set(50, 10, rirs[i]), set(50, 10, rirs[i])], 'eq-pec')]));
   it('an old session without RIR no longer switches today\'s trend to reps-only', () => {
     const p = analyze(data([old, ...recent]), new Date('2026-11-12T12:00:00Z')).progression.find((x) => x.exerciseId === 'pec_deck')!;
-    expect(p.indexBasis).toBe('rir');
-    expect(p.sessions.at(-1)?.index).toBe(66.7);
-    expect(p.sessions.at(-4)?.index).toBe(71.7);
+    // The shown history keeps one basis (reps: the June session has no RIR) and loses no session;
+    // the trend uses its own RIR basis over the window → 71.7, 70, 68.3, 66.7 → declining.
+    expect(p.indexBasis).toBe('reps');
+    expect(p.trendBasis).toBe('rir');
+    expect(p.sessions.map((s) => s.index)).toEqual([66.7, 66.7, 66.7, 66.7, 66.7]);
     expect(p.trend.cls).toBe('declining');
   });
 });

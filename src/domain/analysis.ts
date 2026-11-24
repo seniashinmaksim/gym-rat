@@ -226,7 +226,9 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
         carryOver = fit.shortBy;
         // Only muscles the owner actually trains (any effective sets in the recent weeks) can be suggested for an extra session.
         if (recentWeeks.some((w) => w.volume.muscles[m].effective > 0)) fits.push({ muscle: m, fit: fitIn, share: fit.share, shortBy: fit.shortBy });
-        if (shareRaised) todayNote += L(` · ${todayShare} today: fewer would leave your next usual day inside the recovery window`, ` · сегодня ${num(todayShare)}: при меньшем числе следующий обычный день попадёт в окно восстановления`);
+        if (shareRaised) todayNote += laterUsual.length
+          ? L(` · ${todayShare} today: fewer would leave your next usual day inside the recovery window`, ` · сегодня ${num(todayShare)}: при меньшем числе следующий обычный день попадёт в окно восстановления`)
+          : L(` · ${todayShare} today: no usual training day is left this week`, ` · сегодня ${num(todayShare)}: обычных тренировочных дней на этой неделе больше нет`);
         if (carryOver > 0) todayNote += L(` · ~${carryOver} will not fit your usual days this week (fine — nothing to make up)`, ` · ~${num(carryOver)} не поместится в ваши обычные дни на этой неделе (это нормально — догонять не нужно)`);
       } else if (todayShare === sessionCap && carryOver > 0) todayNote += L(` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`, ` · не больше ${sessionCap} за тренировку; ~${num(carryOver)} переносится (это нормально)`);
       if (mwTrendDeclining(trend.overall)) todayNote += L(' · keep sets high-quality', ' · следите за качеством подходов');

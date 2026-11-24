@@ -187,6 +187,8 @@ export interface ProgressionSeries {
    * RIR to the others would fake a change). One basis for all sessions of a history.
    */
   indexBasis: 'rir' | 'reps';
+  /** Basis of the trend and the load decision (over the trend window; Part 7 G.1 #3). */
+  trendBasis?: 'rir' | 'reps';
   /**
    * Part 6 (F.8): how trend and load decisions compared the sessions. single_context = the order never
    * differed; same_context = only sessions of the latest session's context (≥ 3 of them); adjusted = all
@@ -369,7 +371,8 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
     // index has not caught up yet (Epley rates 52.5 × 10 like 50 × 12). Assistance loads are left out (lower = harder).
     const loads = clean.map((s) => (s.indexKind === 'load' ? s.topWeight : null));
     const earlierTop = Math.max(...loads.slice(0, -2).map((x) => x ?? -Infinity));
-    const loadUp = loads.slice(-2).some((x) => x != null && x > earlierTop);
+    const lateIdx = clean.slice(-2).map((s) => s.index as number);
+    const loadUp = loads.slice(-2).some((x, k) => x != null && x > earlierTop && lateIdx[k] >= bestEarlier * 0.97);
     if (cspan >= 21 && bestLate <= bestEarlier && !loadUp) {
       return {
         cls: 'plateau',
@@ -691,22 +694,25 @@ export function buildProgression(
   for (const [key, g] of groups) {
     const def = registry.get(g.exerciseId);
     const ov = ovById.get(g.exerciseId);
-    // F.7: one index basis per history. RIR is added only when every scored session the TREND uses (last ≤ 6 within
-    // 56 days, Part 7 G.1 #3) has it on its top set — an old session without RIR no longer switches the whole history.
-    // With an RIR basis, an older session without RIR gets no index (it is on another scale and is never compared).
+    // F.7: one index basis per history for what is SHOWN (indices, best, baseline): RIR only when every scored session
+    // has it on its top set. The TREND has its own basis over the sessions it uses (last <= 6 in 56 days, Part 7 G.1 #3):
+    // an old session without RIR no longer changes today's trend, and the shown history never loses sessions.
     const scoredAll = g.sessions.filter((s) => s.index != null);
+    const indexBasis: 'rir' | 'reps' = scoredAll.length > 0 && scoredAll.every((s) => s.topRir != null) ? 'rir' : 'reps';
     const inWindow = scoredAll.filter((s) => diffDays(today, s.date) <= TREND_WINDOW_DAYS).slice(-6);
-    const basisPool = inWindow.length ? inWindow : scoredAll;
-    const indexBasis: 'rir' | 'reps' = basisPool.length > 0 && basisPool.every((s) => s.topRir != null) ? 'rir' : 'reps';
-    if (indexBasis === 'rir') g.sessions = g.sessions.map((s) => (s.index != null && s.topRir == null ? { ...s, index: null, indexRaw: null, e1rm: null, indexKind: null } : s));
+    const trendBasis: 'rir' | 'reps' = inWindow.length > 0 && inWindow.every((s) => s.topRir != null) ? 'rir' : 'reps';
+    const rirScored = g.sessions;
     if (indexBasis === 'reps') {
       g.sessions = g.sessions.map((s, i) => {
         const again = sessionPerf(g.src[i].w, g.src[i].ex, useFeel, g.src[i].body, 'reps');
         return again ? { ...again, preload: s.preload, context: s.context } : s;
       });
     }
+    const windowIds = new Set(inWindow.map((s) => s.workoutId));
+    const trendInput = trendBasis === indexBasis ? g.sessions
+      : rirScored.map((s) => (windowIds.has(s.workoutId) ? s : { ...s, index: null, indexRaw: null, e1rm: null }));
     // F.8: compare like with like.
-    const { sessions: cmp, compare } = comparableSessions(g.sessions);
+    const { sessions: cmp, compare } = comparableSessions(trendInput);
     const trend = classifyTrend(cmp, today);
     const eq = g.equipmentId ? eqById.get(g.equipmentId) : undefined;
     const { step: inc, source: incrementSource } = loadStep(eq, g.locationId ? locById.get(g.locationId) : undefined, def?.equipmentKind, g.loadMode);
@@ -733,6 +739,7 @@ export function buildProgression(
       previous: g.sessions[g.sessions.length - 2] ?? null,
       next: suggestNextLoad(cmp, ov?.repRange ?? def?.repRange ?? [8, 12], ov?.targetRir ?? defaultRir, inc, trend, g.loadMode),
       indexBasis,
+      trendBasis,
       compare,
     });
   }

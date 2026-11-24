@@ -200,13 +200,14 @@ const emptyCounts = (): FailureCounts => ({ workingSets: 0, recorded: 0, muscula
 
 /**
  * A set without a failure status that still says it stopped short of failure: a logged RIR ≥ 1, or a one-tap
- * answer other than MAX (EASY / GOOD / HARD mean 3+, 1–2 and ~1 rep left). Counted as "stopped before failure"
+ * answer EASY or GOOD (3+ and 1–2 reps left; HARD = 0–1 may have been failure and stays unknown). Counted as "stopped before failure"
  * in the failure share (inferred, Part 7 G.1 #12); the set itself is not changed. RIR 0 alone stays unknown.
  */
 export function stoppedBeforeFailureInferred(s: WorkoutSet): boolean {
   if (s.failure || s.toFailure || s.technicalFailure) return false;
   if (s.rir != null) return s.rir >= 1;
-  return s.effort === 'very_easy' || s.effort === 'easy' || s.effort === 'appropriate' || s.effort === 'hard' || s.effort === 'near_max';
+  // near max (the HARD tap, 0–1 in reserve) may have been failure: it stays unknown.
+  return s.effort === 'very_easy' || s.effort === 'easy' || s.effort === 'appropriate' || s.effort === 'hard';
 }
 
 function add(c: FailureCounts, s: WorkoutSet, k: number) {

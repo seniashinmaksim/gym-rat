@@ -20,16 +20,17 @@ describe('G.1 #12 — failure share counts the sets that stopped before failure'
     expect(p.totals.none).toBe(30);
     expect(p.totals.shareAtFailure).toBe(0.17); // 6 / 36 = 0.1667 → 0.17
   });
-  it('a one-tap answer EASY / GOOD / HARD also means "not to failure"; MAX means failure; no answer stays unknown', () => {
+  it('a one-tap answer EASY / GOOD means "not to failure"; HARD stays unknown; MAX means failure; no answer stays unknown', () => {
     const ws = [workout('2026-11-16', [ex('pec_deck', [
       set(40, 12, null, { effort: 'easy' }), set(40, 12, null, { effort: 'appropriate' }), set(40, 12, null, { effort: 'near_max' }),
       set(40, 12, null, { effort: 'near_max', failure: 'muscular' }), set(40, 12, null),
     ])])];
     const t = failureProfile({ workouts: ws }, { start: '2026-11-16', end: '2026-11-22' }).totals;
-    expect(t.recorded).toBe(4);
-    expect(t.none).toBe(3);
+    // HARD (near max, 0–1 in reserve) may have been failure → stays unknown (independent review).
+    expect(t.recorded).toBe(3);
+    expect(t.none).toBe(2);
     expect(t.muscular).toBe(1);
-    expect(t.shareAtFailure).toBe(0.25);
+    expect(t.shareAtFailure).toBe(0.33);
   });
   it('RIR 0 alone is still not turned into a failure status (it may be an estimate)', () => {
     const ws = [workout('2026-11-16', [ex('pec_deck', [set(40, 12, 0)])])];

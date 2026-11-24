@@ -330,7 +330,8 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
   const pinned = new Map<string, number>();
   for (const mv of moved) {
     const def = registry.get(mv.exerciseId);
-    if (!def || usedEx.has(def.id)) continue;
+    // Replace (exclude) and the pain hold apply to moved items too; the move itself stays open.
+    if (!def || usedEx.has(def.id) || exclude.has(def.id) || prefs.painHold.has(def.id)) continue;
     const target = significantMuscles(def, mv.variation, 0.5)[0]?.muscle;
     if (!target) continue;
     const entry = library.find((e) => e.exerciseId === mv.exerciseId && e.equipmentId === mv.equipmentId) ?? null;
@@ -451,14 +452,16 @@ export function generateWorkout(input: GenerateInput): GeneratedWorkout {
   // so a plan started with nothing done keeps its numbers. Never more than chosen above (session size); an item the
   // earlier ones already covered is dropped.
   const openFinal: Partial<Record<MuscleId, number>> = { ...budget };
+  const forcedIds = new Set((input.force ?? []).map((f) => f.exerciseId));
   const ordered = sortedItems.flatMap((it) => {
     const def = registry.get(it.exerciseId);
     if (!def) return [it];
     const { contributions } = resolveCoefficients(def, it.variation);
     const maxSets = def.category === 'compound' ? MAX_SETS.compound : MAX_SETS.isolation;
     const alloc = Math.min(it.setCount, allocateSets(contributions, openFinal, maxSets).sets);
-    // A moved exercise keeps its own set count (the owner asked for it); everything else follows the allocation.
-    const sets = pinned.has(it.exerciseId) ? Math.max(1, pinned.get(it.exerciseId)!) : alloc;
+    // A moved exercise keeps its own set count and a replacement the owner picked keeps at least the minimum (both were
+    // asked for); everything else follows the allocation.
+    const sets = pinned.has(it.exerciseId) ? Math.max(1, pinned.get(it.exerciseId)!) : forcedIds.has(it.exerciseId) ? Math.max(alloc, Math.min(it.setCount, MIN_ITEM_SETS)) : alloc;
     if (sets <= 0) return [];
     const contributes: Partial<Record<MuscleId, number>> = {};
     for (const [m, c] of Object.entries(contributions) as [MuscleId, number][]) {

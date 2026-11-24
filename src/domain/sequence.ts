@@ -138,7 +138,7 @@ export function activeMoves(data: Pick<AppData, 'settings' | 'workouts'>): Plann
 /** How many working sets the owner usually does of an exercise (median of the last ≤ 6 sessions with it; 3 when unknown). */
 export function usualSetCount(workouts: Workout[], exerciseId: string): number {
   const counts = [...workouts].sort((a, b) => a.date.localeCompare(b.date)).flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId && !e.skipped)
-    .map((e) => e.sets.filter((x) => !x.planned && x.type !== 'warmup' && !x.side).length + Math.min(e.sets.filter((x) => x.side === 'left' && !x.planned).length, e.sets.filter((x) => x.side === 'right' && !x.planned).length)))
+    .map((e) => { const ok = e.sets.filter((x) => !x.planned && x.type !== 'warmup'); return ok.filter((x) => !x.side).length + Math.max(ok.filter((x) => x.side === 'left').length, ok.filter((x) => x.side === 'right').length); }))
     .filter((n) => n > 0).slice(-6);
   return counts.length ? Math.round(median(counts)) : 3;
 }
@@ -151,7 +151,7 @@ function doneToday(input: Pick<ForwardInput, 'workout' | 'analysis' | 'data'>): 
 }
 
 /** The forward checks of one exercise placed on `fromDate` with `load` effective sets per muscle (done that day incl. it). */
-function checksFrom(input: ForwardInput, sessions: UpcomingSession[], fromDate: string, load: Partial<Record<MuscleId, number>>, direct: MuscleId[]): Omit<ForwardFinding, 'text'>[] {
+function checksFrom(input: ForwardInput, sessions: UpcomingSession[], fromDate: string, load: Partial<Record<MuscleId, number>>, direct: MuscleId[], added: Partial<Record<MuscleId, number>> = load): Omit<ForwardFinding, 'text'>[] {
   const out: Omit<ForwardFinding, 'text'>[] = [];
   const weekLeft = (m: MuscleId) => input.analysis.muscles.find((x) => x.muscle === m)?.remainingToPreferred ?? 0;
   for (const m of direct) {
@@ -166,7 +166,8 @@ function checksFrom(input: ForwardInput, sessions: UpcomingSession[], fromDate: 
       const p = s.exercises.find((e) => e.priority === 'high' && (e.contributions[m] ?? 0) >= INTERFERENCE_MIN_COEF);
       if (p) { out.push({ check: 'interference', severity, date: s.date, muscle: m, affectsExerciseId: p.exerciseId, hoursLeft: Math.round(left) }); break; }
       const q = s.exercises.find((e) => (e.contributions[m] ?? 0) >= DIRECT_COEF);
-      if (q && weekLeft(m) - eff > 0.5) { out.push({ check: 'recovery', severity, date: s.date, muscle: m, affectsExerciseId: q.exerciseId, hoursLeft: Math.round(left) }); break; }
+      // remainingToPreferred already includes today's done sets: subtract only what comes on top; next week resets.
+      if (q && s.date <= input.analysis.week.end && weekLeft(m) - (added[m] ?? 0) > 0.5) { out.push({ check: 'recovery', severity, date: s.date, muscle: m, affectsExerciseId: q.exerciseId, hoursLeft: Math.round(left) }); break; }
     }
   }
   return out;
@@ -182,8 +183,12 @@ export function forwardChecks(input: ForwardInput): ForwardFinding[] {
   const direct = (Object.entries(co) as [MuscleId, number][]).filter(([, c]) => c >= DIRECT_COEF).map(([m]) => m);
   const done = doneToday(input);
   const load: Partial<Record<MuscleId, number>> = {};
-  for (const m of direct) load[m] = (done[m] ?? 0) + (input.extraDone?.[m] ?? 0) + input.sets * (co[m] ?? 0);
-  return checksFrom(input, sessions, input.analysis.today, load, direct).map((f) => ({ ...f, text: findingText(input.analysis, f) }));
+  const added: Partial<Record<MuscleId, number>> = {};
+  for (const m of direct) {
+    added[m] = (input.extraDone?.[m] ?? 0) + input.sets * (co[m] ?? 0);
+    load[m] = (done[m] ?? 0) + added[m]!;
+  }
+  return checksFrom(input, sessions, input.analysis.today, load, direct, added).map((f) => ({ ...f, text: findingText(input.analysis, f) }));
 }
 
 /**
@@ -202,7 +207,7 @@ export function bestMoveDay(input: ForwardInput): { date: string; clean: boolean
   for (let i = 0; i < sessions.length; i++) {
     const s = sessions[i];
     const gap = 24 * diffDays(s.date, input.analysis.today);
-    const held = direct.some((m) => gap < sessionWindowH(done[m] ?? 0, MUSCLE_BY_ID[m].size === 'large') - RECOVERY_TOLERANCE_H);
+    const held = direct.some((m) => gap < sessionWindowH((done[m] ?? 0) + (input.extraDone?.[m] ?? 0), MUSCLE_BY_ID[m].size === 'large') - RECOVERY_TOLERANCE_H);
     const load: Partial<Record<MuscleId, number>> = {};
     for (const m of direct) load[m] = input.sets * (co[m] ?? 0);
     const n = (held ? 1 : 0) + checksFrom(input, sessions.slice(i + 1), s.date, load, direct).length;

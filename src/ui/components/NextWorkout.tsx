@@ -62,7 +62,7 @@ export function NextWorkoutCard() {
     return items.map((it) => {
       const f = forwardChecks({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } });
       for (const [m, v] of Object.entries(it.contributes) as [MuscleId, number][]) acc[m] = (acc[m] ?? 0) + v;
-      return { f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation }) : null };
+      return { f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } }) : null };
     });
   }, [items, data, a]);
   /** Move a planned exercise to the proposed day: kept as a planned move (never skipped), with Undo. */
@@ -70,7 +70,7 @@ export function NextWorkoutCard() {
     if (!w.move) return;
     const before = data.settings.plannedMoves ?? [];
     const mv = { id: uid(), exerciseId: it.exerciseId, equipmentId: it.equipmentId, ...(it.variation ? { variation: it.variation } : {}), sets: it.setCount, fromDate: a.today, date: w.move.date, reason: w.f.map((x) => x.text).join(' '), createdAt: new Date().toISOString() };
-    await store.saveSettings({ plannedMoves: [...before, mv] });
+    await store.saveSettings({ plannedMoves: [...before.filter((x) => x.exerciseId !== it.exerciseId), mv] });
     setExclude((x) => [...x, it.exerciseId]);
     undoToast(L(`${names.ex(a.registry.get(it.exerciseId))} moved to ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`, `${names.ex(a.registry.get(it.exerciseId))}: перенесено на ${formatDate(w.move.date, { weekday: 'short', day: 'numeric' })}`), async () => {
       await store.saveSettings({ plannedMoves: before });
