@@ -796,6 +796,17 @@ on faith, neither the owner's points nor Claude's own earlier proposals.
 11. **Baseline partial weeks (P2, audit B-13).** Count only complete weeks, or normalise partial ones.
 12. **Failure share (P1, audit A-17).** 30 sets at RIR 2 + 6 "failure" reads 100 %. Sets with RIR ≥ 1 count as not to failure → 6 / 36 ≈ 17 %.
 
+13. **Today's share ignores future recovery (owner, P1 candidate).** "4 sets today" assumes every remaining training day is
+    usable for that muscle; if the next day falls inside its recovery window, the week ends short. Sometimes today must say 5 or 6.
+    *Proposal (to verify):* per muscle, remaining sets R and the likely remaining sessions (owner's usual days). For today's
+    candidate s (from R ÷ sessions, upward in 0.5 steps, ≤ the per-session cap): window w(s) from the recovery table → only later
+    sessions after w(s) (and after each later session's own window) are feasible → spread R − s over them (each ≤ cap). Choose
+    the SMALLEST s that completes the week; if none, use the cap and say plainly how short the week will end ("fine — nothing
+    to make up"), never cram. Example: chest R = 12, sessions Mon / Tue / Thu: 4 on Mon → 36 h window → Tue not feasible →
+    Thu would need 8 → choose 6 Mon + 6 Thu. Evidence check: frequency with equated volume (schoenfeld2019_frequency,
+    pelland2026_volume_frequency — re-verify) supports redistributing; the per-session cap and recovery windows are heuristics
+    (see point 1 and A-14) — label them. Also apply the same feasibility to the planner (C-4, point 10) so plan and Week agree.
+
 ## G.2 Also to re-examine (Claude's list, from the first analysis and the Part 6 reviews)
 - Unknown-effort credit 0.75 now that most sets carry a one-tap answer or none; how the taps map to credit.
 - Double progression with taps only (the one-session "too light" shortcut needs an exact RIR — can EASY ever trigger it?).
