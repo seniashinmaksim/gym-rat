@@ -13,7 +13,7 @@ import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
 import { loadStep } from '../../domain/increments';
 import {
-  ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, weightSource, type NextSetsOffer,
+  ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, keepOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, weightSource, type NextSetsOffer,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
@@ -494,7 +494,8 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const fill = useMemo(() => prefillNext(ex, last), [ex, last]);
   const [weight, setWeight] = useState<number | null>(fill.weightKg);
   const [reps, setReps] = useState<number | null>(fill.reps);
-  const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}`;
+  // Changes of the target (a Use, also a reps-only one) refresh the pre-filled values too.
+  const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}:${JSON.stringify(ex.target?.reps ?? [])}:${ex.target?.adapted?.at ?? ''}`;
   // How the set went: answered together with weight and reps, before LOG SET (optional; cleared after each set).
   const [tap, setTap] = useState<EffortTap | null>(null);
   const lastTapSide = useRef<Side | undefined>(undefined);
@@ -517,9 +518,6 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   }, [fillKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // C-1: after a set, the remaining sets are re-checked — an OFFER (Use / Keep), never applied silently.
-  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, step)), [ex, step, progress.reached]);
-  const [keptOffer, setKeptOffer] = useState<string | null>(null);
-  const offerKey = sets[sets.length - 1]?.id ?? '';
   const useOffer = (o: NextSetsOffer) => {
     const before = ex;
     setEx(ex.id, (e) => applyOffer(e, o, new Date().toISOString()), true);
@@ -544,6 +542,13 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     }
     return b;
   }, [series, w.id]);
+  // The machine's limits and the owner's usual rest on this history (the short-rest rule: a drop after a short rest is
+  // the rest, not the load).
+  const restMedian = useMemo(() => {
+    const xs = (series?.sessions ?? []).map((x) => x.restAvgSec).filter((r): r is number => r != null).sort((p, q) => p - q);
+    return xs.length ? xs[xs.length >> 1] : null;
+  }, [series]);
+  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, step, { minKg: eq?.minKg ?? null, maxKg: eq?.maxKg ?? null, restMedianSec: restMedian })), [ex, step, progress.reached, eq, restMedian]);
 
   const log = () => {
     const nowMs = Date.now();
@@ -696,7 +701,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
       <>
         {head}
         <RestScreen w={w} ex={ex} set={lastSet} exName={exName} n={sets.length} reached={progress.reached} hasNext={hasNext}
-          offer={offer && keptOffer !== offerKey ? offer : null} onUseOffer={useOffer} onKeepOffer={() => setKeptOffer(offerKey)}
+          offer={offer} onUseOffer={useOffer} onKeepOffer={() => { if (offer) setEx(ex.id, (e) => keepOffer(e, offer), true); }}
           onMore={() => setSheet({ set: lastSet.id })} onChooseNext={onChooseNext}
           onAdjust={(d) => setEx(ex.id, (e) => adjustRest(e, d, data.settings.restDefaultSec), true)}
           onNextSet={() => { setEx(ex.id, (e) => ({ ...e, restEndedAt: new Date().toISOString() }), true); setView('set'); }} onNextExercise={onNextExercise} />
@@ -733,7 +738,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
         </div>
         <div className="shrink-0 space-y-2 border-t border-t-line bg-t-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 landscape:max-lg:w-1/2 landscape:max-lg:overflow-y-auto landscape:max-lg:border-l landscape:max-lg:border-t-0" data-testid="entry">
           {sides && <div className="flex items-center gap-2"><TLabel>{L('Side', 'Сторона')}</TLabel><span className="rounded-md bg-t-surface px-2 py-1 text-xs font-bold uppercase" data-testid="side">{nextSide === 'left' ? L('Left', 'Левая') : L('Right', 'Правая')}</span></div>}
-          {source && <WeightSource source={source} target={ex.target ?? null} lastKg={lastSets.find((s) => s.type === 'working')?.weightKg ?? null} />}
+          {source && <WeightSource source={source} planKg={ex.target?.weightKg ?? null} weightKg={weight} lastKg={(lastSets[sets.length] ?? lastSets.filter((s) => s.type === 'working').at(-1))?.weightKg ?? null} />}
           <WeightControl value={weight} onChange={setWeight} step={step} onStepClick={() => setSheet('step')} unit={unit} />
           <RepsControl value={reps} onChange={setReps} />
           <div data-testid="effort-entry">
@@ -775,19 +780,21 @@ function RestPill({ w, onOpen }: { w: Workout; onOpen: () => void }) {
 
 // ---------------------------------------------------------------- rest screen
 
-/** Where the pre-filled weight came from: one short line with a mark next to the weight (owner 2026-11-24). */
-function WeightSource({ source, target, lastKg }: { source: 'adjusted' | 'kept' | 'copied'; target: WorkoutExercise['target'] | null; lastKg: number | null }) {
-  const diff = target?.weightKg != null && lastKg != null ? Math.round((target.weightKg - lastKg) * 100) / 100 : null;
-  const text = source === 'adjusted'
-    ? (target?.adapted
-      ? L('Adjusted after your last set', 'Изменено после прошлого подхода')
-      : diff != null && diff !== 0 ? L(`Adjusted by the analysis: ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} kg vs last time`, `Изменено анализом: ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} кг к прошлому разу`) : L('Adjusted by the analysis', 'Изменено анализом'))
-    : source === 'kept' ? L('Checked by the analysis: keep last time’s weight', 'Проверено анализом: вес как в прошлый раз')
-      : L('Copied — not analysed yet', 'Скопировано — анализа пока нет');
+/**
+ * Where the pre-filled weight came from — only what matters (owner 2026-11-24): SMART (the analysis set it: changed from
+ * last time, confirmed it, or adjusted after a set) or COPIED (nothing analysed). The note says how it compares with last time.
+ */
+function WeightSource({ source, planKg, weightKg, lastKg }: { source: 'adjusted' | 'kept' | 'copied'; planKg: number | null; weightKg: number | null; lastKg: number | null }) {
+  const smart = source !== 'copied';
+  const diff = weightKg != null && lastKg != null ? Math.round((weightKg - lastKg) * 100) / 100 : null;
+  const vs = diff == null ? '' : diff === 0 ? L(' · same as last time', ' · как в прошлый раз')
+    : L(` · ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} kg vs last time`, ` · ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} кг к прошлому разу`);
   return (
-    <p className={cx('flex items-center gap-1.5 text-xs font-semibold', source === 'adjusted' ? 'text-t-accent' : 'text-t-dim')} data-testid="weight-source" data-source={source}>
-      {source === 'adjusted' ? <IconBrain size={16} /> : source === 'kept' ? <IconCheck size={16} /> : <IconCopy size={16} />}
-      <span className="min-w-0 break-words">{text}</span>
+    <p className={cx('flex items-center gap-1.5 text-xs font-semibold', smart ? 'text-t-accent' : 'text-t-dim')} data-testid="weight-source" data-source={smart ? 'smart' : 'copied'}>
+      {smart ? <IconBrain size={16} /> : <IconCopy size={16} />}
+      <span className="min-w-0 break-words">{smart ? L('Smart weight', 'Умный вес') + vs
+        : planKg != null ? L(`Copied from last time — the analysis suggests ${num(planKg)} kg`, `Скопировано с прошлого раза — анализ предлагает ${num(planKg)} кг`)
+          : L('Copied from last time — not analysed', 'Скопировано с прошлого раза — без анализа')}</span>
     </p>
   );
 }
@@ -846,7 +853,7 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust,
           <div className="mb-2 w-full max-w-sm rounded-xl border border-t-accent/60 bg-t-surface px-3 py-2" data-testid="set-offer" data-change={offer.change}>
             <p className="flex items-start gap-1.5 text-sm font-semibold text-t-text"><IconBrain size={18} className="mt-0.5 shrink-0 text-t-accent" />
               <span className="min-w-0 break-words">{offer.change === 'add_load' || (offer.change === 'reduce' && offer.weightKg !== ex.target?.weightKg)
-                ? L(`Next sets: ${num(offer.weightKg ?? 0)} kg`, `Следующие подходы: ${num(offer.weightKg ?? 0)} кг`)
+                ? L(`Next sets: ${num(offer.weightKg ?? 0)} kg (${offer.change === 'add_load' ? 'heavier' : 'lighter'})`, `Следующие подходы: ${num(offer.weightKg ?? 0)} кг (${offer.change === 'add_load' ? 'тяжелее' : 'легче'})`)
                 : L(`Next sets: ${offer.reps?.min}–${offer.reps?.max} reps`, `Следующие подходы: ${offer.reps?.min}–${offer.reps?.max} повт.`)}</span></p>
             <p className="mt-0.5 break-words text-xs text-t-dim">{offer.why}</p>
             <div className="mt-1.5 flex gap-2">

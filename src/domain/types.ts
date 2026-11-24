@@ -207,6 +207,8 @@ export interface WorkoutExercise {
    */
   plannedCount?: number;
   notes?: string;
+  /** Offers the owner answered "Keep the plan" (key: set id + change + weight), so they are not asked again. */
+  offerKept?: string[];
 }
 
 /** What the exercise-choice assistant said when the exercise was picked, and what the owner did (never blocks). */

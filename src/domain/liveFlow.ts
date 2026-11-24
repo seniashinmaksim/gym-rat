@@ -93,8 +93,13 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
   } else if (follows && prev[n]?.weightKg != null) { weight = prev[n].weightKg; from = 'last'; }
   else { weight = done[n - 1].weightKg; from = weight != null ? 'session' : null; }
 
-  // The remaining sets were adapted during this exercise (the owner tapped Use): that weight goes in.
-  if (ex.target?.adapted && ex.target.weightKg != null) { weight = ex.target.weightKg; from = 'plan'; }
+  // The remaining sets were adapted during this exercise (the owner tapped Use): that weight goes in — unless a set was
+  // logged after that at another weight (the owner chose otherwise; a declined load is not pushed again).
+  const ad = ex.target?.adapted;
+  if (ad && ex.target!.weightKg != null) {
+    const after = done.filter((s) => (s.completedAt ?? '') > ad.at);
+    if (!after.length || after[after.length - 1].weightKg === ex.target!.weightKg) { weight = ex.target!.weightKg; from = 'plan'; }
+  }
 
   let alt: Prefill['alt'] = null;
   const lastWork = prev.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number);
@@ -168,12 +173,10 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
     restSecBefore: rest, ...(rest != null ? { restSource: pressed ? 'timer' as const : 'estimated' as const } : {}), completedAt: new Date(nowMs).toISOString(),
     ...(entry.side ? { side: entry.side } : {}),
   };
-  // What was prescribed for this set is stored next to what was done (never mixed; calculations use the performed values).
-  const pr = ex.target ? prescribedFor(ex.target, exerciseProgress(ex).done) : null;
-  if (pr && !secondSide) set.prescribed = pr;
   const { restEndedAt: _used, ...rest0 } = ex;
   void _used;
-  return { ...rest0, sets: reclassifyWarmups([...ex.sets, set], model), ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
+  const sets = withPrescribed(reclassifyWarmups([...ex.sets, set], model), ex.target, set.id);
+  return { ...rest0, sets, ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
 }
 
 /**
@@ -312,33 +315,77 @@ export function prescribedFor(t: ExerciseTarget, n: number): SetPrescription | n
   return { weightKg: t.weightKg, repsMin: r.min, repsMax: r.max, rirMin: q.min, rirMax: q.max, kind: 'working', engine: t.engine };
 }
 
+/**
+ * What was prescribed is stored next to what was done (never mixed; calculations use the performed values), AFTER the
+ * warm-up re-check: a set re-tagged as a warm-up loses its working prescription, the new set gets the one of its place
+ * among the WORKING sets (a left / right pair shares one).
+ */
+function withPrescribed(sets: WorkoutSet[], t: ExerciseTarget | undefined, newId: string): WorkoutSet[] {
+  let n = 0;
+  const pairOpen: Partial<Record<string, number>> = {};
+  return sets.map((s) => {
+    if (s.planned) return s;
+    if (s.type === 'warmup') {
+      if (s.prescribed?.kind === 'working') { const { prescribed: _p, ...rest } = s; void _p; return rest as WorkoutSet; }
+      return s;
+    }
+    if (s.type !== 'working') return s;
+    let idx: number;
+    if (s.side) {
+      const other = s.side === 'left' ? 'right' : 'left';
+      if (pairOpen[other] != null) { idx = pairOpen[other] as number; delete pairOpen[other]; } else { idx = n++; pairOpen[s.side] = idx; }
+    } else idx = n++;
+    if (s.id !== newId || !t) return s;
+    const pr = prescribedFor(t, idx);
+    return pr ? { ...s, prescribed: pr } : s;
+  });
+}
+
 export interface NextSetsOffer { change: 'add_load' | 'add_reps' | 'reduce'; weightKg: number | null; reps: { min: number; max: number } | null; why: string }
+
+/** Limits of this equipment and the owner's usual rest on this exercise (the short-rest rule needs it). */
+export interface OfferContext { minKg?: number | null; maxKg?: number | null; restMedianSec?: number | null }
+
+const offerKey = (setId: string, o: NextSetsOffer) => `${setId}|${o.change}|${o.weightKg ?? ''}|${o.reps?.min ?? ''}-${o.reps?.max ?? ''}`;
 
 /**
  * After a set: should the REMAINING sets change (`adaptRemaining`, rule presc_set_by_set)? Only an offer — the UI shows
- * Use / Keep; nothing changes until the owner taps Use. null = keep the plan (or no target / nothing left / already applied).
+ * Use / Keep the plan; nothing changes until the owner taps Use. null = keep the plan (no target, nothing left, already
+ * applied after this set, or this very offer was answered "Keep the plan").
  */
-export function nextSetsOffer(ex: WorkoutExercise, step: number): NextSetsOffer | null {
+export function nextSetsOffer(ex: WorkoutExercise, step: number, ctx: OfferContext = {}): NextSetsOffer | null {
   const t = ex.target;
-  if (!t || !t.rir?.length || t.sets <= 0) return null;
+  if (!t || !t.rir?.length || !t.reps.length || t.sets <= 0) return null;
   const done = performed(ex).filter((s) => s.type === 'working');
   if (!done.length) return null;
-  const lastAt = done[done.length - 1].completedAt ?? '';
+  const lastSet = done[done.length - 1];
+  const lastAt = lastSet.completedAt ?? '';
   if (t.adapted && t.adapted.at >= lastAt) return null; // already decided after this set
   const sets = Array.from({ length: t.sets }, (_, i) => {
     const r = t.reps[Math.min(i, t.reps.length - 1)];
     const q = t.rir![Math.min(i, t.rir!.length - 1)];
     return { weightKg: t.weightKg, repsMin: r.min, repsMax: r.max, rirMin: q.min, rirMax: q.max, restSec: null };
   });
-  const p = { sets, loadMode: done[0].loadMode, minKg: null, maxKg: null, rest: { medianSec: null } } as unknown as Prescription;
+  // Bodyweight-only history (e.g. pull-ups without a belt): adding load would start another history → never a belt offer.
+  const bodyweightOnly = ex.variation?.loading === 'bodyweight';
+  const p = { sets, loadMode: done[0].loadMode, minKg: ctx.minKg ?? null, maxKg: bodyweightOnly ? 0 : ctx.maxKg ?? null, rest: { medianSec: ctx.restMedianSec ?? null } } as unknown as Prescription;
   const a = adaptRemaining(p, done, step);
   if (a.change !== 'add_load' && a.change !== 'add_reps' && a.change !== 'reduce') return null;
   const first = a.sets[0];
   if (!first) return null;
-  return { change: a.change, weightKg: first.weightKg, reps: { min: first.repsMin, max: first.repsMax }, why: a.why };
+  const o: NextSetsOffer = { change: a.change, weightKg: first.weightKg, reps: { min: first.repsMin, max: first.repsMax }, why: a.why };
+  if (ex.offerKept?.includes(offerKey(lastSet.id, o))) return null;
+  return o;
 }
 
-/** Use: the target of the remaining sets becomes the offer, marked as adapted (Undo = the previous exercise object). */
+/** "Keep the plan": remembered on the exercise (survives leaving the screen, reload and lock); this offer is not asked again. */
+export function keepOffer(ex: WorkoutExercise, o: NextSetsOffer): WorkoutExercise {
+  const lastSet = performed(ex).filter((s) => s.type === 'working').at(-1);
+  if (!lastSet) return ex;
+  return { ...ex, offerKept: [...(ex.offerKept ?? []), offerKey(lastSet.id, o)] };
+}
+
+/** Use: the target of the remaining sets becomes the offer, marked as adapted (Undo = the previous target). */
 export function applyOffer(ex: WorkoutExercise, o: NextSetsOffer, at: string): WorkoutExercise {
   const t = ex.target;
   if (!t) return ex;
@@ -359,6 +406,8 @@ export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, 
   const prev = performed(last);
   const done = performed(ex);
   const lastHere = prev[done.length]?.weightKg ?? prev.filter((s) => s.type === 'working').at(-1)?.weightKg ?? null;
+  // A target the owner edited before Start is the owner's number, not the analysis's: no mark.
+  if (t?.edited && !t.adapted && t.weightKg != null && weightKg === t.weightKg) return null;
   if (t?.weightKg != null && weightKg === t.weightKg) {
     if (t.adapted) return 'adjusted';
     return lastHere != null && lastHere !== t.weightKg ? 'adjusted' : 'kept';

@@ -1,5 +1,5 @@
 import { SEED_EXERCISES } from '../data/exercises';
-import type { ExerciseDef, ExerciseOverride, MuscleId, RegionId, Variation } from './types';
+import type { ExerciseDef, ExerciseOverride, MuscleId, RegionId, Variation, EquipmentKind } from './types';
 import { L, num } from '../i18n/core';
 
 export type Registry = Map<string, ExerciseDef>;
@@ -141,4 +141,4 @@ function tokenOverlap(a: string, b: string): number {
 }
 
 /** Equipment kinds that need a machine linked at the gym (one definition for the whole app, map audit C-5). */
-export const MACHINE_KINDS: ReadonlySet<string> = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
+export const MACHINE_KINDS: ReadonlySet<EquipmentKind> = new Set<EquipmentKind>(['machine', 'plate_loaded', 'cable', 'smith']);

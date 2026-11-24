@@ -86,9 +86,9 @@ for (const lang of ['en', 'ru'] as const) {
     await page.getByRole('button', { name: lang === 'en' ? 'Start' : 'Начать', exact: true }).click();
     const train = page.getByTestId('train');
     await expect(train).toBeVisible();
-    // Where the pre-filled weight came from (brain / check / copy), shown above the weight.
+    // Where the pre-filled weight came from: smart (brain) or copied, shown above the weight.
     await expect(page.getByTestId('weight-source')).toBeVisible();
-    expect(['adjusted', 'kept', 'copied']).toContain(await page.getByTestId('weight-source').getAttribute('data-source'));
+    expect(['smart', 'copied']).toContain(await page.getByTestId('weight-source').getAttribute('data-source'));
     await noFindings(page, 'set entry with weight source');
     await shot('01b-weight-source');
     await logSet(page, null, '10', 1);
@@ -103,8 +103,10 @@ for (const lang of ['en', 'ru'] as const) {
     await expect(offer).toBeVisible();
     await noFindings(page, 'rest screen with the offer');
     await shot('01c-set-offer');
-    await offer.getByTestId('offer-keep').click();
+    // Use: the remaining sets change, with Undo (nothing applied silently).
+    await offer.getByTestId('offer-use').click();
     await expect(offer).toHaveCount(0);
+    await expect(page.getByTestId('toast').first()).toContainText(lang === 'en' ? 'Next sets changed' : 'Следующие подходы изменены');
     await restGuard(page);
     await page.getByTestId('stop-early').click();
     const chooser = page.getByTestId('next-chooser');

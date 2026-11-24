@@ -1293,140 +1293,161 @@
    "name": "lastEntryFor",
    "kind": "function",
    "exported": true,
-   "line": 128
+   "line": 133
   },
   "src/domain/liveFlow#isDoubleTap": {
    "file": "src/domain/liveFlow",
    "name": "isDoubleTap",
    "kind": "function",
    "exported": true,
-   "line": 143
+   "line": 148
   },
   "src/domain/liveFlow#logSet": {
    "file": "src/domain/liveFlow",
    "name": "logSet",
    "kind": "function",
    "exported": true,
-   "line": 157
+   "line": 162
   },
   "src/domain/liveFlow#clearOtherRestEnds": {
    "file": "src/domain/liveFlow",
    "name": "clearOtherRestEnds",
    "kind": "function",
    "exported": true,
-   "line": 183
+   "line": 186
   },
   "src/domain/liveFlow#editSet": {
    "file": "src/domain/liveFlow",
    "name": "editSet",
    "kind": "function",
    "exported": true,
-   "line": 194
+   "line": 197
   },
   "src/domain/liveFlow#toggleWarmup": {
    "file": "src/domain/liveFlow",
    "name": "toggleWarmup",
    "kind": "function",
    "exported": true,
-   "line": 200
+   "line": 203
   },
   "src/domain/liveFlow#exerciseProgress": {
    "file": "src/domain/liveFlow",
    "name": "exerciseProgress",
    "kind": "function",
    "exported": true,
-   "line": 207
+   "line": 210
   },
   "src/domain/liveFlow#setDelta": {
    "file": "src/domain/liveFlow",
    "name": "setDelta",
    "kind": "function",
    "exported": true,
-   "line": 225
+   "line": 228
   },
   "src/domain/liveFlow#setScore": {
    "file": "src/domain/liveFlow",
    "name": "setScore",
    "kind": "function",
    "exported": true,
-   "line": 240
+   "line": 243
   },
   "src/domain/liveFlow#clockStartMs": {
    "file": "src/domain/liveFlow",
    "name": "clockStartMs",
    "kind": "function",
    "exported": true,
-   "line": 248
+   "line": 251
   },
   "src/domain/liveFlow#lastLogged": {
    "file": "src/domain/liveFlow",
    "name": "lastLogged",
    "kind": "function",
    "exported": true,
-   "line": 260
+   "line": 263
   },
   "src/domain/liveFlow#clampRest": {
    "file": "src/domain/liveFlow",
    "name": "clampRest",
    "kind": "const",
    "exported": true,
-   "line": 270
+   "line": 273
   },
   "src/domain/liveFlow#restTargetFor": {
    "file": "src/domain/liveFlow",
    "name": "restTargetFor",
    "kind": "function",
    "exported": true,
-   "line": 273
+   "line": 276
   },
   "src/domain/liveFlow#restState": {
    "file": "src/domain/liveFlow",
    "name": "restState",
    "kind": "function",
    "exported": true,
-   "line": 288
+   "line": 291
   },
   "src/domain/liveFlow#adjustRest": {
    "file": "src/domain/liveFlow",
    "name": "adjustRest",
    "kind": "function",
    "exported": true,
-   "line": 298
+   "line": 301
   },
   "src/domain/liveFlow#mmss": {
    "file": "src/domain/liveFlow",
    "name": "mmss",
    "kind": "const",
    "exported": true,
-   "line": 302
+   "line": 305
   },
   "src/domain/liveFlow#prescribedFor": {
    "file": "src/domain/liveFlow",
    "name": "prescribedFor",
    "kind": "function",
    "exported": true,
-   "line": 307
+   "line": 310
+  },
+  "src/domain/liveFlow#withPrescribed": {
+   "file": "src/domain/liveFlow",
+   "name": "withPrescribed",
+   "kind": "function",
+   "exported": false,
+   "line": 323
+  },
+  "src/domain/liveFlow#offerKey": {
+   "file": "src/domain/liveFlow",
+   "name": "offerKey",
+   "kind": "const",
+   "exported": false,
+   "line": 349
   },
   "src/domain/liveFlow#nextSetsOffer": {
    "file": "src/domain/liveFlow",
    "name": "nextSetsOffer",
    "kind": "function",
    "exported": true,
-   "line": 321
+   "line": 356
+  },
+  "src/domain/liveFlow#keepOffer": {
+   "file": "src/domain/liveFlow",
+   "name": "keepOffer",
+   "kind": "function",
+   "exported": true,
+   "line": 382
   },
   "src/domain/liveFlow#applyOffer": {
    "file": "src/domain/liveFlow",
    "name": "applyOffer",
    "kind": "function",
    "exported": true,
-   "line": 342
+   "line": 389
   },
   "src/domain/liveFlow#weightSource": {
    "file": "src/domain/liveFlow",
    "name": "weightSource",
    "kind": "function",
    "exported": true,
-   "line": 356
+   "line": 403
   },
   "src/domain/mappingUncertainty#isUncertainMapping": {
    "file": "src/domain/mappingUncertainty",
@@ -2847,231 +2868,231 @@
    "name": "USUAL_EXERCISE_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 34
+   "line": 33
   },
   "src/domain/sequence#LIMIT_HOURS_LEFT": {
    "file": "src/domain/sequence",
    "name": "LIMIT_HOURS_LEFT",
    "kind": "const",
    "exported": true,
-   "line": 36
+   "line": 35
   },
   "src/domain/sequence#INTERFERENCE_MIN_COEF": {
    "file": "src/domain/sequence",
    "name": "INTERFERENCE_MIN_COEF",
    "kind": "const",
    "exported": true,
-   "line": 38
+   "line": 37
   },
   "src/domain/sequence#DIRECT_COEF": {
    "file": "src/domain/sequence",
    "name": "DIRECT_COEF",
    "kind": "const",
    "exported": true,
-   "line": 40
+   "line": 39
   },
   "src/domain/sequence#median": {
    "file": "src/domain/sequence",
    "name": "median",
    "kind": "const",
    "exported": false,
-   "line": 57
+   "line": 56
   },
   "src/domain/sequence#priorityOf": {
    "file": "src/domain/sequence",
    "name": "priorityOf",
    "kind": "function",
    "exported": false,
-   "line": 59
+   "line": 58
   },
   "src/domain/sequence#upcomingSessions": {
    "file": "src/domain/sequence",
    "name": "upcomingSessions",
    "kind": "function",
    "exported": true,
-   "line": 71
+   "line": 70
   },
   "src/domain/sequence#exName": {
    "file": "src/domain/sequence",
    "name": "exName",
    "kind": "const",
    "exported": false,
-   "line": 100
+   "line": 99
   },
   "src/domain/sequence#weekday": {
    "file": "src/domain/sequence",
    "name": "weekday",
    "kind": "const",
    "exported": false,
-   "line": 101
+   "line": 100
   },
   "src/domain/sequence#findingText": {
    "file": "src/domain/sequence",
    "name": "findingText",
    "kind": "function",
    "exported": false,
-   "line": 103
+   "line": 102
   },
   "src/domain/sequence#activeMoves": {
    "file": "src/domain/sequence",
    "name": "activeMoves",
    "kind": "function",
    "exported": true,
-   "line": 135
+   "line": 134
   },
   "src/domain/sequence#usualSetCount": {
    "file": "src/domain/sequence",
    "name": "usualSetCount",
    "kind": "function",
    "exported": true,
-   "line": 140
+   "line": 139
   },
   "src/domain/sequence#addMoves": {
    "file": "src/domain/sequence",
    "name": "addMoves",
    "kind": "function",
    "exported": true,
-   "line": 148
+   "line": 147
   },
   "src/domain/sequence#moveNeedsSetup": {
    "file": "src/domain/sequence",
    "name": "moveNeedsSetup",
    "kind": "function",
    "exported": true,
-   "line": 154
+   "line": 153
   },
   "src/domain/sequence#doneToday": {
    "file": "src/domain/sequence",
    "name": "doneToday",
    "kind": "function",
    "exported": false,
-   "line": 160
+   "line": 159
   },
   "src/domain/sequence#checksFrom": {
    "file": "src/domain/sequence",
    "name": "checksFrom",
    "kind": "function",
    "exported": false,
-   "line": 167
+   "line": 166
   },
   "src/domain/sequence#forwardChecks": {
    "file": "src/domain/sequence",
    "name": "forwardChecks",
    "kind": "function",
    "exported": true,
-   "line": 190
+   "line": 189
   },
   "src/domain/sequence#FULL_CONFIDENCE_WEEKS": {
    "file": "src/domain/sequence",
    "name": "FULL_CONFIDENCE_WEEKS",
    "kind": "const",
    "exported": true,
-   "line": 217
+   "line": 216
   },
   "src/domain/sequence#learnedWeeks": {
    "file": "src/domain/sequence",
    "name": "learnedWeeks",
    "kind": "const",
    "exported": false,
-   "line": 218
+   "line": 217
   },
   "src/domain/sequence#KEPT_NOT_LOWER": {
    "file": "src/domain/sequence",
    "name": "KEPT_NOT_LOWER",
    "kind": "const",
    "exported": true,
-   "line": 223
+   "line": 222
   },
   "src/domain/sequence#KEPT_MIN_OBSERVATIONS": {
    "file": "src/domain/sequence",
    "name": "KEPT_MIN_OBSERVATIONS",
    "kind": "const",
    "exported": true,
-   "line": 229
+   "line": 228
   },
   "src/domain/sequence#KEPT_RIR_DIFF": {
    "file": "src/domain/sequence",
    "name": "KEPT_RIR_DIFF",
    "kind": "const",
    "exported": true,
-   "line": 231
+   "line": 230
   },
   "src/domain/sequence#KEPT_SHORT_REST": {
    "file": "src/domain/sequence",
    "name": "KEPT_SHORT_REST",
    "kind": "const",
    "exported": true,
-   "line": 233
+   "line": 232
   },
   "src/domain/sequence#keptOutcome": {
    "file": "src/domain/sequence",
    "name": "keptOutcome",
    "kind": "function",
    "exported": true,
-   "line": 241
+   "line": 240
   },
   "src/domain/sequence#forwardHabit": {
    "file": "src/domain/sequence",
    "name": "forwardHabit",
    "kind": "function",
    "exported": true,
-   "line": 274
+   "line": 273
   },
   "src/domain/sequence#PAIR_ADJACENT_SHARE": {
    "file": "src/domain/sequence",
    "name": "PAIR_ADJACENT_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 297
+   "line": 296
   },
   "src/domain/sequence#PAIR_MIN_SESSIONS": {
    "file": "src/domain/sequence",
    "name": "PAIR_MIN_SESSIONS",
    "kind": "const",
    "exported": true,
-   "line": 298
+   "line": 297
   },
   "src/domain/sequence#PAIR_RECENT": {
    "file": "src/domain/sequence",
    "name": "PAIR_RECENT",
    "kind": "const",
    "exported": true,
-   "line": 300
+   "line": 299
   },
   "src/domain/sequence#ARM": {
    "file": "src/domain/sequence",
    "name": "ARM",
    "kind": "const",
    "exported": false,
-   "line": 302
+   "line": 301
   },
   "src/domain/sequence#related": {
    "file": "src/domain/sequence",
    "name": "related",
    "kind": "function",
    "exported": false,
-   "line": 307
+   "line": 306
   },
   "src/domain/sequence#issuesIfDoneOn": {
    "file": "src/domain/sequence",
    "name": "issuesIfDoneOn",
    "kind": "function",
    "exported": false,
-   "line": 318
+   "line": 317
   },
   "src/domain/sequence#movePartners": {
    "file": "src/domain/sequence",
    "name": "movePartners",
    "kind": "function",
    "exported": true,
-   "line": 335
+   "line": 334
   },
   "src/domain/sequence#bestMoveDay": {
    "file": "src/domain/sequence",
    "name": "bestMoveDay",
    "kind": "function",
    "exported": true,
-   "line": 362
+   "line": 361
   },
   "src/domain/sessionSummary#performed": {
    "file": "src/domain/sessionSummary",
@@ -5857,56 +5878,56 @@
    "name": "RestPill",
    "kind": "function",
    "exported": false,
-   "line": 752
+   "line": 757
   },
   "src/ui/pages/Train#WeightSource": {
    "file": "src/ui/pages/Train",
    "name": "WeightSource",
    "kind": "function",
    "exported": false,
-   "line": 779
+   "line": 787
   },
   "src/ui/pages/Train#RestScreen": {
    "file": "src/ui/pages/Train",
    "name": "RestScreen",
    "kind": "function",
    "exported": false,
-   "line": 795
+   "line": 802
   },
   "src/ui/pages/Train#Toggle": {
    "file": "src/ui/pages/Train",
    "name": "Toggle",
    "kind": "function",
    "exported": false,
-   "line": 894
+   "line": 901
   },
   "src/ui/pages/Train#SetSheet": {
    "file": "src/ui/pages/Train",
    "name": "SetSheet",
    "kind": "function",
    "exported": false,
-   "line": 899
+   "line": 906
   },
   "src/ui/pages/Train#painArea": {
    "file": "src/ui/pages/Train",
    "name": "painArea",
    "kind": "const",
    "exported": false,
-   "line": 950
+   "line": 957
   },
   "src/ui/pages/Train#WhySheet": {
    "file": "src/ui/pages/Train",
    "name": "WhySheet",
    "kind": "function",
    "exported": false,
-   "line": 953
+   "line": 960
   },
   "src/ui/pages/Train#Overview": {
    "file": "src/ui/pages/Train",
    "name": "Overview",
    "kind": "function",
    "exported": false,
-   "line": 978
+   "line": 985
   },
   "src/ui/pages/WorkoutCheck#kg": {
    "file": "src/ui/pages/WorkoutCheck",
@@ -8790,10 +8811,6 @@
   },
   {
    "from": "src/domain/liveFlow#exerciseProgress",
-   "to": "src/domain/liveFlow#logSet"
-  },
-  {
-   "from": "src/domain/liveFlow#exerciseProgress",
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
@@ -8810,6 +8827,10 @@
   },
   {
    "from": "src/domain/liveFlow#isDoubleTap",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/liveFlow#keepOffer",
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
@@ -8857,8 +8878,20 @@
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
+   "from": "src/domain/liveFlow#offerKey",
+   "to": "src/domain/liveFlow#keepOffer"
+  },
+  {
+   "from": "src/domain/liveFlow#offerKey",
+   "to": "src/domain/liveFlow#nextSetsOffer"
+  },
+  {
    "from": "src/domain/liveFlow#performed",
    "to": "src/domain/liveFlow#isDoubleTap"
+  },
+  {
+   "from": "src/domain/liveFlow#performed",
+   "to": "src/domain/liveFlow#keepOffer"
   },
   {
    "from": "src/domain/liveFlow#performed",
@@ -8886,7 +8919,7 @@
   },
   {
    "from": "src/domain/liveFlow#prescribedFor",
-   "to": "src/domain/liveFlow#logSet"
+   "to": "src/domain/liveFlow#withPrescribed"
   },
   {
    "from": "src/domain/liveFlow#restState",
@@ -8931,6 +8964,10 @@
   {
    "from": "src/domain/liveFlow#weightSource",
    "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/liveFlow#withPrescribed",
+   "to": "src/domain/liveFlow#logSet"
   },
   {
    "from": "src/domain/mappingUncertainty#isUncertainMapping",
@@ -14743,10 +14780,6 @@
   {
    "from": "src/ui/components/icons#IconCheck",
    "to": "src/ui/pages/Train#Overview"
-  },
-  {
-   "from": "src/ui/components/icons#IconCheck",
-   "to": "src/ui/pages/Train#WeightSource"
   },
   {
    "from": "src/ui/components/icons#IconChevronDown",

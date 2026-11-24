@@ -1076,5 +1076,5 @@ edges first drawn from intent), `scripts/formula-map.mjs` (validator, Mermaid, o
 confirmed items (C-1…C-7) wait for the owner's decision.
 Gaps fixed after the owner's "fix the gaps found by the map, but double check if the code is wrong or the map"
 (2026-11-24): see docs/FORMULA_DEPENDENCY_MAP.md §10 Resolution; tests first in `tests/audit-gaps.test.ts`. Also the
-weight-source mark in the training mode (brain / check / copy).
+weight-source mark in the training mode (smart / copied — owner: only that distinction matters).
 

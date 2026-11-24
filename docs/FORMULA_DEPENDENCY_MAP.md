@@ -13,7 +13,7 @@ not from intent. Analysis and visualisation only: no formula, weight, threshold 
 - **Worked examples:** each number is recomputed by a test (synthetic data) — the test is named next to each step.
 
 <!-- map:stats -->
-Code graph: **973 declarations, 3120 value references**; curated map: **77 nodes, 163 edges in 7 views**.
+Code graph: **976 declarations, 3123 value references**; curated map: **77 nodes, 163 edges in 7 views**.
 <!-- /map:stats -->
 
 ## Legend
@@ -699,9 +699,9 @@ the fixes and failed.
 | C-8 | **the code** — same commit dropped writing `prescribed` | restored: every logged set stores what was prescribed for it (from the target, with its RIR target); an older target without RIR writes nothing rather than an invented value |
 | C-9 | neither yet — same formula in three places | kept; noted as a risk for the next formula change |
 
-Also new (owner 2026-11-24): the training mode shows where the pre-filled weight came from — a brain mark "adjusted by the
-analysis" (a target that differs from last time, or an adjustment after the last set), a check "checked by the
-analysis: keep last time's weight", or "copied — not analysed yet" (`weightSource`).
+Also new (owner 2026-11-24): the training mode shows where the pre-filled weight came from — a brain "Smart weight" (the
+analysis set it: changed, confirmed or adjusted after a set; with "+2.5 kg vs last time" / "same as last time") or
+"Copied from last time — not analysed" (`weightSource`).
 
 ### Risks to investigate
 

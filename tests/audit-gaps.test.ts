@@ -16,14 +16,16 @@ import { estimatedRirRange } from '../src/domain/feedback';
 import { stoppedBeforeFailureInferred } from '../src/domain/failure';
 import { bodyKgForIndex, weighIns } from '../src/domain/bodyweight';
 import { weeklyHistory } from '../src/domain/history';
-import { applyOffer, logSet, nextSetsOffer, prefillNext, weightSource } from '../src/domain/liveFlow';
+import { applyOffer, keepOffer, logSet, nextSetsOffer, prefillNext, weightSource } from '../src/domain/liveFlow';
 import { generateWorkout, targetFromPrescription } from '../src/domain/planner';
 import { readinessReport } from '../src/domain/readiness';
 import { buildRegistry } from '../src/domain/registry';
 import type { ExerciseTarget, Workout, WorkoutExercise, WorkoutSet } from '../src/domain/types';
 import { data, ex, set, workout } from './fixtures';
+import { DEFAULT_QUALITY } from '../src/domain/defaults';
 
-const model = { rirCredit: { r0to3: 1, r4: 0.6, r5: 0.3, r6to7: 0.15, r8plus: 0 }, useNumbersCheck: true, useFeelWhenNoRir: true } as never;
+// The real quality model (review 2026-11-24: a wrong shape here hid the warm-up re-tagging).
+const model = DEFAULT_QUALITY;
 const T: ExerciseTarget = { sets: 3, weightKg: 40, reps: [{ min: 8, max: 12 }], rir: [{ min: 1, max: 2 }], engine: 'presc-1' };
 const card = (sets: WorkoutSet[] = [], target: ExerciseTarget = T): WorkoutExercise => ({ ...ex('pec_deck', sets, 'pd'), target });
 const NOW = Date.parse('2026-11-16T17:30:00Z');
@@ -175,5 +177,68 @@ describe('direct tests (map: "covered only through callers")', () => {
     const weeks = weeklyHistory(d, buildRegistry([], []), '2026-11-18');
     expect(weeks[0].partial).toBe(true);
     expect(weeks[1].partial).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------- independent review of the gap fixes (2026-11-24)
+describe('review of the gap fixes — regressions', () => {
+  const last = ex('pec_deck', [set(40, 12, 2), set(40, 12, 2), set(40, 11, 2)], 'pd');
+  const at = (m: number) => `2026-11-16T17:${String(m).padStart(2, '0')}:00Z`;
+  it('R1 after Use, a set logged at another weight is respected: the adapted weight is not pushed again', () => {
+    const e = applyOffer(card([set(40, 12, 4, { completedAt: at(20) })]), { change: 'add_load', weightKg: 42.5, reps: null, why: 'x' }, at(21));
+    expect(prefillNext(e, last).weightKg).toBe(42.5);
+    const typed = { ...e, sets: [...e.sets, set(40, 11, 2, { completedAt: at(24) })] };
+    expect(prefillNext(typed, last).weightKg).toBe(40);
+  });
+  it('R2 a ramp set re-tagged as a warm-up loses its working prescription; the first real working set gets set 1\'s', () => {
+    const t: ExerciseTarget = { sets: 3, weightKg: 60, reps: [{ min: 6, max: 8 }, { min: 8, max: 10 }, { min: 10, max: 12 }], rir: [{ min: 2, max: 3 }, { min: 1, max: 2 }, { min: 0, max: 1 }], engine: 'presc-1' };
+    let e = logSet(card([], t), { weightKg: 40, reps: 5, loadMode: 'total' }, Date.parse(at(10)), 'a', model);
+    e = logSet(e, { weightKg: 60, reps: 12, loadMode: 'total' }, Date.parse(at(14)), 'b', model);
+    const a = e.sets.find((x) => x.id === 'a')!;
+    const b = e.sets.find((x) => x.id === 'b')!;
+    expect(a.type).toBe('warmup');
+    expect(a.prescribed).toBeUndefined();
+    expect(b.prescribed).toMatchObject({ repsMin: 6, repsMax: 8, rirMin: 2, rirMax: 3 });
+  });
+  it('R3 the offer respects the machine limit (no 102.5 kg on a 100 kg stack → more reps) and the short-rest rule', () => {
+    const t = { ...T, weightKg: 100 };
+    const e = card([set(100, 12, 5, { completedAt: at(20) })], t);
+    expect(nextSetsOffer(e, 2.5, { maxKg: 100 })).toMatchObject({ change: 'add_reps' });
+    // Reps well below the range on 2 sets after a clearly short rest (40 s vs usual 120 s) → the rest, not the load: no offer.
+    const short = card([set(40, 5, 2, { completedAt: at(20), restSecBefore: 120 }), set(40, 5, 2, { completedAt: at(21), restSecBefore: 40 })]);
+    expect(nextSetsOffer(short, 2.5, { restMedianSec: 120 })).toBeNull();
+  });
+  it('R3b bodyweight pull-ups: never an offer to add a belt load', () => {
+    const t = { ...T, weightKg: 0 };
+    const e = { ...ex('pull_up', [set(0, 12, 5, { loadMode: 'bodyweight_plus', completedAt: at(20) })], null, { variation: { loading: 'bodyweight' } }), target: t } as WorkoutExercise;
+    const o = nextSetsOffer(e, 2.5);
+    expect(o?.change).not.toBe('add_load');
+  });
+  it('R5 Keep the plan is remembered on the exercise (survives leaving the screen) and keyed by the offer, not only the set', () => {
+    const e = card([set(40, 12, 4, { completedAt: at(20) })]);
+    const o = nextSetsOffer(e, 2.5)!;
+    const kept = keepOffer(e, o);
+    expect(nextSetsOffer(kept, 2.5)).toBeNull();
+    // The same set edited into another situation (form broke at RIR 0) → a NEW offer is shown.
+    const edited = { ...kept, sets: kept.sets.map((x) => ({ ...x, rir: 0, technicalFailure: true })) };
+    expect(nextSetsOffer(edited, 2.5)).toMatchObject({ change: 'reduce' });
+  });
+  it('R6 a target the owner edited before Start is not "smart" (no mark)', () => {
+    expect(weightSource(card([], { ...T, weightKg: 50, edited: true }), last, 50)).toBeNull();
+  });
+  it('R7 a target exists but the shown weight is last time\'s (declined / pyramid) → copied, and the screen must not say "not analysed"', () => {
+    expect(weightSource(card([], { ...T, weightKg: 42.5 }), last, 40)).toBe('copied');
+  });
+  it('R9 a target with RIR but no reps never crashes the offer', () => {
+    expect(() => nextSetsOffer(card([set(40, 12, 4, { completedAt: at(20) })], { ...T, reps: [] }), 2.5)).not.toThrow();
+  });
+  it('R10 both sides of a pair store the same set\'s prescription', () => {
+    let e = card([]);
+    e = logSet(e, { weightKg: 40, reps: 10, loadMode: 'total', side: 'left' }, Date.parse(at(10)), 'l1', model);
+    e = logSet(e, { weightKg: 40, reps: 10, loadMode: 'total', side: 'right' }, Date.parse(at(11)), 'r1', model);
+    e = logSet(e, { weightKg: 40, reps: 10, loadMode: 'total', side: 'left' }, Date.parse(at(14)), 'l2', model);
+    const p = (id: string) => e.sets.find((x) => x.id === id)!.prescribed;
+    expect(p('r1')).toEqual(p('l1'));
+    expect(p('l2')).toBeDefined();
   });
 });

@@ -12,9 +12,8 @@
  * usual 6 h tolerance nothing is shown. Windows are the recovery table's base windows (heuristics), the same ones the
  * rest of the app uses — no second recovery model. Same time of day assumed for every session (24 h per day).
  *
- * Moving (`bestMoveDay`) chooses the DAY; `placeInSession` chooses the POSITION inside that day separately: after the
- * high-priority exercises that use the moved exercise's muscles or cost more fatigue (curls after pull-ups), first only
- * when its primary muscle is the owner's priority.
+ * Moving (`bestMoveDay`) chooses the DAY only; the POSITION inside that day is the planner's normal order (priority muscle
+ * first, then fatigue cost HIGH → LOW): curls after pull-ups. One order rule (map audit C-2).
  */
 import type { AppData } from './appdata';
 import { addDays, diffDays, formatDate } from './dates';
@@ -153,7 +152,7 @@ export function addMoves(before: PlannedMove[], moves: PlannedMove[]): PlannedMo
 /** A move without a machine for a machine / cable exercise: the machine is chosen again on the day (shown so). */
 export function moveNeedsSetup(m: PlannedMove, registry: Analysis['registry']): boolean {
   const def = registry.get(m.exerciseId);
-  return m.equipmentId == null && !!def && MACHINE_KINDS.has(def.equipmentKind as string);
+  return m.equipmentId == null && !!def && MACHINE_KINDS.has(def.equipmentKind);
 }
 
 /** Effective sets per muscle already done in this session. */
