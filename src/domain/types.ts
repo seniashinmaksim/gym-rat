@@ -220,6 +220,10 @@ export interface ExerciseTarget {
   engine: string;
   /** The owner changed it before starting: never re-planned automatically. */
   edited?: boolean;
+  /** Target reps in reserve per set (the last entry repeats). Older targets have none. */
+  rir?: { min: number; max: number }[];
+  /** The remaining sets were changed during the exercise from what was done (offered, the owner tapped Use). */
+  adapted?: { change: 'add_load' | 'add_reps' | 'reduce'; fromKg: number | null; why: string; at: string };
 }
 
 export interface ExerciseChoiceRecord {

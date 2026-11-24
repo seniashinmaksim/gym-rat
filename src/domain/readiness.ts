@@ -19,7 +19,7 @@ import { L, byLang, num, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, TRACKED_MUSCLES, muscleName } from './muscles';
 import type { ProgressionSeries, SessionPerf } from './progression';
 import { isCounted } from './quality';
-import type { Registry } from './registry';
+import { MACHINE_KINDS, type Registry } from './registry';
 import type { analyze } from './analysis';
 import type { MuscleId, Workout, WorkoutSet } from './types';
 
@@ -47,7 +47,6 @@ export const MODE_THRESHOLDS = {
 /** Muscles the planner treats as "major" for the coverage rule. */
 export const MAJOR_MUSCLES: MuscleId[] = ['chest', 'lats', 'upper_back', 'side_delts', 'biceps', 'triceps', 'quads', 'hamstrings', 'glutes', 'abs'];
 
-const MACHINE_KINDS = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
 
 // ---------------------------------------------------------------- workout documentation
 

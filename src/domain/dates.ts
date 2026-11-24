@@ -52,10 +52,6 @@ export function localNowParts(timeZone: string, now: Date = new Date()): { date:
   return { date, time, virtualMs: Date.parse(`${date}T${time}:00Z`) };
 }
 
-export function todayIn(timeZone: string, now?: Date): string {
-  return localNowParts(timeZone, now).date;
-}
-
 export function weekStart(d: string, weekStartsOn: number): string {
   const dow = dayOfWeek(d);
   const back = (dow - weekStartsOn + 7) % 7;
@@ -70,10 +66,6 @@ export interface WeekRange {
 export function weekOf(d: string, weekStartsOn: number): WeekRange {
   const start = weekStart(d, weekStartsOn);
   return { start, end: addDays(start, 6) };
-}
-
-export function inRange(d: string, r: WeekRange): boolean {
-  return d >= r.start && d <= r.end;
 }
 
 /** Days remaining in the week INCLUDING today. */

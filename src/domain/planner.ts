@@ -23,7 +23,7 @@ import { prescribe, PRESCRIPTION_ENGINE, type Prescription } from './prescriptio
 import { progressionKey } from './progression';
 import { countedSetCount, isCounted } from './quality';
 import { MAJOR_MUSCLES, readinessReport, type OperatingMode, type ReadinessLevel, type ReadinessReport } from './readiness';
-import { resolveCoefficients } from './registry';
+import { resolveCoefficients, MACHINE_KINDS } from './registry';
 import { sessionMuscleEffective, computeVolume } from './volume';
 import type { analyze } from './analysis';
 import type { ExerciseDef, GeneratedPlanSnapshot, MuscleId, PlanDecision, Variation, Workout, WorkoutExercise, WorkoutSet, ExerciseTarget } from './types';
@@ -57,7 +57,6 @@ export function allocateSets(contributions: Partial<Record<MuscleId, number>>, o
   while (n > 1 && over(n)) n--;
   return { sets: n, target };
 }
-const MACHINE_KINDS = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
 
 // ---------------------------------------------------------------- personal library + patterns
 
@@ -546,7 +545,8 @@ export interface ItemEdit { sets?: number; weightKg?: number | null }
 /** Today's target for one exercise, from a prescription (Part 6: a line, never set rows). */
 export function targetFromPrescription(p: Pick<Prescription, 'workingWeightKg' | 'sets' | 'setCount'>, sets: number = p.setCount, weightKg: number | null | undefined = undefined, edited = false): ExerciseTarget {
   const reps = p.sets.length ? p.sets.map((x) => ({ min: x.repsMin, max: x.repsMax })) : [{ min: 10, max: 12 }];
-  return { sets, weightKg: weightKg !== undefined ? weightKg : p.workingWeightKg, reps, engine: PRESCRIPTION_ENGINE, ...(edited ? { edited: true } : {}) };
+  const rir = p.sets.length ? p.sets.map((x) => ({ min: x.rirMin, max: x.rirMax })) : undefined;
+  return { sets, weightKg: weightKg !== undefined ? weightKg : p.workingWeightKg, reps, ...(rir ? { rir } : {}), engine: PRESCRIPTION_ENGINE, ...(edited ? { edited: true } : {}) };
 }
 
 /**

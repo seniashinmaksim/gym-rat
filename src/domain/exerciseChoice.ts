@@ -11,12 +11,14 @@
  * Nothing here blocks: the UI offers [Use alternative] [Continue]; answered warnings are not repeated.
  * Wording never claims a biological state ("RECENTLY LOADED", not "damaged").
  */
+import { MACHINE_KINDS } from './registry';
 import type { AppData } from './appdata';
 import { addDays, diffDays, formatDate } from './dates';
 import { hasPain } from './feedback';
 import { L, byLang, getLang, num, ruPlural } from '../i18n/core';
 import { FATIGUE_LABEL, FATIGUE_RANK, fatigueCostOf, isHeavyLower, sessionLoad, significantMuscles, type SessionLoad } from './fatigue';
 import { muscleName, MUSCLE_BY_ID } from './muscles';
+import { heldUp } from './outcomes';
 import { progressionKey } from './progression';
 import { isCounted } from './quality';
 import { movementFamily } from './recovery';
@@ -106,7 +108,6 @@ export interface AssessInput {
 // ---------------------------------------------------------------- helpers shared with the planner
 
 const FREE_KINDS = new Set(['barbell', 'dumbbell', 'kettlebell', 'bodyweight', 'band']);
-const MACHINE_KINDS = new Set(['machine', 'plate_loaded', 'cable', 'smith']);
 
 /** Workouts before the current one (the current session never counts as history). */
 export function priorWorkouts(data: AppData, current: Workout | null): Workout[] {
@@ -240,9 +241,13 @@ export function choiceOutcomes(data: AppData, analysis: Analysis): Map<string, C
       if (i < 0) continue;
       const cur = series.sessions[i];
       const prev = [...series.sessions.slice(0, i)].reverse().find((s) => s.representative && s.indexKind === cur.indexKind);
-      if (!prev || cur.indexRaw == null || prev.indexRaw == null) continue;
+      if (!prev) continue;
+      // Shared comparability check (audit C-3): a result with another reserve, a much shorter rest or another place in
+      // the session is skipped, never counted; reps-based indices on the Epley scale.
+      const held = heldUp(cur, [prev]);
+      if (held == null) continue;
       const list = obs.get(e.exerciseId) ?? [];
-      list.push(cur.indexRaw >= prev.indexRaw * 0.97);
+      list.push(held);
       obs.set(e.exerciseId, list);
     }
   }

@@ -217,13 +217,6 @@
    "exported": true,
    "line": 202
   },
-  "src/domain/bodyweight#daysBetween": {
-   "file": "src/domain/bodyweight",
-   "name": "daysBetween",
-   "kind": "const",
-   "exported": true,
-   "line": 211
-  },
   "src/domain/bulkEdit#assignBenchAngle": {
    "file": "src/domain/bulkEdit",
    "name": "assignBenchAngle",
@@ -287,75 +280,61 @@
    "exported": true,
    "line": 38
   },
-  "src/domain/dates#todayIn": {
-   "file": "src/domain/dates",
-   "name": "todayIn",
-   "kind": "function",
-   "exported": true,
-   "line": 55
-  },
   "src/domain/dates#weekStart": {
    "file": "src/domain/dates",
    "name": "weekStart",
    "kind": "function",
    "exported": true,
-   "line": 59
+   "line": 55
   },
   "src/domain/dates#weekOf": {
    "file": "src/domain/dates",
    "name": "weekOf",
    "kind": "function",
    "exported": true,
-   "line": 70
-  },
-  "src/domain/dates#inRange": {
-   "file": "src/domain/dates",
-   "name": "inRange",
-   "kind": "function",
-   "exported": true,
-   "line": 75
+   "line": 66
   },
   "src/domain/dates#daysLeftInWeek": {
    "file": "src/domain/dates",
    "name": "daysLeftInWeek",
    "kind": "function",
    "exported": true,
-   "line": 80
+   "line": 72
   },
   "src/domain/dates#sessionEndVirtualMs": {
    "file": "src/domain/dates",
    "name": "sessionEndVirtualMs",
    "kind": "function",
    "exported": true,
-   "line": 92
+   "line": 84
   },
   "src/domain/dates#workoutVirtualMs": {
    "file": "src/domain/dates",
    "name": "workoutVirtualMs",
    "kind": "function",
    "exported": true,
-   "line": 115
+   "line": 107
   },
   "src/domain/dates#formatDate": {
    "file": "src/domain/dates",
    "name": "formatDate",
    "kind": "function",
    "exported": true,
-   "line": 120
+   "line": 112
   },
   "src/domain/dates#formatDuration": {
    "file": "src/domain/dates",
    "name": "formatDuration",
    "kind": "function",
    "exported": true,
-   "line": 124
+   "line": 116
   },
   "src/domain/dates#listTimezones": {
    "file": "src/domain/dates",
    "name": "listTimezones",
    "kind": "function",
    "exported": true,
-   "line": 132
+   "line": 124
   },
   "src/domain/defaults#DEFAULT_QUALITY": {
    "file": "src/domain/defaults",
@@ -432,231 +411,224 @@
    "name": "STATE_LABEL",
    "kind": "const",
    "exported": true,
-   "line": 33
+   "line": 35
   },
   "src/domain/exerciseChoice#choiceLabelText": {
    "file": "src/domain/exerciseChoice",
    "name": "choiceLabelText",
    "kind": "function",
    "exported": true,
-   "line": 41
+   "line": 43
   },
   "src/domain/exerciseChoice#FREE_KINDS": {
    "file": "src/domain/exerciseChoice",
    "name": "FREE_KINDS",
    "kind": "const",
    "exported": false,
-   "line": 108
-  },
-  "src/domain/exerciseChoice#MACHINE_KINDS": {
-   "file": "src/domain/exerciseChoice",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 109
+   "line": 110
   },
   "src/domain/exerciseChoice#priorWorkouts": {
    "file": "src/domain/exerciseChoice",
    "name": "priorWorkouts",
    "kind": "function",
    "exported": true,
-   "line": 112
+   "line": 113
   },
   "src/domain/exerciseChoice#exerciseSessionCounts": {
    "file": "src/domain/exerciseChoice",
    "name": "exerciseSessionCounts",
    "kind": "function",
    "exported": true,
-   "line": 117
+   "line": 118
   },
   "src/domain/exerciseChoice#usualExerciseCount": {
    "file": "src/domain/exerciseChoice",
    "name": "usualExerciseCount",
    "kind": "function",
    "exported": true,
-   "line": 131
+   "line": 132
   },
   "src/domain/exerciseChoice#availableEquipment": {
    "file": "src/domain/exerciseChoice",
    "name": "availableEquipment",
    "kind": "function",
    "exported": true,
-   "line": 145
+   "line": 146
   },
   "src/domain/exerciseChoice#PAIN_REGIONS": {
    "file": "src/domain/exerciseChoice",
    "name": "PAIN_REGIONS",
    "kind": "const",
    "exported": false,
-   "line": 177
+   "line": 178
   },
   "src/domain/exerciseChoice#AREA_RU": {
    "file": "src/domain/exerciseChoice",
    "name": "AREA_RU",
    "kind": "const",
    "exported": false,
-   "line": 187
+   "line": 188
   },
   "src/domain/exerciseChoice#areaRu": {
    "file": "src/domain/exerciseChoice",
    "name": "areaRu",
    "kind": "const",
    "exported": false,
-   "line": 190
+   "line": 191
   },
   "src/domain/exerciseChoice#ruName": {
    "file": "src/domain/exerciseChoice",
    "name": "ruName",
    "kind": "const",
    "exported": false,
-   "line": 192
+   "line": 193
   },
   "src/domain/exerciseChoice#mRu": {
    "file": "src/domain/exerciseChoice",
    "name": "mRu",
    "kind": "const",
    "exported": false,
-   "line": 193
+   "line": 194
   },
   "src/domain/exerciseChoice#mRuLow": {
    "file": "src/domain/exerciseChoice",
    "name": "mRuLow",
    "kind": "const",
    "exported": false,
-   "line": 194
+   "line": 195
   },
   "src/domain/exerciseChoice#safetyLine": {
    "file": "src/domain/exerciseChoice",
    "name": "safetyLine",
    "kind": "function",
    "exported": true,
-   "line": 197
+   "line": 198
   },
   "src/domain/exerciseChoice#choiceOutcomes": {
    "file": "src/domain/exerciseChoice",
    "name": "choiceOutcomes",
    "kind": "function",
    "exported": true,
-   "line": 228
+   "line": 229
   },
   "src/domain/exerciseChoice#SEVERITY": {
    "file": "src/domain/exerciseChoice",
    "name": "SEVERITY",
    "kind": "const",
    "exported": false,
-   "line": 259
+   "line": 264
   },
   "src/domain/exerciseChoice#REASON_ORDER": {
    "file": "src/domain/exerciseChoice",
    "name": "REASON_ORDER",
    "kind": "const",
    "exported": false,
-   "line": 260
+   "line": 265
   },
   "src/domain/exerciseChoice#labelOf": {
    "file": "src/domain/exerciseChoice",
    "name": "labelOf",
    "kind": "function",
    "exported": true,
-   "line": 268
+   "line": 273
   },
   "src/domain/exerciseChoice#assessChoice": {
    "file": "src/domain/exerciseChoice",
    "name": "assessChoice",
    "kind": "function",
    "exported": true,
-   "line": 272
+   "line": 277
   },
   "src/domain/exerciseChoice#isAcknowledged": {
    "file": "src/domain/exerciseChoice",
    "name": "isAcknowledged",
    "kind": "function",
    "exported": true,
-   "line": 441
+   "line": 446
   },
   "src/domain/exerciseChoice#needsPrompt": {
    "file": "src/domain/exerciseChoice",
    "name": "needsPrompt",
    "kind": "function",
    "exported": true,
-   "line": 446
+   "line": 451
   },
   "src/domain/exerciseChoice#recentlyLoaded": {
    "file": "src/domain/exerciseChoice",
    "name": "recentlyLoaded",
    "kind": "function",
    "exported": false,
-   "line": 465
+   "line": 470
   },
   "src/domain/exerciseChoice#candidatePool": {
    "file": "src/domain/exerciseChoice",
    "name": "candidatePool",
    "kind": "function",
    "exported": false,
-   "line": 470
+   "line": 475
   },
   "src/domain/exerciseChoice#sparingAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "sparingAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 489
+   "line": 494
   },
   "src/domain/exerciseChoice#otherMuscleAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "otherMuscleAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 502
+   "line": 507
   },
   "src/domain/exerciseChoice#cheaperAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "cheaperAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 518
+   "line": 523
   },
   "src/domain/exerciseChoice#doFirstAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "doFirstAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 524
+   "line": 529
   },
   "src/domain/exerciseChoice#pendingDoable": {
    "file": "src/domain/exerciseChoice",
    "name": "pendingDoable",
    "kind": "function",
    "exported": false,
-   "line": 537
+   "line": 542
   },
   "src/domain/exerciseChoice#round1": {
    "file": "src/domain/exerciseChoice",
    "name": "round1",
    "kind": "const",
    "exported": false,
-   "line": 543
+   "line": 548
   },
   "src/domain/exerciseChoice#fmtSets": {
    "file": "src/domain/exerciseChoice",
    "name": "fmtSets",
    "kind": "const",
    "exported": false,
-   "line": 544
+   "line": 549
   },
   "src/domain/exerciseChoice#ruSets": {
    "file": "src/domain/exerciseChoice",
    "name": "ruSets",
    "kind": "const",
    "exported": false,
-   "line": 546
+   "line": 551
   },
   "src/domain/exerciseChoice#sizeRank": {
    "file": "src/domain/exerciseChoice",
    "name": "sizeRank",
    "kind": "const",
    "exported": false,
-   "line": 547
+   "line": 552
   },
   "src/domain/failure#FAILURE_LABEL": {
    "file": "src/domain/failure",
@@ -672,117 +644,110 @@
    "exported": true,
    "line": 52
   },
-  "src/domain/failure#isCleanMuscularFailure": {
-   "file": "src/domain/failure",
-   "name": "isCleanMuscularFailure",
-   "kind": "function",
-   "exported": true,
-   "line": 61
-  },
   "src/domain/failure#isFailureSetForFatigue": {
    "file": "src/domain/failure",
    "name": "isFailureSetForFatigue",
    "kind": "function",
    "exported": true,
-   "line": 67
+   "line": 61
   },
   "src/domain/failure#techniqueWithFailure": {
    "file": "src/domain/failure",
    "name": "techniqueWithFailure",
    "kind": "function",
    "exported": true,
-   "line": 75
+   "line": 69
   },
   "src/domain/failure#failureImpliedRir": {
    "file": "src/domain/failure",
    "name": "failureImpliedRir",
    "kind": "function",
    "exported": true,
-   "line": 86
+   "line": 80
   },
   "src/domain/failure#failureConsistency": {
    "file": "src/domain/failure",
    "name": "failureConsistency",
    "kind": "function",
    "exported": true,
-   "line": 96
+   "line": 90
   },
   "src/domain/failure#TECHNIQUE_FIRST_COMPOUNDS": {
    "file": "src/domain/failure",
    "name": "TECHNIQUE_FIRST_COMPOUNDS",
    "kind": "const",
    "exported": true,
-   "line": 127
+   "line": 121
   },
   "src/domain/failure#STABLE_KINDS": {
    "file": "src/domain/failure",
    "name": "STABLE_KINDS",
    "kind": "const",
    "exported": false,
-   "line": 135
+   "line": 129
   },
   "src/domain/failure#failureCategory": {
    "file": "src/domain/failure",
    "name": "failureCategory",
    "kind": "function",
    "exported": true,
-   "line": 137
+   "line": 131
   },
   "src/domain/failure#FAILURE_MIN_RECORDED": {
    "file": "src/domain/failure",
    "name": "FAILURE_MIN_RECORDED",
    "kind": "const",
    "exported": true,
-   "line": 197
+   "line": 191
   },
   "src/domain/failure#emptyCounts": {
    "file": "src/domain/failure",
    "name": "emptyCounts",
    "kind": "const",
    "exported": false,
-   "line": 199
+   "line": 193
   },
   "src/domain/failure#stoppedBeforeFailureInferred": {
    "file": "src/domain/failure",
    "name": "stoppedBeforeFailureInferred",
    "kind": "function",
    "exported": true,
-   "line": 206
+   "line": 200
   },
   "src/domain/failure#add": {
    "file": "src/domain/failure",
    "name": "add",
    "kind": "function",
    "exported": false,
-   "line": 213
+   "line": 207
   },
   "src/domain/failure#finish": {
    "file": "src/domain/failure",
    "name": "finish",
    "kind": "const",
    "exported": false,
-   "line": 228
+   "line": 222
   },
   "src/domain/failure#failureProfile": {
    "file": "src/domain/failure",
    "name": "failureProfile",
    "kind": "function",
    "exported": true,
-   "line": 238
+   "line": 232
   },
   "src/domain/failure#failureFlags": {
    "file": "src/domain/failure",
    "name": "failureFlags",
    "kind": "function",
    "exported": false,
-   "line": 280
+   "line": 274
   },
   "src/domain/failure#failureLine": {
    "file": "src/domain/failure",
    "name": "failureLine",
    "kind": "function",
    "exported": false,
-   "line": 356
+   "line": 350
   },
   "src/domain/fatigue#FATIGUE_RANK": {
    "file": "src/domain/fatigue",
@@ -903,82 +868,75 @@
    "exported": true,
    "line": 89
   },
-  "src/domain/feedback#isWrongWeight": {
-   "file": "src/domain/feedback",
-   "name": "isWrongWeight",
-   "kind": "const",
-   "exported": true,
-   "line": 93
-  },
   "src/domain/feedback#hasPain": {
    "file": "src/domain/feedback",
    "name": "hasPain",
    "kind": "const",
    "exported": true,
-   "line": 94
+   "line": 93
   },
   "src/domain/feedback#EFFORT_RIR_ESTIMATE": {
    "file": "src/domain/feedback",
    "name": "EFFORT_RIR_ESTIMATE",
    "kind": "const",
    "exported": true,
-   "line": 101
+   "line": 100
   },
   "src/domain/feedback#estimatedRirRange": {
    "file": "src/domain/feedback",
    "name": "estimatedRirRange",
    "kind": "function",
    "exported": true,
-   "line": 109
+   "line": 108
   },
   "src/domain/feedback#formatRirRange": {
    "file": "src/domain/feedback",
    "name": "formatRirRange",
    "kind": "function",
    "exported": true,
-   "line": 114
+   "line": 113
   },
   "src/domain/feedback#benchmarkExclusion": {
    "file": "src/domain/feedback",
    "name": "benchmarkExclusion",
    "kind": "function",
    "exported": true,
-   "line": 124
+   "line": 123
   },
   "src/domain/feedback#exclusionLabel": {
    "file": "src/domain/feedback",
    "name": "exclusionLabel",
    "kind": "function",
    "exported": true,
-   "line": 140
+   "line": 139
   },
   "src/domain/feedback#STATUS_LABEL": {
    "file": "src/domain/feedback",
    "name": "STATUS_LABEL",
    "kind": "const",
    "exported": true,
-   "line": 155
+   "line": 154
   },
   "src/domain/feedback#AUDITED": {
    "file": "src/domain/feedback",
    "name": "AUDITED",
    "kind": "const",
    "exported": false,
-   "line": 165
+   "line": 164
   },
   "src/domain/feedback#isFinished": {
    "file": "src/domain/feedback",
    "name": "isFinished",
    "kind": "function",
    "exported": true,
-   "line": 168
+   "line": 167
   },
   "src/domain/feedback#withCorrections": {
    "file": "src/domain/feedback",
    "name": "withCorrections",
    "kind": "function",
    "exported": true,
-   "line": 178
+   "line": 177
   },
   "src/domain/history#weeklyHistory": {
    "file": "src/domain/history",
@@ -1230,210 +1188,245 @@
    "name": "loadStep",
    "kind": "function",
    "exported": true,
-   "line": 10
+   "line": 9
+  },
+  "src/domain/increments#defaultIncrement": {
+   "file": "src/domain/increments",
+   "name": "defaultIncrement",
+   "kind": "function",
+   "exported": true,
+   "line": 22
   },
   "src/domain/liveFlow#REST_DEFAULT_SEC": {
    "file": "src/domain/liveFlow",
    "name": "REST_DEFAULT_SEC",
    "kind": "const",
    "exported": true,
-   "line": 16
+   "line": 17
   },
   "src/domain/liveFlow#REST_STEP_SEC": {
    "file": "src/domain/liveFlow",
    "name": "REST_STEP_SEC",
    "kind": "const",
    "exported": true,
-   "line": 17
+   "line": 18
   },
   "src/domain/liveFlow#REST_MIN_SEC": {
    "file": "src/domain/liveFlow",
    "name": "REST_MIN_SEC",
    "kind": "const",
    "exported": true,
-   "line": 18
+   "line": 19
   },
   "src/domain/liveFlow#REST_MAX_SEC": {
    "file": "src/domain/liveFlow",
    "name": "REST_MAX_SEC",
    "kind": "const",
    "exported": true,
-   "line": 19
+   "line": 20
   },
   "src/domain/liveFlow#DOUBLE_TAP_MS": {
    "file": "src/domain/liveFlow",
    "name": "DOUBLE_TAP_MS",
    "kind": "const",
    "exported": true,
-   "line": 21
+   "line": 22
   },
   "src/domain/liveFlow#ANY_DOUBLE_TAP_MS": {
    "file": "src/domain/liveFlow",
    "name": "ANY_DOUBLE_TAP_MS",
    "kind": "const",
    "exported": true,
-   "line": 23
+   "line": 24
   },
   "src/domain/liveFlow#EFFORT_TAPS": {
    "file": "src/domain/liveFlow",
    "name": "EFFORT_TAPS",
    "kind": "const",
    "exported": true,
-   "line": 28
+   "line": 29
   },
   "src/domain/liveFlow#TAP_FIELDS": {
    "file": "src/domain/liveFlow",
    "name": "TAP_FIELDS",
    "kind": "const",
    "exported": false,
-   "line": 30
+   "line": 31
   },
   "src/domain/liveFlow#effortTapPatch": {
    "file": "src/domain/liveFlow",
    "name": "effortTapPatch",
    "kind": "function",
    "exported": true,
-   "line": 41
+   "line": 42
   },
   "src/domain/liveFlow#effortTapOf": {
    "file": "src/domain/liveFlow",
    "name": "effortTapOf",
    "kind": "function",
    "exported": true,
-   "line": 52
+   "line": 53
   },
   "src/domain/liveFlow#performed": {
    "file": "src/domain/liveFlow",
    "name": "performed",
    "kind": "const",
    "exported": false,
-   "line": 71
+   "line": 72
   },
   "src/domain/liveFlow#targetReps": {
    "file": "src/domain/liveFlow",
    "name": "targetReps",
    "kind": "const",
    "exported": false,
-   "line": 72
+   "line": 73
   },
   "src/domain/liveFlow#prefillNext": {
    "file": "src/domain/liveFlow",
    "name": "prefillNext",
    "kind": "function",
    "exported": true,
-   "line": 82
+   "line": 83
   },
   "src/domain/liveFlow#lastEntryFor": {
    "file": "src/domain/liveFlow",
    "name": "lastEntryFor",
    "kind": "function",
    "exported": true,
-   "line": 124
+   "line": 128
   },
   "src/domain/liveFlow#isDoubleTap": {
    "file": "src/domain/liveFlow",
    "name": "isDoubleTap",
    "kind": "function",
    "exported": true,
-   "line": 139
+   "line": 143
   },
   "src/domain/liveFlow#logSet": {
    "file": "src/domain/liveFlow",
    "name": "logSet",
    "kind": "function",
    "exported": true,
-   "line": 153
+   "line": 157
   },
   "src/domain/liveFlow#clearOtherRestEnds": {
    "file": "src/domain/liveFlow",
    "name": "clearOtherRestEnds",
    "kind": "function",
    "exported": true,
-   "line": 176
+   "line": 183
   },
   "src/domain/liveFlow#editSet": {
    "file": "src/domain/liveFlow",
    "name": "editSet",
    "kind": "function",
    "exported": true,
-   "line": 187
+   "line": 194
   },
   "src/domain/liveFlow#toggleWarmup": {
    "file": "src/domain/liveFlow",
    "name": "toggleWarmup",
    "kind": "function",
    "exported": true,
-   "line": 193
+   "line": 200
   },
   "src/domain/liveFlow#exerciseProgress": {
    "file": "src/domain/liveFlow",
    "name": "exerciseProgress",
    "kind": "function",
    "exported": true,
-   "line": 200
+   "line": 207
   },
   "src/domain/liveFlow#setDelta": {
    "file": "src/domain/liveFlow",
    "name": "setDelta",
    "kind": "function",
    "exported": true,
-   "line": 218
+   "line": 225
   },
   "src/domain/liveFlow#setScore": {
    "file": "src/domain/liveFlow",
    "name": "setScore",
    "kind": "function",
    "exported": true,
-   "line": 233
+   "line": 240
   },
   "src/domain/liveFlow#clockStartMs": {
    "file": "src/domain/liveFlow",
    "name": "clockStartMs",
    "kind": "function",
    "exported": true,
-   "line": 241
+   "line": 248
   },
   "src/domain/liveFlow#lastLogged": {
    "file": "src/domain/liveFlow",
    "name": "lastLogged",
    "kind": "function",
    "exported": true,
-   "line": 253
+   "line": 260
   },
   "src/domain/liveFlow#clampRest": {
    "file": "src/domain/liveFlow",
    "name": "clampRest",
    "kind": "const",
    "exported": true,
-   "line": 263
+   "line": 270
   },
   "src/domain/liveFlow#restTargetFor": {
    "file": "src/domain/liveFlow",
    "name": "restTargetFor",
    "kind": "function",
    "exported": true,
-   "line": 266
+   "line": 273
   },
   "src/domain/liveFlow#restState": {
    "file": "src/domain/liveFlow",
    "name": "restState",
    "kind": "function",
    "exported": true,
-   "line": 281
+   "line": 288
   },
   "src/domain/liveFlow#adjustRest": {
    "file": "src/domain/liveFlow",
    "name": "adjustRest",
    "kind": "function",
    "exported": true,
-   "line": 291
+   "line": 298
   },
   "src/domain/liveFlow#mmss": {
    "file": "src/domain/liveFlow",
    "name": "mmss",
    "kind": "const",
    "exported": true,
-   "line": 295
+   "line": 302
+  },
+  "src/domain/liveFlow#prescribedFor": {
+   "file": "src/domain/liveFlow",
+   "name": "prescribedFor",
+   "kind": "function",
+   "exported": true,
+   "line": 307
+  },
+  "src/domain/liveFlow#nextSetsOffer": {
+   "file": "src/domain/liveFlow",
+   "name": "nextSetsOffer",
+   "kind": "function",
+   "exported": true,
+   "line": 321
+  },
+  "src/domain/liveFlow#applyOffer": {
+   "file": "src/domain/liveFlow",
+   "name": "applyOffer",
+   "kind": "function",
+   "exported": true,
+   "line": 342
+  },
+  "src/domain/liveFlow#weightSource": {
+   "file": "src/domain/liveFlow",
+   "name": "weightSource",
+   "kind": "function",
+   "exported": true,
+   "line": 356
   },
   "src/domain/mappingUncertainty#isUncertainMapping": {
    "file": "src/domain/mappingUncertainty",
@@ -1510,35 +1503,28 @@
    "name": "OPTIMALITY_POINTS",
    "kind": "const",
    "exported": true,
-   "line": 24
+   "line": 25
   },
   "src/domain/optimality#OPTIMALITY_CAPS": {
    "file": "src/domain/optimality",
    "name": "OPTIMALITY_CAPS",
    "kind": "const",
    "exported": true,
-   "line": 30
+   "line": 31
   },
   "src/domain/optimality#SUITABLE_MIN": {
    "file": "src/domain/optimality",
    "name": "SUITABLE_MIN",
    "kind": "const",
    "exported": true,
-   "line": 32
+   "line": 33
   },
   "src/domain/optimality#FINDING_POINTS": {
    "file": "src/domain/optimality",
    "name": "FINDING_POINTS",
    "kind": "const",
    "exported": false,
-   "line": 74
-  },
-  "src/domain/optimality#MACHINE_KINDS": {
-   "file": "src/domain/optimality",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 88
+   "line": 75
   },
   "src/domain/optimality#round5": {
    "file": "src/domain/optimality",
@@ -1588,6 +1574,41 @@
    "kind": "function",
    "exported": true,
    "line": 204
+  },
+  "src/domain/outcomes#OUTCOME_RIR_DIFF": {
+   "file": "src/domain/outcomes",
+   "name": "OUTCOME_RIR_DIFF",
+   "kind": "const",
+   "exported": true,
+   "line": 9
+  },
+  "src/domain/outcomes#OUTCOME_SHORT_REST": {
+   "file": "src/domain/outcomes",
+   "name": "OUTCOME_SHORT_REST",
+   "kind": "const",
+   "exported": true,
+   "line": 11
+  },
+  "src/domain/outcomes#OUTCOME_NOT_LOWER": {
+   "file": "src/domain/outcomes",
+   "name": "OUTCOME_NOT_LOWER",
+   "kind": "const",
+   "exported": true,
+   "line": 13
+  },
+  "src/domain/outcomes#median": {
+   "file": "src/domain/outcomes",
+   "name": "median",
+   "kind": "const",
+   "exported": false,
+   "line": 15
+  },
+  "src/domain/outcomes#heldUp": {
+   "file": "src/domain/outcomes",
+   "name": "heldUp",
+   "kind": "function",
+   "exported": true,
+   "line": 28
   },
   "src/domain/perception#CLEARLY_EASY_RIR": {
    "file": "src/domain/perception",
@@ -1806,75 +1827,68 @@
    "exported": true,
    "line": 47
   },
-  "src/domain/planner#MACHINE_KINDS": {
-   "file": "src/domain/planner",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 60
-  },
   "src/domain/planner#med": {
    "file": "src/domain/planner",
    "name": "med",
    "kind": "const",
    "exported": false,
-   "line": 94
+   "line": 93
   },
   "src/domain/planner#performed": {
    "file": "src/domain/planner",
    "name": "performed",
    "kind": "const",
    "exported": false,
-   "line": 101
+   "line": 100
   },
   "src/domain/planner#buildLibrary": {
    "file": "src/domain/planner",
    "name": "buildLibrary",
    "kind": "function",
    "exported": true,
-   "line": 103
+   "line": 102
   },
   "src/domain/planner#sessionPatterns": {
    "file": "src/domain/planner",
    "name": "sessionPatterns",
    "kind": "function",
    "exported": true,
-   "line": 140
+   "line": 139
   },
   "src/domain/planner#planPreferences": {
    "file": "src/domain/planner",
    "name": "planPreferences",
    "kind": "function",
    "exported": true,
-   "line": 166
+   "line": 165
   },
   "src/domain/planner#generateWorkout": {
    "file": "src/domain/planner",
    "name": "generateWorkout",
    "kind": "function",
    "exported": true,
-   "line": 251
+   "line": 250
   },
   "src/domain/planner#fmt": {
    "file": "src/domain/planner",
    "name": "fmt",
    "kind": "const",
    "exported": false,
-   "line": 529
+   "line": 528
   },
   "src/domain/planner#planSnapshot": {
    "file": "src/domain/planner",
    "name": "planSnapshot",
    "kind": "function",
    "exported": true,
-   "line": 534
+   "line": 533
   },
   "src/domain/planner#targetFromPrescription": {
    "file": "src/domain/planner",
    "name": "targetFromPrescription",
    "kind": "function",
    "exported": true,
-   "line": 547
+   "line": 546
   },
   "src/domain/planner#workoutFromPlan": {
    "file": "src/domain/planner",
@@ -2196,294 +2210,266 @@
    "name": "FREE_KINDS",
    "kind": "const",
    "exported": false,
-   "line": 17
+   "line": 18
   },
   "src/domain/progression#baseKey": {
    "file": "src/domain/progression",
    "name": "baseKey",
    "kind": "function",
    "exported": false,
-   "line": 19
+   "line": 20
   },
   "src/domain/progression#VALUE_LABEL": {
    "file": "src/domain/progression",
    "name": "VALUE_LABEL",
    "kind": "const",
    "exported": false,
-   "line": 25
+   "line": 26
   },
   "src/domain/progression#ruKg": {
    "file": "src/domain/progression",
    "name": "ruKg",
    "kind": "const",
    "exported": false,
-   "line": 34
+   "line": 35
   },
   "src/domain/progression#humanize": {
    "file": "src/domain/progression",
    "name": "humanize",
    "kind": "const",
    "exported": true,
-   "line": 35
+   "line": 36
   },
   "src/domain/progression#variationParts": {
    "file": "src/domain/progression",
    "name": "variationParts",
    "kind": "function",
    "exported": true,
-   "line": 47
+   "line": 48
   },
   "src/domain/progression#progressionKey": {
    "file": "src/domain/progression",
    "name": "progressionKey",
    "kind": "function",
    "exported": true,
-   "line": 69
+   "line": 70
   },
   "src/domain/progression#effectiveVariation": {
    "file": "src/domain/progression",
    "name": "effectiveVariation",
    "kind": "function",
    "exported": true,
-   "line": 81
+   "line": 82
   },
   "src/domain/progression#epley": {
    "file": "src/domain/progression",
    "name": "epley",
    "kind": "function",
    "exported": true,
-   "line": 200
+   "line": 201
   },
   "src/domain/progression#pickTop": {
    "file": "src/domain/progression",
    "name": "pickTop",
    "kind": "function",
    "exported": false,
-   "line": 205
+   "line": 206
   },
   "src/domain/progression#sessionPerf": {
    "file": "src/domain/progression",
    "name": "sessionPerf",
    "kind": "function",
    "exported": true,
-   "line": 230
+   "line": 231
   },
   "src/domain/progression#TREND_WINDOW_DAYS": {
    "file": "src/domain/progression",
    "name": "TREND_WINDOW_DAYS",
    "kind": "const",
    "exported": true,
-   "line": 290
+   "line": 291
   },
   "src/domain/progression#SUSTAINED_DECLINE": {
    "file": "src/domain/progression",
    "name": "SUSTAINED_DECLINE",
    "kind": "const",
    "exported": true,
-   "line": 291
+   "line": 292
   },
   "src/domain/progression#SINGLE_DIP": {
    "file": "src/domain/progression",
    "name": "SINGLE_DIP",
    "kind": "const",
    "exported": true,
-   "line": 293
+   "line": 294
   },
   "src/domain/progression#medianOf": {
    "file": "src/domain/progression",
    "name": "medianOf",
    "kind": "const",
    "exported": false,
-   "line": 294
+   "line": 295
   },
   "src/domain/progression#classifyTrend": {
    "file": "src/domain/progression",
    "name": "classifyTrend",
    "kind": "function",
    "exported": true,
-   "line": 296
-  },
-  "src/domain/progression#defaultIncrement": {
-   "file": "src/domain/progression",
-   "name": "defaultIncrement",
-   "kind": "function",
-   "exported": true,
-   "line": 388
+   "line": 297
   },
   "src/domain/progression#roundToIncrement": {
    "file": "src/domain/progression",
    "name": "roundToIncrement",
    "kind": "function",
    "exported": true,
-   "line": 399
+   "line": 389
   },
   "src/domain/progression#stepLoad": {
    "file": "src/domain/progression",
    "name": "stepLoad",
    "kind": "function",
    "exported": true,
-   "line": 408
+   "line": 398
   },
   "src/domain/progression#median": {
    "file": "src/domain/progression",
    "name": "median",
    "kind": "const",
    "exported": false,
-   "line": 414
+   "line": 404
   },
   "src/domain/progression#restInsight": {
    "file": "src/domain/progression",
    "name": "restInsight",
    "kind": "function",
    "exported": true,
-   "line": 426
+   "line": 416
   },
   "src/domain/progression#suggestNextLoad": {
    "file": "src/domain/progression",
    "name": "suggestNextLoad",
    "kind": "function",
    "exported": true,
-   "line": 455
+   "line": 445
   },
   "src/domain/progression#ADVICE_LABEL": {
    "file": "src/domain/progression",
    "name": "ADVICE_LABEL",
    "kind": "const",
    "exported": true,
-   "line": 600
+   "line": 590
   },
   "src/domain/progression#adviceFor": {
    "file": "src/domain/progression",
    "name": "adviceFor",
    "kind": "function",
    "exported": true,
-   "line": 602
+   "line": 592
   },
   "src/domain/progression#loadMap": {
    "file": "src/domain/progression",
    "name": "loadMap",
    "kind": "function",
    "exported": true,
-   "line": 624
+   "line": 614
   },
   "src/domain/progression#buildProgression": {
    "file": "src/domain/progression",
    "name": "buildProgression",
    "kind": "function",
    "exported": true,
-   "line": 650
+   "line": 640
   },
   "src/domain/progression#comparableSessions": {
    "file": "src/domain/progression",
    "name": "comparableSessions",
    "kind": "function",
    "exported": true,
-   "line": 755
+   "line": 745
   },
   "src/domain/progression#warmupFor": {
    "file": "src/domain/progression",
    "name": "warmupFor",
    "kind": "function",
    "exported": true,
-   "line": 779
+   "line": 769
   },
   "src/domain/progression#loadMapNote": {
    "file": "src/domain/progression",
    "name": "loadMapNote",
    "kind": "function",
    "exported": true,
-   "line": 805
+   "line": 795
   },
   "src/domain/progression#adviceLabel": {
    "file": "src/domain/progression",
    "name": "adviceLabel",
    "kind": "function",
    "exported": true,
-   "line": 816
+   "line": 806
   },
   "src/domain/quality#assessSet": {
    "file": "src/domain/quality",
    "name": "assessSet",
    "kind": "function",
    "exported": true,
-   "line": 51
-  },
-  "src/domain/quality#isCounted": {
-   "file": "src/domain/quality",
-   "name": "isCounted",
-   "kind": "function",
-   "exported": true,
-   "line": 202
+   "line": 54
   },
   "src/domain/quality#stripPlanned": {
    "file": "src/domain/quality",
    "name": "stripPlanned",
    "kind": "function",
    "exported": true,
-   "line": 207
-  },
-  "src/domain/quality#sideFactors": {
-   "file": "src/domain/quality",
-   "name": "sideFactors",
-   "kind": "function",
-   "exported": true,
-   "line": 219
+   "line": 205
   },
   "src/domain/quality#mergeSides": {
    "file": "src/domain/quality",
    "name": "mergeSides",
    "kind": "function",
    "exported": true,
-   "line": 243
+   "line": 215
   },
   "src/domain/quality#countedSetCount": {
    "file": "src/domain/quality",
    "name": "countedSetCount",
    "kind": "function",
    "exported": true,
-   "line": 250
+   "line": 222
   },
   "src/domain/quality#taperBeyondCap": {
    "file": "src/domain/quality",
    "name": "taperBeyondCap",
    "kind": "function",
    "exported": true,
-   "line": 259
+   "line": 231
   },
   "src/domain/quality#stable": {
    "file": "src/domain/quality",
    "name": "stable",
    "kind": "const",
    "exported": false,
-   "line": 271
+   "line": 243
   },
   "src/domain/quality#round2": {
    "file": "src/domain/quality",
    "name": "round2",
    "kind": "function",
    "exported": true,
-   "line": 273
-  },
-  "src/domain/quality#round1": {
-   "file": "src/domain/quality",
-   "name": "round1",
-   "kind": "function",
-   "exported": true,
-   "line": 277
+   "line": 245
   },
   "src/domain/quality#roundHalf": {
    "file": "src/domain/quality",
    "name": "roundHalf",
    "kind": "function",
    "exported": true,
-   "line": 281
+   "line": 249
   },
   "src/domain/quality#isSecondSide": {
    "file": "src/domain/quality",
    "name": "isSecondSide",
    "kind": "function",
    "exported": true,
-   "line": 290
+   "line": 258
   },
   "src/domain/readiness#LEVEL_LABEL": {
    "file": "src/domain/readiness",
@@ -2527,68 +2513,61 @@
    "exported": true,
    "line": 48
   },
-  "src/domain/readiness#MACHINE_KINDS": {
-   "file": "src/domain/readiness",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 50
-  },
   "src/domain/readiness#GAP_LABEL": {
    "file": "src/domain/readiness",
    "name": "GAP_LABEL",
    "kind": "const",
    "exported": true,
-   "line": 55
+   "line": 54
   },
   "src/domain/readiness#effortKnown": {
    "file": "src/domain/readiness",
    "name": "effortKnown",
    "kind": "const",
    "exported": true,
-   "line": 63
+   "line": 62
   },
   "src/domain/readiness#documentationGaps": {
    "file": "src/domain/readiness",
    "name": "documentationGaps",
    "kind": "function",
    "exported": true,
-   "line": 66
+   "line": 65
   },
   "src/domain/readiness#isWellDocumented": {
    "file": "src/domain/readiness",
    "name": "isWellDocumented",
    "kind": "const",
    "exported": true,
-   "line": 78
+   "line": 77
   },
   "src/domain/readiness#levelFor": {
    "file": "src/domain/readiness",
    "name": "levelFor",
    "kind": "const",
    "exported": false,
-   "line": 96
+   "line": 95
   },
   "src/domain/readiness#calibratedSession": {
    "file": "src/domain/readiness",
    "name": "calibratedSession",
    "kind": "function",
    "exported": false,
-   "line": 98
+   "line": 97
   },
   "src/domain/readiness#keyReadiness": {
    "file": "src/domain/readiness",
    "name": "keyReadiness",
    "kind": "function",
    "exported": true,
-   "line": 108
+   "line": 107
   },
   "src/domain/readiness#readinessReport": {
    "file": "src/domain/readiness",
    "name": "readinessReport",
    "kind": "function",
    "exported": true,
-   "line": 148
+   "line": 147
   },
   "src/domain/recovery#TIME_SOURCE_LABEL": {
    "file": "src/domain/recovery",
@@ -2694,6 +2673,13 @@
    "kind": "function",
    "exported": false,
    "line": 134
+  },
+  "src/domain/registry#MACHINE_KINDS": {
+   "file": "src/domain/registry",
+   "name": "MACHINE_KINDS",
+   "kind": "const",
+   "exported": true,
+   "line": 144
   },
   "src/domain/reports#restAnalysis": {
    "file": "src/domain/reports",
@@ -2861,98 +2847,91 @@
    "name": "USUAL_EXERCISE_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 33
+   "line": 34
   },
   "src/domain/sequence#LIMIT_HOURS_LEFT": {
    "file": "src/domain/sequence",
    "name": "LIMIT_HOURS_LEFT",
    "kind": "const",
    "exported": true,
-   "line": 35
+   "line": 36
   },
   "src/domain/sequence#INTERFERENCE_MIN_COEF": {
    "file": "src/domain/sequence",
    "name": "INTERFERENCE_MIN_COEF",
    "kind": "const",
    "exported": true,
-   "line": 37
+   "line": 38
   },
   "src/domain/sequence#DIRECT_COEF": {
    "file": "src/domain/sequence",
    "name": "DIRECT_COEF",
    "kind": "const",
    "exported": true,
-   "line": 39
+   "line": 40
   },
   "src/domain/sequence#median": {
    "file": "src/domain/sequence",
    "name": "median",
    "kind": "const",
    "exported": false,
-   "line": 56
+   "line": 57
   },
   "src/domain/sequence#priorityOf": {
    "file": "src/domain/sequence",
    "name": "priorityOf",
    "kind": "function",
    "exported": false,
-   "line": 58
+   "line": 59
   },
   "src/domain/sequence#upcomingSessions": {
    "file": "src/domain/sequence",
    "name": "upcomingSessions",
    "kind": "function",
    "exported": true,
-   "line": 70
+   "line": 71
   },
   "src/domain/sequence#exName": {
    "file": "src/domain/sequence",
    "name": "exName",
    "kind": "const",
    "exported": false,
-   "line": 99
+   "line": 100
   },
   "src/domain/sequence#weekday": {
    "file": "src/domain/sequence",
    "name": "weekday",
    "kind": "const",
    "exported": false,
-   "line": 100
+   "line": 101
   },
   "src/domain/sequence#findingText": {
    "file": "src/domain/sequence",
    "name": "findingText",
    "kind": "function",
    "exported": false,
-   "line": 102
+   "line": 103
   },
   "src/domain/sequence#activeMoves": {
    "file": "src/domain/sequence",
    "name": "activeMoves",
    "kind": "function",
    "exported": true,
-   "line": 134
+   "line": 135
   },
   "src/domain/sequence#usualSetCount": {
    "file": "src/domain/sequence",
    "name": "usualSetCount",
    "kind": "function",
    "exported": true,
-   "line": 139
+   "line": 140
   },
   "src/domain/sequence#addMoves": {
    "file": "src/domain/sequence",
    "name": "addMoves",
    "kind": "function",
    "exported": true,
-   "line": 147
-  },
-  "src/domain/sequence#MACHINE_KINDS": {
-   "file": "src/domain/sequence",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 152
+   "line": 148
   },
   "src/domain/sequence#moveNeedsSetup": {
    "file": "src/domain/sequence",
@@ -3036,70 +3015,63 @@
    "name": "forwardHabit",
    "kind": "function",
    "exported": true,
-   "line": 280
+   "line": 274
   },
   "src/domain/sequence#PAIR_ADJACENT_SHARE": {
    "file": "src/domain/sequence",
    "name": "PAIR_ADJACENT_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 303
+   "line": 297
   },
   "src/domain/sequence#PAIR_MIN_SESSIONS": {
    "file": "src/domain/sequence",
    "name": "PAIR_MIN_SESSIONS",
    "kind": "const",
    "exported": true,
-   "line": 304
+   "line": 298
   },
   "src/domain/sequence#PAIR_RECENT": {
    "file": "src/domain/sequence",
    "name": "PAIR_RECENT",
    "kind": "const",
    "exported": true,
-   "line": 306
+   "line": 300
   },
   "src/domain/sequence#ARM": {
    "file": "src/domain/sequence",
    "name": "ARM",
    "kind": "const",
    "exported": false,
-   "line": 308
+   "line": 302
   },
   "src/domain/sequence#related": {
    "file": "src/domain/sequence",
    "name": "related",
    "kind": "function",
    "exported": false,
-   "line": 313
+   "line": 307
   },
   "src/domain/sequence#issuesIfDoneOn": {
    "file": "src/domain/sequence",
    "name": "issuesIfDoneOn",
    "kind": "function",
    "exported": false,
-   "line": 324
+   "line": 318
   },
   "src/domain/sequence#movePartners": {
    "file": "src/domain/sequence",
    "name": "movePartners",
    "kind": "function",
    "exported": true,
-   "line": 341
+   "line": 335
   },
   "src/domain/sequence#bestMoveDay": {
    "file": "src/domain/sequence",
    "name": "bestMoveDay",
    "kind": "function",
    "exported": true,
-   "line": 368
-  },
-  "src/domain/sequence#placeInSession": {
-   "file": "src/domain/sequence",
-   "name": "placeInSession",
-   "kind": "function",
-   "exported": true,
-   "line": 394
+   "line": 362
   },
   "src/domain/sessionSummary#performed": {
    "file": "src/domain/sessionSummary",
@@ -3135,6 +3107,20 @@
    "kind": "function",
    "exported": true,
    "line": 104
+  },
+  "src/domain/sets#isCounted": {
+   "file": "src/domain/sets",
+   "name": "isCounted",
+   "kind": "function",
+   "exported": true,
+   "line": 8
+  },
+  "src/domain/sets#sideFactors": {
+   "file": "src/domain/sets",
+   "name": "sideFactors",
+   "kind": "function",
+   "exported": true,
+   "line": 18
   },
   "src/domain/targets#MIN_LEARNING_SESSIONS": {
    "file": "src/domain/targets",
@@ -3828,6 +3814,13 @@
    "kind": "const",
    "exported": true,
    "line": 46
+  },
+  "src/ui/components/icons#IconBrain": {
+   "file": "src/ui/components/icons",
+   "name": "IconBrain",
+   "kind": "const",
+   "exported": true,
+   "line": 48
   },
   "src/ui/components/NextWorkout#REASONS": {
    "file": "src/ui/components/NextWorkout",
@@ -4879,13 +4872,6 @@
    "exported": false,
    "line": 89
   },
-  "src/ui/pages/Logger#MACHINE_KINDS": {
-   "file": "src/ui/pages/Logger",
-   "name": "MACHINE_KINDS",
-   "kind": "const",
-   "exported": false,
-   "line": 38
-  },
   "src/ui/pages/Logger#StartSession": {
    "file": "src/ui/pages/Logger",
    "name": "StartSession",
@@ -5871,49 +5857,56 @@
    "name": "RestPill",
    "kind": "function",
    "exported": false,
-   "line": 738
+   "line": 752
+  },
+  "src/ui/pages/Train#WeightSource": {
+   "file": "src/ui/pages/Train",
+   "name": "WeightSource",
+   "kind": "function",
+   "exported": false,
+   "line": 779
   },
   "src/ui/pages/Train#RestScreen": {
    "file": "src/ui/pages/Train",
    "name": "RestScreen",
    "kind": "function",
    "exported": false,
-   "line": 764
+   "line": 795
   },
   "src/ui/pages/Train#Toggle": {
    "file": "src/ui/pages/Train",
    "name": "Toggle",
    "kind": "function",
    "exported": false,
-   "line": 849
+   "line": 894
   },
   "src/ui/pages/Train#SetSheet": {
    "file": "src/ui/pages/Train",
    "name": "SetSheet",
    "kind": "function",
    "exported": false,
-   "line": 854
+   "line": 899
   },
   "src/ui/pages/Train#painArea": {
    "file": "src/ui/pages/Train",
    "name": "painArea",
    "kind": "const",
    "exported": false,
-   "line": 905
+   "line": 950
   },
   "src/ui/pages/Train#WhySheet": {
    "file": "src/ui/pages/Train",
    "name": "WhySheet",
    "kind": "function",
    "exported": false,
-   "line": 908
+   "line": 953
   },
   "src/ui/pages/Train#Overview": {
    "file": "src/ui/pages/Train",
    "name": "Overview",
    "kind": "function",
    "exported": false,
-   "line": 933
+   "line": 978
   },
   "src/ui/pages/WorkoutCheck#kg": {
    "file": "src/ui/pages/WorkoutCheck",
@@ -7325,10 +7318,6 @@
   },
   {
    "from": "src/domain/dates#diffDays",
-   "to": "src/domain/bodyweight#daysBetween"
-  },
-  {
-   "from": "src/domain/dates#diffDays",
    "to": "src/domain/dates#daysLeftInWeek"
   },
   {
@@ -7641,10 +7630,6 @@
   },
   {
    "from": "src/domain/dates#localNowParts",
-   "to": "src/domain/dates#todayIn"
-  },
-  {
-   "from": "src/domain/dates#localNowParts",
    "to": "src/domain/planner#replanPending"
   },
   {
@@ -7766,10 +7751,6 @@
   {
    "from": "src/domain/exerciseChoice#FREE_KINDS",
    "to": "src/domain/exerciseChoice#availableEquipment"
-  },
-  {
-   "from": "src/domain/exerciseChoice#MACHINE_KINDS",
-   "to": "src/domain/exerciseChoice#candidatePool"
   },
   {
    "from": "src/domain/exerciseChoice#PAIN_REGIONS",
@@ -8061,10 +8042,6 @@
   },
   {
    "from": "src/domain/failure#effectiveFailure",
-   "to": "src/domain/failure#isCleanMuscularFailure"
-  },
-  {
-   "from": "src/domain/failure#effectiveFailure",
    "to": "src/domain/sessionSummary#summarizeSession"
   },
   {
@@ -8156,10 +8133,6 @@
    "to": "src/domain/planner#generateWorkout"
   },
   {
-   "from": "src/domain/fatigue#FATIGUE_RANK",
-   "to": "src/domain/sequence#placeInSession"
-  },
-  {
    "from": "src/domain/fatigue#LOWER_HEAVY_PATTERNS",
    "to": "src/domain/fatigue#isHeavyLower"
   },
@@ -8190,10 +8163,6 @@
   {
    "from": "src/domain/fatigue#fatigueCostOf",
    "to": "src/domain/planner#replacementOptions"
-  },
-  {
-   "from": "src/domain/fatigue#fatigueCostOf",
-   "to": "src/domain/sequence#placeInSession"
   },
   {
    "from": "src/domain/fatigue#fatigueCostOf",
@@ -8684,6 +8653,10 @@
    "to": "src/ui/pages/Settings#BackupCard"
   },
   {
+   "from": "src/domain/increments#defaultIncrement",
+   "to": "src/domain/increments#loadStep"
+  },
+  {
    "from": "src/domain/increments#loadStep",
    "to": "src/domain/prescription#prescribe"
   },
@@ -8756,6 +8729,10 @@
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
+   "from": "src/domain/liveFlow#applyOffer",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
    "from": "src/domain/liveFlow#clampRest",
    "to": "src/domain/liveFlow#adjustRest"
   },
@@ -8806,6 +8783,14 @@
   {
    "from": "src/domain/liveFlow#effortTapPatch",
    "to": "src/ui/pages/Train#SetSheet"
+  },
+  {
+   "from": "src/domain/liveFlow#exerciseProgress",
+   "to": "src/domain/liveFlow#applyOffer"
+  },
+  {
+   "from": "src/domain/liveFlow#exerciseProgress",
+   "to": "src/domain/liveFlow#logSet"
   },
   {
    "from": "src/domain/liveFlow#exerciseProgress",
@@ -8868,12 +8853,20 @@
    "to": "src/ui/train/controls#RestRing"
   },
   {
+   "from": "src/domain/liveFlow#nextSetsOffer",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
    "from": "src/domain/liveFlow#performed",
    "to": "src/domain/liveFlow#isDoubleTap"
   },
   {
    "from": "src/domain/liveFlow#performed",
    "to": "src/domain/liveFlow#logSet"
+  },
+  {
+   "from": "src/domain/liveFlow#performed",
+   "to": "src/domain/liveFlow#nextSetsOffer"
   },
   {
    "from": "src/domain/liveFlow#performed",
@@ -8884,8 +8877,16 @@
    "to": "src/domain/liveFlow#setDelta"
   },
   {
+   "from": "src/domain/liveFlow#performed",
+   "to": "src/domain/liveFlow#weightSource"
+  },
+  {
    "from": "src/domain/liveFlow#prefillNext",
    "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/liveFlow#prescribedFor",
+   "to": "src/domain/liveFlow#logSet"
   },
   {
    "from": "src/domain/liveFlow#restState",
@@ -8925,6 +8926,10 @@
   },
   {
    "from": "src/domain/liveFlow#toggleWarmup",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/liveFlow#weightSource",
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
@@ -9220,10 +9225,6 @@
    "to": "src/domain/optimality#rankOptions"
   },
   {
-   "from": "src/domain/optimality#MACHINE_KINDS",
-   "to": "src/domain/optimality#optimality"
-  },
-  {
    "from": "src/domain/optimality#OPTIMALITY_CAPS",
    "to": "src/domain/optimality#optimality"
   },
@@ -9294,6 +9295,42 @@
   {
    "from": "src/domain/optimality#round5",
    "to": "src/domain/optimality#optimality"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_NOT_LOWER",
+   "to": "src/domain/outcomes#heldUp"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_NOT_LOWER",
+   "to": "src/domain/sequence#KEPT_NOT_LOWER"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_RIR_DIFF",
+   "to": "src/domain/outcomes#heldUp"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_RIR_DIFF",
+   "to": "src/domain/sequence#KEPT_RIR_DIFF"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_SHORT_REST",
+   "to": "src/domain/outcomes#heldUp"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_SHORT_REST",
+   "to": "src/domain/sequence#KEPT_SHORT_REST"
+  },
+  {
+   "from": "src/domain/outcomes#heldUp",
+   "to": "src/domain/exerciseChoice#choiceOutcomes"
+  },
+  {
+   "from": "src/domain/outcomes#heldUp",
+   "to": "src/domain/sequence#keptOutcome"
+  },
+  {
+   "from": "src/domain/outcomes#median",
+   "to": "src/domain/outcomes#heldUp"
   },
   {
    "from": "src/domain/perception#BACKOFF_ALLOWANCE",
@@ -9474,10 +9511,6 @@
   {
    "from": "src/domain/perception#withoutAutoWarmups",
    "to": "src/domain/workoutCheck#workoutCheck"
-  },
-  {
-   "from": "src/domain/planner#MACHINE_KINDS",
-   "to": "src/domain/planner#generateWorkout"
   },
   {
    "from": "src/domain/planner#MAX_SETS",
@@ -9732,6 +9765,10 @@
    "to": "src/domain/prescription#toSetPrescription"
   },
   {
+   "from": "src/domain/prescription#adaptRemaining",
+   "to": "src/domain/liveFlow#nextSetsOffer"
+  },
+  {
    "from": "src/domain/prescription#cap",
    "to": "src/domain/prescription#prescribe"
   },
@@ -9926,10 +9963,6 @@
   {
    "from": "src/domain/progression#comparableSessions",
    "to": "src/domain/progression#buildProgression"
-  },
-  {
-   "from": "src/domain/progression#defaultIncrement",
-   "to": "src/domain/increments#loadStep"
   },
   {
    "from": "src/domain/progression#effectiveVariation",
@@ -10189,10 +10222,6 @@
   },
   {
    "from": "src/domain/quality#isCounted",
-   "to": "src/domain/failure#failureProfile"
-  },
-  {
-   "from": "src/domain/quality#isCounted",
    "to": "src/domain/fatigue#fatigueCostOf"
   },
   {
@@ -10214,18 +10243,6 @@
   {
    "from": "src/domain/quality#isCounted",
    "to": "src/domain/prescription#rawHistory"
-  },
-  {
-   "from": "src/domain/quality#isCounted",
-   "to": "src/domain/quality#countedSetCount"
-  },
-  {
-   "from": "src/domain/quality#isCounted",
-   "to": "src/domain/quality#sideFactors"
-  },
-  {
-   "from": "src/domain/quality#isCounted",
-   "to": "src/domain/quality#stripPlanned"
   },
   {
    "from": "src/domain/quality#isCounted",
@@ -10285,23 +10302,11 @@
   },
   {
    "from": "src/domain/quality#sideFactors",
-   "to": "src/domain/failure#failureProfile"
-  },
-  {
-   "from": "src/domain/quality#sideFactors",
    "to": "src/domain/fatigue#sessionLoad"
   },
   {
    "from": "src/domain/quality#sideFactors",
    "to": "src/domain/preload#preloadFor"
-  },
-  {
-   "from": "src/domain/quality#sideFactors",
-   "to": "src/domain/quality#countedSetCount"
-  },
-  {
-   "from": "src/domain/quality#sideFactors",
-   "to": "src/domain/quality#mergeSides"
   },
   {
    "from": "src/domain/quality#sideFactors",
@@ -10330,10 +10335,6 @@
   {
    "from": "src/domain/quality#sideFactors",
    "to": "src/ui/pages/Logger#ExerciseCard"
-  },
-  {
-   "from": "src/domain/quality#stable",
-   "to": "src/domain/quality#round1"
   },
   {
    "from": "src/domain/quality#stable",
@@ -10370,14 +10371,6 @@
   {
    "from": "src/domain/readiness#LEVEL_LABEL",
    "to": "src/ui/pages/Settings#PlannerCard"
-  },
-  {
-   "from": "src/domain/readiness#MACHINE_KINDS",
-   "to": "src/domain/readiness#keyReadiness"
-  },
-  {
-   "from": "src/domain/readiness#MACHINE_KINDS",
-   "to": "src/domain/readiness#readinessReport"
   },
   {
    "from": "src/domain/readiness#MAJOR_MUSCLES",
@@ -10500,16 +10493,40 @@
    "to": "src/domain/recovery#estimateRecovery"
   },
   {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/exerciseChoice#candidatePool"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/optimality#optimality"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/planner#generateWorkout"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/readiness#keyReadiness"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/readiness#readinessReport"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/domain/sequence#moveNeedsSetup"
+  },
+  {
+   "from": "src/domain/registry#MACHINE_KINDS",
+   "to": "src/ui/pages/Logger#ExerciseCard"
+  },
+  {
    "from": "src/domain/registry#buildRegistry",
    "to": "src/domain/analysis#analyze"
   },
   {
    "from": "src/domain/registry#buildRegistry",
    "to": "src/domain/failure#failureProfile"
-  },
-  {
-   "from": "src/domain/registry#buildRegistry",
-   "to": "src/domain/sequence#placeInSession"
   },
   {
    "from": "src/domain/registry#exerciseLabel",
@@ -10602,10 +10619,6 @@
   {
    "from": "src/domain/registry#resolveCoefficients",
    "to": "src/domain/sequence#issuesIfDoneOn"
-  },
-  {
-   "from": "src/domain/registry#resolveCoefficients",
-   "to": "src/domain/sequence#placeInSession"
   },
   {
    "from": "src/domain/registry#resolveCoefficients",
@@ -10792,20 +10805,12 @@
    "to": "src/domain/sequence#issuesIfDoneOn"
   },
   {
-   "from": "src/domain/sequence#DIRECT_COEF",
-   "to": "src/domain/sequence#placeInSession"
-  },
-  {
    "from": "src/domain/sequence#FULL_CONFIDENCE_WEEKS",
    "to": "src/domain/sequence#forwardChecks"
   },
   {
    "from": "src/domain/sequence#INTERFERENCE_MIN_COEF",
    "to": "src/domain/sequence#checksFrom"
-  },
-  {
-   "from": "src/domain/sequence#INTERFERENCE_MIN_COEF",
-   "to": "src/domain/sequence#placeInSession"
   },
   {
    "from": "src/domain/sequence#KEPT_MIN_OBSERVATIONS",
@@ -10816,24 +10821,8 @@
    "to": "src/domain/sequence#keptOutcome"
   },
   {
-   "from": "src/domain/sequence#KEPT_NOT_LOWER",
-   "to": "src/domain/sequence#keptOutcome"
-  },
-  {
-   "from": "src/domain/sequence#KEPT_RIR_DIFF",
-   "to": "src/domain/sequence#keptOutcome"
-  },
-  {
-   "from": "src/domain/sequence#KEPT_SHORT_REST",
-   "to": "src/domain/sequence#keptOutcome"
-  },
-  {
    "from": "src/domain/sequence#LIMIT_HOURS_LEFT",
    "to": "src/domain/sequence#checksFrom"
-  },
-  {
-   "from": "src/domain/sequence#MACHINE_KINDS",
-   "to": "src/domain/sequence#moveNeedsSetup"
   },
   {
    "from": "src/domain/sequence#PAIR_ADJACENT_SHARE",
@@ -10945,10 +10934,6 @@
   },
   {
    "from": "src/domain/sequence#median",
-   "to": "src/domain/sequence#keptOutcome"
-  },
-  {
-   "from": "src/domain/sequence#median",
    "to": "src/domain/sequence#upcomingSessions"
   },
   {
@@ -11026,6 +11011,34 @@
   {
    "from": "src/domain/sessionSummary#summarizeSession",
    "to": "src/ui/pages/Train#TrainSession"
+  },
+  {
+   "from": "src/domain/sets#isCounted",
+   "to": "src/domain/failure#failureProfile"
+  },
+  {
+   "from": "src/domain/sets#isCounted",
+   "to": "src/domain/quality#countedSetCount"
+  },
+  {
+   "from": "src/domain/sets#isCounted",
+   "to": "src/domain/quality#stripPlanned"
+  },
+  {
+   "from": "src/domain/sets#isCounted",
+   "to": "src/domain/sets#sideFactors"
+  },
+  {
+   "from": "src/domain/sets#sideFactors",
+   "to": "src/domain/failure#failureProfile"
+  },
+  {
+   "from": "src/domain/sets#sideFactors",
+   "to": "src/domain/quality#countedSetCount"
+  },
+  {
+   "from": "src/domain/sets#sideFactors",
+   "to": "src/domain/quality#mergeSides"
   },
   {
    "from": "src/domain/targets#MIN_LEARNING_SESSIONS",
@@ -12997,6 +13010,10 @@
   },
   {
    "from": "src/i18n/index#L",
+   "to": "src/ui/pages/Train#WeightSource"
+  },
+  {
+   "from": "src/i18n/index#L",
    "to": "src/ui/pages/Train#WhySheet"
   },
   {
@@ -13318,6 +13335,14 @@
   {
    "from": "src/i18n/index#num",
    "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/i18n/index#num",
+   "to": "src/ui/pages/Train#RestScreen"
+  },
+  {
+   "from": "src/i18n/index#num",
+   "to": "src/ui/pages/Train#WeightSource"
   },
   {
    "from": "src/i18n/index#num",
@@ -14664,6 +14689,14 @@
    "to": "src/ui/Layout#NAV"
   },
   {
+   "from": "src/ui/components/icons#IconBrain",
+   "to": "src/ui/pages/Train#RestScreen"
+  },
+  {
+   "from": "src/ui/components/icons#IconBrain",
+   "to": "src/ui/pages/Train#WeightSource"
+  },
+  {
    "from": "src/ui/components/icons#IconCalendar",
    "to": "src/ui/Layout#BOTTOM"
   },
@@ -14710,6 +14743,10 @@
   {
    "from": "src/ui/components/icons#IconCheck",
    "to": "src/ui/pages/Train#Overview"
+  },
+  {
+   "from": "src/ui/components/icons#IconCheck",
+   "to": "src/ui/pages/Train#WeightSource"
   },
   {
    "from": "src/ui/components/icons#IconChevronDown",
@@ -14762,6 +14799,10 @@
   {
    "from": "src/ui/components/icons#IconCopy",
    "to": "src/ui/pages/Import#ImportPage"
+  },
+  {
+   "from": "src/ui/components/icons#IconCopy",
+   "to": "src/ui/pages/Train#WeightSource"
   },
   {
    "from": "src/ui/components/icons#IconDashboard",
@@ -15114,6 +15155,10 @@
   {
    "from": "src/ui/components/icons#Icon",
    "to": "src/ui/components/icons#IconBook"
+  },
+  {
+   "from": "src/ui/components/icons#Icon",
+   "to": "src/ui/components/icons#IconBrain"
   },
   {
    "from": "src/ui/components/icons#Icon",
@@ -17153,6 +17198,10 @@
   },
   {
    "from": "src/ui/components/ui#cx",
+   "to": "src/ui/pages/Train#WeightSource"
+  },
+  {
+   "from": "src/ui/components/ui#cx",
    "to": "src/ui/pages/WorkoutCheck#SetLine"
   },
   {
@@ -18476,10 +18525,6 @@
    "to": "src/ui/pages/Logger#SessionEditor"
   },
   {
-   "from": "src/ui/pages/Logger#MACHINE_KINDS",
-   "to": "src/ui/pages/Logger#ExerciseCard"
-  },
-  {
    "from": "src/ui/pages/Logger#MobileRemainingStrip",
    "to": "src/ui/pages/Logger#SessionEditor"
   },
@@ -19034,6 +19079,10 @@
   {
    "from": "src/ui/pages/Train#TrainSession",
    "to": "src/ui/pages/Train#LogMode"
+  },
+  {
+   "from": "src/ui/pages/Train#WeightSource",
+   "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
    "from": "src/ui/pages/Train#WhySheet",

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyze } from '../src/domain/analysis';
 import type { AppData } from '../src/domain/appdata';
-import { bestMoveDay, forwardChecks, placeInSession, upcomingSessions } from '../src/domain/sequence';
+import { bestMoveDay, forwardChecks, upcomingSessions } from '../src/domain/sequence';
 import type { Workout, WorkoutExercise } from '../src/domain/types';
 import { data, ex, set, workout } from './fixtures';
 
@@ -59,16 +59,9 @@ describe('H.3 #1 — Monday chest + intensive biceps / Tuesday back + pull-ups',
     expect(f[0].text).toMatch(/May reduce Tuesday's pull-up — biceps still recovering\./);
     expect(forwardChecks({ data: d, analysis: a, workout: w, exerciseId: 'cable_fly', sets: 3 })).toEqual([]);
   });
-  it('Move proposes Tuesday, and on Tuesday the curls go AFTER pull-ups and rows — not first', () => {
+  it('Move proposes Tuesday (the order on Tuesday is the planner’s: tests/audit-gaps.test.ts C-2 — after the pull-ups, first only for a priority muscle)', () => {
     const { d, a, w } = setup();
     expect(bestMoveDay({ data: d, analysis: a, workout: w, exerciseId: 'machine_biceps_curl', sets: 4 })).toEqual({ date: '2026-11-17', clean: true });
-    const tue = upcomingSessions(d, a)[0];
-    expect(placeInSession(d, tue, 'machine_biceps_curl')).toBe(2);
-  });
-  it('with biceps as the owner\'s priority muscle the curls may go first', () => {
-    const { d, a } = setup(history(), [pec(4)], {});
-    const d2 = { ...d, settings: { ...d.settings, priorities: { biceps: 'high' as const } } };
-    expect(placeInSession(d2, upcomingSessions(d2, a)[0], 'machine_biceps_curl')).toBe(0);
   });
 });
 

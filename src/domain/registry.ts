@@ -139,3 +139,6 @@ function tokenOverlap(a: string, b: string): number {
   for (const t of tb) if (ta.has(t)) hit++;
   return hit / Math.max(ta.size, tb.length);
 }
+
+/** Equipment kinds that need a machine linked at the gym (one definition for the whole app, map audit C-5). */
+export const MACHINE_KINDS: ReadonlySet<string> = new Set(['machine', 'plate_loaded', 'cable', 'smith']);

@@ -13,7 +13,7 @@ import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
 import { loadStep } from '../../domain/increments';
 import {
-  ANY_DOUBLE_TAP_MS, adjustRest, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, prefillNext, restState, restTargetFor,
+  ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, weightSource, type NextSetsOffer,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
@@ -30,7 +30,7 @@ import { uid } from '../../lib/id';
 import { store, useData } from '../../lib/store';
 import { EquipmentPicker } from '../components/EquipmentPicker';
 import { ScoredRow } from '../components/Optimality';
-import { IconCheck, IconChevron, IconMore, IconPlus } from '../components/icons';
+import { IconBrain, IconCheck, IconChevron, IconCopy, IconMore, IconPlus } from '../components/icons';
 import { Button, confirmAction, cx, Empty, Input, Modal, Page, toast, undoToast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 import { EffortRow, effortLabel, RepsControl, RestRing, StepChoices, TButton, TLabel, WeightControl } from '../train/controls';
@@ -516,6 +516,18 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     setReps(fill.reps);
   }, [fillKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // C-1: after a set, the remaining sets are re-checked — an OFFER (Use / Keep), never applied silently.
+  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, step)), [ex, step, progress.reached]);
+  const [keptOffer, setKeptOffer] = useState<string | null>(null);
+  const offerKey = sets[sets.length - 1]?.id ?? '';
+  const useOffer = (o: NextSetsOffer) => {
+    const before = ex;
+    setEx(ex.id, (e) => applyOffer(e, o, new Date().toISOString()), true);
+    undoable(L('Next sets changed', 'Следующие подходы изменены'), (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === before.id ? { ...e, target: before.target } : e)) }));
+  };
+  // Where the weight in the field came from (owner 2026-11-24): adjusted by the analysis · kept by it · only copied.
+  const source = weightSource(ex, last, weight);
+
   const [sheet, setSheet] = useState<null | 'step' | 'why' | 'setup' | 'menu' | { set: string }>(null);
   const [pickEq, setPickEq] = useState(false);
   const [newEq, setNewEq] = useState(false);
@@ -684,6 +696,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
       <>
         {head}
         <RestScreen w={w} ex={ex} set={lastSet} exName={exName} n={sets.length} reached={progress.reached} hasNext={hasNext}
+          offer={offer && keptOffer !== offerKey ? offer : null} onUseOffer={useOffer} onKeepOffer={() => setKeptOffer(offerKey)}
           onMore={() => setSheet({ set: lastSet.id })} onChooseNext={onChooseNext}
           onAdjust={(d) => setEx(ex.id, (e) => adjustRest(e, d, data.settings.restDefaultSec), true)}
           onNextSet={() => { setEx(ex.id, (e) => ({ ...e, restEndedAt: new Date().toISOString() }), true); setView('set'); }} onNextExercise={onNextExercise} />
@@ -720,6 +733,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
         </div>
         <div className="shrink-0 space-y-2 border-t border-t-line bg-t-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 landscape:max-lg:w-1/2 landscape:max-lg:overflow-y-auto landscape:max-lg:border-l landscape:max-lg:border-t-0" data-testid="entry">
           {sides && <div className="flex items-center gap-2"><TLabel>{L('Side', 'Сторона')}</TLabel><span className="rounded-md bg-t-surface px-2 py-1 text-xs font-bold uppercase" data-testid="side">{nextSide === 'left' ? L('Left', 'Левая') : L('Right', 'Правая')}</span></div>}
+          {source && <WeightSource source={source} target={ex.target ?? null} lastKg={lastSets.find((s) => s.type === 'working')?.weightKg ?? null} />}
           <WeightControl value={weight} onChange={setWeight} step={step} onStepClick={() => setSheet('step')} unit={unit} />
           <RepsControl value={reps} onChange={setReps} />
           <div data-testid="effort-entry">
@@ -761,9 +775,27 @@ function RestPill({ w, onOpen }: { w: Workout; onOpen: () => void }) {
 
 // ---------------------------------------------------------------- rest screen
 
-function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust, onNextSet, onNextExercise, onChooseNext }: {
+/** Where the pre-filled weight came from: one short line with a mark next to the weight (owner 2026-11-24). */
+function WeightSource({ source, target, lastKg }: { source: 'adjusted' | 'kept' | 'copied'; target: WorkoutExercise['target'] | null; lastKg: number | null }) {
+  const diff = target?.weightKg != null && lastKg != null ? Math.round((target.weightKg - lastKg) * 100) / 100 : null;
+  const text = source === 'adjusted'
+    ? (target?.adapted
+      ? L('Adjusted after your last set', 'Изменено после прошлого подхода')
+      : diff != null && diff !== 0 ? L(`Adjusted by the analysis: ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} kg vs last time`, `Изменено анализом: ${diff > 0 ? '+' : '−'}${num(Math.abs(diff))} кг к прошлому разу`) : L('Adjusted by the analysis', 'Изменено анализом'))
+    : source === 'kept' ? L('Checked by the analysis: keep last time’s weight', 'Проверено анализом: вес как в прошлый раз')
+      : L('Copied — not analysed yet', 'Скопировано — анализа пока нет');
+  return (
+    <p className={cx('flex items-center gap-1.5 text-xs font-semibold', source === 'adjusted' ? 'text-t-accent' : 'text-t-dim')} data-testid="weight-source" data-source={source}>
+      {source === 'adjusted' ? <IconBrain size={16} /> : source === 'kept' ? <IconCheck size={16} /> : <IconCopy size={16} />}
+      <span className="min-w-0 break-words">{text}</span>
+    </p>
+  );
+}
+
+function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust, onNextSet, onNextExercise, onChooseNext, offer, onUseOffer, onKeepOffer }: {
   w: Workout; ex: WorkoutExercise; set: WorkoutSet; exName: string; n: number; reached: boolean; hasNext: boolean;
   onMore: () => void; onAdjust: (deltaSec: number) => void; onNextSet: () => void; onNextExercise: () => void; onChooseNext: () => void;
+  offer: NextSetsOffer | null; onUseOffer: (o: NextSetsOffer) => void; onKeepOffer: () => void;
 }) {
   const data = useData();
   const now = useNow(250);
@@ -810,6 +842,19 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust,
           {effortTapOf(set) && <span className="text-t-text"> · {effortLabel(effortTapOf(set) as EffortTap)}</span>}
           {' '}<button type="button" className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center px-2 align-middle text-xs font-semibold text-t-dim underline" onClick={onMore} data-testid="more">{L('edit', 'изменить')}</button>
         </p>
+        {offer && (
+          <div className="mb-2 w-full max-w-sm rounded-xl border border-t-accent/60 bg-t-surface px-3 py-2" data-testid="set-offer" data-change={offer.change}>
+            <p className="flex items-start gap-1.5 text-sm font-semibold text-t-text"><IconBrain size={18} className="mt-0.5 shrink-0 text-t-accent" />
+              <span className="min-w-0 break-words">{offer.change === 'add_load' || (offer.change === 'reduce' && offer.weightKg !== ex.target?.weightKg)
+                ? L(`Next sets: ${num(offer.weightKg ?? 0)} kg`, `Следующие подходы: ${num(offer.weightKg ?? 0)} кг`)
+                : L(`Next sets: ${offer.reps?.min}–${offer.reps?.max} reps`, `Следующие подходы: ${offer.reps?.min}–${offer.reps?.max} повт.`)}</span></p>
+            <p className="mt-0.5 break-words text-xs text-t-dim">{offer.why}</p>
+            <div className="mt-1.5 flex gap-2">
+              <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-accent px-3 text-sm font-bold text-t-accent" onClick={() => onUseOffer(offer)} data-testid="offer-use">{L('Use', 'Принять')}</button>
+              <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-line px-3 text-sm font-semibold text-t-dim" onClick={onKeepOffer} data-testid="offer-keep">{L('Keep the plan', 'Оставить план')}</button>
+            </div>
+          </div>
+        )}
         <RestRing remainingSec={remaining} targetSec={target} paused={!!t.pausedAt} text={text} overSec={over} />
         <div className="mt-2 flex items-center gap-3">
           <button type="button" className={side} onClick={() => onAdjust(-REST_STEP_SEC)} aria-label={L('15 seconds less rest', 'На 15 секунд меньше отдыха')} data-testid="rest-minus">−15</button>

@@ -44,3 +44,5 @@ export const IconMapPin = (p: P) => <Icon {...p}><path d="M12 21s-7-6.2-7-11a7 7
 export const IconCopy = (p: P) => <Icon {...p}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></Icon>;
 export const IconPlay = (p: P) => <Icon {...p}><path d="M6 4l14 8-14 8Z" /></Icon>;
 export const IconStar = (p: P & { filled?: boolean }) => { const { filled, ...rest } = p; return <Icon {...rest} fill={filled ? 'currentColor' : 'none'}><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z" /></Icon>; };
+/** Part 9 follow-up: "the analysis set this number" (a brain). */
+export const IconBrain = (p: P) => <Icon {...p}><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3h0V4Z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3h0V4Z" /><path d="M9 9h1.5M13.5 9H15M9 15h1.5M13.5 15H15" /></Icon>;

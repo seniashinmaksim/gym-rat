@@ -10,8 +10,9 @@
  * Pure: no storage, no clock (pass `nowMs`).
  */
 import { reclassifyWarmups } from './perception';
+import { adaptRemaining, type Prescription } from './prescription';
 import { measuredRestSec } from './sessionSummary';
-import type { Effort, ExerciseTarget, LoadMode, QualityModel, SetFeel, Side, Workout, WorkoutExercise, WorkoutSet } from './types';
+import type { Effort, ExerciseTarget, LoadMode, QualityModel, SetFeel, SetPrescription, Side, Workout, WorkoutExercise, WorkoutSet } from './types';
 
 export const REST_DEFAULT_SEC = 150;
 export const REST_STEP_SEC = 15;
@@ -92,6 +93,9 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
   } else if (follows && prev[n]?.weightKg != null) { weight = prev[n].weightKg; from = 'last'; }
   else { weight = done[n - 1].weightKg; from = weight != null ? 'session' : null; }
 
+  // The remaining sets were adapted during this exercise (the owner tapped Use): that weight goes in.
+  if (ex.target?.adapted && ex.target.weightKg != null) { weight = ex.target.weightKg; from = 'plan'; }
+
   let alt: Prefill['alt'] = null;
   const lastWork = prev.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number);
   const lastTop = lastWork.length ? Math.max(...lastWork) : null;
@@ -164,6 +168,9 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
     restSecBefore: rest, ...(rest != null ? { restSource: pressed ? 'timer' as const : 'estimated' as const } : {}), completedAt: new Date(nowMs).toISOString(),
     ...(entry.side ? { side: entry.side } : {}),
   };
+  // What was prescribed for this set is stored next to what was done (never mixed; calculations use the performed values).
+  const pr = ex.target ? prescribedFor(ex.target, exerciseProgress(ex).done) : null;
+  if (pr && !secondSide) set.prescribed = pr;
   const { restEndedAt: _used, ...rest0 } = ex;
   void _used;
   return { ...rest0, sets: reclassifyWarmups([...ex.sets, set], model), ...(ex.startedAt ? {} : { startedAt: set.completedAt }) };
@@ -293,3 +300,69 @@ export function adjustRest(ex: WorkoutExercise, deltaSec: number, defaultSec: nu
 }
 
 export const mmss = (sec: number) => `${sec < 0 ? '−' : ''}${Math.floor(Math.abs(sec) / 60)}:${String(Math.abs(sec) % 60).padStart(2, '0')}`;
+
+// ---------------------------------------------------------------- prescribed per set, set-by-set adjustment, weight source
+
+/** The prescription of working set `n` (0-based) from the target; null for an older target without an RIR target. */
+export function prescribedFor(t: ExerciseTarget, n: number): SetPrescription | null {
+  if (!t.rir?.length) return null;
+  const r = t.reps[Math.min(n, t.reps.length - 1)] ?? t.reps[t.reps.length - 1];
+  const q = t.rir[Math.min(n, t.rir.length - 1)];
+  if (!r || !q) return null;
+  return { weightKg: t.weightKg, repsMin: r.min, repsMax: r.max, rirMin: q.min, rirMax: q.max, kind: 'working', engine: t.engine };
+}
+
+export interface NextSetsOffer { change: 'add_load' | 'add_reps' | 'reduce'; weightKg: number | null; reps: { min: number; max: number } | null; why: string }
+
+/**
+ * After a set: should the REMAINING sets change (`adaptRemaining`, rule presc_set_by_set)? Only an offer — the UI shows
+ * Use / Keep; nothing changes until the owner taps Use. null = keep the plan (or no target / nothing left / already applied).
+ */
+export function nextSetsOffer(ex: WorkoutExercise, step: number): NextSetsOffer | null {
+  const t = ex.target;
+  if (!t || !t.rir?.length || t.sets <= 0) return null;
+  const done = performed(ex).filter((s) => s.type === 'working');
+  if (!done.length) return null;
+  const lastAt = done[done.length - 1].completedAt ?? '';
+  if (t.adapted && t.adapted.at >= lastAt) return null; // already decided after this set
+  const sets = Array.from({ length: t.sets }, (_, i) => {
+    const r = t.reps[Math.min(i, t.reps.length - 1)];
+    const q = t.rir![Math.min(i, t.rir!.length - 1)];
+    return { weightKg: t.weightKg, repsMin: r.min, repsMax: r.max, rirMin: q.min, rirMax: q.max, restSec: null };
+  });
+  const p = { sets, loadMode: done[0].loadMode, minKg: null, maxKg: null, rest: { medianSec: null } } as unknown as Prescription;
+  const a = adaptRemaining(p, done, step);
+  if (a.change !== 'add_load' && a.change !== 'add_reps' && a.change !== 'reduce') return null;
+  const first = a.sets[0];
+  if (!first) return null;
+  return { change: a.change, weightKg: first.weightKg, reps: { min: first.repsMin, max: first.repsMax }, why: a.why };
+}
+
+/** Use: the target of the remaining sets becomes the offer, marked as adapted (Undo = the previous exercise object). */
+export function applyOffer(ex: WorkoutExercise, o: NextSetsOffer, at: string): WorkoutExercise {
+  const t = ex.target;
+  if (!t) return ex;
+  const n = exerciseProgress(ex).done;
+  const reps = o.reps ? [...t.reps.slice(0, n), ...Array.from({ length: Math.max(1, t.sets - n) }, () => o.reps!)] : t.reps;
+  return { ...ex, target: { ...t, weightKg: o.weightKg ?? t.weightKg, reps, adapted: { change: o.change, fromKg: t.weightKg, why: o.why, at } } };
+}
+
+/**
+ * Where the pre-filled weight came from (owner 2026-11-24): 'adjusted' = the analysis changed it (a target that differs
+ * from last time, or an adjustment during this exercise); 'kept' = the analysis set a target equal to last time's
+ * weight; 'copied' = no target, the number is only copied (last time or the previous set); null = the shown weight is
+ * neither (the owner typed it).
+ */
+export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, weightKg: number | null): 'adjusted' | 'kept' | 'copied' | null {
+  if (weightKg == null) return null;
+  const t = ex.target;
+  const prev = performed(last);
+  const done = performed(ex);
+  const lastHere = prev[done.length]?.weightKg ?? prev.filter((s) => s.type === 'working').at(-1)?.weightKg ?? null;
+  if (t?.weightKg != null && weightKg === t.weightKg) {
+    if (t.adapted) return 'adjusted';
+    return lastHere != null && lastHere !== t.weightKg ? 'adjusted' : 'kept';
+  }
+  if (weightKg === lastHere || weightKg === done.at(-1)?.weightKg) return 'copied';
+  return null;
+}

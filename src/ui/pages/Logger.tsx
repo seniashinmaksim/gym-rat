@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MACHINE_KINDS } from '../../domain/registry';
 import { Link, useNavigate } from 'react-router-dom';
 import { activeWorkout } from '../Layout';
 import { localNowParts, formatDate } from '../../domain/dates';
@@ -35,7 +36,6 @@ import { ChoiceCard, ChoiceDot } from '../components/ChoiceCard';
 import { uncertainMuscles } from '../../domain/mappingUncertainty';
 import type { ExerciseChoiceRecord } from '../../domain/types';
 
-const MACHINE_KINDS: EquipmentKind[] = ['machine', 'plate_loaded', 'cable', 'smith'];
 
 
 // ---------------------------------------------------------------- Start
@@ -524,7 +524,7 @@ function ExerciseCard({ index, w, ex, update, onComplete, undoable, onChange }: 
   const [newEq, setNewEq] = useState(false);
   const [pickEq, setPickEq] = useState(false);
   const [editEq, setEditEq] = useState<Equipment | null>(null);
-  const needsMachine = def ? MACHINE_KINDS.includes(def.equipmentKind) : false;
+  const needsMachine = def ? MACHINE_KINDS.has(def.equipmentKind) : false;
   const gym = data.locations.find((l) => l.id === w.locationId) ?? null;
   const inc = loadStep(eq, gym, def?.equipmentKind, ex.sets[0]?.loadMode).step;
 

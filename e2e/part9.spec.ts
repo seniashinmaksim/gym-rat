@@ -86,7 +86,25 @@ for (const lang of ['en', 'ru'] as const) {
     await page.getByRole('button', { name: lang === 'en' ? 'Start' : 'Начать', exact: true }).click();
     const train = page.getByTestId('train');
     await expect(train).toBeVisible();
+    // Where the pre-filled weight came from (brain / check / copy), shown above the weight.
+    await expect(page.getByTestId('weight-source')).toBeVisible();
+    expect(['adjusted', 'kept', 'copied']).toContain(await page.getByTestId('weight-source').getAttribute('data-source'));
+    await noFindings(page, 'set entry with weight source');
+    await shot('01b-weight-source');
     await logSet(page, null, '10', 1);
+    // Set-by-set check (restored): form broke at RIR 0 → the rest screen offers to change the remaining sets.
+    await restGuard(page);
+    await page.getByTestId('more').click();
+    const dlg = page.getByRole('dialog');
+    await dlg.getByRole('button', { name: lang === 'en' ? 'Form broke' : 'Техника нарушилась' }).click();
+    await dlg.getByRole('button', { name: '0', exact: true }).click();
+    await dlg.getByRole('button', { name: lang === 'en' ? 'Done' : 'Готово', exact: true }).click();
+    const offer = page.getByTestId('set-offer');
+    await expect(offer).toBeVisible();
+    await noFindings(page, 'rest screen with the offer');
+    await shot('01c-set-offer');
+    await offer.getByTestId('offer-keep').click();
+    await expect(offer).toHaveCount(0);
     await restGuard(page);
     await page.getByTestId('stop-early').click();
     const chooser = page.getByTestId('next-chooser');

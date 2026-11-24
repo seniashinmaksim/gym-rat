@@ -208,4 +208,3 @@ export function pullUpLoadingAdvice(series: ProgressionSeries, repTop: number): 
     `Дважды все подходы дошли до ${repTop}+ повторений с запасом — попробуйте подтягивания с отягощением (начните с ~2,5–5 кг на поясе; у них отдельная история).`) : null;
 }
 
-export const daysBetween = (a: string, b: string) => diffDays(a, b);

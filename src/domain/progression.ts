@@ -1,3 +1,4 @@
+import { defaultIncrement } from './increments';
 import { diffDays } from './dates';
 import type { Registry } from './registry';
 import { benchmarkExclusion, exclusionLabel, techniqueOf } from './feedback';
@@ -383,17 +384,6 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
     }
   }
   return { cls: 'stable', evidence: L(`${base} Performance is broadly stable${setAside ? ` (${setAside} fatigued session(s) noted)` : ''}.`, `${base} Результат в целом стабилен${setAside ? ` (тренировок при усталости: ${setAside})` : ''}.`), relSlopePerSession: rel, sessionsUsed: n };
-}
-
-export function defaultIncrement(kind: EquipmentKind | undefined, loadMode?: string): number {
-  switch (kind) {
-    case 'machine': return 2.5; // owner's choice (2026-11-24): a 2.5 kg step by default; a machine's saved step wins
-    case 'cable': return 2.5;
-    case 'barbell': case 'smith': return 2.5;
-    case 'plate_loaded': return loadMode === 'per_side' ? 1.25 : 2.5;
-    case 'dumbbell': case 'kettlebell': return 2;
-    default: return 2.5;
-  }
 }
 
 export function roundToIncrement(w: number, inc: number): number {
@@ -831,3 +821,5 @@ export function adviceLabel(p: ProgressionSeries, kind: AdviceKind): string {
   if (kind === 'plateau') return L(`PLATEAU — ${p.trend.sessionsUsed} SESSIONS`, `ПЛАТО — ${p.trend.sessionsUsed} ТРЕН.`);
   return L('MORE DATA NEEDED', 'НУЖНО БОЛЬШЕ ДАННЫХ');
 }
+
+export { defaultIncrement };

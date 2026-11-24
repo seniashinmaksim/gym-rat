@@ -9,6 +9,7 @@
  * Score = min(caps for missing data, 100) − deductions, never below 5. The principle of each deduction comes from the
  * rules it reuses; the NUMBER of points is a heuristic (an app choice; the owner chose the weekly-target weights).
  */
+import { MACHINE_KINDS } from './registry';
 import type { AppData } from './appdata';
 import { assessChoice, availableEquipment, exerciseSessionCounts, priorWorkouts, type ChoiceFindingCode, type ChoiceOutcome } from './exerciseChoice';
 import { significantMuscles } from './fatigue';
@@ -85,7 +86,6 @@ const FINDING_POINTS: Partial<Record<ChoiceFindingCode, [DeductionFactor, number
   order_host: ['order', OPTIMALITY_POINTS.orderHost],
   decline: ['decline', OPTIMALITY_POINTS.decline],
 };
-const MACHINE_KINDS = new Set(['machine', 'cable', 'plate_loaded', 'smith']);
 const round5 = (x: number) => Math.round(x / 5) * 5;
 
 export function bandOf(score: number): OptimalityBand {

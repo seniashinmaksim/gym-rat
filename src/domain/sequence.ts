@@ -18,13 +18,14 @@
  */
 import type { AppData } from './appdata';
 import { addDays, diffDays, formatDate } from './dates';
-import { FATIGUE_RANK, fatigueCostOf } from './fatigue';
+import { fatigueCostOf } from './fatigue';
 import { L, getLang, ruPlural } from '../i18n/core';
 import { MUSCLE_BY_ID, muscleName } from './muscles';
 import { RECOVERY_TOLERANCE_H, type analyze } from './analysis';
-import { buildRegistry, resolveCoefficients } from './registry';
+import { resolveCoefficients, MACHINE_KINDS } from './registry';
 import type { MuscleId, PlannedMove, Variation, Workout } from './types';
 import { computeVolume } from './volume';
+import { heldUp, OUTCOME_NOT_LOWER, OUTCOME_RIR_DIFF, OUTCOME_SHORT_REST } from './outcomes';
 import { sessionWindowH, weekdayOf } from './weekPlan';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -149,7 +150,6 @@ export function addMoves(before: PlannedMove[], moves: PlannedMove[]): PlannedMo
   return [...before.filter((m) => !ids.has(m.exerciseId)), ...moves];
 }
 
-const MACHINE_KINDS = new Set(['machine', 'cable', 'plate_loaded', 'smith']);
 /** A move without a machine for a machine / cable exercise: the machine is chosen again on the day (shown so). */
 export function moveNeedsSetup(m: PlannedMove, registry: Analysis['registry']): boolean {
   const def = registry.get(m.exerciseId);
@@ -220,7 +220,7 @@ const learnedWeeks = (analysis: Analysis) => analysis.weeks.filter((w) => w.comp
 // ---------------------------------------------------------------- learning from "Keep today" (H.3 #13)
 
 /** A kept conflict counts as "held up" when the affected exercise's index was at least this share of its previous one. */
-export const KEPT_NOT_LOWER = 0.97;
+export const KEPT_NOT_LOWER = OUTCOME_NOT_LOWER;
 /**
  * Kept conflicts needed before anything is learned: the last 3 COMPARABLE results are used; >= 2 held up -> softened.
  * A result that cannot be compared (no comparable baseline, different reserve or rest, another history) is skipped —
@@ -228,9 +228,9 @@ export const KEPT_NOT_LOWER = 0.97;
  */
 export const KEPT_MIN_OBSERVATIONS = 3;
 /** A result whose top-set reserve differs by at least this much from the baseline is not comparable. */
-export const KEPT_RIR_DIFF = 2;
+export const KEPT_RIR_DIFF = OUTCOME_RIR_DIFF;
 /** A result whose average rest is below this share of the baseline's is not comparable. */
-export const KEPT_SHORT_REST = 0.7;
+export const KEPT_SHORT_REST = OUTCOME_SHORT_REST;
 
 export interface KeptOutcome { observations: number; notLower: number; lower: number; softened: boolean; lastDate: string | null }
 
@@ -242,9 +242,6 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
   const kept = [...data.workouts].sort((a, b) => a.date.localeCompare(b.date))
     .flatMap((w) => w.exercises.filter((e) => e.exerciseId === exerciseId && e.forwardKept?.affectsExerciseId === affectsId).map((e) => e.forwardKept!));
   const afterKept = (date: string) => kept.some((k) => date >= k.date && diffDays(date, k.date) <= 2);
-  // Index ratio on one scale: kg-based indices directly; a reps-based index (bodyweight) on the Epley scale, so one rep
-  // at 10 is not a "10 % drop" (1 + reps / 30).
-  const ratio = (cur: number, base: number, kind: string | null) => (kind === 'reps' ? (1 + cur / 30) / (1 + base / 30) : cur / base);
   const obs: boolean[] = [];
   let lastDate: string | null = null;
   for (const k of kept) {
@@ -257,13 +254,10 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
       // themselves right after a kept conflict; at least 2 are needed.
       const base = series.sessions.slice(0, i).filter((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind && !afterKept(x.date)).slice(-3);
       if (base.length < 2) break;
-      // Not comparable: stopped with a clearly different reserve, a much shorter rest, or a different place in the session.
-      const baseRir = median(base.map((x) => x.topRir).filter((r): r is number => r != null));
-      if (cur.topRir != null && Number.isFinite(baseRir) && Math.abs(cur.topRir - baseRir) >= KEPT_RIR_DIFF) break;
-      const rests = base.map((x) => x.restAvgSec).filter((r): r is number => r != null);
-      if (cur.restAvgSec != null && rests.length && cur.restAvgSec < KEPT_SHORT_REST * median(rests)) break;
-      if (cur.context && base.every((x) => x.context && x.context !== cur.context)) break;
-      obs.push(ratio(cur.indexRaw, median(base.map((x) => x.indexRaw as number)), cur.indexKind) >= KEPT_NOT_LOWER);
+      // Not comparable (another reserve, a much shorter rest, another place in the session) → skipped (shared check, C-3).
+      const held = heldUp(cur, base);
+      if (held == null) break;
+      obs.push(held);
       lastDate = k.date;
       break;
     }
@@ -384,30 +378,5 @@ export function bestMoveDay(input: ForwardInput): { date: string; clean: boolean
     if (!best || n < best.n) best = { date: s.date, n };
   }
   return best ? { date: best.date, clean: false } : null;
-}
-
-/**
- * Where a moved exercise goes inside that day's session (scheduling priority ≠ execution order): after every
- * high-priority exercise that uses one of its direct muscles (≥ 0.5) or costs more fatigue; first only when its primary
- * muscle is the owner's priority muscle. Returns the index to insert at.
- */
-export function placeInSession(data: AppData, session: UpcomingSession, exerciseId: string, variation?: Variation | null): number {
-  const ids = session.exercises;
-  const reg = buildRegistry(data.customExercises, data.exerciseOverrides);
-  const def = reg.get(exerciseId);
-  if (!def) return ids.length;
-  const co = resolveCoefficients(def, variation ?? undefined).contributions;
-  const ranked = (Object.entries(co) as [MuscleId, number][]).sort((a, b) => b[1] - a[1]);
-  if (ranked[0] && data.settings.priorities[ranked[0][0]] === 'high') return 0;
-  const direct = ranked.filter(([, c]) => c >= DIRECT_COEF).map(([m]) => m);
-  const mine = FATIGUE_RANK[fatigueCostOf(def, variation)];
-  let at = 0;
-  ids.forEach((e, i) => {
-    if (e.priority !== 'high') return;
-    const eDef = reg.get(e.exerciseId);
-    const uses = direct.some((m) => (e.contributions[m] ?? 0) >= INTERFERENCE_MIN_COEF);
-    if (uses || FATIGUE_RANK[fatigueCostOf(eDef)] < mine) at = i + 1;
-  });
-  return at;
 }
 

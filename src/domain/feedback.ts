@@ -90,7 +90,6 @@ export const isCompromised = (s: WorkoutSet) => {
   const t = techniqueOf(s);
   return t === 'compromised' || t === 'failed';
 };
-export const isWrongWeight = (s: WorkoutSet) => s.weightAccuracy === 'too_light' || s.weightAccuracy === 'too_heavy';
 export const hasPain = (s: WorkoutSet) => s.feel === 'pain' || !!s.pain;
 
 /**

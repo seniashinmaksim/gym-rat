@@ -1,7 +1,7 @@
 import type { AppData } from './appdata';
 import { techniqueOf } from './feedback';
 import { buildRegistry, type Registry } from './registry';
-import { isCounted, sideFactors } from './quality';
+import { isCounted, sideFactors } from './sets';
 import type { ExerciseDef, FailureStatus, MuscleId, Technique, Workout, WorkoutSet } from './types';
 import { L, byLang, num, ruPlural } from '../i18n/core';
 
@@ -55,12 +55,6 @@ export function effectiveFailure(s: WorkoutSet): EffectiveFailure {
   if (s.toFailure) return { status: 'muscular', source: 'to_failure', technical, label: L('Muscular failure (reported via Fail / to_failure)', 'Мышечный отказ (отмечен кнопкой «Отказ» / to_failure)') };
   if (technical) return { status: 'unknown', source: 'none', technical, label: L('Technical failure', 'Отказ по технике') };
   return { status: 'unknown', source: 'none', technical, label: FAILURE_LABEL.unknown };
-}
-
-/** Clean muscular failure: muscular failure recorded (or via Fail) and technique did NOT give out first. */
-export function isCleanMuscularFailure(s: WorkoutSet): boolean {
-  const f = effectiveFailure(s);
-  return f.status === 'muscular' && !f.technical;
 }
 
 /** Counts as a "failure set" for fatigue/recovery: Fail chip, RIR 0, muscular failure or technical failure. */
