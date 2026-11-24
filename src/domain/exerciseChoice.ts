@@ -18,11 +18,11 @@ import { hasPain } from './feedback';
 import { L, byLang, getLang, num, ruPlural } from '../i18n/core';
 import { FATIGUE_LABEL, FATIGUE_RANK, fatigueCostOf, isHeavyLower, sessionLoad, significantMuscles, type SessionLoad } from './fatigue';
 import { muscleName, MUSCLE_BY_ID } from './muscles';
-import { heldUp } from './outcomes';
+import { outcomeAt, softenedFrom } from './outcomes';
 import { progressionKey } from './progression';
 import { isCounted } from './quality';
 import { movementFamily } from './recovery';
-import { leftOfShare, RECOVERY_TOLERANCE_H, type analyze } from './analysis';
+import { displaySets, isOpen, openOfShare, RECOVERY_TOLERANCE_H, type analyze } from './analysis';
 import type { ExerciseDef, FatigueCost, MovementPattern, MuscleId, Variation, Workout, WorkoutExercise } from './types';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -54,7 +54,9 @@ export interface MuscleLine {
   hoursLeft: number;
   /** Effective sets left this week to the preferred target. */
   weekLeft: number;
-  /** Open part of today's (capped, catch-up-free) share. */
+  /** Open part of today's (capped, catch-up-free) share — RAW, for decisions. */
+  todayOpen: number;
+  /** The same as displayed (halves). */
   todayLeft: number;
   text: string;
 }
@@ -230,6 +232,8 @@ export function choiceOutcomes(data: AppData, analysis: Analysis): Map<string, C
   const out = new Map<string, ChoiceOutcome>();
   const obs = new Map<string, boolean[]>();
   const sorted = [...data.workouts].sort((a, b) => a.date.localeCompare(b.date));
+  // Sessions done against a recovery warning are not part of any baseline (owner 2026-11-24: one baseline for both rules).
+  const overridden = new Set(sorted.filter((w) => w.exercises.some((e) => e.choice?.followed === 'continued' && e.choice.status === 'reconsider' && e.choice.reasonKind === 'recovery')).map((w) => w.id));
   for (const w of sorted) {
     for (const e of w.exercises) {
       const c = e.choice;
@@ -239,12 +243,9 @@ export function choiceOutcomes(data: AppData, analysis: Analysis): Map<string, C
       if (!series) continue;
       const i = series.sessions.findIndex((s) => s.workoutId === w.id);
       if (i < 0) continue;
-      const cur = series.sessions[i];
-      const prev = [...series.sessions.slice(0, i)].reverse().find((s) => s.representative && s.indexKind === cur.indexKind);
-      if (!prev) continue;
-      // Shared comparability check (audit C-3): a result with another reserve, a much shorter rest or another place in
-      // the session is skipped, never counted; reps-based indices on the Epley scale.
-      const held = heldUp(cur, [prev]);
+      // The overridden session itself against the median of the last ≤ 3 comparable sessions that were not overridden
+      // (≥ 2; the same check as Part 8): one unusually good or bad day no longer decides.
+      const held = outcomeAt(series.sessions, i, (s) => overridden.has(s.workoutId));
       if (held == null) continue;
       const list = obs.get(e.exerciseId) ?? [];
       list.push(held);
@@ -254,7 +255,7 @@ export function choiceOutcomes(data: AppData, analysis: Analysis): Map<string, C
   for (const [id, list] of obs) {
     const last = list.slice(-3);
     const notLower = last.filter(Boolean).length;
-    out.set(id, { exerciseId: id, observations: list.length, notLower, softened: last.length >= 3 && notLower >= 2 });
+    out.set(id, { exerciseId: id, observations: list.length, notLower, softened: softenedFrom(list) });
   }
   return out;
 }
@@ -300,7 +301,8 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     const mw = analysis.muscles.find((m) => m.muscle === muscle);
     const pr = analysis.planRecovery[muscle];
     const doneNow = Math.max(mw?.doneToday ?? 0, load?.muscles[muscle] ?? 0);
-    const todayLeft = leftOfShare(mw?.todayShare ?? 0, doneNow);
+    const todayOpen = openOfShare(mw?.todayShare ?? 0, doneNow);
+    const todayLeft = displaySets(todayOpen).value;
     const weekLeft = mw?.remainingToPreferred ?? 0;
     let state: MuscleState = 'LIKELY_READY';
     let source: MuscleLine['source'] = null;
@@ -324,7 +326,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     if (idx === 0 || state === 'LIKELY_READY') text += weekLeft > 0
       ? L(` · ${fmtSets(todayLeft > 0 ? todayLeft : weekLeft)} ${todayLeft > 0 ? 'LEFT TODAY' : 'LEFT THIS WEEK'}`, ` · ЕЩЁ ${ruSets(todayLeft > 0 ? todayLeft : weekLeft).toUpperCase()} ${todayLeft > 0 ? 'СЕГОДНЯ' : 'НА НЕДЕЛЕ'}`)
       : L(' · WEEK DONE', ' · НЕДЕЛЬНАЯ ЦЕЛЬ ВЫПОЛНЕНА');
-    return { muscle, coef, state, source, hoursLeft, weekLeft, todayLeft, text };
+    return { muscle, coef, state, source, hoursLeft, weekLeft, todayOpen, todayLeft, text };
   });
 
   const cost = fatigueCostOf(def, variation);
@@ -334,8 +336,8 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   const isPriority = (m: MuscleId | null) => {
     if (!m) return false;
     if (data.settings.priorities[m] === 'high') return true;
-    const ready = analysis.muscles.filter((x) => !x.todayBlocked && x.todayLeft >= 2);
-    const top = ready.sort((a, b) => b.todayLeft - a.todayLeft)[0];
+    const ready = analysis.muscles.filter((x) => !x.todayBlocked && x.todayOpen >= 2);
+    const top = ready.sort((a, b) => b.todayOpen - a.todayOpen)[0];
     return !!top && top.muscle === m;
   };
 
@@ -359,7 +361,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
   // 2) Weekly volume.
   if (pmw && pmw.status === 'over') findings.push({ code: 'primary_over', status: 'reconsider', kind: 'volume', text: L(`${muscleName(pmw.muscle)} is above its weekly upper bound (${round1(pmw.completed)} / ${pmw.target.max}) — more sets add fatigue, little growth.`, `${mRu(pmw.muscle)}: недельный объём выше верхней границы (${num(round1(pmw.completed))} / ${num(pmw.target.max)}) — новые подходы добавят утомление и мало что дадут для роста.`) });
   else if (pmw && pmw.status === 'done') findings.push({ code: 'primary_week_met', status: 'acceptable', kind: 'volume', text: L(`${muscleName(pmw.muscle)} weekly target already met (${round1(pmw.completed)} / ${pmw.target.preferred}).`, `${mRu(pmw.muscle)}: недельная цель уже выполнена (${num(round1(pmw.completed))} / ${num(pmw.target.preferred)}).`) });
-  else if (pLine && pmw && pmw.todayShare > 0 && pLine.todayLeft <= 0 && pLine.state === 'LIKELY_READY') findings.push({ code: 'today_share_done', status: 'acceptable', kind: 'volume', text: L(`Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.`, `${mRu(pmw.muscle)}: доля на сегодня уже выполнена — дальше по желанию.`) });
+  else if (pLine && pmw && pmw.todayShare > 0 && !isOpen(pLine.todayOpen) && pLine.state === 'LIKELY_READY') findings.push({ code: 'today_share_done', status: 'acceptable', kind: 'volume', text: L(`Today's share for ${muscleName(pmw.muscle).toLowerCase()} is already done — more is optional.`, `${mRu(pmw.muscle)}: доля на сегодня уже выполнена — дальше по желанию.`) });
 
   // 3) Fatigue cost vs what this session already did.
   if (load && cost === 'high' && isHeavyLower(def, variation) && load.heavyLowerDone.length >= 2 && !isPriority(primary)) {
@@ -383,7 +385,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
       const host: Partial<Record<MuscleId, MuscleId[]>> = { triceps: ['chest'], front_delts: ['chest'], biceps: ['lats', 'upper_back'], rear_delts: ['upper_back'] };
       const h = (host[primary] ?? []).find((m) => {
         const mw = analysis.muscles.find((x) => x.muscle === m);
-        return !!mw && !mw.todayBlocked && mw.todayLeft >= 2 && (load.muscles[m] ?? 0) < 1;
+        return !!mw && !mw.todayBlocked && mw.todayOpen >= 2 && (load.muscles[m] ?? 0) < 1;
       });
       if (h) findings.push({ code: 'order_host', status: 'acceptable', kind: 'order', text: L(`If you still plan ${muscleName(h).toLowerCase()} compounds today, doing them before ${muscleName(primary).toLowerCase()} isolation keeps their reps up.`, `Если сегодня ещё будут базовые упражнения (${mRuLow(h)}), лучше сделать их до изолирующего (${mRuLow(primary)}) — так в них сохранятся повторения.`) });
     }
@@ -507,9 +509,9 @@ function sparingAlternatives(c: AltCtx, primary: MuscleId, loaded: MuscleId[]): 
 function otherMuscleAlternatives(c: AltCtx, avoid: MuscleId | null): ChoiceAlternative[] {
   const out: ChoiceAlternative[] = [];
   const needs = c.analysis.muscles
-    .filter((m) => m.muscle !== avoid && !m.todayBlocked && m.todayLeft >= 1 && !recentlyLoaded(c.analysis, m.muscle))
+    .filter((m) => m.muscle !== avoid && !m.todayBlocked && m.todayOpen >= 1 && !recentlyLoaded(c.analysis, m.muscle))
     // Larger muscles first at equal need (they usually carry the session).
-    .sort((a, b) => b.todayLeft - a.todayLeft || sizeRank(a.muscle) - sizeRank(b.muscle));
+    .sort((a, b) => b.todayOpen - a.todayOpen || sizeRank(a.muscle) - sizeRank(b.muscle));
   for (const mw of needs) {
     if (out.length >= 2) break;
     const pick = candidatePool(c, (d) => (d.contributions[mw.muscle] ?? 0) >= 0.75).filter((x) => x.sessions >= 1)[0];

@@ -16,7 +16,7 @@ import { significantMuscles } from './fatigue';
 import { L, getLang } from '../i18n/core';
 import { muscleName } from './muscles';
 import { forwardChecks, usualSetCount } from './sequence';
-import type { analyze } from './analysis';
+import { isOpen, type analyze } from './analysis';
 import type { MuscleId, Variation, Workout } from './types';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -141,7 +141,7 @@ export function optimality(input: OptimalityInput): Optimality {
   const pLine = a.muscles[0];
   const pmw = pLine ? analysis.muscles.find((m) => m.muscle === pLine.muscle) : undefined;
   if (pLine && pmw && !deductions.some((x) => /^(primary_over|primary_week_met|today_share_done)$/.test(x.factor))
-    && pmw.status !== 'done' && pmw.status !== 'over' && pmw.todayShare > 0 && pLine.todayLeft <= 0) {
+    && pmw.status !== 'done' && pmw.status !== 'over' && pmw.todayShare > 0 && !isOpen(pLine.todayOpen)) {
     deductions.push({ factor: 'today_share_done', points: OPTIMALITY_POINTS.todayShareDone, text: L(`Today's share for ${muscleName(pLine.muscle, 'en').toLowerCase()} is already done — more is optional.`, `${muscleName(pLine.muscle, 'ru')}: доля на сегодня уже выполнена — дальше по желанию.`) });
   }
   const tip = fwd.find((f) => f.severity === 'recommendation');

@@ -108,9 +108,10 @@ describe('exercise-choice assistant (E.1)', () => {
   });
   it('10 overrides are learned only after ≥ 3 observations (softened, never "unsuitable")', () => {
     // Each override: warned (recovery) but continued; performance index the same as the previous session.
-    const base = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
-    const mk = (n: number) => base.slice(0, n + 1).map((d, i) => workout(d, [ex('pec_deck', [set(45, 12, 1), set(45, 11, 1)], 'pd_a',
-      i > 0 ? { choice: { status: 'reconsider', reasonKind: 'recovery', followed: 'continued', at: `${d}T18:00:00Z` } } : {})], { startTime: '18:00', endTime: '18:30' }));
+    // Two clean sessions first (owner 2026-11-24: the baseline is the median of ≥ 2 earlier sessions not themselves overridden).
+    const base = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+    const mk = (n: number) => base.slice(0, n + 2).map((d, i) => workout(d, [ex('pec_deck', [set(45, 12, 1), set(45, 11, 1)], 'pd_a',
+      i > 1 ? { choice: { status: 'reconsider', reasonKind: 'recovery', followed: 'continued', at: `${d}T18:00:00Z` } } : {})], { startTime: '18:00', endTime: '18:30' }));
     const recent = workout('2026-11-18', [ex('pec_deck', Array.from({ length: 10 }, () => set(45, 12, 1)), 'pd_a')], { startTime: '17:30', endTime: '19:00' });
     const two = data([...mk(2), recent], { equipment: EQUIP.map((e) => ({ ...e })) });
     const three = data([...mk(3), recent], { equipment: EQUIP.map((e) => ({ ...e })) });

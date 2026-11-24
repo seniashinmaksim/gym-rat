@@ -13,7 +13,7 @@ not from intent. Analysis and visualisation only: no formula, weight, threshold 
 - **Worked examples:** each number is recomputed by a test (synthetic data) — the test is named next to each step.
 
 <!-- map:stats -->
-Code graph: **986 declarations, 3149 value references**; curated map: **94 nodes, 195 edges in 8 views**.
+Code graph: **994 declarations, 3165 value references**; curated map: **98 nodes, 201 edges in 8 views**.
 <!-- /map:stats -->
 
 ## Legend
@@ -267,13 +267,19 @@ flowchart LR
     sesswin["Window of a planned session<br/>(next-session checks, week fit)"]:::formula
     fit["Today's share<br/>(recovery-aware week fit)"]:::decision
     extra["Extra short session<br/>(≥ 2 on a muscle / ≥ 4)"]:::decision
+    openshare["Open today (RAW)<br/>share − done · ≥ 0.5 = open"]:::formula
     weekchip["Week chip<br/>RECOVERING only if held<br/>by an earlier session"]:::decision
     mapspread["Plausible range<br/>(uncertain mappings)"]:::formula
     deload["Deload check"]:::decision
   end
+  subgraph E["E · planning & decisions"]
+    choice["Exercise choice<br/>recovery · volume · fatigue<br/>order · decline · safety"]:::decision
+  end
   subgraph F["F · screens"]
-    ui_analysis["useAnalysis()<br/>(recomputed every minute)"]:::ui
+    display["ONE display rounding<br/>halves · ≈ when rounded"]:::ui
     ui_week["Week screen"]:::ui
+    ui_picker["Exercise picker<br/>(dot · Best now · warning)"]:::ui
+    ui_analysis["useAnalysis()<br/>(recomputed every minute)"]:::ui
     ui_muscledetail["Week → muscle detail"]:::ui
   end
   coef --> volume
@@ -292,6 +298,10 @@ flowchart LR
   fit -.->|if| analyze
   extra -.->|if| analyze
   recovery ==> analyze
+  openshare ==> analyze
+  openshare --> choice
+  display --> ui_week
+  display --> ui_picker
   analyze --> ui_analysis
   ui_analysis --> ui_week
   weekchip --> ui_week
@@ -594,7 +604,9 @@ flowchart LR
     forward["Forward checks<br/>recovery · interference<br/>≥ 12 h limit · < 4 weeks tips"]:::decision
     choicelearn["Learning from overrides<br/>(≥ 2 of 3 held up)"]:::rule
     heldup["Held up? (comparable)<br/>reserve · rest · context · 97 %"]:::rule
+    outcomeat["Held up? vs median of<br/>≤ 3 earlier comparable (≥ 2),<br/>warned sessions excluded"]:::rule
     kept["Softening from Keep today<br/>(≥ 2 of 3 comparable ≥ 97 %)"]:::rule
+    softened["Softened: ≥ 2 of<br/>the last 3 held up"]:::rule
     rank["Ranking<br/>(group, score, familiarity, name)"]:::formula
     replace["Replacement options<br/>(same primary, free machine)"]:::decision
   end
@@ -609,8 +621,10 @@ flowchart LR
   analyze -->|usualDays| optimality
   in_workout -->|busyEquipment| optimality
   choicelearn -.->|if| choice
-  heldup --> choicelearn
-  heldup --> kept
+  heldup --> outcomeat
+  outcomeat --> choicelearn
+  outcomeat --> kept
+  softened --> choicelearn
   shortrest --> heldup
   kept -.->|if| forward
   optimality -->|score| rank
@@ -644,14 +658,14 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **objective** Reserve from the numbers | B · formula | `domain/perception` · `objectiveForSets` | rest#isShortRest | domain/volume#computeVolume, domain/volume#qualitySetTotal, domain/workoutCheck#workoutCheck | perception_check (research_informed_heuristic) | part6-flow.test.ts, part6-review.test.ts, part7-fixes.test.ts, part7-formulas.test.ts +1 |
 | **cross** Answer vs numbers | B · rule | `domain/perception` · `crossCheck` | — | domain/quality#assessSet | perception_check (research_informed_heuristic) | part6-flow.test.ts, part6-review.test.ts |
 | **credit_rir** RIR → effort credit | B · rule | `domain/perception` · `creditForRir` | — | domain/quality#assessSet | rir_credit_table (research_informed_heuristic) | part6-flow.test.ts |
-| **assess** Set quality credit | B · formula | `domain/quality` · `assessSet` | failure#failureImpliedRir, failure#techniqueWithFailure, feedback#EFFORT_LABEL, feedback#FEEL_BY_ID, feedback#estimatedRirRange, feedback#formatRirRange, feedback#hasPain, feedback#painAreaLabel | domain/volume#computeVolume, domain/volume#qualitySetTotal, domain/workoutCheck#workoutCheck, ui/pages/History#SessionCard, ui/pages/Logger#SetRow | rir_credit_table (research_informed_heuristic), compromised_technique (heuristic), drop_and_low_reps (research_informed_heuristic), rom_partials (research_informed_heuristic), unknown_effort (heuristic) | analytics.test.ts, audit-fixes.test.ts, failure.test.ts, feedback.test.ts +5 |
+| **assess** Set quality credit | B · formula | `domain/quality` · `assessSet` | failure#failureImpliedRir, failure#techniqueWithFailure, feedback#EFFORT_LABEL, feedback#FEEL_BY_ID, feedback#estimatedRirRange, feedback#formatRirRange, feedback#hasPain, feedback#painAreaLabel | domain/volume#computeVolume, domain/volume#qualitySetTotal, domain/workoutCheck#workoutCheck, ui/pages/History#SessionCard, ui/pages/Logger#SetRow | rir_credit_table (research_informed_heuristic), compromised_technique (heuristic), drop_and_low_reps (research_informed_heuristic), rom_partials (research_informed_heuristic), unknown_effort (heuristic) | analytics.test.ts, audit-fixes.test.ts, failure.test.ts, feedback.test.ts +6 |
 | **warmups** Automatic warm-ups | B · rule | `domain/perception` · `reclassifyWarmups` | — | domain/liveFlow#editSet, domain/liveFlow#logSet | warmup_by_reserve (research_informed_heuristic), warmups_not_counted (heuristic) | part6-flow.test.ts, part6-review.test.ts |
 | **failure** Failure profile | B · aggregation | `domain/failure` · `failureProfile` | registry#buildRegistry, sets#isCounted, sets#sideFactors | domain/analysis#analyze, domain/reports#weeklyReport | failure_share (research_informed_heuristic), failure_no_bonus (research_informed_heuristic) | failure.test.ts, part7-formulas.test.ts, part8-review.test.ts |
 | **stopped** Stopped before failure? | B · rule | `domain/failure` · `stoppedBeforeFailureInferred` | — | — | failure_share (research_informed_heuristic) | audit-gaps.test.ts |
 | **logset** logSet() | B · decision | `domain/liveFlow` · `logSet` | perception#reclassifyWarmups, sessionSummary#measuredRestSec | ui/pages/Train#ExerciseScreens | log_after_set (heuristic) | audit-gaps.test.ts, part6-flow.test.ts, part6-review.test.ts, second-analysis.test.ts +1 |
-| **registry** Exercise registry | C · formula | `domain/registry` · `buildRegistry` | src/data/exercises#SEED_EXERCISES | domain/analysis#analyze, domain/failure#failureProfile | fractional_coefficients (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, audit-gaps.test.ts, baseline.test.ts +20 |
+| **registry** Exercise registry | C · formula | `domain/registry` · `buildRegistry` | src/data/exercises#SEED_EXERCISES | domain/analysis#analyze, domain/failure#failureProfile | fractional_coefficients (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, audit-gaps.test.ts, baseline.test.ts +21 |
 | **coef** Coefficients | C · rule | `domain/registry` · `resolveCoefficients` | — | domain/fatigue#significantMuscles, domain/planner#generateWorkout, domain/planner#replanPending, domain/preload#preloadFor, domain/prescription#planWarmups, domain/prescription#prescribe, domain/recovery#estimateRecovery, domain/recovery#todayExtraH | fractional_coefficients (research_informed_heuristic), bench_angle_groups (research_informed_heuristic), supinated_vertical_pull (heuristic) | analytics.test.ts, exercise-audit.test.ts, preferred.test.ts |
-| **volume** Effective sets per muscle | C · formula | `domain/volume` · `computeVolume` | muscles#involvement, perception#objectiveForSets, perception#withoutAutoWarmups, quality#assessSet, quality#isCounted, quality#sideFactors, quality#taperBeyondCap, registry#resolveCoefficients | domain/analysis#analyze, domain/history#weeklyHistory, domain/mappingUncertainty#mappingSpread, domain/planner#replanPending, domain/prescription#prescribe, domain/recovery#estimateRecovery, domain/reports#baselineReport, domain/sequence#doneToday | fractional_coefficients (research_informed_heuristic), regional_emphasis_not_added (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, baseline.test.ts, exercise-audit.test.ts +14 |
+| **volume** Effective sets per muscle | C · formula | `domain/volume` · `computeVolume` | muscles#involvement, perception#objectiveForSets, perception#withoutAutoWarmups, quality#assessSet, quality#isCounted, quality#sideFactors, quality#taperBeyondCap, registry#resolveCoefficients | domain/analysis#analyze, domain/history#weeklyHistory, domain/mappingUncertainty#mappingSpread, domain/planner#replanPending, domain/prescription#prescribe, domain/recovery#estimateRecovery, domain/reports#baselineReport, domain/sequence#doneToday | fractional_coefficients (research_informed_heuristic), regional_emphasis_not_added (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, baseline.test.ts, exercise-audit.test.ts +15 |
 | **taper** Per-session note | C · rule | `domain/quality` · `taperBeyondCap` | — | domain/volume#computeVolume | session_taper (heuristic) | review.test.ts |
 | **perf** Strength index | C · formula | `domain/progression` · `sessionPerf` | failure#failureImpliedRir, feedback#benchmarkExclusion, feedback#techniqueOf | — | index_scale (heuristic), index_basis (heuristic) | analytics.test.ts, failure.test.ts, feedback.test.ts, preferred.test.ts +1 |
 | **preload** Session-order context | C · rule | `domain/preload` · `preloadFor` | quality#sideFactors, registry#resolveCoefficients | domain/prescription#prescribe, domain/progression#buildProgression, domain/workoutCheck#workoutCheck | preload_context (research_informed_heuristic) | part6-perception.test.ts |
@@ -668,24 +682,24 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **trend** Trend class | D · rule | `domain/progression` · `classifyTrend` | — | domain/prescription#prescribe | plateau (heuristic), single_bad_session (heuristic), sustained_decline (heuristic) | analytics.test.ts, feedback.test.ts, review-part4.test.ts, review.test.ts |
 | **nextload** Double progression | D · decision | `domain/progression` · `suggestNextLoad` | feedback#exclusionLabel | domain/prescription#prescribe | double_progression (heuristic), benchmark_exclusion (heuristic), rest_attribution (research_informed_heuristic) | analytics.test.ts, review.test.ts |
 | **baseline** Baseline & progress % | D · formula | `domain/baseline` · `strengthProgress` | progression#comparableSessions | ui/pages/Reports#FourWeekCheck, ui/pages/Strength#ProgressTable | no rule — app choice | audit-fixes.test.ts, baseline.test.ts, part6-perception.test.ts, review-part4.test.ts +2 |
-| **analyze** analyze() | D · aggregation | `domain/analysis` · `analyze` | bodyweight#bodyKgForIndex, dates#daysLeftInWeek, dates#localNowParts, dates#weekOf, failure#failureProfile, history#mean, history#weeklyHistory, perception#withoutAutoWarmups | ui/hooks#analyzeWith, ui/hooks#useAnalysis | todays_share (research_informed_heuristic), weekly_target_reference (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, audit-gaps.test.ts, exercise-audit.test.ts +33 |
-| **readiness** Operating mode | E · rule | `domain/readiness` · `readinessReport` | quality#isCounted, registry#MACHINE_KINDS | domain/planner#generateWorkout, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Settings#PlannerCard | planner_modes (heuristic), planner_calibration (heuristic) | audit-gaps.test.ts, i18n-engine.test.ts, part5-planner.test.ts, part5-report.test.ts +1 |
+| **analyze** analyze() | D · aggregation | `domain/analysis` · `analyze` | bodyweight#bodyKgForIndex, dates#daysLeftInWeek, dates#localNowParts, dates#weekOf, failure#failureProfile, history#mean, history#weeklyHistory, perception#withoutAutoWarmups | ui/hooks#analyzeWith, ui/hooks#useAnalysis | todays_share (research_informed_heuristic), weekly_target_reference (research_informed_heuristic) | analytics.test.ts, audit-fixes.test.ts, audit-gaps.test.ts, exercise-audit.test.ts +34 |
+| **readiness** Operating mode | E · rule | `domain/readiness` · `readinessReport` | quality#isCounted, registry#MACHINE_KINDS | domain/planner#generateWorkout, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Settings#PlannerCard | planner_modes (heuristic), planner_calibration (heuristic) | audit-gaps.test.ts, i18n-engine.test.ts, owner-recs.test.ts, part5-planner.test.ts +2 |
 | **prescribe** Prescription | E · formula | `domain/prescription` · `prescribe` | dates#localNowParts, feedback#benchmarkExclusion, increments#loadStep, preload#PRELOAD_DEFAULT_DROP, preload#expectedRepDrop, preload#preloadFactor, preload#preloadFor, progression#adviceFor | domain/planner#generateWorkout, domain/planner#replanPending, ui/pages/Logger#safePrescribe | presc_set_count (heuristic), presc_rep_ranges (research_informed_heuristic), presc_rir_targets (research_informed_heuristic), presc_rest (research_informed_heuristic), presc_confidence (heuristic) | i18n-engine.test.ts, part6-perception.test.ts, prescription.test.ts, six-month.test.ts +1 |
-| **alloc** Set allocation | E · formula | `domain/planner` · `allocateSets` | — | — | planner_session_allocation (research_informed_heuristic) | part7-planner.test.ts |
-| **planner** Next workout plan | E · decision | `domain/planner` · `generateWorkout` | exerciseChoice#availableEquipment, exerciseChoice#exerciseSessionCounts, exerciseChoice#safetyLine, fatigue#FATIGUE_RANK, fatigue#fatigueCostOf, fatigue#significantMuscles, prescription#prescribe, progression#progressionKey | ui/components/NextWorkout#NextWorkoutCard | planner_session_allocation (research_informed_heuristic), exercise_order (research_informed_heuristic), planner_returning (heuristic) | audit-fixes.test.ts, audit-gaps.test.ts, i18n-engine.test.ts, part5-planner.test.ts +8 |
+| **alloc** Set allocation | E · formula | `domain/planner` · `allocateSets` | — | — | planner_session_allocation (research_informed_heuristic) | owner-recs.test.ts, part7-planner.test.ts |
+| **planner** Next workout plan | E · decision | `domain/planner` · `generateWorkout` | exerciseChoice#availableEquipment, exerciseChoice#exerciseSessionCounts, exerciseChoice#safetyLine, fatigue#FATIGUE_RANK, fatigue#fatigueCostOf, fatigue#significantMuscles, prescription#prescribe, progression#progressionKey | ui/components/NextWorkout#NextWorkoutCard | planner_session_allocation (research_informed_heuristic), exercise_order (research_informed_heuristic), planner_returning (heuristic) | audit-fixes.test.ts, audit-gaps.test.ts, i18n-engine.test.ts, owner-recs.test.ts +9 |
 | **replan** Live re-plan | E · decision | `domain/planner` · `replanPending` | dates#localNowParts, prescription#prescribe, registry#resolveCoefficients, volume#computeVolume, volume#sessionMuscleEffective | ui/pages/Train#TrainSession | planner_live_reassessment (heuristic) | part5-planner.test.ts, part5-review.test.ts, part7-planner.test.ts |
 | **replace** Replacement options | E · decision | `domain/planner` · `replacementOptions` | exerciseChoice#availableEquipment, exerciseChoice#exerciseSessionCounts, exerciseChoice#priorWorkouts, fatigue#FATIGUE_LABEL, fatigue#fatigueCostOf, fatigue#significantMuscles | ui/components/NextWorkout#NextWorkoutCard, ui/pages/Train#Overview | no rule — app choice | part5-planner.test.ts, part5-review.test.ts |
 | **fatigue** Fatigue cost | E · rule | `domain/fatigue` · `fatigueCostOf` | quality#isCounted | domain/exerciseChoice#assessChoice, domain/exerciseChoice#cheaperAlternatives, domain/exerciseChoice#doFirstAlternatives, domain/planner#generateWorkout, domain/planner#replacementOptions, domain/sequence#priorityOf | fatigue_cost (research_informed_heuristic) | audit-fixes.test.ts, part5-choice.test.ts |
-| **choice** Exercise choice | E · decision | `domain/exerciseChoice` · `assessChoice` | analysis#RECOVERY_TOLERANCE_H, analysis#leftOfShare, fatigue#FATIGUE_LABEL, fatigue#fatigueCostOf, fatigue#isHeavyLower, fatigue#sessionLoad, fatigue#significantMuscles, progression#progressionKey | domain/optimality#optimality, ui/pages/Logger#ExercisePicker | choice_status (heuristic), exercise_order (research_informed_heuristic) | audit-fixes.test.ts, exercise-audit.test.ts, part5-choice.test.ts, part5-review.test.ts +1 |
-| **choicelearn** Learning from overrides | E · rule | `domain/exerciseChoice` · `choiceOutcomes` | outcomes#heldUp, progression#progressionKey | ui/components/NextWorkout#ItemRow, ui/pages/Logger#ExercisePicker, ui/pages/Train#Overview, ui/pages/Train#TrainSession | choice_learning (heuristic) | audit-gaps.test.ts, part5-choice.test.ts |
+| **choice** Exercise choice | E · decision | `domain/exerciseChoice` · `assessChoice` | analysis#RECOVERY_TOLERANCE_H, analysis#displaySets, analysis#isOpen, analysis#openOfShare, fatigue#FATIGUE_LABEL, fatigue#fatigueCostOf, fatigue#isHeavyLower, fatigue#sessionLoad | domain/optimality#optimality, ui/pages/Logger#ExercisePicker | choice_status (heuristic), exercise_order (research_informed_heuristic) | audit-fixes.test.ts, exercise-audit.test.ts, owner-recs.test.ts, part5-choice.test.ts +2 |
+| **choicelearn** Learning from overrides | E · rule | `domain/exerciseChoice` · `choiceOutcomes` | outcomes#outcomeAt, outcomes#softenedFrom, progression#progressionKey | ui/components/NextWorkout#ItemRow, ui/pages/Logger#ExercisePicker, ui/pages/Train#Overview, ui/pages/Train#TrainSession | choice_learning (heuristic) | audit-gaps.test.ts, owner-recs.test.ts, part5-choice.test.ts |
 | **upcoming** Upcoming usual sessions | E · formula | `domain/sequence` · `upcomingSessions` | registry#resolveCoefficients, weekPlan#weekdayOf | — | next_session_interference (research_informed_heuristic) | part8-sequence.test.ts |
-| **forward** Forward checks | E · decision | `domain/sequence` · `forwardChecks` | registry#resolveCoefficients | domain/optimality#optimality, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-review.test.ts, part8-sequence.test.ts, part8-validation.test.ts +1 |
-| **kept** Softening from Keep today | E · rule | `domain/sequence` · `keptOutcome` | outcomes#heldUp | — | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-validation.test.ts |
+| **forward** Forward checks | E · decision | `domain/sequence` · `forwardChecks` | registry#resolveCoefficients | domain/optimality#optimality, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | owner-recs.test.ts, part8-habits.test.ts, part8-review.test.ts, part8-sequence.test.ts +2 |
+| **kept** Softening from Keep today | E · rule | `domain/sequence` · `keptOutcome` | outcomes#outcomeAt | — | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-validation.test.ts |
 | **moveday** Best day to move to | E · decision | `domain/sequence` · `bestMoveDay` | analysis#RECOVERY_TOLERANCE_H, registry#resolveCoefficients, weekPlan#sessionWindowH | ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | part8-review.test.ts, part8-sequence.test.ts |
-| **partners** Usual pairs move together | E · rule | `domain/sequence` · `movePartners` | — | ui/components/NextWorkout#NextWorkoutCard | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-validation.test.ts |
+| **partners** Usual pairs move together | E · rule | `domain/sequence` · `movePartners` | — | ui/components/NextWorkout#NextWorkoutCard | next_session_interference (research_informed_heuristic) | owner-recs.test.ts, part8-habits.test.ts, part8-validation.test.ts |
 | **moves** Open moves | E · formula | `domain/sequence` · `activeMoves` | — | domain/planner#generateWorkout, ui/pages/Dashboard#MovedCard | no rule — app choice | part8-sequence.test.ts |
 | **habit** Habit line | E · formula | `domain/sequence` · `forwardHabit` | — | ui/pages/Dashboard#HabitLine | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-validation.test.ts |
-| **optimality** Optimality score 0–100 | E · decision | `domain/optimality` · `optimality` | exerciseChoice#assessChoice, exerciseChoice#availableEquipment, exerciseChoice#exerciseSessionCounts, exerciseChoice#priorWorkouts, fatigue#significantMuscles, registry#MACHINE_KINDS, sequence#forwardChecks, sequence#usualSetCount | ui/components/NextWorkout#ItemRow, ui/pages/Logger#ExercisePicker, ui/pages/Train#Overview, ui/pages/Train#TrainSession | exercise_optimality (heuristic) | part9-optimality.test.ts |
+| **optimality** Optimality score 0–100 | E · decision | `domain/optimality` · `optimality` | analysis#isOpen, exerciseChoice#assessChoice, exerciseChoice#availableEquipment, exerciseChoice#exerciseSessionCounts, exerciseChoice#priorWorkouts, fatigue#significantMuscles, registry#MACHINE_KINDS, sequence#forwardChecks | ui/components/NextWorkout#ItemRow, ui/pages/Logger#ExercisePicker, ui/pages/Train#Overview, ui/pages/Train#TrainSession | exercise_optimality (heuristic) | part9-optimality.test.ts |
 | **rank** Ranking | E · formula | `domain/optimality` · `rankOptions` | — | ui/components/NextWorkout#ItemRow, ui/pages/Logger#ExercisePicker, ui/pages/Train#Overview, ui/pages/Train#TrainSession | exercise_optimality (heuristic) | part9-optimality.test.ts |
 | **wcheck** Check the numbers | E · aggregation | `domain/workoutCheck` · `workoutCheck` | liveFlow#effortTapOf, perception#objectiveForSets, perception#reportedRir, perception#withoutAutoWarmups, preload#preloadFor, progression#progressionKey, quality#assessSet, quality#isCounted | ui/pages/WorkoutCheck#WorkoutCheckPage | no rule — app choice | workout-check.test.ts |
 | **ui_analysis** useAnalysis() | F · ui | `ui/hooks` · `useAnalysis` | analysis#analyze | ui/components/EquipmentPicker#EquipmentPicker, ui/components/NextWorkout#ItemRow, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Body#BodyPage, ui/pages/Dashboard#AdviceRow, ui/pages/Dashboard#DashboardPage, ui/pages/Dashboard#ExtraSessionCard, ui/pages/Dashboard#HabitLine | — | e2e |
@@ -697,26 +711,30 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **ui_train** Training mode | F · ui | `ui/pages/Train` · `TrainSession` | dates#localNowParts, exerciseChoice#choiceOutcomes, liveFlow#exerciseProgress, liveFlow#restState, optimality#optimality, optimality#rankOptions, planner#applyPendingUpdate, planner#replanPending | — | — | e2e |
 | **ui_sets** Training mode | F · ui | `ui/pages/Train` · `ExerciseScreens` | increments#loadStep, liveFlow#ANY_DOUBLE_TAP_MS, liveFlow#adjustRest, liveFlow#applyOffer, liveFlow#clearOtherRestEnds, liveFlow#editSet, liveFlow#effortTapOf, liveFlow#effortTapPatch | — | — | e2e |
 | **ui_overview** Training overview | F · ui | `ui/pages/Train` · `Overview` | dates#formatDate, exerciseChoice#choiceOutcomes, liveFlow#REST_DEFAULT_SEC, liveFlow#exerciseProgress, liveFlow#mmss, optimality#optimality, optimality#rankOptions, planner#replacementOptions | — | — | e2e |
-| **ui_picker** Exercise picker | F · ui | `ui/pages/Logger` · `ExercisePicker` | dates#formatDate, exerciseChoice#assessChoice, exerciseChoice#choiceOutcomes, exerciseChoice#exerciseSessionCounts, exerciseChoice#needsPrompt, exerciseChoice#priorWorkouts, fatigue#significantMuscles, optimality#optimality | ui/pages/Train#TrainSession | — | e2e |
+| **ui_picker** Exercise picker | F · ui | `ui/pages/Logger` · `ExercisePicker` | analysis#displaySets, dates#formatDate, exerciseChoice#assessChoice, exerciseChoice#choiceOutcomes, exerciseChoice#exerciseSessionCounts, exerciseChoice#needsPrompt, exerciseChoice#priorWorkouts, fatigue#significantMuscles | ui/pages/Train#TrainSession | — | e2e |
 | **ui_check** History → Check the numbers | F · ui | `ui/pages/WorkoutCheck` · `WorkoutCheckPage` | dates#formatDate, workoutCheck#workoutCheck | — | — | e2e |
 | **ui_strength** Strength screen | F · ui | `ui/pages/Strength` · `StrengthPage` | — | — | — | e2e |
 | **ui_science** Science screen | F · ui | `ui/pages/Science` · `RuleList` | rules#RULES | — | — | e2e |
-| **window** ONE recovery window | C · rule | `domain/recovery` · `windowHours` | — | domain/weekPlan#sessionWindowH | recovery_windows (heuristic) | audit-fixes.test.ts, failure.test.ts, part7-formulas.test.ts, recovery-time.test.ts +3 |
+| **window** ONE recovery window | C · rule | `domain/recovery` · `windowHours` | — | domain/weekPlan#sessionWindowH | recovery_windows (heuristic) | audit-fixes.test.ts, failure.test.ts, owner-recs.test.ts, part7-formulas.test.ts +4 |
 | **todayextra** Known today | C · formula | `domain/recovery` · `todayExtraH` | failure#isFailureSetForFatigue, quality#sideFactors, registry#resolveCoefficients | domain/analysis#analyze, domain/sequence#checksFrom | recovery_windows (heuristic) | **none — covered only through callers** |
-| **sesswin** Window of a planned session | D · formula | `domain/weekPlan` · `sessionWindowH` | recovery#windowHours | domain/sequence#bestMoveDay, domain/sequence#checksFrom, domain/sequence#issuesIfDoneOn | recovery_windows (heuristic) | second-analysis.test.ts |
+| **sesswin** Window of a planned session | D · formula | `domain/weekPlan` · `sessionWindowH` | recovery#windowHours | domain/sequence#bestMoveDay, domain/sequence#checksFrom, domain/sequence#issuesIfDoneOn | recovery_windows (heuristic) | owner-recs.test.ts, second-analysis.test.ts |
 | **shortrest** ONE short rest | B · rule | `domain/rest` · `isShortRest` | — | domain/outcomes#heldUp, domain/perception#objectiveForSets, domain/prescription#adaptRemaining, domain/prescription#prescribe, domain/progression#restInsight | rest_attribution (research_informed_heuristic) | second-analysis.test.ts |
-| **donetoday** Done today | C · aggregation | `domain/sequence` · `doneToday` | volume#computeVolume | — | no rule — app choice | audit-fixes.test.ts, review.test.ts |
+| **donetoday** Done today | C · aggregation | `domain/sequence` · `doneToday` | volume#computeVolume | — | no rule — app choice | audit-fixes.test.ts, owner-recs.test.ts, review.test.ts |
 | **weekchip** Week chip | D · decision | `domain/analysis` · `weekChip` | — | ui/pages/Dashboard#statusChip | recovery_windows (heuristic) | second-analysis.test.ts |
 | **applyoffer** Use → target adapted | E · formula | `domain/liveFlow` · `applyOffer` | — | ui/pages/Train#ExerciseScreens | presc_set_by_set (heuristic) | audit-gaps.test.ts |
 | **withpresc** Prescription per set | B · formula | `domain/liveFlow` · `withPrescribed` | — | — | no rule — app choice | **none — covered only through callers** |
 | **loadstep** Smallest load step | C · rule | `domain/increments` · `loadStep` | — | domain/prescription#prescribe, domain/progression#buildProgression, ui/pages/Logger#ExerciseCard, ui/pages/Strength#SeriesDetail, ui/pages/Train#ExerciseScreens | no rule — app choice | equipment-memory.test.ts, failure.test.ts, part6-review.test.ts |
-| **targetp** Exercise target | E · formula | `domain/planner` · `targetFromPrescription` | prescription#PRESCRIPTION_ENGINE | ui/pages/Train#TrainSession | presc_set_count (heuristic), presc_rir_targets (research_informed_heuristic) | audit-gaps.test.ts |
+| **outcomeat** Held up? vs median of | E · rule | `domain/outcomes` · `outcomeAt` | — | domain/exerciseChoice#choiceOutcomes, domain/sequence#keptOutcome | choice_learning (heuristic), next_session_interference (research_informed_heuristic) | owner-recs.test.ts |
+| **softened** Softened: ≥ 2 of | E · rule | `domain/outcomes` · `softenedFrom` | — | domain/exerciseChoice#choiceOutcomes | choice_learning (heuristic) | owner-recs.test.ts |
+| **openshare** Open today (RAW) | D · formula | `domain/analysis` · `openOfShare` | — | domain/exerciseChoice#assessChoice | todays_share (research_informed_heuristic) | **none — covered only through callers** |
+| **display** ONE display rounding | F · ui | `domain/analysis` · `displaySets` | — | domain/exerciseChoice#assessChoice, ui/pages/Dashboard#statusChip, ui/pages/Logger#ExercisePicker, ui/pages/Logger#LiveRemaining, ui/pages/Logger#MobileRemainingStrip | — | e2e |
+| **targetp** Exercise target | E · formula | `domain/planner` · `targetFromPrescription` | prescription#PRESCRIPTION_ENGINE | ui/pages/Train#TrainSession | presc_set_count (heuristic), presc_rir_targets (research_informed_heuristic) | audit-gaps.test.ts, owner-recs.test.ts |
 | **prefill** Pre-filled weight & reps | E · formula | `domain/liveFlow` · `prefillNext` | — | ui/pages/Train#ExerciseScreens | log_after_set (heuristic) | audit-gaps.test.ts, part6-flow.test.ts, part6-review.test.ts |
 | **wsource** Weight source | E · decision | `domain/liveFlow` · `weightSource` | — | ui/pages/Train#ExerciseScreens | log_after_set (heuristic) | audit-gaps.test.ts, second-analysis.test.ts |
 | **adapt** Remaining sets re-check | E · rule | `domain/prescription` · `adaptRemaining` | feedback#benchmarkExclusion, feedback#hasPain, feedback#techniqueOf, progression#stepLoad, quality#countedSetCount, rest#isShortRest, rest#usualRestSec | domain/liveFlow#nextSetsOffer | presc_set_by_set (heuristic) | prescription.test.ts |
 | **offer** Offer after a set | E · decision | `domain/liveFlow` · `nextSetsOffer` | prescription#adaptRemaining | ui/pages/Train#ExerciseScreens | presc_set_by_set (heuristic) | audit-gaps.test.ts, second-analysis.test.ts |
 | **prescrec** What was prescribed | B · formula | `domain/liveFlow` · `prescribedFor` | — | — | no rule — app choice | **none — covered only through callers** |
-| **heldup** Held up? (comparable) | E · rule | `domain/outcomes` · `heldUp` | rest#isShortRest | domain/exerciseChoice#choiceOutcomes, domain/sequence#keptOutcome | choice_learning (heuristic) | **none — covered only through callers** |
+| **heldup** Held up? (comparable) | E · rule | `domain/outcomes` · `heldUp` | rest#isShortRest | — | choice_learning (heuristic) | **none — covered only through callers** |
 | **ui_rest** Training mode | F · ui | `ui/pages/Train` · `RestScreen` | liveFlow#REST_STEP_SEC, liveFlow#effortTapOf, liveFlow#mmss, liveFlow#restState, liveFlow#restTargetFor | — | — | e2e |
 | **sessionend** Session end time | C · rule | `domain/dates` · `sessionEndVirtualMs` | — | domain/recovery#estimateRecovery, domain/ruleChecks#ruleChecks | recovery_windows (heuristic) | recovery-time.test.ts |
 | **weighins** Weigh-ins | C · formula | `domain/bodyweight` · `weighIns` | — | — | no rule — app choice | audit-gaps.test.ts |
@@ -735,6 +753,7 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 - `domain/targets#computeTargets` (targets)
 - `domain/recovery#todayExtraH` (todayextra)
 - `domain/liveFlow#withPrescribed` (withpresc)
+- `domain/analysis#openOfShare` (openshare)
 - `domain/liveFlow#prescribedFor` (prescrec)
 - `domain/outcomes#heldUp` (heldup)
 <!-- /map:untested -->
@@ -869,4 +888,18 @@ missing (B-5). C-9 had become a real difference (B-7).
 - **The data-edge check is text-level** (a field name read with `.field` and a common caller within 3 references): each
   data edge's meaning was verified by hand; the check alone cannot prove a flow.
 - The first analysis' R-1, R-3, R-4, R-5 still stand.
+
+## 12. Owner's recommendations (2026-11-24) — critical review and what was done
+
+Tests first: `tests/owner-recs.test.ts` (the owner's lists plus own cases; 9 failed before the changes, 13 already held).
+
+| Recommendation | Critical review | Done |
+|---|---|---|
+| Keep the two "did it hold up?" rules different unless they measure the same thing | They do measure the same thing: Part 5 is not "immediate progression" — it asks whether the session done AGAINST a recovery warning held up; Part 8 asks the same of the next session after a kept warning. Comparing with the previous session only let one unusual day decide: e.g. 45 → 40 → 40 → 45 kg overrides softened the warning, because the second drop was compared with the first. | One baseline (`outcomes.outcomeAt`): median of the last ≤ 3 earlier comparable sessions not themselves under a warning, ≥ 2 needed; each rule still judges its own session; softening via `softenedFrom` (≥ 2 of the last 3). Part 5 now needs 2 clean sessions before learning (its old test fixture had one — updated). |
+| Raw values in calculations, one display rounding | Agreed. "Under half a set is nothing to do" is not a rounding but a decision (the planner never plans < 0.5 sets) — kept as a named threshold on the raw value. Decisions that compared the ROUNDED value (≥ 2 / ≥ 1 open sets in the choice assistant) now use the raw one. | `todayOpen` (raw) next to `todayLeft` (display); `displaySets` everywhere sets left are shown (Week, picker, training mode, workout editor), "≈" when rounded. |
+| Allow one-set exercises | Agreed; the allocation already produced them and zero / negative sets were already dropped. | No code change needed; tests cover display, no duplication, weekly volume, progression on one set, moves, pairs and never ≤ 0 sets. |
+| Verify the shared recovery window | — | Tested: failure sets get full credit and only lengthen the window; one formula with the same additions everywhere; two sessions on the same day count for the week and the next-session checks; the workout in progress never makes the Week screen show RECOVERING. |
+
+Found on the way: the test helper for picking an exercise did not answer a next-session warning; with the shared window
+a NEW exercise (+ 12 h) can now raise one — expected behaviour, the helper answers "Keep today".
 

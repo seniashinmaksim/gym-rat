@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { weekChip } from '../../domain/analysis';
+import { weekChip, displaySets } from '../../domain/analysis';
 import { Link } from 'react-router-dom';
 import type { MuscleWeek } from '../../domain/analysis';
 import { formatDate, diffDays } from '../../domain/dates';
@@ -211,7 +211,7 @@ function statusChip(m: MuscleWeek) {
   // Only an EARLIER session holds a muscle (todayBlocked) — today's own sets never do (second analysis B-1).
   const chip = weekChip(m);
   if (chip === 'recovering') return <Badge tone="warn">{L('RECOVERING', 'ВОССТ.')}</Badge>;
-  if (chip === 'today') return <Badge tone="accent">{L('today', 'сегодня')} {fmt(m.todayLeft)}</Badge>;
+  if (chip === 'today') return <Badge tone="accent">{L('today', 'сегодня')} {displaySets(m.todayOpen).text}</Badge>;
   return null;
 }
 

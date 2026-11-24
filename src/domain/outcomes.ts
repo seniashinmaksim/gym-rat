@@ -39,3 +39,28 @@ export function heldUp(cur: SessionPerf, base: SessionPerf[]): boolean | null {
   const ratio = cur.indexKind === 'reps' ? (1 + cur.indexRaw / 30) / (1 + bi / 30) : cur.indexRaw / bi;
   return ratio >= OUTCOME_NOT_LOWER;
 }
+
+/** Baseline: the median of up to this many earlier comparable sessions … */
+export const OUTCOME_BASELINE_N = 3;
+/** … at least this many (one session alone is too noisy: one unusually good or bad day would decide). */
+export const OUTCOME_BASELINE_MIN = 2;
+
+/**
+ * Did session `i` hold up against the median of the last ≤ 3 earlier comparable sessions of the same history that were
+ * not themselves under a warning (`excluded`)? ≥ 2 needed. Both learning rules use it (owner 2026-11-24: they measure the
+ * same thing — did performance hold up although a warning was ignored); each judges its own session: Part 5 the
+ * overridden session itself, Part 8 the next session of the affected exercise. null = not judged (skipped, never counted).
+ */
+export function outcomeAt(sessions: SessionPerf[], i: number, excluded: (s: SessionPerf) => boolean): boolean | null {
+  const cur = sessions[i];
+  if (!cur || cur.indexRaw == null || !cur.representative) return null;
+  const base = sessions.slice(0, i).filter((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind && !excluded(x)).slice(-OUTCOME_BASELINE_N);
+  if (base.length < OUTCOME_BASELINE_MIN) return null;
+  return heldUp(cur, base);
+}
+
+/** Softened: ≥ 3 comparable observations, ≥ 2 of the last 3 held up (one good result is not enough confidence). */
+export function softenedFrom(obs: boolean[]): boolean {
+  const last = obs.slice(-3);
+  return last.length >= 3 && last.filter(Boolean).length >= 2;
+}

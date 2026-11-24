@@ -138,17 +138,18 @@ describe('C-2 — where a moved exercise goes on the new day: the planner\'s ord
 // ---------------------------------------------------------------- C-3: override learning uses the comparability checks
 describe('C-3 — Part 5 override learning skips results that are not comparable (as Part 8)', () => {
   const EQ = [{ id: 'pd_a', name: 'Pec deck', locationId: 'gym_a', exerciseIds: ['pec_deck'], photoIds: [], createdAt: '' }] as never;
-  const dates = ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+  // Two clean sessions first: the baseline is the median of ≥ 2 earlier sessions not themselves overridden (owner 2026-11-24).
+  const dates = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
   const mk = (rirOf: (i: number) => number) => dates.map((d, i) => workout(d, [ex('pec_deck', [set(45, 12, rirOf(i)), set(45, 11, rirOf(i))], 'pd_a',
-    i > 0 ? { choice: { status: 'reconsider', reasonKind: 'recovery', followed: 'continued', at: `${d}T18:00:00Z` } } : {})], { startTime: '18:00', endTime: '18:30' }));
+    i > 1 ? { choice: { status: 'reconsider', reasonKind: 'recovery', followed: 'continued', at: `${d}T18:00:00Z` } } : {})], { startTime: '18:00', endTime: '18:30' }));
   const now = new Date('2026-11-19T08:00:00Z');
   it('the same reserve each time → 3 comparable observations → softened (unchanged behaviour)', () => {
     const d = data(mk(() => 1), { equipment: EQ });
     expect(choiceOutcomes(d, analyze(d, now)).get('pec_deck')).toMatchObject({ observations: 3, softened: true });
   });
-  it('the first override stopped with a clearly different reserve (RIR 4 vs 1) is skipped → 2 comparable, not softened (was 3, softened)', () => {
-    const d = data(mk((i) => (i === 0 ? 1 : 4)), { equipment: EQ });
-    expect(choiceOutcomes(d, analyze(d, now)).get('pec_deck')).toMatchObject({ observations: 2, softened: false });
+  it('overrides stopped with a clearly different reserve (RIR 4 vs the clean sessions’ 1) are skipped → nothing learned', () => {
+    const d = data(mk((i) => (i < 2 ? 1 : 4)), { equipment: EQ });
+    expect(choiceOutcomes(d, analyze(d, now)).get('pec_deck')?.observations ?? 0).toBe(0);
   });
 });
 

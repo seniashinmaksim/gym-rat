@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { displaySets } from '../../domain/analysis';
 import { MACHINE_KINDS } from '../../domain/registry';
 import { Link, useNavigate } from 'react-router-dom';
 import { activeWorkout } from '../Layout';
@@ -1205,7 +1206,7 @@ function LiveRemaining({ sessionEff }: { sessionEff: Partial<Record<MuscleId, nu
             <div key={m.muscle}>
               <div className="flex items-baseline justify-between text-sm">
                 <span className="font-medium">{names.muscle(m.muscle)}</span>
-                <span className="tabular-nums text-xs text-ink-500">+{fmt(sessionEff[m.muscle])} {L('today', 'сегодня')}{m.todayLeft > 0 ? L(` · ${fmt(m.todayLeft)} more`, ` · ещё ${fmt(m.todayLeft)}`) : ''} · <b className={cx('text-sm', m.remainingToPreferred <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{m.remainingToPreferred <= 0 ? L('week done', 'неделя закрыта') : L(`${fmt(m.remainingToPreferred)} wk`, `${fmt(m.remainingToPreferred)} на нед.`)}</b></span>
+                <span className="tabular-nums text-xs text-ink-500">+{fmt(sessionEff[m.muscle])} {L('today', 'сегодня')}{m.todayLeft > 0 ? L(` · ${displaySets(m.todayOpen).text} more`, ` · ещё ${displaySets(m.todayOpen).text}`) : ''} · <b className={cx('text-sm', m.remainingToPreferred <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-900 dark:text-white')}>{m.remainingToPreferred <= 0 ? L('week done', 'неделя закрыта') : L(`${fmt(m.remainingToPreferred)} wk`, `${fmt(m.remainingToPreferred)} на нед.`)}</b></span>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100 dark:bg-ink-800">
                 <div className={cx('h-full rounded-full transition-all duration-500', m.remainingToPreferred <= 0 ? 'bg-emerald-500' : 'bg-accent-500')} style={{ width: `${Math.min(100, m.pctOfPreferred * 100)}%` }} />
@@ -1218,7 +1219,7 @@ function LiveRemaining({ sessionEff }: { sessionEff: Partial<Record<MuscleId, nu
         <div className={cx(touched.length > 0 && 'mt-4 border-t border-ink-100 pt-3 dark:border-ink-800')}>
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Still due today', 'Ещё на сегодня')}</div>
           <div className="flex flex-wrap gap-1.5">
-            {open.map((m) => <Badge key={m.muscle}>{names.muscle(m.muscle)} ≈{fmt(m.todayLeft)} · {fmt(m.remainingToPreferred)} {L('wk', 'на нед.')}</Badge>)}
+            {open.map((m) => <Badge key={m.muscle}>{names.muscle(m.muscle)} {displaySets(m.todayOpen).text} · {fmt(m.remainingToPreferred)} {L('wk', 'на нед.')}</Badge>)}
           </div>
         </div>
       )}
@@ -1244,7 +1245,7 @@ function MobileRemainingStrip({ sessionEff }: { sessionEff: Partial<Record<Muscl
           const ok = m.todayLeft <= 0;
           return (
             <span key={m.muscle} className={cx('shrink-0 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums', ok ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-white text-ink-700 shadow-sm dark:bg-ink-800 dark:text-ink-200')}>
-              {names.muscle(m.muscle)} {ok ? '✓' : <b className="font-semibold text-ink-900 dark:text-white">{fmt(m.todayLeft)}</b>} <span className="text-ink-400">({fmt(m.remainingToPreferred)})</span>
+              {names.muscle(m.muscle)} {ok ? '✓' : <b className="font-semibold text-ink-900 dark:text-white">{displaySets(m.todayOpen).text}</b>} <span className="text-ink-400">({fmt(m.remainingToPreferred)})</span>
             </span>
           );
         })}
@@ -1406,7 +1407,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
               <button key={m.muscle} type="button" onClick={() => setMuscle(muscle === m.muscle ? null : m.muscle)}
                 aria-pressed={muscle === m.muscle}
                 className={cx('h-10 rounded-full px-3.5 text-[13px] font-medium transition active:scale-95', muscle === m.muscle ? 'bg-accent-500 text-ink-950' : 'bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300')}>
-                {names.muscle(m.muscle)} · {fmt(m.todayLeft)}
+                {names.muscle(m.muscle)} · {displaySets(m.todayOpen).text}
               </button>
             ))}
           </div>

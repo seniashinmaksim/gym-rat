@@ -12,49 +12,77 @@
    "name": "RECOVERY_TOLERANCE_H",
    "kind": "const",
    "exported": true,
-   "line": 89
+   "line": 92
   },
   "src/domain/analysis#MAX_SESSION_SHARE": {
    "file": "src/domain/analysis",
    "name": "MAX_SESSION_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 92
+   "line": 95
+  },
+  "src/domain/analysis#ACTIONABLE_SETS": {
+   "file": "src/domain/analysis",
+   "name": "ACTIONABLE_SETS",
+   "kind": "const",
+   "exported": true,
+   "line": 105
+  },
+  "src/domain/analysis#openOfShare": {
+   "file": "src/domain/analysis",
+   "name": "openOfShare",
+   "kind": "const",
+   "exported": true,
+   "line": 107
+  },
+  "src/domain/analysis#isOpen": {
+   "file": "src/domain/analysis",
+   "name": "isOpen",
+   "kind": "const",
+   "exported": true,
+   "line": 109
+  },
+  "src/domain/analysis#displaySets": {
+   "file": "src/domain/analysis",
+   "name": "displaySets",
+   "kind": "function",
+   "exported": true,
+   "line": 115
   },
   "src/domain/analysis#leftOfShare": {
    "file": "src/domain/analysis",
    "name": "leftOfShare",
    "kind": "function",
    "exported": true,
-   "line": 98
+   "line": 123
   },
   "src/domain/analysis#analyze": {
    "file": "src/domain/analysis",
    "name": "analyze",
    "kind": "function",
    "exported": true,
-   "line": 103
+   "line": 127
   },
   "src/domain/analysis#mwTrendDeclining": {
    "file": "src/domain/analysis",
    "name": "mwTrendDeclining",
    "kind": "function",
    "exported": false,
-   "line": 256
+   "line": 281
   },
   "src/domain/analysis#statusLabel": {
    "file": "src/domain/analysis",
    "name": "statusLabel",
    "kind": "function",
    "exported": true,
-   "line": 260
+   "line": 285
   },
   "src/domain/analysis#weekChip": {
    "file": "src/domain/analysis",
    "name": "weekChip",
    "kind": "function",
    "exported": true,
-   "line": 272
+   "line": 297
   },
   "src/domain/baseline#BASELINE_DAYS": {
    "file": "src/domain/baseline",
@@ -432,210 +460,210 @@
    "name": "FREE_KINDS",
    "kind": "const",
    "exported": false,
-   "line": 110
+   "line": 112
   },
   "src/domain/exerciseChoice#priorWorkouts": {
    "file": "src/domain/exerciseChoice",
    "name": "priorWorkouts",
    "kind": "function",
    "exported": true,
-   "line": 113
+   "line": 115
   },
   "src/domain/exerciseChoice#exerciseSessionCounts": {
    "file": "src/domain/exerciseChoice",
    "name": "exerciseSessionCounts",
    "kind": "function",
    "exported": true,
-   "line": 118
+   "line": 120
   },
   "src/domain/exerciseChoice#usualExerciseCount": {
    "file": "src/domain/exerciseChoice",
    "name": "usualExerciseCount",
    "kind": "function",
    "exported": true,
-   "line": 132
+   "line": 134
   },
   "src/domain/exerciseChoice#availableEquipment": {
    "file": "src/domain/exerciseChoice",
    "name": "availableEquipment",
    "kind": "function",
    "exported": true,
-   "line": 146
+   "line": 148
   },
   "src/domain/exerciseChoice#PAIN_REGIONS": {
    "file": "src/domain/exerciseChoice",
    "name": "PAIN_REGIONS",
    "kind": "const",
    "exported": false,
-   "line": 178
+   "line": 180
   },
   "src/domain/exerciseChoice#AREA_RU": {
    "file": "src/domain/exerciseChoice",
    "name": "AREA_RU",
    "kind": "const",
    "exported": false,
-   "line": 188
+   "line": 190
   },
   "src/domain/exerciseChoice#areaRu": {
    "file": "src/domain/exerciseChoice",
    "name": "areaRu",
    "kind": "const",
    "exported": false,
-   "line": 191
+   "line": 193
   },
   "src/domain/exerciseChoice#ruName": {
    "file": "src/domain/exerciseChoice",
    "name": "ruName",
    "kind": "const",
    "exported": false,
-   "line": 193
+   "line": 195
   },
   "src/domain/exerciseChoice#mRu": {
    "file": "src/domain/exerciseChoice",
    "name": "mRu",
    "kind": "const",
    "exported": false,
-   "line": 194
+   "line": 196
   },
   "src/domain/exerciseChoice#mRuLow": {
    "file": "src/domain/exerciseChoice",
    "name": "mRuLow",
    "kind": "const",
    "exported": false,
-   "line": 195
+   "line": 197
   },
   "src/domain/exerciseChoice#safetyLine": {
    "file": "src/domain/exerciseChoice",
    "name": "safetyLine",
    "kind": "function",
    "exported": true,
-   "line": 198
+   "line": 200
   },
   "src/domain/exerciseChoice#choiceOutcomes": {
    "file": "src/domain/exerciseChoice",
    "name": "choiceOutcomes",
    "kind": "function",
    "exported": true,
-   "line": 229
+   "line": 231
   },
   "src/domain/exerciseChoice#SEVERITY": {
    "file": "src/domain/exerciseChoice",
    "name": "SEVERITY",
    "kind": "const",
    "exported": false,
-   "line": 264
+   "line": 265
   },
   "src/domain/exerciseChoice#REASON_ORDER": {
    "file": "src/domain/exerciseChoice",
    "name": "REASON_ORDER",
    "kind": "const",
    "exported": false,
-   "line": 265
+   "line": 266
   },
   "src/domain/exerciseChoice#labelOf": {
    "file": "src/domain/exerciseChoice",
    "name": "labelOf",
    "kind": "function",
    "exported": true,
-   "line": 273
+   "line": 274
   },
   "src/domain/exerciseChoice#assessChoice": {
    "file": "src/domain/exerciseChoice",
    "name": "assessChoice",
    "kind": "function",
    "exported": true,
-   "line": 277
+   "line": 278
   },
   "src/domain/exerciseChoice#isAcknowledged": {
    "file": "src/domain/exerciseChoice",
    "name": "isAcknowledged",
    "kind": "function",
    "exported": true,
-   "line": 446
+   "line": 448
   },
   "src/domain/exerciseChoice#needsPrompt": {
    "file": "src/domain/exerciseChoice",
    "name": "needsPrompt",
    "kind": "function",
    "exported": true,
-   "line": 451
+   "line": 453
   },
   "src/domain/exerciseChoice#recentlyLoaded": {
    "file": "src/domain/exerciseChoice",
    "name": "recentlyLoaded",
    "kind": "function",
    "exported": false,
-   "line": 470
+   "line": 472
   },
   "src/domain/exerciseChoice#candidatePool": {
    "file": "src/domain/exerciseChoice",
    "name": "candidatePool",
    "kind": "function",
    "exported": false,
-   "line": 475
+   "line": 477
   },
   "src/domain/exerciseChoice#sparingAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "sparingAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 494
+   "line": 496
   },
   "src/domain/exerciseChoice#otherMuscleAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "otherMuscleAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 507
+   "line": 509
   },
   "src/domain/exerciseChoice#cheaperAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "cheaperAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 523
+   "line": 525
   },
   "src/domain/exerciseChoice#doFirstAlternatives": {
    "file": "src/domain/exerciseChoice",
    "name": "doFirstAlternatives",
    "kind": "function",
    "exported": false,
-   "line": 529
+   "line": 531
   },
   "src/domain/exerciseChoice#pendingDoable": {
    "file": "src/domain/exerciseChoice",
    "name": "pendingDoable",
    "kind": "function",
    "exported": false,
-   "line": 542
+   "line": 544
   },
   "src/domain/exerciseChoice#round1": {
    "file": "src/domain/exerciseChoice",
    "name": "round1",
    "kind": "const",
    "exported": false,
-   "line": 548
+   "line": 550
   },
   "src/domain/exerciseChoice#fmtSets": {
    "file": "src/domain/exerciseChoice",
    "name": "fmtSets",
    "kind": "const",
    "exported": false,
-   "line": 549
+   "line": 551
   },
   "src/domain/exerciseChoice#ruSets": {
    "file": "src/domain/exerciseChoice",
    "name": "ruSets",
    "kind": "const",
    "exported": false,
-   "line": 551
+   "line": 553
   },
   "src/domain/exerciseChoice#sizeRank": {
    "file": "src/domain/exerciseChoice",
    "name": "sizeRank",
    "kind": "const",
    "exported": false,
-   "line": 552
+   "line": 554
   },
   "src/domain/failure#FAILURE_LABEL": {
    "file": "src/domain/failure",
@@ -1644,6 +1672,34 @@
    "kind": "function",
    "exported": true,
    "line": 29
+  },
+  "src/domain/outcomes#OUTCOME_BASELINE_N": {
+   "file": "src/domain/outcomes",
+   "name": "OUTCOME_BASELINE_N",
+   "kind": "const",
+   "exported": true,
+   "line": 44
+  },
+  "src/domain/outcomes#OUTCOME_BASELINE_MIN": {
+   "file": "src/domain/outcomes",
+   "name": "OUTCOME_BASELINE_MIN",
+   "kind": "const",
+   "exported": true,
+   "line": 46
+  },
+  "src/domain/outcomes#outcomeAt": {
+   "file": "src/domain/outcomes",
+   "name": "outcomeAt",
+   "kind": "function",
+   "exported": true,
+   "line": 54
+  },
+  "src/domain/outcomes#softenedFrom": {
+   "file": "src/domain/outcomes",
+   "name": "softenedFrom",
+   "kind": "function",
+   "exported": true,
+   "line": 63
   },
   "src/domain/perception#CLEARLY_EASY_RIR": {
    "file": "src/domain/perception",
@@ -3106,63 +3162,63 @@
    "name": "forwardHabit",
    "kind": "function",
    "exported": true,
-   "line": 279
+   "line": 274
   },
   "src/domain/sequence#PAIR_ADJACENT_SHARE": {
    "file": "src/domain/sequence",
    "name": "PAIR_ADJACENT_SHARE",
    "kind": "const",
    "exported": true,
-   "line": 302
+   "line": 297
   },
   "src/domain/sequence#PAIR_MIN_SESSIONS": {
    "file": "src/domain/sequence",
    "name": "PAIR_MIN_SESSIONS",
    "kind": "const",
    "exported": true,
-   "line": 303
+   "line": 298
   },
   "src/domain/sequence#PAIR_RECENT": {
    "file": "src/domain/sequence",
    "name": "PAIR_RECENT",
    "kind": "const",
    "exported": true,
-   "line": 305
+   "line": 300
   },
   "src/domain/sequence#ARM": {
    "file": "src/domain/sequence",
    "name": "ARM",
    "kind": "const",
    "exported": false,
-   "line": 307
+   "line": 302
   },
   "src/domain/sequence#related": {
    "file": "src/domain/sequence",
    "name": "related",
    "kind": "function",
    "exported": false,
-   "line": 312
+   "line": 307
   },
   "src/domain/sequence#issuesIfDoneOn": {
    "file": "src/domain/sequence",
    "name": "issuesIfDoneOn",
    "kind": "function",
    "exported": false,
-   "line": 323
+   "line": 318
   },
   "src/domain/sequence#movePartners": {
    "file": "src/domain/sequence",
    "name": "movePartners",
    "kind": "function",
    "exported": true,
-   "line": 340
+   "line": 335
   },
   "src/domain/sequence#bestMoveDay": {
    "file": "src/domain/sequence",
    "name": "bestMoveDay",
    "kind": "function",
    "exported": true,
-   "line": 367
+   "line": 362
   },
   "src/domain/sessionSummary#performed": {
    "file": "src/domain/sessionSummary",
@@ -4968,252 +5024,252 @@
    "name": "StartSession",
    "kind": "function",
    "exported": true,
-   "line": 43
+   "line": 44
   },
   "src/ui/pages/Logger#SessionEditor": {
    "file": "src/ui/pages/Logger",
    "name": "SessionEditor",
    "kind": "function",
    "exported": true,
-   "line": 126
+   "line": 127
   },
   "src/ui/pages/Logger#newSet": {
    "file": "src/ui/pages/Logger",
    "name": "newSet",
    "kind": "function",
    "exported": false,
-   "line": 425
+   "line": 426
   },
   "src/ui/pages/Logger#dropEmptySettings": {
    "file": "src/ui/pages/Logger",
    "name": "dropEmptySettings",
    "kind": "function",
    "exported": false,
-   "line": 432
+   "line": 433
   },
   "src/ui/pages/Logger#defaultLoadMode": {
    "file": "src/ui/pages/Logger",
    "name": "defaultLoadMode",
    "kind": "function",
    "exported": true,
-   "line": 438
+   "line": 439
   },
   "src/ui/pages/Logger#lastSessionFor": {
    "file": "src/ui/pages/Logger",
    "name": "lastSessionFor",
    "kind": "function",
    "exported": true,
-   "line": 444
+   "line": 445
   },
   "src/ui/pages/Logger#SessionMeta": {
    "file": "src/ui/pages/Logger",
    "name": "SessionMeta",
    "kind": "function",
    "exported": true,
-   "line": 456
+   "line": 457
   },
   "src/ui/pages/Logger#Wellness": {
    "file": "src/ui/pages/Logger",
    "name": "Wellness",
    "kind": "function",
    "exported": true,
-   "line": 483
+   "line": 484
   },
   "src/ui/pages/Logger#ScalePick": {
    "file": "src/ui/pages/Logger",
    "name": "ScalePick",
    "kind": "function",
    "exported": false,
-   "line": 498
+   "line": 499
   },
   "src/ui/pages/Logger#ExerciseCard": {
    "file": "src/ui/pages/Logger",
    "name": "ExerciseCard",
    "kind": "function",
    "exported": false,
-   "line": 514
+   "line": 515
   },
   "src/ui/pages/Logger#unitLabel": {
    "file": "src/ui/pages/Logger",
    "name": "unitLabel",
    "kind": "const",
    "exported": false,
-   "line": 727
+   "line": 728
   },
   "src/ui/pages/Logger#ANGLE_CHIPS": {
    "file": "src/ui/pages/Logger",
    "name": "ANGLE_CHIPS",
    "kind": "const",
    "exported": false,
-   "line": 732
+   "line": 733
   },
   "src/ui/pages/Logger#CHOICES": {
    "file": "src/ui/pages/Logger",
    "name": "CHOICES",
    "kind": "const",
    "exported": false,
-   "line": 733
+   "line": 734
   },
   "src/ui/pages/Logger#RECORD_ONLY": {
    "file": "src/ui/pages/Logger",
    "name": "RECORD_ONLY",
    "kind": "const",
    "exported": false,
-   "line": 746
+   "line": 747
   },
   "src/ui/pages/Logger#RANGE_OPTIONS": {
    "file": "src/ui/pages/Logger",
    "name": "RANGE_OPTIONS",
    "kind": "const",
    "exported": false,
-   "line": 753
+   "line": 754
   },
   "src/ui/pages/Logger#MoreOptions": {
    "file": "src/ui/pages/Logger",
    "name": "MoreOptions",
    "kind": "function",
    "exported": true,
-   "line": 756
+   "line": 757
   },
   "src/ui/pages/Logger#humanizeDepth": {
    "file": "src/ui/pages/Logger",
    "name": "humanizeDepth",
    "kind": "function",
    "exported": false,
-   "line": 770
+   "line": 771
   },
   "src/ui/pages/Logger#Chip": {
    "file": "src/ui/pages/Logger",
    "name": "Chip",
    "kind": "function",
    "exported": false,
-   "line": 774
+   "line": 775
   },
   "src/ui/pages/Logger#VariationChips": {
    "file": "src/ui/pages/Logger",
    "name": "VariationChips",
    "kind": "function",
    "exported": true,
-   "line": 782
+   "line": 783
   },
   "src/ui/pages/Logger#SettingsEditor": {
    "file": "src/ui/pages/Logger",
    "name": "SettingsEditor",
    "kind": "function",
    "exported": true,
-   "line": 831
+   "line": 832
   },
   "src/ui/pages/Logger#RIR_OPTIONS": {
    "file": "src/ui/pages/Logger",
    "name": "RIR_OPTIONS",
    "kind": "const",
    "exported": false,
-   "line": 866
+   "line": 867
   },
   "src/ui/pages/Logger#SetRow": {
    "file": "src/ui/pages/Logger",
    "name": "SetRow",
    "kind": "function",
    "exported": false,
-   "line": 874
+   "line": 875
   },
   "src/ui/pages/Logger#BodyLine": {
    "file": "src/ui/pages/Logger",
    "name": "BodyLine",
    "kind": "function",
    "exported": false,
-   "line": 956
+   "line": 957
   },
   "src/ui/pages/Logger#ExecutionCue": {
    "file": "src/ui/pages/Logger",
    "name": "ExecutionCue",
    "kind": "function",
    "exported": true,
-   "line": 990
+   "line": 991
   },
   "src/ui/pages/Logger#safePrescribe": {
    "file": "src/ui/pages/Logger",
    "name": "safePrescribe",
    "kind": "function",
    "exported": true,
-   "line": 1021
+   "line": 1022
   },
   "src/ui/pages/Logger#FAILURE_OPTIONS": {
    "file": "src/ui/pages/Logger",
    "name": "FAILURE_OPTIONS",
    "kind": "const",
    "exported": false,
-   "line": 1032
+   "line": 1033
   },
   "src/ui/pages/Logger#FailureQuestion": {
    "file": "src/ui/pages/Logger",
    "name": "FailureQuestion",
    "kind": "function",
    "exported": false,
-   "line": 1043
+   "line": 1044
   },
   "src/ui/pages/Logger#SetFeedback": {
    "file": "src/ui/pages/Logger",
    "name": "SetFeedback",
    "kind": "function",
    "exported": false,
-   "line": 1081
+   "line": 1082
   },
   "src/ui/pages/Logger#DimRow": {
    "file": "src/ui/pages/Logger",
    "name": "DimRow",
    "kind": "function",
    "exported": false,
-   "line": 1163
+   "line": 1164
   },
   "src/ui/pages/Logger#painArea": {
    "file": "src/ui/pages/Logger",
    "name": "painArea",
    "kind": "const",
    "exported": false,
-   "line": 1178
+   "line": 1179
   },
   "src/ui/pages/Logger#FEEL_TONE": {
    "file": "src/ui/pages/Logger",
    "name": "FEEL_TONE",
    "kind": "const",
    "exported": false,
-   "line": 1180
+   "line": 1181
   },
   "src/ui/pages/Logger#LiveRemaining": {
    "file": "src/ui/pages/Logger",
    "name": "LiveRemaining",
    "kind": "function",
    "exported": false,
-   "line": 1193
+   "line": 1194
   },
   "src/ui/pages/Logger#MobileRemainingStrip": {
    "file": "src/ui/pages/Logger",
    "name": "MobileRemainingStrip",
    "kind": "function",
    "exported": false,
-   "line": 1231
+   "line": 1232
   },
   "src/ui/pages/Logger#mmss": {
    "file": "src/ui/pages/Logger",
    "name": "mmss",
    "kind": "const",
    "exported": false,
-   "line": 1256
+   "line": 1257
   },
   "src/ui/pages/Logger#SummaryModal": {
    "file": "src/ui/pages/Logger",
    "name": "SummaryModal",
    "kind": "function",
    "exported": true,
-   "line": 1259
+   "line": 1260
   },
   "src/ui/pages/Logger#ExercisePicker": {
    "file": "src/ui/pages/Logger",
    "name": "ExercisePicker",
    "kind": "function",
    "exported": true,
-   "line": 1300
+   "line": 1301
   },
   "src/ui/pages/Muscles#STATUS_TONE": {
    "file": "src/ui/pages/Muscles",
@@ -7028,6 +7084,10 @@
    "to": "src/ui/pages/Logger#ExecutionCue"
   },
   {
+   "from": "src/domain/analysis#ACTIONABLE_SETS",
+   "to": "src/domain/analysis#isOpen"
+  },
+  {
    "from": "src/domain/analysis#MAX_SESSION_SHARE",
    "to": "src/domain/analysis#analyze"
   },
@@ -7064,16 +7124,64 @@
    "to": "src/ui/hooks#useAnalysis"
   },
   {
-   "from": "src/domain/analysis#leftOfShare",
+   "from": "src/domain/analysis#displaySets",
    "to": "src/domain/analysis#analyze"
   },
   {
-   "from": "src/domain/analysis#leftOfShare",
+   "from": "src/domain/analysis#displaySets",
+   "to": "src/domain/analysis#leftOfShare"
+  },
+  {
+   "from": "src/domain/analysis#displaySets",
    "to": "src/domain/exerciseChoice#assessChoice"
+  },
+  {
+   "from": "src/domain/analysis#displaySets",
+   "to": "src/ui/pages/Dashboard#statusChip"
+  },
+  {
+   "from": "src/domain/analysis#displaySets",
+   "to": "src/ui/pages/Logger#ExercisePicker"
+  },
+  {
+   "from": "src/domain/analysis#displaySets",
+   "to": "src/ui/pages/Logger#LiveRemaining"
+  },
+  {
+   "from": "src/domain/analysis#displaySets",
+   "to": "src/ui/pages/Logger#MobileRemainingStrip"
+  },
+  {
+   "from": "src/domain/analysis#isOpen",
+   "to": "src/domain/analysis#displaySets"
+  },
+  {
+   "from": "src/domain/analysis#isOpen",
+   "to": "src/domain/analysis#weekChip"
+  },
+  {
+   "from": "src/domain/analysis#isOpen",
+   "to": "src/domain/exerciseChoice#assessChoice"
+  },
+  {
+   "from": "src/domain/analysis#isOpen",
+   "to": "src/domain/optimality#optimality"
   },
   {
    "from": "src/domain/analysis#mwTrendDeclining",
    "to": "src/domain/analysis#analyze"
+  },
+  {
+   "from": "src/domain/analysis#openOfShare",
+   "to": "src/domain/analysis#analyze"
+  },
+  {
+   "from": "src/domain/analysis#openOfShare",
+   "to": "src/domain/analysis#leftOfShare"
+  },
+  {
+   "from": "src/domain/analysis#openOfShare",
+   "to": "src/domain/exerciseChoice#assessChoice"
   },
   {
    "from": "src/domain/analysis#statusLabel",
@@ -9424,6 +9532,14 @@
    "to": "src/domain/optimality#optimality"
   },
   {
+   "from": "src/domain/outcomes#OUTCOME_BASELINE_MIN",
+   "to": "src/domain/outcomes#outcomeAt"
+  },
+  {
+   "from": "src/domain/outcomes#OUTCOME_BASELINE_N",
+   "to": "src/domain/outcomes#outcomeAt"
+  },
+  {
    "from": "src/domain/outcomes#OUTCOME_NOT_LOWER",
    "to": "src/domain/outcomes#heldUp"
   },
@@ -9445,15 +9561,23 @@
   },
   {
    "from": "src/domain/outcomes#heldUp",
-   "to": "src/domain/exerciseChoice#choiceOutcomes"
-  },
-  {
-   "from": "src/domain/outcomes#heldUp",
-   "to": "src/domain/sequence#keptOutcome"
+   "to": "src/domain/outcomes#outcomeAt"
   },
   {
    "from": "src/domain/outcomes#median",
    "to": "src/domain/outcomes#heldUp"
+  },
+  {
+   "from": "src/domain/outcomes#outcomeAt",
+   "to": "src/domain/exerciseChoice#choiceOutcomes"
+  },
+  {
+   "from": "src/domain/outcomes#outcomeAt",
+   "to": "src/domain/sequence#keptOutcome"
+  },
+  {
+   "from": "src/domain/outcomes#softenedFrom",
+   "to": "src/domain/exerciseChoice#choiceOutcomes"
   },
   {
    "from": "src/domain/perception#BACKOFF_ALLOWANCE",
@@ -10405,7 +10529,7 @@
   },
   {
    "from": "src/domain/quality#roundHalf",
-   "to": "src/domain/analysis#leftOfShare"
+   "to": "src/domain/analysis#displaySets"
   },
   {
    "from": "src/domain/quality#roundHalf",
@@ -12238,6 +12362,10 @@
   {
    "from": "src/i18n/core#num",
    "to": "src/domain/analysis#analyze"
+  },
+  {
+   "from": "src/i18n/core#num",
+   "to": "src/domain/analysis#displaySets"
   },
   {
    "from": "src/i18n/core#num",
@@ -17481,10 +17609,6 @@
   },
   {
    "from": "src/ui/components/ui#fmt",
-   "to": "src/ui/pages/Dashboard#statusChip"
-  },
-  {
-   "from": "src/ui/components/ui#fmt",
    "to": "src/ui/pages/Equipment#EquipmentDetail"
   },
   {
@@ -17506,10 +17630,6 @@
   {
    "from": "src/ui/components/ui#fmt",
    "to": "src/ui/pages/Logger#ExerciseCard"
-  },
-  {
-   "from": "src/ui/components/ui#fmt",
-   "to": "src/ui/pages/Logger#ExercisePicker"
   },
   {
    "from": "src/ui/components/ui#fmt",

@@ -64,8 +64,12 @@ export async function continueChoice(page: Page, lang: Lang = 'en') {
   const cc = page.getByTestId('choice-card');
   // Optional by design: the card shows only when the choice deserves a comment. Wait until either it is up or
   // the picker has closed, so a slow render is not mistaken for "no card".
-  await expect.poll(async () => (await cc.count()) > 0 || (await page.locator('[role=dialog]').count()) === 0, { timeout: 10_000 }).toBe(true);
+  // Also optional: a next-session warning (Part 8; since the shared recovery window, e.g. a new exercise adds 12 h) —
+  // answered "Keep today", which also adds the exercise when it is the only card.
+  const fw = page.getByTestId('forward-keep');
+  await expect.poll(async () => (await cc.count()) > 0 || (await fw.count()) > 0 || (await page.locator('[role=dialog]').count()) === 0, { timeout: 10_000 }).toBe(true);
   if (await cc.count()) await cc.getByRole('button', { name: T[lang].cont }).click();
+  else if (await fw.count()) await fw.first().click();
   await expect(page.locator('[role=dialog]')).toHaveCount(0);
 }
 

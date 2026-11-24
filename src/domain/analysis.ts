@@ -38,6 +38,9 @@ export interface MuscleWeek {
   /** Effective sets already logged for this muscle today. */
   doneToday: number;
   /** What is still open of today's share (todayShare − doneToday, never below 0). */
+  /** Open sets left in today's share, RAW — every decision uses this (`isOpen`, thresholds). */
+  todayOpen: number;
+  /** The same, as DISPLAYED (`displaySets(todayOpen).value`, halves) — screens only. */
   todayLeft: number;
   /** Still recovering from a PREVIOUS session (today's own sets never block today's plan). */
   todayBlocked: boolean;
@@ -95,9 +98,30 @@ export const MAX_SESSION_SHARE = 0.6;
  * What is still open of today's share: less than half a set counts as nothing, else rounded to half sets.
  * The one formula for "left today" (Week screen, choice card).
  */
+/**
+ * Under half a set left is nothing to do — a DECISION threshold on the raw value (the planner never plans < 0.5 sets
+ * either), not a rounding (owner 2026-11-24: raw values in every calculation, one display rounding).
+ */
+export const ACTIONABLE_SETS = 0.5;
+/** Open sets left in today's share — RAW (no rounding), never below 0. */
+export const openOfShare = (share: number, done: number): number => Math.max(0, share - done);
+/** Is there something left to do today (raw ≥ half a set)? */
+export const isOpen = (raw: number): boolean => raw >= ACTIONABLE_SETS - 1e-9;
+
+/**
+ * ONE display rounding for "sets left" (Week, the training mode, the picker, the planner's texts): to halves, half-up;
+ * nothing under half a set; "≈" when the shown number differs from the raw one.
+ */
+export function displaySets(raw: number): { value: number; approx: boolean; text: string } {
+  const r = Math.max(0, raw);
+  const value = isOpen(r) ? roundHalf(r) : 0;
+  const approx = Math.abs(value - r) > 1e-6;
+  return { value, approx, text: value === 0 ? '0' : `${approx ? '≈' : ''}${num(value)}` };
+}
+
+/** The displayed sets left of a share (kept for older callers): `displaySets(openOfShare(…)).value`. */
 export function leftOfShare(share: number, done: number): number {
-  const diff = share - done;
-  return diff < 0.5 ? 0 : roundHalf(diff);
+  return displaySets(openOfShare(share, done)).value;
 }
 
 export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
@@ -234,11 +258,12 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
       } else if (todayShare === sessionCap && carryOver > 0) todayNote += L(` · capped at ${sessionCap} per session; ~${carryOver} carries over (fine)`, ` · не больше ${sessionCap} за тренировку; ~${num(carryOver)} переносится (это нормально)`);
       if (mwTrendDeclining(trend.overall)) todayNote += L(' · keep sets high-quality', ' · следите за качеством подходов');
     }
-    const todayLeft = leftOfShare(todayShare, doneToday);
+    const todayOpen = openOfShare(todayShare, doneToday);
+    const todayLeft = displaySets(todayOpen).value;
 
     return {
       muscle: m, target, volume, completed, remainingToMin, remainingToPreferred, pctOfPreferred: pct, status, recovery: rec, trend,
-      moreVolumeJustified, justification, explanation, todayShare, doneToday, todayLeft, todayBlocked, sessionCap, carryOver, todayNote,
+      moreVolumeJustified, justification, explanation, todayShare, doneToday, todayOpen, todayLeft, todayBlocked, sessionCap, carryOver, todayNote,
       targetMet: remainingAtDayStart <= 0, shareRaised,
     };
   });
@@ -269,8 +294,8 @@ export function statusLabel(s: WeekStatus): string {
  * (`todayBlocked`: > 6 h of its window left) — today's own sets never do, and a window inside the tolerance does not;
  * else "today n" while today's share is open; else nothing.
  */
-export function weekChip(m: Pick<MuscleWeek, 'todayBlocked' | 'remainingToPreferred' | 'todayLeft'>): 'recovering' | 'today' | null {
+export function weekChip(m: Pick<MuscleWeek, 'todayBlocked' | 'remainingToPreferred' | 'todayOpen'>): 'recovering' | 'today' | null {
   if (m.todayBlocked) return 'recovering';
   if (m.remainingToPreferred <= 0) return null;
-  return m.todayLeft > 0 ? 'today' : null;
+  return isOpen(m.todayOpen) ? 'today' : null;
 }

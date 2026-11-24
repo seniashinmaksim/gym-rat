@@ -25,7 +25,7 @@ import { todayExtraH } from './recovery';
 import { resolveCoefficients, MACHINE_KINDS } from './registry';
 import type { MuscleId, PlannedMove, Variation, Workout } from './types';
 import { computeVolume } from './volume';
-import { heldUp, OUTCOME_NOT_LOWER, OUTCOME_RIR_DIFF, OUTCOME_SHORT_REST } from './outcomes';
+import { outcomeAt, OUTCOME_NOT_LOWER, OUTCOME_RIR_DIFF, OUTCOME_SHORT_REST } from './outcomes';
 import { sessionWindowH, weekdayOf } from './weekPlan';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -251,17 +251,12 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
   let lastDate: string | null = null;
   for (const k of kept) {
     for (const series of analysis.progression.filter((p) => p.exerciseId === affectsId)) {
-      const i = series.sessions.findIndex((x) => x.date >= k.date && diffDays(x.date, k.date) <= 2);
-      if (i < 0) continue;
-      const cur = series.sessions[i];
-      if (cur.indexRaw == null || !cur.representative) break;
-      // Baseline: the last <= 3 comparable sessions of the SAME history (exercise × machine × configuration) that were not
-      // themselves right after a kept conflict; at least 2 are needed.
-      const base = series.sessions.slice(0, i).filter((x) => x.representative && x.indexRaw != null && x.indexKind === cur.indexKind && !afterKept(x.date)).slice(-3);
-      if (base.length < 2) break;
-      // Not comparable (another reserve, a much shorter rest, another place in the session) → skipped (shared check, C-3).
-      const held = heldUp(cur, base);
-      if (held == null) break;
+      const idx = series.sessions.findIndex((x) => x.date >= k.date && diffDays(x.date, k.date) <= 2);
+      if (idx < 0) continue;
+      // Median of the last ≤ 3 comparable sessions of the SAME history not themselves right after a kept conflict (≥ 2);
+      // a result that is not comparable is skipped and the next history (another machine) is tried.
+      const held = outcomeAt(series.sessions, idx, (x) => afterKept(x.date));
+      if (held == null) continue;
       obs.push(held);
       lastDate = k.date;
       break;
