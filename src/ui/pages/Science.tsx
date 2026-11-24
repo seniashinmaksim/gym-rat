@@ -326,6 +326,8 @@ function RuleList() {
             </button>
             {open === r.id && (
               <div className="space-y-1.5 px-4 pb-4 text-xs leading-relaxed text-ink-700 dark:text-ink-200">
+                <p><b className="font-medium">{L('Principle (evidence):', 'Принцип (данные исследований):')}</b> {r.principle}</p>
+                <p><b className="font-medium">{L('Number (heuristic unless stated):', 'Число (практическое правило, если не указано иное):')}</b> {r.number}</p>
                 <p><b className="font-medium">{L('Value:', 'Значение:')}</b> {r.value}{r.configurable ? L(` · change it in ${r.configurable}`, ` · изменить: ${r.configurable}`) : ''}</p>
                 <p>{r.rationale}</p>
                 {r.refIds.length > 0 && <ul className="space-y-1 pl-2">{r.refIds.map((id) => <RefLine key={id} id={id} />)}</ul>}

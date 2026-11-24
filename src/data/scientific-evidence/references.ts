@@ -41,8 +41,8 @@ export interface Reference {
   muscles: MuscleId[];
   limitations: string;
   confidence: Confidence;
-  /** Date of the PubMed + Crossref check (2026-11-23 = Part 6 pass). */
-  verifiedOn: '2026-11-21' | '2026-11-23';
+  /** Date of the PubMed + Crossref check (2026-11-23 = Part 6 pass, 2026-11-24 = Part 7 pass). */
+  verifiedOn: '2026-11-21' | '2026-11-23' | '2026-11-24';
 }
 
 /** Outcomes that are acute or mechanistic: may only support findings marked indirect. */

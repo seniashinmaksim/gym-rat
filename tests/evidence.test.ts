@@ -23,7 +23,7 @@ describe('research library: references', () => {
       expect(r.outcome, r.id).toBeTruthy();
       expect(['high', 'moderate', 'low'], r.id).toContain(r.confidence);
       expect(r.finding.length, r.id).toBeGreaterThan(20);
-      expect(['2026-11-21', '2026-11-23'], r.id).toContain(r.verifiedOn);
+      expect(['2026-11-21', '2026-11-23', '2026-11-24'], r.id).toContain(r.verifiedOn);
       for (const m of r.muscles) expect(MUSCLE_IDS as readonly string[], r.id).toContain(m);
     }
   });

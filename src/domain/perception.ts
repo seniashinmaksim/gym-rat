@@ -41,7 +41,7 @@ export const SHORT_REST_SEC = 60;
 export const SHORT_REST_RATIO = 0.7;
 /**
  * Reps-possible estimates longer than this are not used as a number (Part 7 G.1 #2): prediction from repetitions
- * worsens as reps rise (reynolds2006_rm_prediction). Above it the numbers decide only when the set did at most
+ * worsens as reps rise (reynolds2006_multiple_rm_prediction). Above it the numbers decide only when the set did at most
  * half of the possible reps (clearly far from failure, whatever the exact error).
  */
 export const POSSIBLE_RELIABLE_MAX = 20;
