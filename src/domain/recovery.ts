@@ -71,6 +71,8 @@ export function sameMovement(a: string, b: string): boolean {
 /** Baseline window by the size of the last significant session (effective sets for the muscle). */
 /** How far back an earlier session can still hold a muscle: the longest window the rules can give (72 + 12 × 5 + 24 = 156 h), rounded up to a week. */
 export const RECOVERY_LOOKBACK_H = 168;
+/** A muscle marked "sore" (≥ 3) today is held for at least this long from now, whatever the windows say (a heuristic). */
+export const SORE_TODAY_HOLD_H = 12;
 
 export interface WindowInputs {
   /** Effective sets of the session for this muscle. */
@@ -189,6 +191,18 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
       conditionsExtraH: conditionsExtraH({ soreness, avgSleep, maxFatigue }),
     };
 
+    // Soreness reported TODAY is the owner's own signal (owner 2026-11-25: asked for every muscle before training):
+    // "sore" (≥ 3) holds the muscle for today whatever the windows say — at least 12 h from now.
+    const soreToday = Math.max(0, ...[...data.daily.filter((d) => d.date === today).map((d) => d.soreness?.[m]), ...data.workouts.filter((w) => w.date === today).map((w) => w.wellness?.soreness?.[m])].filter((v): v is number => v != null));
+    const soreHold = soreToday >= 3 ? SORE_TODAY_HOLD_H : 0;
+    if (!last0 && soreHold) {
+      out[m] = {
+        ...base, status: 'recovering', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusTime: null, lastStimulusTimeSource: null, lastStimulusSets: 0,
+        windowHours: null, hoursLeft: soreHold, hoursLeftExact: soreHold,
+        factors: [L('You marked it as sore today — better not today.', 'Сегодня вы отметили, что мышца болит, — лучше не сегодня.')],
+      };
+      continue;
+    }
     if (!last0) {
       out[m] = {
         ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusTime: null, lastStimulusTimeSource: null, lastStimulusSets: 0,
@@ -271,7 +285,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     out[m] = {
       ...base, status, readiness: Math.round(readiness * 100) / 100, hoursSince: Math.round(hoursSince), lastStimulusDate: last.date,
       lastStimulusTime: endedHHMM, lastStimulusTimeSource: src,
-      lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(0, Math.round(window - hoursSince)) : 0, hoursLeftExact: status === 'recovering' ? Math.max(0, window - hoursSince) : 0, factors,
+      lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(soreHold, Math.round(window - hoursSince)) : 0, hoursLeftExact: status === 'recovering' ? Math.max(soreHold, window - hoursSince) : 0, factors,
     };
   }
   return out;
@@ -300,4 +314,15 @@ export function todayExtraH(data: AppData, registry: Registry, m: MuscleId, toda
   const ids = [...todays.flatMap((w) => w.exercises.filter((e) => e.sets.some((x) => x.type !== 'warmup' && !x.planned) && hits(e.exerciseId, e.variation, 0.75)).map((e) => e.exerciseId)),
     ...candidates.filter((id) => hits(id, undefined, 0.75))];
   return (failure >= 2 ? 12 : 0) + (ids.some(isNew) ? 12 : 0);
+}
+
+/** A session this recent can still be felt: its muscles are offered in the "anything still sore?" question. */
+export const SORENESS_ASK_DAYS = 4;
+
+/** Muscles with a significant session on one of the last 4 days before today, the most recent (then the biggest) first. */
+export function sorenessCandidates(recovery: Record<MuscleId, RecoveryEstimate>, today: string, max = 8): MuscleId[] {
+  return (Object.values(recovery) as RecoveryEstimate[])
+    .filter((r) => r.lastStimulusDate != null && r.lastStimulusDate < today && diffDays(today, r.lastStimulusDate) <= SORENESS_ASK_DAYS)
+    .sort((x, y) => (y.lastStimulusDate as string).localeCompare(x.lastStimulusDate as string) || y.lastStimulusSets - x.lastStimulusSets)
+    .slice(0, max).map((r) => r.muscle);
 }

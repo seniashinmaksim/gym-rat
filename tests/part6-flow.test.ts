@@ -268,7 +268,7 @@ describe('F.2 log after the set', () => {
     let cur = ex('pec_deck', [], 'pd_a', { target });
     expect(prefillNext(cur, top)).toEqual({ weightKg: 65, reps: 10, from: 'plan', alt: { weightKg: 60, from: 'last' } });
     cur = logSet(cur, { weightKg: 65, reps: 11, loadMode: 'total' }, T0, 'a', m);
-    expect(prefillNext(cur, top)).toMatchObject({ weightKg: 65, from: 'session', reps: 10, alt: null });
+    expect(prefillNext(cur, top)).toMatchObject({ weightKg: 65, from: 'plan', reps: 10 }); // the plan leads while it is followed
   });
   it('no history and no plan: nothing is invented', () => {
     expect(prefillNext(ex('pec_deck', [], 'pd_a'), null)).toEqual({ weightKg: null, reps: null, from: null, alt: null });

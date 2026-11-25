@@ -72,7 +72,7 @@ describe('review #3/#4/#6: individual volume needs effort evidence; priority nev
     const pri = { ...d, settings: { ...d.settings, priorities: { chest: 'high' as const } } };
     const t = analyze(pri, dayAfterLast(d, 3)).muscles.find((x) => x.muscle === 'chest')!.target;
     expect(base.volumeAction).toBe('hold');
-    expect(t.preferred).toBe(base.preferred);
+    expect(t.preferred).toBe(base.preferred + 2); // owner 2026-11-25: static targets — high priority is the reference + 2
   });
   it('a persistent decline never cuts below the lower end of the range', () => {
     const d = dataQualityHistory({ sessions: 30, trend: 'down' });

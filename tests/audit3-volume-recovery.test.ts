@@ -231,7 +231,7 @@ const mw = (a: ReturnType<typeof analyze>, m: string) => a.muscles.find((x) => x
 describe('3 — weekly targets, deload, individual level', () => {
   it('empty history: provisional references; experience and priority adjustments', () => {
     const a = analyze(data([]), NOW);
-    expect([a.targets.chest.min, a.targets.chest.preferred, a.targets.chest.max, a.targets.chest.provisional]).toEqual([6, 12, 18, true]);
+    expect([a.targets.chest.min, a.targets.chest.preferred, a.targets.chest.max, a.targets.chest.provisional]).toEqual([6, 12, 18, false]); // owner 2026-11-25: static, not provisional
     expect([a.targets.abs.min, a.targets.abs.preferred, a.targets.abs.max]).toEqual([3, 6, 12]);
     expect(mw(a, 'chest').status).toBe('no_data');
     const withS = (patch: object) => { const d = data([]); d.settings = { ...d.settings, ...patch } as AppData['settings']; return analyze(d, NOW).targets.chest; };
@@ -266,18 +266,18 @@ describe('3 — weekly targets, deload, individual level', () => {
     expect(a.learning.active).toBe(false); // day 38 > 30, 10 sessions, 5 complete weeks
     const t = a.targets.chest;
     expect(t.baseline).toBe(8); // median of 8, 8, 8, 8, 8
-    // Same result for ≥ 4 sessions over ≥ 21 days, no new best in the last two → plateau → stalled; volume stable 5 weeks,
-    // RIR 2 (adequate), clean technique, no recovery complaints → +2 → 10; min 7.5; max max(18, 14) = 18.
-    expect([t.source, t.volumeAction, t.preferred, t.min, t.max]).toEqual(['individualized', 'increase', 10, 7.5, 18]);
-    // Front delts got 0.25 × 8 = 2 a week, no direct exercise → "unknown" → hold at their own level 2 (never raised to the reference 6).
-    expect([a.targets.front_delts.baseline, a.targets.front_delts.preferred, a.targets.front_delts.volumeAction]).toEqual([2, 2, 'hold']);
-    // Week fit (usual days Mon + Thu; today Wednesday, nothing done this week): 10 left, cap round(10 × 0.6) = 6,
-    // 2 sessions / week → round(2 × 5 / 7) = 1 session left → even share min(6, 10, 10) = 6.
-    // 6 today → window 36 h → Thursday (24 h) is inside (needs ≥ 30 h) → 6 in total. 5 / 4 today: same → 5 / 4.
-    // 3 today → window 24 h → Thursday fits (24 ≥ 18) with up to 6 → 9 of 10. → share 3, 1 does not fit.
+    // Owner 2026-11-25: the target is STATIC — the reference 12 (6–18); the own level (8, stalled → "+2 would be justified")
+    // is kept as an observation only.
+    expect([t.source, t.volumeAction, t.preferred, t.min, t.max]).toEqual(['reference', 'increase', 12, 6, 18]);
+    // Front delts got 0.25 × 8 = 2 a week → observation "hold"; the target is the reference 6.
+    expect([a.targets.front_delts.baseline, a.targets.front_delts.preferred, a.targets.front_delts.volumeAction]).toEqual([2, 6, 'hold']);
+    // Week fit (usual days Mon + Thu; today Wednesday, nothing done this week): 12 left, cap round(12 × 0.6) = 7,
+    // 2 sessions / week → round(2 × 5 / 7) = 1 session left → even share min(7, 12, 12) = 7.
+    // 7 today → window 48 h → Thursday (24 h) is inside → 7 in total; 6 / 5 / 4 today: 36 h → still inside.
+    // 3 today → window 24 h → Thursday fits (24 ≥ 18) with up to 7 → 10 of 12 → share 3, 2 do not fit.
     expect(a.usualDays).toEqual([1, 4]);
     const c = mw(a, 'chest');
-    expect([c.sessionCap, c.todayShare, c.carryOver, c.shareRaised, c.todayOpen]).toEqual([6, 3, 1, false, 3]);
+    expect([c.sessionCap, c.todayShare, c.carryOver, c.shareRaised, c.todayOpen]).toEqual([7, 3, 2, false, 3]);
   });
 });
 

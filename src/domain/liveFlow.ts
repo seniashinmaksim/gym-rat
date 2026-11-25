@@ -88,9 +88,18 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
   const follows = n > 0 && done.every((s, i) => prev[i] && prev[i].weightKg === s.weightKg);
   let weight: number | null = null;
   let from: Prefill['from'] = null;
-  if (n === 0) {
+  // Owner 2026-11-25: what the analysis learned comes first — last time's ramp (40 → 45 → 50 → 55) was finding the
+  // weight; its lightest set is not the default again. While every set logged so far followed the plan, the plan's
+  // weight is offered (last time's weight for that set stays one tap away); once the owner logs another weight, the
+  // session leads (a declined plan load is not pushed again).
+  const planFirst = target?.weightKg != null && done.every((s) => s.weightKg === target.weightKg);
+  let altLast: number | null = null;
+  if (planFirst) {
+    weight = target!.weightKg as number; from = 'plan';
+    const lastW = prev[n]?.weightKg ?? null;
+    if (lastW != null && lastW !== weight) altLast = lastW;
+  } else if (n === 0) {
     if (prev[0]?.weightKg != null) { weight = prev[0].weightKg; from = 'last'; }
-    else if (target?.weightKg != null) { weight = target.weightKg; from = 'plan'; }
   } else if (follows && prev[n]?.weightKg != null) { weight = prev[n].weightKg; from = 'last'; }
   else { weight = done[n - 1].weightKg; from = weight != null ? 'session' : null; }
 
@@ -102,7 +111,7 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
     if (!after.length || after[after.length - 1].weightKg === ex.target!.weightKg) { weight = ex.target!.weightKg; from = 'plan'; }
   }
 
-  let alt: Prefill['alt'] = null;
+  let alt: Prefill['alt'] = altLast != null ? { weightKg: altLast, from: 'last' } : null;
   const lastWork = prev.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number);
   const lastTop = lastWork.length ? Math.max(...lastWork) : null;
   const planW = target?.weightKg ?? null;

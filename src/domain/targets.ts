@@ -151,47 +151,28 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
       continue;
     }
 
-    if (learning.active || baseline == null) {
-      out[m] = {
-        muscle: m, ...ref, confidence: 'low', provisional: true, source: 'reference', baseline,
-        rationale: [
-          L(`Provisional reference range ${ref.min}–${ref.max} (preferred ${ref.preferred}) effective sets/week, based on the volume dose-response literature and ${name.toLowerCase()}-specific indirect work.`,
-            `Предварительный ориентир ${num(ref.min)}–${num(ref.max)} (предпочтительно ${num(ref.preferred)}) эффективных подходов в неделю — по исследованиям зависимости результата от объёма и с учётом косвенной нагрузки на эту мышцу (${name.toLowerCase()}).`),
-          learning.active
-            ? L('Learning Mode: your personal baseline is still being measured, so this is not a quota.', 'Режим знакомства: ваш личный базовый уровень ещё измеряется, поэтому это не норма, которую нужно выполнить.')
-            : L('Not enough complete weeks to individualize.', 'Полных недель пока мало для индивидуальной цели.'),
-          MUSCLE_BY_ID[m].referenceNote,
-        ],
-      };
-      continue;
-    }
-
-    // E.10: each muscle's volume follows ITS OWN response — never raised just to reach a generic reference.
-    const decision = volumeDecision({ m, data, usable, recentWeeks: weeks.filter((w) => w.complete).slice(-4), baseline, trend, rec, registry, today: inp.today ?? usable[usable.length - 1].range.end, ref });
-    const rationale = [...decision.rationale];
-    let preferred = decision.preferred;
-    // The owner's explicit priority (not a generic number) allows a gradual +1–2 while nothing argues against it.
-    // Only on a NEUTRAL hold (stable / unknown, effort adequate, no break, nothing argues against it), capped at the
-    // upper end of the reference range — never on top of a muscle that is progressing or after a failed increase.
-    if (data.settings.priorities[m] === 'high' && decision.neutral && !decision.evidence.recoveryPoor && decision.evidence.stableWeeks >= 3 && baseline < ref.max) {
-      const step = baseline < 8 || MUSCLE_BY_ID[m].size === 'small' ? 1 : 2;
-      preferred = Math.min(ref.max, baseline + step);
-      rationale.push(L(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`, `Отмечен высокий приоритет: +${step} ${ruPlural(step, 'подход', 'подхода', 'подходов')} в неделю (постепенно), оценка — по следующим неделям.`));
-    }
-    // "Maintain" never raises a muscle: an evidence-based increase is not applied (reductions still are).
-    let action = decision.action;
-    if (data.settings.priorities[m] === 'maintain' && action === 'increase') {
-      action = 'hold';
-      preferred = baseline;
-      rationale.push(L('Marked "maintain": the volume is not raised — it stays at your level.', 'Отмечено «поддерживать»: объём не повышается — остаётся на вашем уровне.'));
-    }
-    preferred = roundHalf(preferred);
-    const min = roundHalf(Math.max(0, Math.min(preferred, preferred * 0.75)));
-    const max = roundHalf(Math.max(ref.max, preferred + 4));
+    // Owner 2026-11-25: the weekly target is STATIC — the evidence-based reference for that muscle, the same every week
+    // (dose-response with diminishing returns: ~10+ sets is a useful reference; muscles that get much indirect work have
+    // a lower direct reference). What the owner's own data shows is an OBSERVATION next to it, never a change of the number.
+    const rationale = [
+      L(`Fixed weekly target: ${ref.preferred} effective sets (useful range ${ref.min}–${ref.max}), from the volume dose-response literature and ${name.toLowerCase()}-specific indirect work. It does not move with what you happened to do.`,
+        `Постоянная недельная цель: ${num(ref.preferred)} эффективных подходов (полезный диапазон ${num(ref.min)}–${num(ref.max)}) — по исследованиям зависимости результата от объёма и с учётом косвенной нагрузки на эту мышцу (${name.toLowerCase()}). Она не меняется от того, сколько вы сделали.`),
+      MUSCLE_BY_ID[m].referenceNote,
+    ];
     if (data.settings.priorities[m]) rationale.push(L(`Priority: ${data.settings.priorities[m]}.`, `Приоритет: ${({ high: 'высокий', normal: 'обычный', maintain: 'поддерживать' } as Record<string, string>)[data.settings.priorities[m] as string] ?? data.settings.priorities[m]}.`));
+    let volumeAction: VolumeAction | undefined;
+    let evidence: VolumeEvidence | undefined;
+    if (!learning.active && baseline != null) {
+      const decision = volumeDecision({ m, data, usable, recentWeeks: weeks.filter((w) => w.complete).slice(-4), baseline, trend, rec, registry, today: inp.today ?? usable[usable.length - 1].range.end, ref });
+      volumeAction = data.settings.priorities[m] === 'maintain' && decision.action === 'increase' ? 'hold' : decision.action;
+      evidence = decision.evidence;
+      rationale.push(L(`Observation (your own data; the target stays ${ref.preferred}): ${decision.rationale.join(' ')}`, `Наблюдение (по вашим данным; цель остаётся ${num(ref.preferred)}): ${decision.rationale.join(' ')}`));
+    } else if (learning.active) {
+      rationale.push(L('First weeks: your own level is still being measured (it is shown as an observation, the target does not depend on it).', 'Первые недели: ваш собственный уровень ещё измеряется (он показывается как наблюдение, цель от него не зависит).'));
+    }
     if (usable.length < 3) confidence = 'low';
-    rationale.push(L(`Confidence ${confidence}: ${conf.join(', ')}.`, `Уверенность ${({ low: 'низкая', moderate: 'средняя', high: 'высокая' } as Record<string, string>)[confidence] ?? confidence}: ${conf.join(', ')}.`));
-    out[m] = { muscle: m, min, preferred, max, confidence, provisional: false, source: 'individualized', baseline, rationale, volumeAction: action, evidence: decision.evidence };
+    rationale.push(L(`Data confidence ${confidence}: ${conf.join(', ')}.`, `Уверенность в данных — ${({ low: 'низкая', moderate: 'средняя', high: 'высокая' } as Record<string, string>)[confidence] ?? confidence}: ${conf.join(', ')}.`));
+    out[m] = { muscle: m, ...ref, confidence, provisional: false, source: 'reference', baseline, rationale, ...(volumeAction ? { volumeAction } : {}), ...(evidence ? { evidence } : {}) };
   }
   if (deload) {
     // Deload = reduced volume (≈ half the sets) with moderate effort, not full rest (Bell 2023 consensus;

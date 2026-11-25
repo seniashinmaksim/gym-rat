@@ -154,6 +154,7 @@ export function availableEquipment(
   for (const w of history) {
     for (const e of w.exercises) {
       if (e.exerciseId !== def.id) continue;
+      if (!e.sets.some((s) => !s.planned)) continue;
       if (e.equipmentId) {
         const eq = data.equipment.find((x) => x.id === e.equipmentId);
         if (eq && (eq.locationId === locationId || eq.locationId == null)) usedHere.set(e.equipmentId, (usedHere.get(e.equipmentId) ?? 0) + 1);
@@ -167,6 +168,8 @@ export function availableEquipment(
     .filter((e) => !busy.has(e.id) && (e.locationId === locationId || (e.locationId == null && usedHere.has(e.id))) && (e.exerciseIds.includes(def.id) || usedHere.has(e.id)))
     .sort((a, b) => (usedHere.get(b.id) ?? 0) - (usedHere.get(a.id) ?? 0));
   if (linked.length) return { ok: true, equipmentId: linked[0].id, known: true };
+  // A machine exercise done at THIS gym before without naming the machine: it is that gym's machine (owner 2026-11-25).
+  if (!FREE_KINDS.has(def.equipmentKind) && locationId && freeUsedHere > 0) return { ok: true, equipmentId: null, known: true };
   if (FREE_KINDS.has(def.equipmentKind)) {
     // Free weights: available when used at this gym before (or anywhere when no gym is set).
     if (freeUsedHere > 0) return { ok: true, equipmentId: null, known: true };

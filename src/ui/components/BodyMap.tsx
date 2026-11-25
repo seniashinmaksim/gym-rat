@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { MuscleWeek } from '../../domain/analysis';
 import { muscleName } from '../../domain/muscles';
 import type { MuscleId } from '../../domain/types';
@@ -65,12 +65,16 @@ const STATUS_FILL: Record<string, string> = {
 
 export type BodyMapMode = 'volume' | 'recovery';
 
-export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact }: {
+export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact, paint, footer }: {
   muscles: MuscleWeek[];
   mode?: BodyMapMode;
   selected?: MuscleId | null;
   onSelect?: (m: MuscleId) => void;
   compact?: boolean;
+  /** Own colours per muscle (e.g. the soreness check) instead of the status colours. */
+  paint?: (m: MuscleId) => { fill: string; opacity: number };
+  /** Shown instead of the info line / legend. */
+  footer?: ReactNode;
 }) {
   const [hover, setHover] = useState<MuscleId | null>(null);
   const byId = new Map(muscles.map((m) => [m.muscle, m]));
@@ -78,6 +82,7 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
   const info = active ? byId.get(active) : undefined;
 
   const style = (m: MuscleId) => {
+    if (paint) return paint(m);
     const mw = byId.get(m);
     if (!mw) return { fill: '#68738a', opacity: 0.25 };
     if (mode === 'recovery') {
@@ -141,7 +146,7 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
         {figure(FRONT, L('Front', 'Спереди'), true)}
         {figure(BACK, L('Back', 'Сзади'), false)}
       </div>
-      <div className="mt-3 min-h-[44px] rounded-xl bg-ink-50 px-3 py-2 text-xs dark:bg-ink-950">
+      {footer !== undefined ? footer : <div className="mt-3 min-h-[44px] rounded-xl bg-ink-50 px-3 py-2 text-xs dark:bg-ink-950">
         {info ? (
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className="font-semibold text-ink-900 dark:text-white">{muscleName(info.muscle, getLang())}</span>
@@ -156,7 +161,7 @@ export function BodyMap({ muscles, mode = 'volume', selected, onSelect, compact 
         ) : (
           <Legend mode={mode} />
         )}
-      </div>
+      </div>}
     </div>
   );
 }

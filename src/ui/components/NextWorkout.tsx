@@ -16,6 +16,7 @@ import { store, useData } from '../../lib/store';
 import { activeWorkout } from '../Layout';
 import { useAnalysis, useDraftSync, useNames } from '../hooks';
 import { Badge, Button, Card, cx, fmt, Select, toast, undoToast, Why } from './ui';
+import { SorenessAsk } from './SorenessAsk';
 import { byLang, KG, L, ruPlural } from '../../i18n';
 
 interface PlanDraft {
@@ -149,6 +150,7 @@ export function NextWorkoutCard() {
             {data.locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </Select>
         )}
+        <SorenessAsk className="mt-2" />
         {gen.returning && <p className="text-xs text-amber-700 dark:text-amber-300">{gen.notes.find((n) => /^(Returning|Возвра)/.test(n))}</p>}
       </div>
       {items.length === 0 ? (

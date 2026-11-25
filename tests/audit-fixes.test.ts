@@ -156,10 +156,10 @@ describe('A-9 the confidence text says what the confidence field says', () => {
     const d = data(ws);
     d.settings = { ...d.settings, learning: { startDate: '2026-11-02', endedOn: '2026-11-15', lengthDays: 30 } };
     const t = analyze(d, noon('2026-11-16')).targets.chest;
-    expect(t.source).toBe('individualized');
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(t.confidence).toBe('low');
-    const line = t.rationale.find((x) => x.startsWith('Confidence'))!;
-    expect(line.startsWith('Confidence low')).toBe(true);
+    const line = t.rationale.find((x) => x.startsWith('Data confidence'))!;
+    expect(line.startsWith('Data confidence low')).toBe(true);
   });
 });
 
@@ -171,7 +171,7 @@ describe('A-10 a muscle on "maintain" is never raised', () => {
     const d: AppData = { ...base, settings: { ...base.settings, priorities: { ...base.settings.priorities, chest: 'maintain' } } };
     const t = analyze(d, dayAfterLast(d, 3)).targets.chest;
     expect(t.volumeAction).toBe('hold');
-    expect(t.preferred).toBe(t.baseline);
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(t.rationale.join(' ')).toMatch(/maintain/i);
   });
 });
@@ -493,7 +493,7 @@ describe('C-3 volume is reduced for a decline only when effort is known and adeq
     const { t, trend } = chest((s) => ({ ...s, rir: null, rirSource: 'unknown' }));
     expect(trend).toBe('declining');
     expect(t.volumeAction).toBe('hold');
-    expect(t.preferred).toBe(t.baseline);
+    expect(t.preferred).toBe(12); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(t.rationale.join(' ')).toMatch(/effort .* is not recorded/);
     expect(t.rationale.join(' ')).not.toMatch(/with adequate effort/);
   });

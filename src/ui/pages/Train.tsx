@@ -19,6 +19,7 @@ import {
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
 import { optimality, rankOptions, suggestNext, type Optimality } from '../../domain/optimality';
 import { muscleCreditText } from '../../domain/fatigue';
+import { SorenessAsk } from '../components/SorenessAsk';
 import { setsLeftTodayText } from '../../domain/analysis';
 import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { progressionKey } from '../../domain/progression';
@@ -631,7 +632,9 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const lastSet = sets[sets.length - 1] ?? null;
   const editing = sheet && typeof sheet === 'object' ? ex.sets.find((s) => s.id === sheet.set) ?? null : null;
   const unit = unitLabel(def, loadMode);
-  const eqLine = eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите') : null;
+  // A barbell exercise done in a Smith machine (or on another bar) is another history: one tap links it (owner 2026-11-25).
+  const eqLine = eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите')
+    : def?.equipmentKind === 'barbell' ? L('Free barbell — tap if it is a Smith machine or another bar', 'Свободная штанга — нажмите, если это Смит или другой гриф') : null;
   const target = targetLine(ex);
   // Barbell: the total is what counts; with a KNOWN bar weight the plates per side are shown (never assumed).
   const isBar = loadMode === 'total' && (eq?.kind ?? def?.equipmentKind) === 'barbell';
@@ -1065,6 +1068,7 @@ function Overview({ w, curId, exName, adjusted, update, onOpen, onBack, onAdd, o
         right={<button type="button" className={quietBtn} onClick={() => setMore(true)} aria-label={L('Workout options', 'Действия с тренировкой')} data-testid="workout-menu"><IconMore size={22} /></button>}
       />
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6" data-testid="overview">
+        {!w.exercises.some((e) => e.sets.some((x) => !x.planned)) && <SorenessAsk className="mb-3 mt-1" />}
         <h1 className="font-display text-title font-extrabold uppercase leading-none tracking-tight">{L('Workout', 'Тренировка')}</h1>
         <p className="mt-1 text-sm text-t-dim">{formatDate(w.date, { weekday: 'long', day: 'numeric', month: 'long' })}{gym ? ` · ${gym.name}` : ''}</p>
         <ol className="mt-4 space-y-3">

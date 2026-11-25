@@ -230,18 +230,18 @@ describe('real gym conditions: order changes, busy machines, re-assessment (E.9)
     const w = workoutFromPlan(g, { id: 'live', date: a.today, startTime: '17:00', nowIso: now.toISOString(), uid: uidT });
     return { d, now, a, g, w };
   };
-  it('a chest exercise done FIRST (out of order) reduces the sets of the planned chest press; never assumes the plan order', () => {
+  it('a back exercise done FIRST (out of order) reduces the sets of the planned pull-ups; never assumes the plan order', () => {
     const { d, now, w } = setup();
-    const press = w.exercises.findIndex((e) => e.exerciseId === 'incline_dumbbell_press');
+    const press = w.exercises.findIndex((e) => e.exerciseId === 'pull_up');
     expect(press).toBeGreaterThanOrEqual(0);
     const before = w.exercises[press].target!.sets;
-    // Pec deck added and done first: 4 sets near failure.
-    const pec = { id: 'pec', order: 99, exerciseId: 'pec_deck', exerciseConfidence: 'confirmed' as const, equipmentId: 'pd_a', equipmentConfidence: 'confirmed' as const,
+    // Lat pulldown added and done first: 4 sets near failure (lats 4 of today's share).
+    const pec = { id: 'pec', order: 99, exerciseId: 'lat_pulldown', exerciseConfidence: 'confirmed' as const, equipmentId: null, equipmentConfidence: 'unknown' as const,
       sets: Array.from({ length: 4 }, (_, i): WorkoutSet => ({ id: `p${i}`, type: 'working', weightKg: 60, loadMode: 'total', reps: 12, rir: 1, rirSource: 'reported', restSecBefore: null, completedAt: now.toISOString() })) };
     const live: Workout = { ...w, exercises: [pec, ...w.exercises] };
     const all = { ...d, workouts: [...d.workouts, live] };
     const ups = replanPending(all, analyze(all, now), live, now);
-    const u = ups.find((x) => live.exercises[x.exerciseIndex].exerciseId === 'incline_dumbbell_press')!;
+    const u = ups.find((x) => live.exercises[x.exerciseIndex].exerciseId === 'pull_up')!;
     expect(u.setCount).toBeLessThan(before);
     expect(u.reason).toMatch(/what you actually did/);
     const patched = applyPendingUpdate(live.exercises[u.exerciseIndex], u, uidT)!;
@@ -303,20 +303,18 @@ describe('evidence-based weekly volume per muscle (E.10)', () => {
   it('progressing → HOLD at the own level, even below the generic reference (no automatic increase)', () => {
     const t = vol({ sessions: 16, trend: 'up' }, 'chest');
     expect(t.volumeAction).toBe('hold');
-    expect(t.preferred).toBe(t.baseline);
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(t.rationale.join(' ')).toMatch(/Progressing at this volume/);
   });
   it('repeated decline with adequate effort → REDUCE by 1–2', () => {
     const t = vol({ sessions: 16, trend: 'down' }, 'chest');
     expect(t.volumeAction).toBe('reduce');
-    expect((t.baseline as number) - t.preferred).toBeGreaterThanOrEqual(1);
-    expect((t.baseline as number) - t.preferred).toBeLessThanOrEqual(2);
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
   });
   it('stalled (no improvement over comparable sessions), stable volume, good recovery → INCREASE by 1–2 only', () => {
     const t = vol({ sessions: 18, trend: 'flat' }, 'chest');
     expect(t.volumeAction).toBe('increase');
-    expect(t.preferred - (t.baseline as number)).toBeGreaterThanOrEqual(1);
-    expect(t.preferred - (t.baseline as number)).toBeLessThanOrEqual(2);
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
   });
   it('stalled but recovery consistently poor → no increase', () => {
     const d = dataQualityHistory({ sessions: 18, trend: 'flat' });
@@ -357,7 +355,7 @@ describe('evidence-based weekly volume per muscle (E.10)', () => {
   it('right after a training break a stall never raises volume (observe first) — regression from the six-month check', () => {
     const t = vol({ sessions: 18, trend: 'flat', breakAt: 16, breakDays: 14 }, 'chest');
     expect(t.volumeAction).toBe('observe');
-    expect(t.preferred).toBe(t.baseline);
+    expect(t.source).toBe('reference'); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(t.rationale.join(' ')).toMatch(/training break/);
   });
   it('each muscle is decided independently (a declining muscle does not change a progressing one)', () => {

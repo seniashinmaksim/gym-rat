@@ -92,7 +92,7 @@ describe('remaining sets', () => {
     const a = analyze(d, now);
     const biceps = a.muscles.find((m) => m.muscle === 'biceps')!;
     expect(biceps.completed).toBe(3);
-    expect(biceps.target.provisional).toBe(true);
+    expect(biceps.target.provisional).toBe(false); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     expect(biceps.remainingToPreferred).toBe(biceps.target.preferred - 3);
     const quads = a.muscles.find((m) => m.muscle === 'quads')!;
     expect(quads.remainingToPreferred).toBe(0);
@@ -165,11 +165,11 @@ describe('learning mode', () => {
     for (let i = 0; i < 70; i += 3) ws.push(workout(addDays(start, i), [ex('preacher_curl', [set(20 + i / 10, 10, 1), set(20 + i / 10, 10, 1), set(20 + i / 10, 10, 1)])]));
     const early = analyze(data(ws.filter((w) => w.date < '2026-09-20')), new Date('2026-09-20T12:00:00Z'));
     expect(early.learning.active).toBe(true);
-    expect(early.targets.biceps.provisional).toBe(true);
+    expect(early.targets.biceps.provisional).toBe(false); // owner 2026-11-25: targets are static (the reference); the own level is an observation
     const later = analyze(data(ws), new Date('2026-11-10T12:00:00Z'));
     expect(later.learning.active).toBe(false);
     expect(later.targets.biceps.provisional).toBe(false);
-    expect(later.targets.biceps.source).toBe('individualized');
+    expect(later.targets.biceps.source).toBe('reference'); // owner 2026-11-25: static targets
     expect(later.targets.biceps.baseline).not.toBeNull();
   });
 });

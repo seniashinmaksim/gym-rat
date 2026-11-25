@@ -531,9 +531,20 @@ export function suggestNextLoad(
   // Part 6 (F.7): reps at the top of the range are objective evidence — no effort answer is needed. A set at the
   // working load whose technique broke (kept, but not a benchmark) means the top was not reached cleanly.
   const technique = (p: SetPoint) => !p.benchmark && (p.technique === 'compromised' || p.technique === 'failed' || p.technicalFailure === true);
+  // A RAMP (owner 2026-11-25: 40 → 45 → 50 → 55, one set each): every other set is lighter and comes BEFORE the first
+  // set at the working load — then the top set(s) alone are the working sets. Otherwise at least half of the sets must
+  // be at the working load (a single heavy set among sets at another load is not "the working sets").
+  const isRamp = (s: SessionPerf) => {
+    const pts = benchPts(s).filter((p) => p.weight != null);
+    const w0 = workLoad(s);
+    const first = pts.findIndex((p) => p.weight === w0);
+    if (first <= 0) return false;
+    const lighter = (p: SetPoint) => (assisted ? (p.weight as number) > (w0 as number) : (p.weight as number) < (w0 as number));
+    return pts.slice(0, first).every(lighter) && pts.slice(first).every((p) => p.weight === w0);
+  };
   const hitsTop = (s: SessionPerf) => {
     const at = atLoad(s);
-    return at.length > 0 && at.length >= Math.ceil(benchPts(s).length / 2) && at.every((p) => (p.reps ?? 0) >= hi) && !s.sets.some(technique);
+    return at.length > 0 && (at.length >= Math.ceil(benchPts(s).length / 2) || isRamp(s)) && at.every((p) => (p.reps ?? 0) >= hi) && !s.sets.some(technique);
   };
   // "A little too easy" (≈ 3–4 RIR) is not clearly light on its own — only "too easy" or a logged RIR ≥ target + 2.
   const clearlyLight = (p: SetPoint) => (p.rir != null ? p.rir >= rirTarget + 2 : p.effort === 'very_easy');

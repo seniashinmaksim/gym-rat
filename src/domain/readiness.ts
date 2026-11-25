@@ -108,7 +108,10 @@ export function keyReadiness(series: ProgressionSeries, registry: Registry, toda
   const def = registry.get(series.exerciseId);
   const needsMachine = !!def && MACHINE_KINDS.has(def.equipmentKind);
   const inWindow = series.sessions.filter((s) => diffDays(today, s.date) >= 0 && diffDays(today, s.date) <= MODE_THRESHOLDS.calibrationWindowDays);
-  const comparable = needsMachine && !series.equipmentId ? 0 : inWindow.filter(calibratedSession).length;
+  // A machine history without a named machine is still ONE machine when its gym is known (owner 2026-11-25; the key is
+  // `…::unidentified@<gym>`); only without a gym is it unknown equipment.
+  const unknownMachine = needsMachine && !series.equipmentId && series.key.includes('::unidentified@unknown');
+  const comparable = unknownMachine ? 0 : inWindow.filter(calibratedSession).length;
   const share = recentWorkouts ? new Set(inWindow.map((s) => s.workoutId)).size / recentWorkouts : 0;
   return {
     key: series.key, exerciseId: series.exerciseId, equipmentId: series.equipmentId,
@@ -154,14 +157,15 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
   const gapCount = new Map<DocGap, number>();
   for (const w of recent) for (const g of documentationGaps(w)) gapCount.set(g, (gapCount.get(g) ?? 0) + 1);
 
-  // Machines identified: machine-type exercises logged with an equipment id.
+  // Machines identified: machine-type exercises logged with an equipment id — or at a known gym (owner 2026-11-25: the
+  // same gym means the same machine; its history is already kept per gym, `progressionKey`). Without a gym it is unknown.
   let machineEx = 0;
   let machineIdentified = 0;
   for (const w of recent) for (const e of w.exercises) {
     const d = analysis.registry.get(e.exerciseId);
     if (!d || !MACHINE_KINDS.has(d.equipmentKind)) continue;
     machineEx++;
-    if (e.equipmentId) machineIdentified++;
+    if (e.equipmentId || w.locationId) machineIdentified++;
   }
   const equipmentIdentified = machineEx ? machineIdentified / machineEx : 1;
 
@@ -204,7 +208,7 @@ export function readinessReport(data: AppData, analysis: Analysis): ReadinessRep
     if (wd.length < T.provisional.workouts) next.push(L(`${wd.length} / ${T.provisional.workouts} well-documented workouts`, `${wd.length} / ${T.provisional.workouts} хорошо записанных тренировок`));
     if (spanDays < T.provisional.spanDays) next.push(L(`${spanDays} / ${T.provisional.spanDays} days of well-documented training`, `${spanDays} / ${T.provisional.spanDays} дней хорошо записанных тренировок`));
     if (calibratedFrequent < T.provisional.calibratedFrequent) next.push(L(`${calibratedFrequent} / ${T.provisional.calibratedFrequent} regular exercises calibrated (≥ 2 comparable sessions with effort)`, `откалибровано регулярных упражнений: ${calibratedFrequent} / ${T.provisional.calibratedFrequent} (≥ 2 сопоставимые тренировки с указанным усилием)`));
-    if (equipmentIdentified < T.provisional.equipmentIdentified) next.push(L(`${Math.round(equipmentIdentified * 100)} % / 80 % of machine exercises linked to a machine`, `${Math.round(equipmentIdentified * 100)} % / 80 % упражнений в тренажёрах привязаны к тренажёру`));
+    if (equipmentIdentified < T.provisional.equipmentIdentified) next.push(L(`${Math.round(equipmentIdentified * 100)} % / 80 % of machine exercises with a machine or a gym`, `${Math.round(equipmentIdentified * 100)} % / 80 % упражнений в тренажёрах привязаны к тренажёру`));
   } else if (!full) {
     if (wd.length < T.full.workouts) next.push(L(`${wd.length} / ${T.full.workouts} well-documented workouts`, `${wd.length} / ${T.full.workouts} хорошо записанных тренировок`));
     if (spanDays < T.full.spanDays) next.push(L(`${spanDays} / ${T.full.spanDays} days of well-documented training`, `${spanDays} / ${T.full.spanDays} дней хорошо записанных тренировок`));

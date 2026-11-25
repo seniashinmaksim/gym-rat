@@ -248,3 +248,25 @@ describe('audit findings fixed with the third analysis', () => {
     expect(a.muscles.find((m) => m.muscle === 'front_delts')!.completed).toBeCloseTo(4 * 0.5 - 0.15 + 2 * 0.25, 2);
   });
 });
+
+describe('exercise mappings — sibling consistency (owner 2026-11-25, all 84 re-checked)', () => {
+  const c = (id: string) => reg.get(id)!.contributions;
+  it('the eight corrected mappings (hand-typed)', () => {
+    expect(c('dumbbell_shoulder_press').traps).toBe(0.25);
+    expect(c('machine_shoulder_press').traps).toBe(0.25);
+    expect(c('overhead_press').traps).toBe(0.25); // the sibling they follow
+    expect(c('dumbbell_row').traps).toBe(0.25);
+    expect(c('machine_dip').front_delts).toBe(0.5);
+    expect(c('dips').front_delts).toBe(0.5);
+    expect(c('hack_squat').glutes).toBe(0.75);
+    expect(c('pendulum_squat').adductors).toBe(0.5);
+    expect(c('hammer_curl')).toEqual({ biceps: 1, forearms: 0.5 });
+    expect(c('reverse_curl')).toEqual({ forearms: 1, biceps: 0.75 });
+    expect(c('straight_arm_pulldown').upper_back).toBe(0.25);
+    expect([c('face_pull').traps, c('reverse_pec_deck').traps, c('rear_delt_fly').traps]).toEqual([0.25, 0.25, 0.25]);
+  });
+  it('pull-ups credit the biceps (0.5), upper back (0.5), rear delts and forearms (0.25) — not only the lats', () => {
+    expect(c('pull_up')).toEqual({ lats: 1, upper_back: 0.5, biceps: 0.5, rear_delts: 0.25, forearms: 0.25 });
+  });
+});
+

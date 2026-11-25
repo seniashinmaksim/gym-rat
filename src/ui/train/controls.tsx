@@ -73,11 +73,22 @@ const TICK = 14; // px per step
  */
 export function WeightControl({ value, onChange, step, onStepClick, unit }: { value: number | null; onChange: (v: number | null) => void; step: number; onStepClick: () => void; unit: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const byUser = useRef(false);
+  // Every scroll that is NOT one of our own (pre-fill, ±, typing, the snap) is the owner turning the ruler. Our own
+  // scrolls are recognised by their target position — never by "is a finger down", which missed slow drags with a
+  // pause, a second swipe right after the first, and iOS momentum (owner 2026-11-25: "it turns but the weight stays").
+  const own = useRef<{ x: number; until: number } | null>(null);
+  const touching = useRef(false);
+  const lastUser = useRef(0);
   const settle = useRef<number | null>(null);
   const [pad, setPad] = useState(160);
   const max = Math.min(MAX_WEIGHT_KG, 400);
   const width = (max / step) * TICK;
+  const moveTo = (el: HTMLDivElement, to: number, smooth = false) => {
+    // A typed weight above the ruler's end (450 kg) parks the ruler at its end — still OUR scroll, never a new value.
+    const x = Math.max(0, Math.min(to, el.scrollWidth - el.clientWidth));
+    own.current = { x, until: Date.now() + (smooth ? 600 : 250) };
+    if (smooth) el.scrollTo({ left: x, behavior: 'smooth' }); else el.scrollLeft = x;
+  };
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -87,30 +98,38 @@ export function WeightControl({ value, onChange, step, onStepClick, unit }: { va
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, []);
-  // Follow the value (typed, ± or pre-filled) without treating it as a drag.
+  // Follow the value (typed, ± or pre-filled) — not while the owner is turning the ruler (the value came from it).
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || byUser.current) return;
+    if (!el || touching.current || Date.now() - lastUser.current < 250) return;
     const x = ((value ?? 0) / step) * TICK;
-    if (Math.abs(el.scrollLeft - x) > 0.75) el.scrollLeft = x;
+    if (Math.abs(el.scrollLeft - x) > 0.75) moveTo(el, x);
   }, [value, step, pad]);
 
+  const snap = () => {
+    const el = ref.current;
+    settle.current = null;
+    if (!el) return;
+    // Finger still down (a pause in a slow drag): keep listening, snap when it is lifted.
+    if (touching.current) { settle.current = window.setTimeout(snap, 140); return; }
+    const target = Math.round(el.scrollLeft / TICK) * TICK;
+    if (Math.abs(el.scrollLeft - target) > 0.75) moveTo(el, target, true);
+  };
   const onScroll = () => {
     const el = ref.current;
-    if (!el || !byUser.current) return;
+    if (!el) return;
+    const o = own.current;
+    if (o && Date.now() < o.until && Math.abs(el.scrollLeft - o.x) <= TICK / 2 + 1 && !touching.current) return; // our own scroll
+    own.current = null;
+    lastUser.current = Date.now();
     const v = Math.max(0, Math.min(max, Math.round(el.scrollLeft / TICK) * step));
     const r = Math.round(v * 100) / 100;
     if (r !== value) onChange(r);
     if (settle.current) window.clearTimeout(settle.current);
-    settle.current = window.setTimeout(() => {
-      const target = Math.round(el.scrollLeft / TICK) * TICK;
-      if (Math.abs(el.scrollLeft - target) > 0.75) el.scrollTo({ left: target, behavior: 'smooth' });
-      window.setTimeout(() => { byUser.current = false; settle.current = null; }, 220);
-    }, 140);
+    settle.current = window.setTimeout(snap, 140);
   };
-  const grab = () => { byUser.current = true; };
-  // A touch that did not move the ruler must not leave it deaf to later value changes.
-  const release = () => { window.setTimeout(() => { if (!settle.current) byUser.current = false; }, 260); };
+  const grab = () => { touching.current = true; own.current = null; };
+  const release = () => { touching.current = false; if (!settle.current) settle.current = window.setTimeout(snap, 140); };
   useEffect(() => () => { if (settle.current) window.clearTimeout(settle.current); }, []);
 
   const major = step * 5;
@@ -131,7 +150,7 @@ export function WeightControl({ value, onChange, step, onStepClick, unit }: { va
         <button type="button" data-testid="weight-plus" className={stepBtn} aria-label={L(`Increase weight by ${num(step)} kg`, `Увеличить вес на ${num(step)} кг`)} onClick={() => onChange(stepFrom(value, step, 1))}>+{num(step)}</button>
       </div>
       <div className="relative mt-1 h-11" aria-hidden>
-        <div ref={ref} data-testid="weight-ruler" className="t-ruler absolute inset-0 overflow-x-scroll" onScroll={onScroll} onPointerDown={grab} onTouchStart={grab} onWheel={grab} onPointerUp={release} onTouchEnd={release} onPointerCancel={release}>
+        <div ref={ref} data-testid="weight-ruler" className="t-ruler absolute inset-0 overflow-x-scroll" onScroll={onScroll} onTouchStart={grab} onTouchEnd={release} onTouchCancel={release} onMouseDown={grab} onMouseUp={release} onMouseLeave={release}>
           <div className="relative h-full" style={{ width: width + pad * 2 }}>
             <div className="t-ruler-track absolute top-0 h-6" style={{ left: pad, width: width + 2 }} />
             {labels.map((v) => (
