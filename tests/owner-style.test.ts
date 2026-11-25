@@ -11,6 +11,7 @@ import { analyze } from '../src/domain/analysis';
 import { availableEquipment } from '../src/domain/exerciseChoice';
 import { suggestNextLoad } from '../src/domain/progression';
 import { readinessReport } from '../src/domain/readiness';
+import { bestMoveDay } from '../src/domain/sequence';
 import { sorenessCandidates } from '../src/domain/recovery';
 import { MUSCLE_BY_ID } from '../src/domain/muscles';
 import { buildRegistry } from '../src/domain/registry';
@@ -133,5 +134,30 @@ describe('nine weeks of the owner’s logging style', () => {
     // Yesterday's "sore" does not hold today by itself.
     const y = analyze({ ...d, daily: [{ id: '2026-11-27', date: '2026-11-27', soreness: { calves: 3 } }] }, sat);
     expect(y.muscles.find((x) => x.muscle === 'calves')!.todayBlocked).toBe(false);
+  });
+  it('warming up below the planned weight keeps the plan in the field (30 -> 45 -> plan 55); a lighter weight repeated is a decision', () => {
+    const last = ex('leg_extension', ramp(55, 5, 0, 10, 15));
+    const target: ExerciseTarget = { sets: 4, weightKg: 55, reps: [{ min: 10, max: 15 }], rir: [{ min: 1, max: 2 }], engine: 'presc-1' };
+    const cur = (ws: number[]) => ex('leg_extension', ws.map((w) => set(w, 12, null, hard)), null, { target });
+    expect(prefillNext(cur([30]), last).weightKg).toBe(55);
+    expect(prefillNext(cur([30, 45]), last).weightKg).toBe(55);
+    expect(prefillNext(cur([50, 50]), last).weightKg).toBe(50); // repeated lighter weight: the session leads
+  });
+});
+
+describe('move day judged with that day’s usual work (owner 2026-11-25)', () => {
+  it('2 pec-deck sets moved from Monday: Wednesday already has 4 cable-fly sets (2 + 4 = 6 -> 36 h, Thursday’s bench press 24 h later is inside) -> Thursday', () => {
+    const ws: Workout[] = [];
+    for (let wk = 0; wk < 4; wk++) {
+      const day = (d: string, exs: ReturnType<typeof ex>[]) => workout(add(d, 7 * wk), exs, { startTime: '18:00', endTime: '19:00' });
+      ws.push(day('2026-10-19', [ex('pec_deck', [set(50, 12, 2), set(50, 12, 2)]), ex('machine_biceps_curl', [set(30, 10, 2), set(30, 10, 2), set(30, 10, 2)])]));
+      ws.push(day('2026-10-21', [ex('cable_fly', [set(20, 12, 2), set(20, 12, 2), set(20, 12, 2), set(20, 12, 2)])]));
+      ws.push(day('2026-10-22', [ex('barbell_bench_press', [set(60, 8, 2), set(60, 8, 2), set(60, 8, 2)])]));
+    }
+    const d = data(ws);
+    const a = analyze(d, new Date('2026-11-16T17:00:00Z')); // Monday
+    expect(a.usualDays).toEqual([1, 3, 4]);
+    // Alone the 2 sets would give a 24 h window on Wednesday and Thursday (24 h later) would look fine.
+    expect(bestMoveDay({ data: d, analysis: a, workout: null, exerciseId: 'pec_deck', sets: 2 })).toEqual({ date: '2026-11-19', clean: true });
   });
 });

@@ -99,9 +99,11 @@ describe('1b. trend classification', () => {
   // the single bad day IS classified "declining". Expected by the doc: not declining. Actual: declining.
   // Third analysis: the DOC was made precise (§D: the guard needs ≥ 4 sessions) — extending the guard to 3 sessions would
   // also hide a steady decline 100 / 96 / 92 / 88. Open question for the owner (map doc §13).
-  it('one bad latest session among exactly 3 sessions is still a decline (the guard needs ≥ 4 sessions)', () => {
-    const a = series([100, 99, 90]);
-    expect(classifyTrend(a, lastDate(a)).cls).toBe('declining');
+  it('owner 2026-11-25: with exactly 3 sessions one bad last session is "stable" (wait for a fourth); a steady fall is still a decline', () => {
+    const a = series([100, 99, 90]); // first two level (99 >= 98), last 90 < 99 x 0.95
+    expect(classifyTrend(a, lastDate(a)).cls).toBe('stable');
+    const b = series([100, 96, 92]); // 96 < 98: not level; slope -4 / 96 = -4.2 % -> declining
+    expect(classifyTrend(b, lastDate(b)).cls).toBe('declining');
   });
   it('plateau: 4 sessions over exactly 21 days, no new best in the last 2 → plateau; over 20 days → stable', () => {
     const a = series([100, 100, 100, 100], 7); // span 21
@@ -217,9 +219,12 @@ describe('1c. double progression (rep range 8–12, target RIR 2, step 2.5 kg)',
     const low = perf(D0, [set(40, 7, null), set(40, 6, null), set(40, 6, null)]);
     expect(next([low], 2.5, DECLINING).weight).toBe(37.5);
     expect(next([low], 2.5, STABLE).action).toBe('hold');
-    // 9 → 6 reps after 60 s; usual rest = median 60 → floor 150 → short < 105 → attributed to rest
-    const rested = perf(D0, [set(40, 9, null), set(40, 6, null, { restSecBefore: 60 }), set(40, 6, null, { restSecBefore: 60 })]);
-    expect(next([rested], 2.5, DECLINING).action).toBe('hold');
+    // Owner 2026-11-25: the REAL usual rest counts. 60 s where 60 s is usual is not short -> the rule applies (reduce);
+    // the same drop after 60 s where the usual rest is 150 s -> the rest explains it -> keep.
+    const usual60 = perf(D0, [set(40, 9, null), set(40, 6, null, { restSecBefore: 60 }), set(40, 6, null, { restSecBefore: 60 })]);
+    expect(next([usual60], 2.5, DECLINING).action).toBe('reduce');
+    const usual150 = perf(D0, [set(40, 9, null), set(40, 6, null, { restSecBefore: 60 }), set(40, 6, null, { restSecBefore: 150 }), set(40, 6, null, { restSecBefore: 150 })]);
+    expect(next([usual150], 2.5, DECLINING).action).toBe('hold');
   });
   it('never an increase right after pain', () => {
     const pain = perf(add(D0, 7), [set(40, 12, null), set(40, 12, null), set(40, 12, null, { feel: 'pain' })]);
@@ -280,17 +285,19 @@ describe('1d. baseline, progress % and session order', () => {
 
 // ====================================================================== 2. learning rules and comparability
 describe('2a. rest.ts — one definition', () => {
-  it('usual rest: today\'s median of ≥ 3 rests, else the history, never under 150 s', () => {
+  it('usual rest (owner 2026-11-25: the REAL usual): today\'s median of >= 3 rests, else the history; 150 s only when nothing is known', () => {
     expect(usualRestSec([], null)).toBe(150);
-    expect(usualRestSec([200, 200], 100)).toBe(150); // only 2 today → history 100 → floor
+    expect(usualRestSec([200, 200], 100)).toBe(100); // only 2 today -> the history's 100, as it is
     expect(usualRestSec([200, 200, 220], 100)).toBe(200);
-    expect(usualRestSec([100, 100, 100], 300)).toBe(150); // today's median 100 → floor
+    expect(usualRestSec([100, 100, 100], 300)).toBe(100); // today's median 100, as it is
     expect(usualRestSec([null, 240], 240)).toBe(240);
   });
   it('short = strictly under 70 %: 104 s vs 150 → short, 105 s → not; 139 vs 200 → short, 140 → not; unknown → normal', () => {
     expect(isShortRest(104, 150)).toBe(true);
     expect(isShortRest(105, 150)).toBe(false);
-    expect(isShortRest(104, 60)).toBe(true); // the floor: 60 counts as 150
+    expect(isShortRest(104, 60)).toBe(false); // usual 60 s: short is under 42 s
+    expect(isShortRest(41, 60)).toBe(true);
+    expect(isShortRest(104, null)).toBe(true); // usual unknown -> 150 s assumed
     expect(isShortRest(139, 200)).toBe(true);
     expect(isShortRest(140, 200)).toBe(false);
     expect(isShortRest(null, 200)).toBe(false);
@@ -326,10 +333,10 @@ describe('2b. outcomes.ts — heldUp / outcomeAt / softenedFrom', () => {
   // FORMULA CHOICE (rest.ts floor, CLAUDE.md §G) vs CLAUDE.md §N ("an average rest < 70 % of the baseline's"): the usual
   // rest is never taken below 150 s, so with a baseline average rest of 100 s a session with the SAME 100 s rest is
   // "shorter than 70 %" (100 < 105) and is skipped. On an exercise always rested ≤ 104 s nothing is ever learned.
-  it('FORMULA CHOICE: the same 100 s rest as the baseline counts as "short" (150 s floor) → never comparable', () => {
+  it('RESOLVED (owner 2026-11-25): the same 100 s rest as the baseline is comparable; under 70 % of it is not', () => {
     const base = [sp('a', 100, { restAvgSec: 100 }), sp('b', 100, { restAvgSec: 100 })];
-    expect(heldUp(sp('d', 100, { restAvgSec: 100 }), base)).toBeNull();
-    expect(heldUp(sp('d', 100, { restAvgSec: 105 }), base)).toBe(true);
+    expect(heldUp(sp('d', 100, { restAvgSec: 100 }), base)).toBe(true);
+    expect(heldUp(sp('d', 100, { restAvgSec: 69 }), base)).toBeNull();
   });
   it('outcomeAt: the median of the last ≤ 3 earlier sessions that were not under a warning; ≥ 2 needed', () => {
     const s = [sp('a', 200), sp('b', 90), sp('c', 110), sp('d', 100), sp('e', 97)];
@@ -424,8 +431,9 @@ describe('3b. recovery-aware share of today (windows 24 / 36 / 48 / 60 h, 6 h to
   });
   // FORMULA CHOICE: 8 left, even share 4, next usual day TOMORROW. 4–6 sets → 36 h → tomorrow held; the search goes UP
   // first, so the answer is "all 8 today" although 3 today (24 h) + 5 tomorrow also completes the week with less in one session.
-  it('FORMULA CHOICE: the upward search prefers 8 sets today over 3 today + 5 tomorrow', () => {
-    expect(fitToday({ ...F, remaining: 8, cap: 10, base: 4, later: [1] })).toMatchObject({ share: 8, shortBy: 0, raised: true });
+  it('RESOLVED (owner 2026-11-25): the share closest to the even one that finishes the week - 3 today + 5 tomorrow, not 8 today', () => {
+    // 8 left, even share 4, tomorrow the only later day: 4 today -> 36 h -> tomorrow held; 5 -> 36 h -> held; 3 -> 24 h -> tomorrow takes 5.
+    expect(fitToday({ ...F, remaining: 8, cap: 10, base: 4, later: [1] })).toMatchObject({ share: 3, shortBy: 0, raised: false });
   });
   // CODE WRONG AT HEAD a8dbca5 (weekPlan.ts:124), FIXED in the uncommitted working tree of 2026-11-25: the downward search
   // dropped `todayExtraH`. 12 left, cap 7, even share 6, next usual day tomorrow, +12 h known today (e.g. ≥ 2 failure sets).
@@ -632,9 +640,13 @@ describe('5a. adaptRemaining (target 40 kg, 8–12 reps, RIR 1–2, step 2.5 kg)
   });
   // FORMULA CHOICE / RISK: rule presc_set_by_set says "≥ 2 sets well under the range AFTER A NORMAL REST". Only the LAST
   // set's rest is checked (prescription.ts, offCount): a set that fell short after a 60 s rest still counts as one of the two.
-  it('FORMULA CHOICE: an earlier set that fell short after a SHORT rest still counts toward the two', () => {
+  it('RESOLVED (owner 2026-11-25): a set that fell short after a short rest is not one of the two', () => {
+    // No history: usual rest 150 s assumed -> 60 s is short. Set 2 (60 s) does not count, set 3 (180 s) does -> one set -> keep the plan.
     const r = adaptRemaining(P({}, 4), [set(40, 10, null), set(40, 6, null, { restSecBefore: 60 }), set(40, 6, null, { restSecBefore: 180 })], 2.5);
-    expect(r.change).toBe('reduce');
+    expect(r.change).toBe('defer');
+    // Both after a normal rest -> two sets -> fewer reps.
+    const r2 = adaptRemaining(P({}, 4), [set(40, 10, null), set(40, 6, null, { restSecBefore: 170 }), set(40, 6, null, { restSecBefore: 180 })], 2.5);
+    expect(r2.change).toBe('reduce');
   });
   it('pain → never a change', () => {
     expect(adaptRemaining(P(), [set(40, 12, 4, { feel: 'pain' })], 2.5).change).toBe('none');

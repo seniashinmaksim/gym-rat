@@ -322,6 +322,21 @@ function related(analysis: Analysis, a: string, b: string): boolean {
   return !!pa && !!pb && ARM.has(pa) && ARM.has(pb);
 }
 
+/**
+ * What the muscle gets on the day an exercise is moved to (owner 2026-11-25): the moved exercise PLUS what is usually
+ * trained that day for the same muscle (each usual exercise at its usual number of sets) — so "no conflict" is judged
+ * on the whole day, not on the moved exercise alone.
+ */
+function loadOnDay(input: ForwardInput, day: UpcomingSession | undefined, direct: MuscleId[], co: Partial<Record<MuscleId, number>>): Partial<Record<MuscleId, number>> {
+  const load: Partial<Record<MuscleId, number>> = {};
+  for (const m of direct) {
+    const usual = (day?.exercises ?? []).filter((e) => e.exerciseId !== input.exerciseId)
+      .reduce((a, e) => a + usualSetCount(input.data.workouts, e.exerciseId) * (e.contributions[m] ?? 0), 0);
+    load[m] = input.sets * (co[m] ?? 0) + usual;
+  }
+  return load;
+}
+
 /** Number of forward findings if the exercise were done on `date` (its direct muscles still held from today count as one). */
 function issuesIfDoneOn(input: ForwardInput, sessions: UpcomingSession[], date: string): number {
   const def = input.analysis.registry.get(input.exerciseId);
@@ -331,8 +346,7 @@ function issuesIfDoneOn(input: ForwardInput, sessions: UpcomingSession[], date: 
   const done = doneToday(input);
   const gap = 24 * diffDays(date, input.analysis.today);
   const held = direct.some((m) => gap < sessionWindowH((done[m] ?? 0) + (input.extraDone?.[m] ?? 0), MUSCLE_BY_ID[m].size === 'large') - RECOVERY_TOLERANCE_H);
-  const load: Partial<Record<MuscleId, number>> = {};
-  for (const m of direct) load[m] = input.sets * (co[m] ?? 0);
+  const load = loadOnDay(input, sessions.find((x) => x.date === date), direct, co);
   return (held ? 1 : 0) + checksFrom(input, sessions.filter((x) => x.date > date), date, load, direct).length;
 }
 
@@ -379,8 +393,7 @@ export function bestMoveDay(input: ForwardInput): { date: string; clean: boolean
     const s = sessions[i];
     const gap = 24 * diffDays(s.date, input.analysis.today);
     const held = direct.some((m) => gap < sessionWindowH((done[m] ?? 0) + (input.extraDone?.[m] ?? 0), MUSCLE_BY_ID[m].size === 'large') - RECOVERY_TOLERANCE_H);
-    const load: Partial<Record<MuscleId, number>> = {};
-    for (const m of direct) load[m] = input.sets * (co[m] ?? 0);
+    const load = loadOnDay(input, s, direct, co);
     const n = (held ? 1 : 0) + checksFrom(input, sessions.slice(i + 1), s.date, load, direct).length;
     if (n === 0) return { date: s.date, clean: true };
     if (!best || n < best.n) best = { date: s.date, n };

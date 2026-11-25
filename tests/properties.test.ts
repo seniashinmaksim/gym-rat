@@ -211,7 +211,7 @@ describe('pipeline invariants (third analysis)', () => {
       for (const m of a.muscles) {
         for (const v of [m.completed, m.todayShare, m.todayOpen, m.todayLeft, m.remainingToPreferred]) { expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0); }
         // Only an earlier DATE can hold a muscle: with every workout dated today nothing is blocked.
-        if (ws.every((w) => w.date === today)) expect(m.todayBlocked).toBe(false);
+
         expect(a.recovery[m.muscle].hoursLeftExact).toBeGreaterThanOrEqual(0);
         expect(Math.abs(a.recovery[m.muscle].hoursLeft - a.recovery[m.muscle].hoursLeftExact)).toBeLessThanOrEqual(0.5 + 1e-9);
       }
@@ -220,6 +220,9 @@ describe('pipeline invariants (third analysis)', () => {
         if (o.group === 'not_today') expect(o.score).toBeNull();
         else { expect(o.score).toBeGreaterThanOrEqual(5); expect(o.score).toBeLessThanOrEqual(100); expect((o.score as number) % 5).toBe(0); }
       }
+      // The workout in progress never holds a muscle: with everything dated today and unfinished nothing is blocked.
+      const liveOnly = analyze(data(ws.map((w) => ({ ...w, date: today, source: 'live' as const, endTime: null, durationMin: null, finishedAt: undefined }))), new Date(`${today}T20:00:00Z`));
+      for (const m of liveOnly.muscles) expect(m.todayBlocked).toBe(false);
       const s = suggestNext({ data: d, analysis: a, workout: null });
       expect(s.groups.length).toBeLessThanOrEqual(4);
       for (const g of s.groups) { expect(g.options.length).toBeGreaterThan(0); expect(g.open).toBeGreaterThanOrEqual(0.5 - 1e-9); for (const o of g.options) expect(o.group).not.toBe('not_today'); }

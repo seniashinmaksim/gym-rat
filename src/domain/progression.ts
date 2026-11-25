@@ -295,6 +295,9 @@ export const SUSTAINED_DECLINE = 0.08;
 export const SINGLE_DIP = 0.05;
 const medianOf = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
+/** With exactly three sessions: the first two count as level when the second is within this share of the first. */
+export const THREE_FLAT = 0.02;
+
 export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   // Only sessions measured on the same scale as the latest one (kg-based vs reps-based index).
   const scored = sessions.filter((s) => s.index != null);
@@ -313,6 +316,12 @@ export function classifyTrend(sessions: SessionPerf[], today: string): Trend {
   const n = ys.length;
   // One bad day is not a trend: a lone latest session clearly below the usual level (the one before it
   // was normal) is set aside, and the trend is judged on the sessions before it.
+  // Exactly three sessions (owner 2026-11-25): the first two level (within 2 %) and only the last one clearly lower is
+  // one bad day, not a decline — wait for a fourth. A steady fall (100 / 96 / 92) is still read as a decline.
+  if (n === 3 && ys[1] >= ys[0] * (1 - THREE_FLAT) && ys[2] < Math.min(ys[0], ys[1]) * (1 - SINGLE_DIP)) {
+    const drop = Math.round((1 - ys[2] / Math.min(ys[0], ys[1])) * 1000) / 10;
+    return { cls: 'stable', relSlopePerSession: null, sessionsUsed: n, evidence: L(`Latest session ${drop}% below the two before it — one session is not a trend; a fourth session will tell.`, `Последняя тренировка на ${nf(drop)}% ниже двух предыдущих — одна тренировка не тренд; покажет четвёртая.`) };
+  }
   if (n >= 4) {
     const usual = medianOf(ys.slice(0, -1));
     // Clearly below the usual level, or ≥ 5 % below the session just before it while under the usual level.

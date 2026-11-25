@@ -443,12 +443,16 @@ describe('5 — recovery window', () => {
   // FORMULA CHOICE (documented here, passing): "only an EARLIER session can hold a muscle" is implemented as "a session of
   // an earlier DATE". A separate morning session (08:00–09:00, 10 chest sets, 72 h window) does not hold the chest for an
   // evening session the same day — the Recovery screen says 63 h left, the Week screen does not block.
-  it('two sessions in one day: the morning session never holds the muscle in the evening', () => {
+  it('owner 2026-11-25: a separate workout FINISHED earlier the same day (>= 3 h ago) holds the muscle in the evening; one finished minutes ago does not', () => {
     const am = workout('2026-11-25', [ex('pec_deck', n(10, () => set(50, 12, 2)))], { startTime: '08:00', endTime: '09:00' });
     const a = analyze(data([am]), new Date('2026-11-25T18:00:00Z'));
     const c = mw(a, 'chest');
+    // 10 sets, a large muscle (> 9): 60 + 12 = 72 h from 09:00 -> 63 h left at 18:00.
     expect([a.recovery.chest.status, a.recovery.chest.hoursLeft]).toEqual(['recovering', 63]);
-    expect([a.planRecovery.chest.status, c.todayBlocked, c.doneToday, c.todayShare, c.todayOpen]).toEqual(['insufficient_data', false, 10, 6, 0]);
+    expect([a.planRecovery.chest.status, c.todayBlocked, c.doneToday, c.todayShare]).toEqual(['recovering', true, 10, 0]);
+    // Ten minutes after finishing it is still today's training: nothing is held (as when it is continued).
+    const soon = analyze(data([am]), new Date('2026-11-25T09:10:00Z'));
+    expect(mw(soon, 'chest').todayBlocked).toBe(false);
   });
   it("what is known today lengthens today's window: ≥ 2 failure sets + 12 h, a new exercise + 12 h", () => {
     const old = workout('2026-11-01', [ex('triceps_pushdown', n(3, () => set(30, 12, 2)))]); // 24 days ago

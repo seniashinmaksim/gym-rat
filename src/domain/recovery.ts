@@ -3,6 +3,7 @@ import { addDays, diffDays, sessionEndVirtualMs, type SessionTimeSource } from '
 import { MUSCLE_BY_ID, TRACKED_MUSCLES } from './muscles';
 import { L, byLang, num, ruPlural } from '../i18n/core';
 import { isFailureSetForFatigue } from './failure';
+import { isFinished } from './feedback';
 import { sideFactors } from './quality';
 import { resolveCoefficients, type Registry } from './registry';
 import type { MuscleId } from './types';
@@ -71,6 +72,8 @@ export function sameMovement(a: string, b: string): boolean {
 /** Baseline window by the size of the last significant session (effective sets for the muscle). */
 /** How far back an earlier session can still hold a muscle: the longest window the rules can give (72 + 12 × 5 + 24 = 156 h), rounded up to a week. */
 export const RECOVERY_LOOKBACK_H = 168;
+/** A workout finished at least this long ago is a separate session of the same day (a heuristic). */
+export const SEPARATE_SESSION_GAP_H = 3;
 /** A muscle marked "sore" (≥ 3) today is held for at least this long from now, whatever the windows say (a heuristic). */
 export const SORE_TODAY_HOLD_H = 12;
 
@@ -112,7 +115,10 @@ export function baseWindowHours(sets: number): number {
 }
 
 export interface RecoveryOptions {
-  /** Ignore sessions dated on/after this day (planning view: "entering today's session"). */
+  /**
+   * Planning view ("entering today's session"): ignore the workout in progress today — its own sets never hold a muscle.
+   * A separate workout FINISHED earlier the same day counts like yesterday's (owner 2026-11-25).
+   */
   before?: string;
 }
 
@@ -141,7 +147,9 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     const v = endOf(w).ms;
     return w.date <= today && v > nowVirtualMs ? nowVirtualMs : v;
   };
-  const pool = opts.before ? data.workouts.filter((w) => w.date < opts.before!) : data.workouts;
+  // A workout finished ≥ 3 h ago is a SEPARATE session (morning → evening); one finished minutes ago is still today's
+  // training — exactly like continuing it — and never holds a muscle.
+  const pool = opts.before ? data.workouts.filter((w) => w.date < opts.before! || (w.date === opts.before && isFinished(w) && nowVirtualMs - at(w) >= SEPARATE_SESSION_GAP_H * 3_600_000)) : data.workouts;
   const sorted = [...pool].sort((a, b) => at(b) - at(a));
   const recent7 = data.workouts.filter((w) => diffDays(today, w.date) >= 0 && diffDays(today, w.date) < 7);
   const vol7 = computeVolume(recent7, registry, quality);

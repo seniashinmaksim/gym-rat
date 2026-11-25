@@ -92,7 +92,13 @@ export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, t
   // weight; its lightest set is not the default again. While every set logged so far followed the plan, the plan's
   // weight is offered (last time's weight for that set stays one tap away); once the owner logs another weight, the
   // session leads (a declined plan load is not pushed again).
-  const planFirst = target?.weightKg != null && done.every((s) => s.weightKg === target.weightKg);
+  // … also while the owner is still ramping UP to it (30 → 45 → the plan's 55): strictly ascending sets below the plan
+  // are a warm-up, a lighter weight repeated is a decision.
+  const planKg = target?.weightKg ?? null;
+  const prevTop = Math.max(0, ...prev.filter((s) => s.type === 'working' && s.weightKg != null).map((s) => s.weightKg as number));
+  // (A set at last time's top weight instead of the plan is a decision too: the plan was declined.)
+  const rampUp = planKg != null && done.length > 0 && done.every((s, i) => s.weightKg != null && s.weightKg < planKg && s.weightKg !== prevTop && (i === 0 || s.weightKg > (done[i - 1].weightKg as number)));
+  const planFirst = planKg != null && (done.every((s) => s.weightKg === planKg) || rampUp);
   let altLast: number | null = null;
   if (planFirst) {
     weight = target!.weightKg as number; from = 'plan';

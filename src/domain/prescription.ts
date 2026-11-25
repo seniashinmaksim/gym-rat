@@ -710,7 +710,8 @@ export function adaptRemaining(
     if (isShortRest(last.restSecBefore, usual)) {
       return { sets: remaining, change: 'none', why: L(`Reps dropped after a shorter rest (${last.restSecBefore} s vs your usual ~${usual} s) — likely the rest, not the load. Rest fully before the next set.`, `Повторения упали после более короткого отдыха (${last.restSecBefore} с против обычных ~${usual} с) — вероятно, дело в отдыхе, а не в весе. Перед следующим подходом отдохните полностью.`) };
     }
-    const offCount = done.filter((s, i) => wellBelow(s, i)).length;
+    // A set that fell short right after a short rest is the rest's fault (owner 2026-11-25): never one of the two.
+    const offCount = done.filter((s, i) => wellBelow(s, i) && !isShortRest(s.restSecBefore, usual)).length;
     if (offCount >= 2) {
       const r = last.reps as number;
       return {

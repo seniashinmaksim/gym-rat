@@ -113,16 +113,14 @@ export function fitToday(p: FitInput): Fit {
   const start = Math.max(1, Math.min(p.base, hi));
   let bestS = start;
   let bestTotal = -1;
-  for (let s = start; s <= hi; s++) {
+  // Order (owner 2026-11-25: spread when it fits, never cram): the share CLOSEST to the even one that still finishes
+  // the week — the even share, one more, one less, two more, two less … (3 today + 5 tomorrow beats 8 today; at the
+  // same distance the larger share stays first, as since Part 7: 5 today + 7 on Thursday rather than 3 + 7 + 2).
+  const order = Array.from({ length: hi }, (_, k) => k + 1).sort((x, y) => Math.abs(x - start) - Math.abs(y - start) || y - x);
+  for (const s of order) {
     const today = Math.min(s, p.remaining);
     const total = today + bestLater(p.remaining - today, p.later, p.cap, p.large, p.toleranceH, s, p.todayExtraH ?? 0);
     if (total >= p.remaining - 1e-9) return { share: today, reachable: p.remaining, shortBy: 0, raised: s > start };
-    if (total > bestTotal + 1e-9) { bestTotal = total; bestS = s; }
-  }
-  // Nothing from the even share upward fits: a SMALLER share today may (3 today + 7 tomorrow beats 7 today and a held tomorrow).
-  for (let s = start - 1; s >= 1; s--) {
-    const total = s + bestLater(p.remaining - s, p.later, p.cap, p.large, p.toleranceH, s, p.todayExtraH ?? 0);
-    if (total >= p.remaining - 1e-9) return { share: s, reachable: p.remaining, shortBy: 0, raised: false };
     if (total > bestTotal + 1e-9) { bestTotal = total; bestS = s; }
   }
   return { share: Math.min(bestS, p.remaining), reachable: round1(bestTotal), shortBy: roundHalf(p.remaining - bestTotal), raised: bestS > start };

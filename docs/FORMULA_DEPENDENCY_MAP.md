@@ -13,7 +13,7 @@ not from intent. Analysis and visualisation only: no formula, weight, threshold 
 - **Worked examples:** each number is recomputed by a test (synthetic data) — the test is named next to each step.
 
 <!-- map:stats -->
-Code graph: **1022 declarations, 3226 value references**; curated map: **105 nodes, 216 edges in 8 views**.
+Code graph: **1025 declarations, 3232 value references**; curated map: **105 nodes, 216 edges in 8 views**.
 <!-- /map:stats -->
 
 ## Legend
@@ -696,7 +696,7 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **preload** Session-order context | C · rule | `domain/preload` · `preloadFor` | quality#sideFactors, registry#resolveCoefficients | domain/prescription#prescribe, domain/progression#buildProgression, domain/workoutCheck#workoutCheck | preload_context (research_informed_heuristic) | part6-perception.test.ts |
 | **bodyidx** Body + belt | C · formula | `domain/bodyweight` · `bodyKgForIndex` | — | domain/analysis#analyze, domain/reports#progressionAsOf | index_scale (heuristic) | audit-gaps.test.ts |
 | **basewin** Base window by sets | C · rule | `domain/recovery` · `baseWindowHours` | — | domain/ruleChecks#ruleChecks | recovery_windows (heuristic) | audit3-volume-recovery.test.ts, review.test.ts |
-| **recovery** Recovery windows | C · formula | `domain/recovery` · `estimateRecovery` | dates#sessionEndVirtualMs, failure#isFailureSetForFatigue, quality#sideFactors, registry#resolveCoefficients, volume#computeVolume, volume#sessionMuscleEffective | domain/analysis#analyze | recovery_windows (heuristic) | audit3-volume-recovery.test.ts, review.test.ts, second-analysis.test.ts |
+| **recovery** Recovery windows | C · formula | `domain/recovery` · `estimateRecovery` | dates#sessionEndVirtualMs, failure#isFailureSetForFatigue, feedback#isFinished, quality#sideFactors, registry#resolveCoefficients, volume#computeVolume, volume#sessionMuscleEffective | domain/analysis#analyze | recovery_windows (heuristic) | audit3-volume-recovery.test.ts, review.test.ts, second-analysis.test.ts |
 | **weekly** Weekly buckets | D · aggregation | `domain/history` · `weeklyHistory` | dates#weekOf, volume#computeVolume | domain/analysis#analyze | no rule — app choice | audit-gaps.test.ts |
 | **volresp** Individual volume | D · rule | `domain/volumeResponse` · `volumeDecision` | history#median | domain/targets#computeTargets | volume_individual (research_informed_heuristic) | **none — covered only through callers** |
 | **targets** Weekly targets | D · formula | `domain/targets` · `computeTargets` | history#cv, history#median, volumeResponse#volumeDecision | domain/analysis#analyze | weekly_target_reference (research_informed_heuristic), volume_individual (research_informed_heuristic) | **none — covered only through callers** |
@@ -720,7 +720,7 @@ omitted; "Used by" = declarations in other files that reference it; at most 8 ea
 | **upcoming** Upcoming usual sessions | E · formula | `domain/sequence` · `upcomingSessions` | registry#resolveCoefficients, weekPlan#weekdayOf | — | next_session_interference (research_informed_heuristic) | part8-sequence.test.ts |
 | **forward** Forward checks | E · decision | `domain/sequence` · `forwardChecks` | registry#resolveCoefficients | domain/optimality#optimality, ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | audit3-progression-sequence.test.ts, owner-recs.test.ts, part8-habits.test.ts, part8-review.test.ts +3 |
 | **kept** Softening from Keep today | E · rule | `domain/sequence` · `keptOutcome` | outcomes#outcomeAt, outcomes#softenedFrom | — | next_session_interference (research_informed_heuristic) | audit3-progression-sequence.test.ts, part8-habits.test.ts, part8-validation.test.ts |
-| **moveday** Best day to move to | E · decision | `domain/sequence` · `bestMoveDay` | analysis#RECOVERY_TOLERANCE_H, registry#resolveCoefficients, weekPlan#sessionWindowH | ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | part8-review.test.ts, part8-sequence.test.ts |
+| **moveday** Best day to move to | E · decision | `domain/sequence` · `bestMoveDay` | analysis#RECOVERY_TOLERANCE_H, registry#resolveCoefficients, weekPlan#sessionWindowH | ui/components/NextWorkout#NextWorkoutCard, ui/pages/Logger#ExercisePicker | next_session_interference (research_informed_heuristic) | owner-style.test.ts, part8-review.test.ts, part8-sequence.test.ts |
 | **partners** Usual pairs move together | E · rule | `domain/sequence` · `movePartners` | — | ui/components/NextWorkout#NextWorkoutCard | next_session_interference (research_informed_heuristic) | audit3-progression-sequence.test.ts, owner-recs.test.ts, part8-habits.test.ts, part8-validation.test.ts |
 | **moves** Open moves | E · formula | `domain/sequence` · `activeMoves` | — | domain/planner#generateWorkout, ui/pages/Dashboard#MovedCard | no rule — app choice | audit3-progression-sequence.test.ts, part8-sequence.test.ts |
 | **habit** Habit line | E · formula | `domain/sequence` · `forwardHabit` | — | ui/pages/Dashboard#HabitLine | next_session_interference (research_informed_heuristic) | part8-habits.test.ts, part8-validation.test.ts |
@@ -1032,4 +1032,22 @@ advice stays "keep"; after day 30 the weekly targets drop from the reference (10
   siblings; machine dip front delts 0.25 vs dips 0.5; hack squat glutes 0.5 vs 0.75; pendulum squat adductors 0.25 vs
   0.5; hammer curl biceps 0.75 and reverse curl 0.5; straight-arm pulldown upper back 0; face pull traps 0.25 vs the
   rear-delt flys 0) and a steep incline press (> 45° up to 90°) credited differently from a shoulder press.
+
+### The seven open questions — answered (2026-11-25, night)
+
+| Question | Decision | Code |
+|---|---|---|
+| One bad day among exactly 3 sessions | "stable — wait for a fourth" when the first two are level (2 %) and only the last is ≥ 5 % lower; a steady fall stays a decline | `progression.classifyTrend`, `THREE_FLAT` |
+| Less assistance at the same reps | kept as it is (the owner's choice) | — |
+| Week fit: more today or spread | the share closest to the even one that finishes the week (3 + 5, not 8); at the same distance the larger share first, as since Part 7 | `weekPlan.fitToday` |
+| A session earlier the same day | holds a muscle when it was FINISHED ≥ 3 h ago; the workout in progress, or one finished minutes ago, never does | `recovery.estimateRecovery`, `SEPARATE_SESSION_GAP_H` |
+| A short set after a short rest | never one of the "two sets under the range" | `prescription.adaptRemaining` |
+| The 2:30 floor of the usual rest | removed: the owner's real usual rest; 2:30 only while nothing was measured | `rest.ts` |
+| Move day | judged with that day's usual work for the same muscle | `sequence.loadOnDay` |
+
+Critical check of the answers (asked by the owner): the same-day rule as answered would have let a workout finished four
+minutes ago block its own muscles in a new workout while "Continue this workout" would not — hence the 3 h; "spread"
+with a strict "less today first" would have changed the Part 7 case 5 + 7 into 3 + 7 + 2 — hence "closest to even";
+and "the analysed weight first" needed an exception for warming up below the plan (a strictly ascending ramp keeps the
+plan in the field, a lighter weight repeated is a decision).
 
