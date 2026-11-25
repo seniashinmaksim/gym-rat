@@ -9,7 +9,8 @@ export default {
           50: '#f6f7f9', 100: '#eceef2', 200: '#d5d9e1', 300: '#b1b8c6', 400: '#8791a5',
           500: '#68738a', 600: '#535c71', 700: '#444b5c', 800: '#2b303b', 850: '#1f232c', 900: '#171a21', 950: '#0f1116',
         },
-        accent: { 300: '#99f6e4', 400: '#5eead4', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e' },
+        // ONE accent for the whole app (owner 2026-11-25): CSS variables on <html data-accent>, see src/index.css and src/ui/accent.ts.
+        accent: { 300: 'rgb(var(--acc-300) / <alpha-value>)', 400: 'rgb(var(--acc-400) / <alpha-value>)', 500: 'rgb(var(--acc-500) / <alpha-value>)', 600: 'rgb(var(--acc-600) / <alpha-value>)', 700: 'rgb(var(--acc-700) / <alpha-value>)' },
         // Training theme (docs/DESIGN.md §4): CSS variables on `.train`, so the accent preset can change at run time.
         t: {
           bg: 'var(--t-bg)', surface: 'var(--t-surface)', line: 'var(--t-line)', text: 'var(--t-text)', dim: 'var(--t-dim)',

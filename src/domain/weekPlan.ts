@@ -121,7 +121,7 @@ export function fitToday(p: FitInput): Fit {
   }
   // Nothing from the even share upward fits: a SMALLER share today may (3 today + 7 tomorrow beats 7 today and a held tomorrow).
   for (let s = start - 1; s >= 1; s--) {
-    const total = s + bestLater(p.remaining - s, p.later, p.cap, p.large, p.toleranceH, s);
+    const total = s + bestLater(p.remaining - s, p.later, p.cap, p.large, p.toleranceH, s, p.todayExtraH ?? 0);
     if (total >= p.remaining - 1e-9) return { share: s, reachable: p.remaining, shortBy: 0, raised: false };
     if (total > bestTotal + 1e-9) { bestTotal = total; bestS = s; }
   }
@@ -155,8 +155,8 @@ export function suggestExtraSession(today: string, weekEnd: string, usual: numbe
     for (const m of short) {
       const later = [...m.fit.later, d].sort((a, b) => a - b);
       const rest = m.fit.remaining - m.share;
-      const without = bestLater(rest, m.fit.later, m.fit.cap, m.fit.large, m.fit.toleranceH, m.share);
-      const withX = bestLater(rest, later, m.fit.cap, m.fit.large, m.fit.toleranceH, m.share);
+      const without = bestLater(rest, m.fit.later, m.fit.cap, m.fit.large, m.fit.toleranceH, m.share, m.fit.todayExtraH ?? 0);
+      const withX = bestLater(rest, later, m.fit.cap, m.fit.large, m.fit.toleranceH, m.share, m.fit.todayExtraH ?? 0);
       const g = roundHalf(withX - without);
       if (g >= 1) gains.push({ muscle: m.muscle, sets: g });
     }

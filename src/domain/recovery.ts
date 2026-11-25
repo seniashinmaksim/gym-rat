@@ -22,8 +22,10 @@ export interface RecoveryEstimate {
   lastStimulusTimeSource: SessionTimeSource | null;
   lastStimulusSets: number;
   windowHours: number | null;
-  /** Hours until the window ends (0 when recovered or no data). */
+  /** Hours until the window ends (0 when recovered or no data) — whole hours, for display. */
   hoursLeft: number;
+  /** The same, not rounded — every decision (the 6 h tolerance) uses this. */
+  hoursLeftExact: number;
   recent7dEffective: number;
   recent7dDirect: number;
   recent7dIndirect: number;
@@ -190,7 +192,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     if (!last0) {
       out[m] = {
         ...base, status: 'insufficient_data', readiness: null, hoursSince: null, lastStimulusDate: null, lastStimulusTime: null, lastStimulusTimeSource: null, lastStimulusSets: 0,
-        windowHours: null, hoursLeft: 0,
+        windowHours: null, hoursLeft: 0, hoursLeftExact: 0,
         factors: [L(`No session with ≥${significantStimulusSets} effective sets for this muscle is recorded.`, `Не записано ни одной тренировки, давшей этой мышце ≥${num(significantStimulusSets)} эффективных подходов.`)],
       };
       continue;
@@ -269,7 +271,7 @@ export function estimateRecovery(data: AppData, registry: Registry, nowVirtualMs
     out[m] = {
       ...base, status, readiness: Math.round(readiness * 100) / 100, hoursSince: Math.round(hoursSince), lastStimulusDate: last.date,
       lastStimulusTime: endedHHMM, lastStimulusTimeSource: src,
-      lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(0, Math.round(window - hoursSince)) : 0, factors,
+      lastStimulusSets: last.sets, windowHours: window, hoursLeft: status === 'recovering' ? Math.max(0, Math.round(window - hoursSince)) : 0, hoursLeftExact: status === 'recovering' ? Math.max(0, window - hoursSince) : 0, factors,
     };
   }
   return out;

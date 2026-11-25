@@ -191,7 +191,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
         ? L(`Above the current upper bound (${target.max}). Extra sets are unlikely to add much (diminishing returns) and add fatigue.`,
           `Выше текущей верхней границы (${num(target.max)}). Дополнительные подходы вряд ли дадут заметную прибавку (убывающая отдача) и добавляют усталость.`)
         : L('Target reached — no additional sets are required just to satisfy a number.', 'Цель достигнута — дополнительные подходы ради цифры не нужны.');
-    } else if (planRec.status === 'recovering' && planRec.hoursLeft > RECOVERY_TOLERANCE_H) {
+    } else if (planRec.status === 'recovering' && planRec.hoursLeftExact > RECOVERY_TOLERANCE_H) {
       moreVolumeJustified = 'wait';
       justification = L(`Below target, but likely still recovering from the last session (~${planRec.hoursLeft} h more by the heuristic). Train it next session rather than today if possible — this is advice, not a rule.`,
         `Ниже цели, но мышца, вероятно, ещё восстанавливается после прошлой тренировки (по эвристике ещё ~${planRec.hoursLeft} ч). По возможности нагрузите её на следующей тренировке, а не сегодня — это совет, а не правило.`);
@@ -225,8 +225,10 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
     // Today's plan is fixed for the whole day: it is based on what remained when the day started,
     // so it does not shrink while you log, and today's own sets never mark the muscle "recovering".
     const doneToday = round2(todayVol.muscles[m].effective);
-    const remainingAtDayStart = roundHalf(Math.max(0, target.preferred - (completed - doneToday)));
-    const todayBlocked = planRec.status === 'recovering' && planRec.hoursLeft > RECOVERY_TOLERANCE_H;
+    // RAW (owner 2026-11-24: no rounding inside a calculation); under half a set left is nothing to do (ACTIONABLE_SETS).
+    const remainingRaw = Math.max(0, target.preferred - (completed - doneToday));
+    const remainingAtDayStart = isOpen(remainingRaw) ? Math.round(remainingRaw * 100) / 100 : 0;
+    const todayBlocked = planRec.status === 'recovering' && planRec.hoursLeftExact > RECOVERY_TOLERANCE_H;
     let todayShare = 0;
     let carryOver = 0;
     let shareRaised = false;
@@ -240,7 +242,7 @@ export function analyze(rawData: AppData, now: Date = new Date()): Analysis {
       carryOver = roundHalf(Math.max(0, remainingAtDayStart - sessionCap * sessionsLeftInclToday));
       todayNote = sessionsLeftInclToday === 1
         ? L('Likely your last session this week', 'Вероятно, последняя тренировка на этой неделе')
-        : L(`${remainingAtDayStart} left ÷ ~${sessionsLeftInclToday} sessions`, `осталось ${num(remainingAtDayStart)} ÷ ~${sessionsLeftInclToday} трен.`);
+        : L(`${displaySets(remainingAtDayStart).text} left ÷ ~${sessionsLeftInclToday} sessions`, `осталось ${displaySets(remainingAtDayStart).text} ÷ ~${sessionsLeftInclToday} трен.`);
       if (laterUsual) {
         // Part 7 #13: the share that still lets the later usual days finish the week outside the recovery windows.
         const fitIn: FitInput = { remaining: remainingAtDayStart, cap: sessionCap, base: todayShare, later: laterUsual, large: MUSCLE_BY_ID[m].size === 'large', toleranceH: RECOVERY_TOLERANCE_H,
@@ -298,4 +300,10 @@ export function weekChip(m: Pick<MuscleWeek, 'todayBlocked' | 'remainingToPrefer
   if (m.todayBlocked) return 'recovering';
   if (m.remainingToPreferred <= 0) return null;
   return isOpen(m.todayOpen) ? 'today' : null;
+}
+
+/** "≈2.5 sets left today" / "1 set left today" — one wording for the suggestion headers. */
+export function setsLeftTodayText(raw: number): string {
+  const d = displaySets(raw);
+  return L(`${d.text} ${d.value === 1 && !d.approx ? 'set' : 'sets'} left today`, `на сегодня ещё ${d.text} подх.`);
 }

@@ -112,3 +112,7 @@ Language (EN / RU) and theme toggles sit together at the top right (header on ph
 
 Text contrast ≥ 4.5 : 1; targets as in section 5; safe-area insets respected at the top and bottom of the training mode;
 landscape keeps the primary button visible (two-column layout); the rest timer keeps the screen awake where the browser allows.
+
+## One accent for the whole app (2026-11-25)
+
+The main screens used teal while the training mode used the orange accent. Now there is one accent: `accent-*` Tailwind classes and the training mode's `--t-accent` read the CSS variables `--acc-300 … --acc-700` set on `<html data-accent="ember|volt|ice">` (`src/index.css`, `src/ui/accent.ts`). The choice is `settings.trainAccent` (default Ember), mirrored in `localStorage` (`gymrat-accent`, not personal data) so the lock screen matches. Chart lines use `accentHex()`. Semantic colours (good / warning / danger, the muscle-group palette of the charts) are not the accent and do not change.

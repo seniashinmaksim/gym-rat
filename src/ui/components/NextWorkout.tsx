@@ -68,7 +68,7 @@ export function NextWorkoutCard() {
       const before = { ...acc };
       const f = forwardChecks({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } });
       for (const [m, v] of Object.entries(it.contributes) as [MuscleId, number][]) acc[m] = (acc[m] ?? 0) + v;
-      return { before, f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: { ...acc } }) : null };
+      return { before, f, move: f.length ? bestMoveDay({ data, analysis: a, workout: null, exerciseId: it.exerciseId, sets: it.setCount, variation: it.variation, extraDone: before }) : null };
     });
   }, [items, data, a]);
   /** Move a planned exercise to the proposed day: kept as a planned move (never skipped), with Undo. */

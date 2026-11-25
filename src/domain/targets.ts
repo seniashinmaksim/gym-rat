@@ -174,7 +174,7 @@ export function computeTargets(inp: TargetInputs): Record<MuscleId, MuscleTarget
     // Only on a NEUTRAL hold (stable / unknown, effort adequate, no break, nothing argues against it), capped at the
     // upper end of the reference range — never on top of a muscle that is progressing or after a failed increase.
     if (data.settings.priorities[m] === 'high' && decision.neutral && !decision.evidence.recoveryPoor && decision.evidence.stableWeeks >= 3 && baseline < ref.max) {
-      const step = baseline < 8 ? 1 : 2;
+      const step = baseline < 8 || MUSCLE_BY_ID[m].size === 'small' ? 1 : 2;
       preferred = Math.min(ref.max, baseline + step);
       rationale.push(L(`Marked high priority: +${step} set${step === 1 ? '' : 's'}/week (gradual), judged over the next weeks.`, `Отмечен высокий приоритет: +${step} ${ruPlural(step, 'подход', 'подхода', 'подходов')} в неделю (постепенно), оценка — по следующим неделям.`));
     }

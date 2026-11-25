@@ -225,7 +225,7 @@ export interface ExerciseTarget {
   /** Target reps in reserve per set (the last entry repeats). Older targets have none. */
   rir?: { min: number; max: number }[];
   /** The remaining sets were changed during the exercise from what was done (offered, the owner tapped Use). */
-  adapted?: { change: 'add_load' | 'add_reps' | 'reduce'; fromKg: number | null; why: string; at: string };
+  adapted?: { change: 'add_load' | 'add_reps' | 'reduce' | 'calc'; fromKg: number | null; why: string; at: string };
 }
 
 export interface ExerciseChoiceRecord {
@@ -406,6 +406,10 @@ export interface Location {
    * prescriptions of free-weight exercises without their own equipment record. Empty/undefined = app default.
    */
   freeWeightIncrementsKg?: number[];
+  /** Barbell jumps at THIS gym in TOTAL kg (e.g. [5] with 2.5 kg plates). Empty/undefined = app default (5). */
+  barbellIncrementsKg?: number[];
+  /** The usual bar at this gym (kg), for the "bar + plates" line; undefined = unknown, never assumed. */
+  barWeightKg?: number | null;
   photoIds: string[];
   createdAt: string;
 }

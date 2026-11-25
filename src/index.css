@@ -3,11 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  /* The app's ONE accent (ember by default; Settings → Training mode → Accent colour). Space-separated RGB for Tailwind's alpha. */
+  :root { --acc-300: 253 186 116; --acc-400: 255 138 76; --acc-500: 255 90 31; --acc-600: 234 74 16; --acc-700: 194 65 12; }
+  :root[data-accent='volt'] { --acc-300: 227 250 138; --acc-400: 212 247 92; --acc-500: 198 244 50; --acc-600: 93 124 0; --acc-700: 74 99 0; }
+  :root[data-accent='ice'] { --acc-300: 186 230 253; --acc-400: 125 211 252; --acc-500: 56 189 248; --acc-600: 2 132 199; --acc-700: 3 105 161; }
   html { -webkit-tap-highlight-color: transparent; text-size-adjust: 100%; }
   body { font-feature-settings: 'cv11', 'ss01'; overscroll-behavior-y: none; }
-  :focus-visible { outline: 2px solid #14b8a6; outline-offset: 2px; border-radius: 6px; }
+  :focus-visible { outline: 2px solid rgb(var(--acc-500)); outline-offset: 2px; border-radius: 6px; }
   input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; }
-  ::selection { background: rgba(20, 184, 166, 0.3); }
+  ::selection { background: rgb(var(--acc-500) / 0.3); }
   /* Touch-first: iOS zooms into form fields smaller than 16px — keep them at 16px on phones. */
   @media (max-width: 640px) {
     input, select, textarea { font-size: 16px !important; }
@@ -65,11 +69,9 @@
    Always dark, independent of the app theme; one hot accent chosen in Settings. */
 .train {
   --t-bg: #0a0a0b; --t-surface: #151518; --t-line: #2a2a30; --t-text: #ffffff; --t-dim: #a1a1aa;
-  --t-accent: #ff5a1f; --t-on-accent: #0a0a0b; --t-good: #4ade80; --t-warn: #fbbf24; --t-danger: #f87171;
+  --t-accent: rgb(var(--acc-500)); --t-on-accent: #0a0a0b; --t-good: #4ade80; --t-warn: #fbbf24; --t-danger: #f87171;
   background: var(--t-bg); color: var(--t-text);
 }
-.train[data-accent='volt'] { --t-accent: #c6f432; }
-.train[data-accent='ice'] { --t-accent: #38bdf8; }
 .train :focus-visible { outline-color: var(--t-accent); }
 .train .t-label { font-size: 0.6875rem; line-height: 1.2; letter-spacing: 0.12em; font-weight: 700; text-transform: uppercase; color: var(--t-dim); }
 .train .t-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }

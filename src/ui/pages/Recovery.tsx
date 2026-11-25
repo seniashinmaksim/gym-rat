@@ -84,7 +84,8 @@ function RecoveryCard({ m, active, onClick }: { m: MuscleWeek; active: boolean; 
   const r = m.recovery;
   const st = STATUS[r.status];
   const readiness = r.readiness ?? 0;
-  const hoursLeft = r.windowHours != null && r.hoursSince != null ? Math.max(0, r.windowHours - r.hoursSince) : null;
+  // The engine's own number (one rounding): never recomputed from the rounded hours here.
+  const hoursLeft = r.windowHours != null && r.hoursSince != null ? r.hoursLeft : null;
   return (
     <div id={`rec-${m.muscle}`} onClick={onClick}
       className={cx('rounded-2xl border bg-white p-4 transition dark:bg-ink-900', active ? 'border-accent-500 ring-2 ring-accent-500/20' : 'border-ink-200 dark:border-ink-800')}>

@@ -201,9 +201,9 @@ export function Brand({ small }: { small?: boolean }) {
     <div className="flex items-center gap-2.5 px-2">
       <svg width={small ? 26 : 30} height={small ? 26 : 30} viewBox="0 0 32 32" aria-hidden="true">
         <rect width="32" height="32" rx="8" className="fill-ink-900 dark:fill-ink-800" />
-        <rect x="5" y="13" width="4" height="6" rx="1" fill="#14b8a6" /><rect x="23" y="13" width="4" height="6" rx="1" fill="#14b8a6" />
-        <rect x="9" y="10" width="3" height="12" rx="1" fill="#5eead4" /><rect x="20" y="10" width="3" height="12" rx="1" fill="#5eead4" />
-        <rect x="12" y="15" width="8" height="2" fill="#5eead4" />
+        <rect x="5" y="13" width="4" height="6" rx="1" className="fill-accent-500" /><rect x="23" y="13" width="4" height="6" rx="1" className="fill-accent-500" />
+        <rect x="9" y="10" width="3" height="12" rx="1" className="fill-accent-300" /><rect x="20" y="10" width="3" height="12" rx="1" className="fill-accent-300" />
+        <rect x="12" y="15" width="8" height="2" className="fill-accent-300" />
       </svg>
       <div className="leading-tight">
         <div className={cx('font-semibold tracking-tight text-ink-900 dark:text-white', small ? 'text-sm' : 'text-[15px]')}>Gym Rat</div>

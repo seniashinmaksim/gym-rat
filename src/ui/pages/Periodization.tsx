@@ -1,3 +1,4 @@
+import { accentHex } from '../accent';
 import { useMemo, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { diffDays, formatDate } from '../../domain/dates';
@@ -222,7 +223,7 @@ function VolumeTrendCard() {
               <YAxis yAxisId="v" tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis yAxisId="s" orientation="right" tickLine={false} axisLine={false} allowDecimals={false} width={24} />
               <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} />
-              <Bar yAxisId="v" dataKey="total" name={L('Quality sets', 'Качественные подходы')} fill="#14b8a6" fillOpacity={0.75} radius={[5, 5, 0, 0]} />
+              <Bar yAxisId="v" dataKey="total" name={L('Quality sets', 'Качественные подходы')} fill={accentHex(500)} fillOpacity={0.75} radius={[5, 5, 0, 0]} />
               <Line yAxisId="s" dataKey="sessions" name={L('Sessions', 'Тренировки')} stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
               <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
             </ComposedChart>

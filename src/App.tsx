@@ -1,4 +1,5 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react';
+import { applyAccent } from './ui/accent';
+import { Component, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useStore } from './lib/store';
 import { L, useLang } from './i18n';
@@ -66,6 +67,9 @@ export function App() {
   const { status } = useStore();
   // Every screen is rebuilt when the language changes (texts are produced where they are used).
   const lang = useLang();
+  // ONE accent for the whole app: the stored choice, mirrored outside the vault for the lock screen.
+  const accent = useStore().data?.settings.trainAccent;
+  useEffect(() => { if (status === 'unlocked') applyAccent(accent); }, [status, accent]);
   if (status !== 'unlocked') return <LockScreen key={lang} />;
   return (
     <HashRouter key={lang}>

@@ -88,7 +88,7 @@ test('part 5: planner card → start → overview real-gym actions → re-assess
   await expect(page.getByTestId('set-chip')).toHaveCount(0);
   await toOverview(page);
   await expect(page.getByTestId('ov-row')).toHaveCount(n0);
-  await expect(page.getByTestId('ov-row').first()).toContainText(/\d+ × .*\d/); // "3 × 40 kg × 8–12"
+  await expect(page.getByTestId('ov-row').first()).toContainText(/\d+ \S+ × .*\d/); // "3 sets × 40 kg × 8–12 reps"
   await shot(page, P, '03-overview-from-plan');
   const names0 = await rowNames(page);
 

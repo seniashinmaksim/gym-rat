@@ -48,12 +48,10 @@ describe('C-8 — what was prescribed is stored on every logged set (written by 
 });
 
 describe('C-1 — the remaining sets are re-checked after each set (offered, never applied silently)', () => {
-  it('40 kg × 12 at RIR 4 (target RIR 1–2, top of 8–12, clean) → offer +2.5 kg: 42.5 kg', () => {
+  it('40 kg × 12 at RIR 4 → NO "+1 step" offer (owner 2026-11-25: a reported reserve alone is not an analysis)', () => {
     const e = card([set(40, 12, 4, { completedAt: '2026-11-16T17:20:00Z' })]);
-    const o = nextSetsOffer(e, 2.5);
-    expect(o).toMatchObject({ change: 'add_load', weightKg: 42.5 });
-    expect(o!.why).toMatch(/\+2\.5 kg/);
-    expect(e.target!.weightKg).toBe(40); // nothing applied yet
+    expect(nextSetsOffer(e, 2.5)).toBeNull();
+    expect(e.target!.weightKg).toBe(40);
   });
   it('technique broke at RIR 0 → offer one step down: 37.5 kg', () => {
     const e = card([set(40, 9, 0, { technicalFailure: true, completedAt: '2026-11-16T17:20:00Z' })]);
@@ -64,12 +62,12 @@ describe('C-1 — the remaining sets are re-checked after each set (offered, nev
     expect(nextSetsOffer({ ...ex('pec_deck', [set(40, 12, 4)], 'pd') }, 2.5)).toBeNull();
   });
   it('Use: the target of the remaining sets changes, marked as adapted, and the next set is pre-filled with it', () => {
-    const e = card([set(40, 12, 4, { completedAt: '2026-11-16T17:20:00Z' })]);
+    const e = card([set(40, 9, 0, { technicalFailure: true, completedAt: '2026-11-16T17:20:00Z' })]);
     const o = nextSetsOffer(e, 2.5)!;
     const after = applyOffer(e, o, '2026-11-16T17:21:00Z');
-    expect(after.target).toMatchObject({ weightKg: 42.5, adapted: { change: 'add_load', fromKg: 40 } });
+    expect(after.target).toMatchObject({ weightKg: 37.5, adapted: { change: 'reduce', fromKg: 40 } });
     const last = ex('pec_deck', [set(40, 12, 2), set(40, 12, 2), set(40, 11, 2)], 'pd');
-    expect(prefillNext(after, last).weightKg).toBe(42.5);
+    expect(prefillNext(after, last).weightKg).toBe(37.5);
     // Already applied → not offered again for the same set.
     expect(nextSetsOffer(after, 2.5)).toBeNull();
   });
@@ -201,10 +199,10 @@ describe('review of the gap fixes — regressions', () => {
     expect(a.prescribed).toBeUndefined();
     expect(b.prescribed).toMatchObject({ repsMin: 6, repsMax: 8, rirMin: 2, rirMax: 3 });
   });
-  it('R3 the offer respects the machine limit (no 102.5 kg on a 100 kg stack → more reps) and the short-rest rule', () => {
+  it('R3 "too easy" alone gives no offer, also at the machine limit (owner 2026-11-25); the short-rest rule holds', () => {
     const t = { ...T, weightKg: 100 };
     const e = card([set(100, 12, 5, { completedAt: at(20) })], t);
-    expect(nextSetsOffer(e, 2.5, { maxKg: 100 })).toMatchObject({ change: 'add_reps' });
+    expect(nextSetsOffer(e, 2.5, { maxKg: 100 })).toBeNull();
     // Reps well below the range on 2 sets after a clearly short rest (40 s vs usual 120 s) → the rest, not the load: no offer.
     const short = card([set(40, 5, 2, { completedAt: at(20), restSecBefore: 120 }), set(40, 5, 2, { completedAt: at(21), restSecBefore: 40 })]);
     expect(nextSetsOffer(short, 2.5, { restMedianSec: 120 })).toBeNull();
@@ -216,13 +214,12 @@ describe('review of the gap fixes — regressions', () => {
     expect(o?.change).not.toBe('add_load');
   });
   it('R5 Keep the plan is remembered on the exercise (survives leaving the screen) and keyed by the offer, not only the set', () => {
-    const e = card([set(40, 12, 4, { completedAt: at(20) })]);
+    const e = card([set(40, 9, 0, { technicalFailure: true, completedAt: at(20) })]);
     const o = nextSetsOffer(e, 2.5)!;
     const kept = keepOffer(e, o);
     expect(nextSetsOffer(kept, 2.5)).toBeNull();
-    // The same set edited into another situation (form broke at RIR 0) → a NEW offer is shown.
-    const edited = { ...kept, sets: kept.sets.map((x) => ({ ...x, rir: 0, technicalFailure: true })) };
-    expect(nextSetsOffer(edited, 2.5)).toMatchObject({ change: 'reduce' });
+    // Another step (another offer) on the same set → a NEW offer is shown.
+    expect(nextSetsOffer(kept, 5)).toMatchObject({ change: 'reduce', weightKg: 35 });
   });
   it('R6 a target the owner edited before Start is not "smart" (no mark)', () => {
     expect(weightSource(card([], { ...T, weightKg: 50, edited: true }), last, 50)).toBeNull();

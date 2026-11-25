@@ -102,3 +102,12 @@ export function significantMuscles(def: ExerciseDef, variation?: Variation | nul
     .sort((a, b) => b[1] - a[1])
     .map(([muscle, coef]) => ({ muscle, coef }));
 }
+
+/**
+ * Every muscle an exercise is credited for (≥ 0.5), the main one(s) first, the others with their share:
+ * pull-up → "Lats · Upper back ½ · Biceps ½" (owner 2026-11-25: showing only the ≥ 0.75 muscles read as "only lats count").
+ */
+export function muscleCreditText(def: ExerciseDef, nameOf: (m: MuscleId) => string, variation?: Variation | null): string {
+  const frac = (c: number) => (c >= 1 ? '' : c === 0.75 ? ' ¾' : c === 0.5 ? ' ½' : ` ×${c}`);
+  return significantMuscles(def, variation, 0.5).map(({ muscle, coef }) => `${nameOf(muscle)}${frac(coef)}`).join(' · ');
+}

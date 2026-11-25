@@ -11,6 +11,7 @@
  */
 import { reclassifyWarmups } from './perception';
 import { adaptRemaining, type Prescription } from './prescription';
+import { L, num } from '../i18n/core';
 import { measuredRestSec } from './sessionSummary';
 import type { Effort, ExerciseTarget, LoadMode, QualityModel, SetFeel, SetPrescription, Side, Workout, WorkoutExercise, WorkoutSet } from './types';
 
@@ -368,12 +369,56 @@ function withPrescribed(sets: WorkoutSet[], t: ExerciseTarget | undefined, newId
   });
 }
 
-export interface NextSetsOffer { change: 'add_load' | 'add_reps' | 'reduce'; weightKg: number | null; reps: { min: number; max: number } | null; why: string }
+/**
+ * 'calc' = a working weight CALCULATED from a set that was really hard (owner 2026-11-25: only real analysis — "I said
+ * easy, so add a step" is not one); 'find_weight' = a note without a number: the sets so far were too light to calculate from.
+ */
+export interface NextSetsOffer { change: 'add_load' | 'add_reps' | 'reduce' | 'calc' | 'find_weight'; weightKg: number | null; reps: { min: number; max: number } | null; why: string }
+
+/** Reps this far from failure at most make a set an ANCHOR for the calculation (failure 0, the HARD tap 0–1, a logged RIR ≤ 1). */
+export const ANCHOR_MAX_RIR = 1;
+/** Reps window in which the load-reps equation is trusted (as in perception.ts: prediction worsens with reps). */
+export const ANCHOR_REPS: [number, number] = [3, 20];
+
+/** Reps in reserve of a set when it is known to be near the limit; null = not an anchor. */
+export function anchorRir(s: WorkoutSet): number | null {
+  if (s.type !== 'working' || s.planned || s.weightKg == null || !(s.weightKg > 0) || s.reps == null) return null;
+  if (s.loadMode !== 'total' && s.loadMode !== 'per_side') return null;
+  if (s.reps < ANCHOR_REPS[0] || s.reps > ANCHOR_REPS[1]) return null;
+  if (s.technicalFailure || s.technique === 'compromised' || s.technique === 'failed' || s.pain || s.feel === 'pain' || s.feel === 'too_heavy_form') return null;
+  if (s.rir != null) return s.rir <= ANCHOR_MAX_RIR ? s.rir : null;
+  if (s.failure === 'muscular' || s.toFailure) return 0;
+  if (s.effort === 'near_max') return 0.5;
+  return null;
+}
+
+/**
+ * The working weight for `reps` with `rir` in reserve, from today's hardest evidence on this exercise:
+ * e1RM = w × (1 + (reps done + reps left) / 30) of the best anchor set (Epley), weight = e1RM ÷ (1 + (target reps +
+ * target reserve) / 30), rounded DOWN to a real step. null without an anchor. An estimate — shown as one.
+ */
+export function workingWeightFromSets(sets: WorkoutSet[], reps: { min: number; max: number }, rir: { min: number; max: number }, step: number, limits: { minKg?: number | null; maxKg?: number | null } = {}): { weightKg: number; from: WorkoutSet; e1rm: number } | null {
+  let best: { from: WorkoutSet; e1rm: number } | null = null;
+  for (const s of sets) {
+    const r = anchorRir(s);
+    if (r == null) continue;
+    const e = (s.weightKg as number) * (1 + ((s.reps as number) + r) / 30);
+    if (!best || e > best.e1rm) best = { from: s, e1rm: e };
+  }
+  if (!best) return null;
+  const raw = best.e1rm / (1 + ((reps.min + reps.max) / 2 + (rir.min + rir.max) / 2) / 30);
+  const base = limits.minKg != null && limits.minKg > 0 ? limits.minKg : 0; // a stack counts from its lightest plate
+  let w = step > 0 ? base + Math.floor((raw - base) / step + 1e-9) * step : Math.round(raw * 2) / 2;
+  if (limits.minKg != null) w = Math.max(limits.minKg, w);
+  if (limits.maxKg != null) w = Math.min(limits.maxKg, w);
+  w = Math.round(w * 100) / 100;
+  return w > 0 ? { weightKg: w, from: best.from, e1rm: Math.round(best.e1rm * 10) / 10 } : null;
+}
 
 /** Limits of this equipment and the owner's usual rest on this exercise (the short-rest rule needs it). */
 export interface OfferContext { minKg?: number | null; maxKg?: number | null; restMedianSec?: number | null }
 
-const offerKey = (setId: string, o: NextSetsOffer) => `${setId}|${o.change}|${o.weightKg ?? ''}|${o.reps?.min ?? ''}-${o.reps?.max ?? ''}`;
+const offerKey = (setId: string, o: NextSetsOffer) => (o.change === 'calc' ? `calc|${o.weightKg ?? ''}` : `${setId}|${o.change}|${o.weightKg ?? ''}|${o.reps?.min ?? ''}-${o.reps?.max ?? ''}`);
 
 /**
  * After a set: should the REMAINING sets change (`adaptRemaining`, rule presc_set_by_set)? Only an offer — the UI shows
@@ -396,11 +441,33 @@ export function nextSetsOffer(ex: WorkoutExercise, step: number, ctx: OfferConte
   // Bodyweight-only history (e.g. pull-ups without a belt): adding load would start another history → never a belt offer.
   const bodyweightOnly = ex.variation?.loading === 'bodyweight';
   const p = { sets, loadMode: done[0].loadMode, minKg: ctx.minKg ?? null, maxKg: bodyweightOnly ? 0 : ctx.maxKg ?? null, rest: { medianSec: ctx.restMedianSec ?? null } } as unknown as Prescription;
-  const a = adaptRemaining(p, done, step, { easyTap: true });
-  if (a.change !== 'add_load' && a.change !== 'add_reps' && a.change !== 'reduce') return null;
+  const a = adaptRemaining(p, done, step);
+  let o: NextSetsOffer | null = null;
   const first = a.sets[0];
-  if (!first) return null;
-  const o: NextSetsOffer = { change: a.change, weightKg: first.weightKg, reps: { min: first.repsMin, max: first.repsMax }, why: a.why };
+  if (first && a.change === 'reduce') o = { change: a.change, weightKg: first.weightKg, reps: { min: first.repsMin, max: first.repsMax }, why: a.why };
+  // Calibrating (no weight in the plan yet): only a real calculation, from a set that was really hard.
+  const nDone = exerciseProgress(ex).done;
+  // Only where a load-reps calculation exists at all (not assistance, not added-to-body-weight).
+  const calcMode = lastSet.loadMode === 'total' || lastSet.loadMode === 'per_side';
+  if (!o && t.weightKg == null && !bodyweightOnly && calcMode && nDone < t.sets) {
+    const k = Math.min(nDone, t.reps.length - 1);
+    const reps = t.reps[k];
+    const rir = t.rir[Math.min(nDone, t.rir.length - 1)];
+    const calc = workingWeightFromSets(done, reps, rir, step, { minKg: ctx.minKg, maxKg: ctx.maxKg });
+    const nf = (x: number) => num(x);
+    if (calc && calc.weightKg !== lastSet.weightKg) {
+      const f = calc.from;
+      const how = f.failure === 'muscular' || f.toFailure ? L('to the limit', 'до предела') : f.rir != null ? L(`with ${f.rir} left`, `с запасом ${f.rir}`) : L('hard', 'тяжело');
+      o = { change: 'calc', weightKg: calc.weightKg, reps: null, why: L(
+        `Calculated from your ${nf(f.weightKg as number)} kg × ${f.reps} (${how}): about ${nf(calc.weightKg)} kg should give ${reps.min}–${reps.max} reps with ${rir.min}–${rir.max} left. An estimate — the next sets will correct it.`,
+        `Рассчитано по вашему подходу ${nf(f.weightKg as number)} кг × ${f.reps} (${how}): около ${nf(calc.weightKg)} кг должно дать ${reps.min}–${reps.max} повт. с запасом ${rir.min}–${rir.max}. Это оценка — следующие подходы её уточнят.`) };
+    } else if (!calc && (lastSet.effort === 'easy' || lastSet.effort === 'very_easy') && lastSet.reps != null && lastSet.reps >= reps.max) {
+      o = { change: 'find_weight', weightKg: null, reps: null, why: L(
+        `${nf(lastSet.weightKg ?? 0)} kg × ${lastSet.reps} was easy — too light to calculate your working weight from. Go clearly heavier; once a set is hard (0–1 reps left), the app calculates the weight for ${reps.min}–${reps.max} reps.`,
+        `${nf(lastSet.weightKg ?? 0)} кг × ${lastSet.reps} — легко: по такому подходу рабочий вес не рассчитать. Возьмите заметно тяжелее; когда подход будет тяжёлым (в запасе 0–1 повтор), приложение рассчитает вес на ${reps.min}–${reps.max} повт.`) };
+    }
+  }
+  if (!o) return null;
   if (ex.offerKept?.includes(offerKey(lastSet.id, o))) return null;
   return o;
 }
@@ -417,7 +484,10 @@ export function applyOffer(ex: WorkoutExercise, o: NextSetsOffer, at: string): W
   const t = ex.target;
   if (!t) return ex;
   const n = exerciseProgress(ex).done;
-  const reps = o.reps ? [...t.reps.slice(0, n), ...Array.from({ length: Math.max(1, t.sets - n) }, () => o.reps!)] : t.reps;
+  if (o.change === 'find_weight') return ex; // a note, nothing to apply
+  // The sets already done keep their own range (a short rep list is padded with its last entry first).
+  const head = Array.from({ length: n }, (_, i) => t.reps[Math.min(i, t.reps.length - 1)]);
+  const reps = o.reps ? [...head, ...Array.from({ length: Math.max(1, t.sets - n) }, () => o.reps!)] : t.reps;
   return { ...ex, target: { ...t, weightKg: o.weightKg ?? t.weightKg, reps, adapted: { change: o.change, fromKg: t.weightKg, why: o.why, at } } };
 }
 
@@ -437,9 +507,42 @@ export function weightSource(ex: WorkoutExercise, last: WorkoutExercise | null, 
   if (t?.edited && !t.adapted && t.weightKg != null && weightKg === t.weightKg) return null;
   if (t?.weightKg != null && weightKg === t.weightKg) {
     if (t.adapted) return 'adjusted';
-    return lastHere != null && lastHere !== t.weightKg ? 'adjusted' : 'kept';
+    // No last time: the analysis set it (never "same as last time").
+    return lastHere == null || lastHere !== t.weightKg ? 'adjusted' : 'kept';
   }
   if (weightKg === lastHere) return 'copied';
   if (weightKg === done.at(-1)?.weightKg) return 'session';
   return null;
+}
+
+// ---------------------------------------------------------------- the target line, continuing a finished workout
+
+/**
+ * Today's target in words that cannot be misread (owner 2026-11-25: "4 × 10–15" without a weight was read as 4 kg):
+ * "4 sets × 60 kg × 8–12 reps"; without a weight yet "4 sets × 10–15 reps · find your weight".
+ */
+export function targetText(t: ExerciseTarget | null | undefined): string | null {
+  if (!t) return null;
+  if (t.sets <= 0) return L('optional today', 'сегодня по желанию');
+  const r = t.reps[0];
+  const reps = r ? (r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`) : '';
+  const n = t.sets;
+  const ru = n % 10 === 1 && n % 100 !== 11 ? 'подход' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'подхода' : 'подходов';
+  const sets = L(`${n} ${n === 1 ? 'set' : 'sets'}`, `${n} ${ru}`);
+  const repsText = reps ? L(` × ${reps} reps`, ` × ${reps} повт.`) : '';
+  return t.weightKg != null
+    ? `${sets} × ${num(t.weightKg)} ${L('kg', 'кг')}${repsText}`
+    : `${sets}${repsText}${L(' · find your weight', ' · подберите вес')}`;
+}
+
+/** A workout finished TODAY in the training mode can be continued (one more set after Finish — owner 2026-11-25). */
+export function canContinue(w: Workout, today: string): boolean {
+  return w.source === 'live' && w.date === today && (!!w.finishedAt || !!w.endTime);
+}
+
+/** Back to a live session: the end marks are cleared, every logged set stays exactly as it was. Finish sets them again. */
+export function continueWorkout(w: Workout, nowIso: string): Workout {
+  const { finishedAt: _f, ...rest } = w;
+  void _f;
+  return { ...rest, endTime: null, durationMin: null, updatedAt: nowIso };
 }

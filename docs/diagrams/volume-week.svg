@@ -14,9 +14,10 @@
 <path d="M890,166 C935,166 935,240 980,240" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>volume → weekly (call)</title></path>
 <path d="M1210,240 C1255,240 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>weekly → analyze (agg)</title></path>
 <path d="M890,166 C935,166 935,321.5 980,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>volume → analyze (agg)</title></path>
-<path d="M1210,699 C1255,699 1255,92 1210,92" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>volresp → targets (call)</title></path>
-<path d="M250,99.5 C615,99.5 615,92 980,92" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_settings → targets (data): target overrides, priorities · field targetOverrides</title></path>
-<path d="M1210,92 C1255,92 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>targets → analyze (agg)</title></path>
+<path d="M1210,699 C1255,699 1255,166 1210,166" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>volresp → targets (call)</title></path>
+<path d="M250,92 C615,92 615,166 980,166" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_blocks → targets (data): an active deload block halves every target · field startDate</title></path>
+<path d="M250,173.5 C615,173.5 615,166 980,166" fill="none" stroke="#0891b2" stroke-width="1.6" stroke-dasharray="2 3" marker-end="url(#m-data)" opacity="0.85"><title>in_settings → targets (data): target overrides, priorities · field targetOverrides</title></path>
+<path d="M1210,166 C1255,166 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>targets → analyze (agg)</title></path>
 <path d="M1210,773 C1255,773 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>usual → analyze (agg)</title></path>
 <path d="M890,484.5 C935,484.5 935,625 980,625" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>window → sesswin (call)</title></path>
 <path d="M1210,625 C1255,625 1255,847 1210,847" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>sesswin → fit (call): today’s and the later days’ windows</title></path>
@@ -24,8 +25,8 @@
 <path d="M1210,847 C1255,847 1255,321.5 1210,321.5" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#m-cond)" opacity="0.85"><title>fit → analyze (cond): only with usual days known, for a muscle still open and not held</title></path>
 <path d="M1210,921 C1255,921 1255,321.5 1210,321.5" fill="none" stroke="#64748b" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#m-cond)" opacity="0.85"><title>extra → analyze (cond): only with usual days known and not dismissed for the week</title></path>
 <path d="M890,395.5 C935,395.5 935,321.5 980,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>recovery → analyze (agg)</title></path>
-<path d="M1210,166 C1255,166 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>openshare → analyze (agg)</title></path>
-<path d="M1210,166 C1255,166 1255,99.5 1300,99.5" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>openshare → choice (call)</title></path>
+<path d="M1210,92 C1255,92 1255,321.5 1210,321.5" fill="none" stroke="#16a34a" stroke-width="2.6" marker-end="url(#m-agg)" opacity="0.85"><title>openshare → analyze (agg)</title></path>
+<path d="M1210,92 C1255,92 1255,99.5 1300,99.5" fill="none" stroke="#334155" stroke-width="1.4" marker-end="url(#m-call)" opacity="0.85"><title>openshare → choice (call)</title></path>
 <path d="M1850,92 C1895,92 1895,232.5 1850,232.5" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>display → ui_week (ui): sets left shown</title></path>
 <path d="M1850,92 C1895,92 1895,166 1850,166" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>display → ui_picker (ui)</title></path>
 <path d="M1210,321.5 C1415,321.5 1415,299 1620,299" fill="none" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#m-ui)" opacity="0.85"><title>analyze → ui_analysis (ui)</title></path>
@@ -71,15 +72,20 @@
 <text x="990" y="708" fill="#431407">±1–2 on evidence</text>
 </g>
 <g><title>src/domain/targets#computeTargets · rules: weekly_target_reference, volume_individual · basis: research_informed_heuristic</title>
-<rect x="980" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#2563eb" stroke-width="2.5"/>
-<text x="990" y="86" fill="#083344" font-weight="700">Weekly targets</text>
-<text x="990" y="101" fill="#083344">(reference → your level)</text>
+<rect x="980" y="140" width="230" height="52" rx="9" fill="#ecfeff" stroke="#2563eb" stroke-width="2.5"/>
+<text x="990" y="160" fill="#083344" font-weight="700">Weekly targets</text>
+<text x="990" y="175" fill="#083344">(reference → your level)</text>
+</g>
+<g><title>src/domain/types#TrainingBlock</title>
+<rect x="20" y="66" width="230" height="52" rx="9" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="30" y="86" fill="#1e1b4b" font-weight="700">Training blocks</text>
+<text x="30" y="101" fill="#1e1b4b">(deload)</text>
 </g>
 <g><title>src/domain/types#Settings</title>
-<rect x="20" y="66" width="230" height="67" rx="9" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
-<text x="30" y="86" fill="#1e1b4b" font-weight="700">Settings</text>
-<text x="30" y="101" fill="#1e1b4b">quality model · targets</text>
-<text x="30" y="116" fill="#1e1b4b">priorities · planned moves</text>
+<rect x="20" y="140" width="230" height="67" rx="9" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+<text x="30" y="160" fill="#1e1b4b" font-weight="700">Settings</text>
+<text x="30" y="175" fill="#1e1b4b">quality model · targets</text>
+<text x="30" y="190" fill="#1e1b4b">priorities · planned moves</text>
 </g>
 <g><title>src/domain/weekPlan#usualTrainingDays · rules: todays_share · basis: research_informed_heuristic</title>
 <rect x="980" y="747" width="230" height="52" rx="9" fill="#fff7ed" stroke="#2563eb" stroke-width="2.5"/>
@@ -119,9 +125,9 @@
 <text x="670" y="412" fill="#083344">latest end decides)</text>
 </g>
 <g><title>src/domain/analysis#openOfShare · rules: todays_share · basis: research_informed_heuristic</title>
-<rect x="980" y="140" width="230" height="52" rx="9" fill="#ecfeff" stroke="#2563eb" stroke-width="2.5"/>
-<text x="990" y="160" fill="#083344" font-weight="700">Open today (RAW)</text>
-<text x="990" y="175" fill="#083344">share − done · ≥ 0.5 = open</text>
+<rect x="980" y="66" width="230" height="52" rx="9" fill="#ecfeff" stroke="#2563eb" stroke-width="2.5"/>
+<text x="990" y="86" fill="#083344" font-weight="700">Open today (RAW)</text>
+<text x="990" y="101" fill="#083344">share − done · ≥ 0.5 = open</text>
 </g>
 <g><title>src/domain/exerciseChoice#assessChoice · rules: choice_status, exercise_order · basis: heuristic</title>
 <rect x="1300" y="66" width="230" height="67" rx="9" fill="#fdf2f8" stroke="#ea580c" stroke-width="2.5"/>
@@ -141,7 +147,7 @@
 <g><title>src/ui/pages/Logger#ExercisePicker</title>
 <rect x="1620" y="140" width="230" height="52" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
 <text x="1630" y="160" fill="#0f172a" font-weight="700">Exercise picker</text>
-<text x="1630" y="175" fill="#0f172a">(dot · Best now · warning)</text>
+<text x="1630" y="175" fill="#0f172a">(dot · Best now by muscle · warning)</text>
 </g>
 <g><title>src/ui/hooks#useAnalysis</title>
 <rect x="1620" y="273" width="230" height="52" rx="9" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>

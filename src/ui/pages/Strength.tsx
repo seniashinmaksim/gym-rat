@@ -1,3 +1,4 @@
+import { accentHex } from '../accent';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -185,7 +186,7 @@ function SeriesDetail({ p, onBack }: { p: ProgressionSeries; onBack: () => void 
                 {(mode !== 'weight' || bw) && <YAxis yAxisId="r" orientation={mode === 'both' && !bw ? 'right' : 'left'} tickLine={false} axisLine={false} allowDecimals={false} domain={['auto', 'auto']} />}
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />
-                {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name={L('Top weight (kg)', 'Лучший вес (кг)')} stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
+                {(mode !== 'reps' && !bw) && <Line yAxisId="w" type="monotone" dataKey="weight" name={L('Top weight (kg)', 'Лучший вес (кг)')} stroke={accentHex(500)} strokeWidth={2.5} dot={{ r: 3 }} connectNulls />}
                 {(mode !== 'weight' || bw) && <Line yAxisId="r" type="monotone" dataKey="reps" name={L('Reps (top set)', 'Повт. (лучший подход)')} stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />}
               </LineChart>
             </ResponsiveContainer>

@@ -39,7 +39,7 @@ export function TrainingCard() {
           <p className="mt-1.5 text-xs text-ink-500">{L('Starts by itself when a set is logged. −15 / +15 during a rest changes it for that exercise only.', 'Запускается сам после записи подхода. −15 / +15 во время отдыха меняют его только для этого упражнения.')}</p>
         </div>
         <div>
-          <div className="mb-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Accent colour', 'Цвет акцента')}</div>
+          <div className="mb-1.5 text-xs font-medium text-ink-600 dark:text-ink-300">{L('Accent colour — the whole app', 'Цвет акцента — всё приложение')}</div>
           <div className="flex gap-2" role="radiogroup" aria-label={L('Accent colour', 'Цвет акцента')}>
             {ACCENTS.map(([id, hex]) => (
               <button key={id} type="button" role="radio" aria-checked={accent === id} onClick={() => void store.saveSettings({ trainAccent: id })} data-testid={`accent-${id}`}

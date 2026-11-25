@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { displaySets } from '../../domain/analysis';
+import { displaySets, setsLeftTodayText } from '../../domain/analysis';
 import { MACHINE_KINDS } from '../../domain/registry';
 import { Link, useNavigate } from 'react-router-dom';
 import { activeWorkout } from '../Layout';
@@ -27,9 +27,9 @@ import { prescribe, type Prescription } from '../../domain/prescription';
 import { Badge, Button, Card, CardTitle, confirmAction, cx, Field, fmt, Input, Modal, NumInput, Page, Select, Stepper, TextArea, toast, undoToast, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 import { byLang, KG, L, locale, num, ruPlural } from '../../i18n';
-import { assessChoice, choiceOutcomes, exerciseSessionCounts, needsPrompt, priorWorkouts, type ChoiceAssessment } from '../../domain/exerciseChoice';
-import { significantMuscles } from '../../domain/fatigue';
-import { optimality, rankOptions } from '../../domain/optimality';
+import { assessChoice, choiceOutcomes, needsPrompt, type ChoiceAssessment } from '../../domain/exerciseChoice';
+import { muscleCreditText } from '../../domain/fatigue';
+import { suggestNext } from '../../domain/optimality';
 import { ScoredRow } from '../components/Optimality';
 import { addMoves, bestMoveDay, forwardChecks, usualSetCount, type ForwardFinding } from '../../domain/sequence';
 import { ForwardWarning } from '../components/ForwardWarning';
@@ -1298,7 +1298,7 @@ export function SummaryModal({ s, onDone, onBack }: { s: SessionSummary; onDone:
 
 // ---------------------------------------------------------------- Pickers
 
-export function ExercisePicker({ open, onClose, onPick, locationId, workout, title }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null; title?: string }) {
+export function ExercisePicker({ open, onClose, onPick, locationId, workout, title, preselect }: { open: boolean; onClose: () => void; onPick: (d: ExerciseDef, opts?: AddOpts) => void; locationId: string | null; workout: Workout | null; title?: string; /** Chosen elsewhere (a suggestion): goes through the same checks as a tap in the list. */ preselect?: ExerciseDef | null }) {
   const a = useAnalysis();
   const data = useData();
   const names = useNames();
@@ -1322,6 +1322,8 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
     if (!needsPrompt(workout, full) && !fwd.length) return onPick(d);
     setCard({ def: d, a: full, fwd, fwdKey, sets, move: fwd.length ? bestMoveDay({ data, analysis: a, workout, exerciseId: d.id, sets }) : null });
   };
+  const preId = open ? preselect?.id ?? null : null;
+  useEffect(() => { if (preId && preselect) choose(preselect); }, [preId]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveLater = async (c: NonNullable<typeof card>) => {
     if (!c.move) return;
     const mv = { id: `mv-${Date.now().toString(36)}`, exerciseId: c.def.id, equipmentId: null, sets: c.sets, fromDate: a.today, date: c.move.date, reason: c.fwd.map((f) => f.text).join(' '), createdAt: new Date().toISOString() };
@@ -1348,17 +1350,9 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
   }, [q, muscle, a.registry, usage, atGym]);
 
   const needs = a.muscles.filter((m) => m.todayLeft > 0).sort((x, y) => y.todayLeft - x.todayLeft).slice(0, 8);
-  // Part 9 "Best now": familiar exercises whose primary muscle still has an open share today, by fit score (≤ 4), plus
-  // the ones not recommended today (≤ 3, with the reason). Nothing is hidden from the full list below.
-  const best = useMemo(() => {
-    if (!open || !workout) return [];
-    const counts = exerciseSessionCounts(priorWorkouts(data, workout));
-    const open_ = new Set(a.muscles.filter((m) => m.todayLeft > 0).map((m) => m.muscle));
-    const inSession = new Set(workout.exercises.filter((e) => !e.skipped).map((e) => e.exerciseId));
-    const pool = [...a.registry.values()].filter((d) => (counts.get(d.id) ?? 0) > 0 && !inSession.has(d.id) && open_.has(significantMuscles(d, null, 0.5)[0]?.muscle as MuscleId));
-    const ranked = rankOptions(pool.map((d) => ({ ...optimality({ data, analysis: a, workout, exerciseId: d.id, outcomes }), def: d })), (id) => names.ex(a.registry.get(id)));
-    return [...ranked.filter((o) => o.group !== 'not_today').slice(0, 4), ...ranked.filter((o) => o.group === 'not_today').slice(0, 3)];
-  }, [open, workout, data, a, outcomes, names]);
+  // "Best now" (owner 2026-11-25): the most-needed muscle first, its best exercises by fit score; new exercises are
+  // included where nothing familiar exists. Nothing is hidden from the full list below.
+  const best = useMemo(() => (open && workout ? suggestNext({ data, analysis: a, workout, outcomes, nameOf: (id) => names.ex(a.registry.get(id)) }) : { groups: [], notToday: [] }), [open, workout, data, a, outcomes, names]);
   // On touch phones, opening the keyboard immediately would hide the muscle filter.
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
@@ -1413,19 +1407,30 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
           </div>
         </div>
       )}
-      {best.length > 0 && !q && !muscle && (
+      {best.groups.length > 0 && !q && !muscle && (
         <div className="mt-3 space-y-1.5" data-testid="best-now">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Best now — fit for this moment', 'Лучше сейчас — по ситуации')}</div>
-          {best.map((o, i) => (
-            <div key={o.exerciseId}>
-              {o.group === 'not_today' && (i === 0 || best[i - 1].group !== 'not_today') && <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Not recommended today', 'Сегодня не рекомендуется')}</div>}
-              <ScoredRow o={o}>
-                <button type="button" onClick={() => choose(o.def)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700" data-testid="best-choice">
-                  <span className="break-words text-sm font-medium text-ink-900 dark:text-white">{names.ex(o.def)}</span>
-                  <span className="break-words text-xs text-ink-500">{Object.entries(o.def.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</span>
-                </button>
-              </ScoredRow>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Best now — the muscle that needs it most first', 'Лучше сейчас — сначала мышца, которой нужнее')}</div>
+          {best.groups.map((g) => (
+            <div key={g.muscle} className="space-y-1.5" data-testid="best-group" data-muscle={g.muscle}>
+              <div className="mt-2 break-words text-xs font-semibold text-ink-700 dark:text-ink-200">{names.muscle(g.muscle)} · {setsLeftTodayText(g.open)}</div>
+              {g.options.map((o) => (
+                <ScoredRow key={o.exerciseId} o={o}>
+                  <button type="button" onClick={() => choose(o.def)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700" data-testid="best-choice">
+                    <span className="break-words text-sm font-medium text-ink-900 dark:text-white">{names.ex(o.def)}</span>
+                    <span className="break-words text-xs text-ink-500">{muscleCreditText(o.def, names.muscle)}{o.isNew ? L(' · new — find your weight', ' · новое — подберите вес') : ''}</span>
+                  </button>
+                </ScoredRow>
+              ))}
             </div>
+          ))}
+          {best.notToday.length > 0 && <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Not recommended today', 'Сегодня не рекомендуется')}</div>}
+          {best.notToday.map((o) => (
+            <ScoredRow key={o.exerciseId} o={o}>
+              <button type="button" onClick={() => choose(o.def)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700" data-testid="best-choice">
+                <span className="break-words text-sm font-medium text-ink-900 dark:text-white">{names.ex(o.def)}</span>
+                <span className="break-words text-xs text-ink-500">{muscleCreditText(o.def, names.muscle)}</span>
+              </button>
+            </ScoredRow>
           ))}
         </div>
       )}
@@ -1437,7 +1442,7 @@ export function ExercisePicker({ open, onClose, onPick, locationId, workout, tit
                 {(() => { const b = badge(d); return b ? <ChoiceDot a={b} /> : null; })()}
                 <div className="min-w-0">
                 <div className="min-w-0 text-sm font-medium break-words">{names.ex(d)}</div>
-                <div className="min-w-0 text-xs text-ink-500 break-words">{L(d.name.ru, d.name.en)} · {Object.entries(d.contributions).filter(([, c]) => (c ?? 0) >= 0.75).map(([m]) => names.muscle(m as MuscleId)).join(', ')}</div>
+                <div className="min-w-0 text-xs text-ink-500 break-words">{L(d.name.ru, d.name.en)} · {muscleCreditText(d, names.muscle)}</div>
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">

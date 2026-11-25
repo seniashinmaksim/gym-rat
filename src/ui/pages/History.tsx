@@ -8,6 +8,8 @@ import { assessSet, countedSetCount, sideFactors, type EffortTier } from '../../
 import type { Confidence, MuscleId, Rom, Workout, WorkoutSource } from '../../domain/types';
 import { sessionMuscleEffective } from '../../domain/volume';
 import { store, useData } from '../../lib/store';
+import { canContinue, continueWorkout } from '../../domain/liveFlow';
+import { isFinished } from '../../domain/feedback';
 import { IconChevron, IconChevronDown, IconCopy, IconEdit, IconMapPin, IconTimer, IconTrash } from '../components/icons';
 import { Badge, Button, Card, Empty, Page, Segmented, confirmAction, cx, fmt, toast, undoToast } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
@@ -405,6 +407,7 @@ function SessionCard({ w, gym, names }: { w: Workout; gym: string; names: Return
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
+            {canContinue(w, a.today) && !data.workouts.some((o) => o.id !== w.id && !isFinished(o)) && <Button size="sm" variant="primary" data-testid="continue-workout" onClick={async () => { await store.putWorkoutAsIs(continueWorkout(w, new Date().toISOString())); nav(`/log/${w.id}`); }}>{L('Continue this workout', 'Продолжить тренировку')}</Button>}
             <Button size="sm" onClick={() => nav(`/log/${w.id}`)}><IconEdit size={14} /> {L('Edit', 'Изменить')}</Button>
             <Button size="sm" onClick={() => nav(`/check/${w.id}`)} data-testid="open-check">{L('Check the numbers', 'Проверить расчёты')}</Button>
             <Button size="sm" onClick={copyJson}><IconCopy size={14} /> {L('Copy JSON', 'Копировать JSON')}</Button>

@@ -25,7 +25,7 @@ import { todayExtraH } from './recovery';
 import { resolveCoefficients, MACHINE_KINDS } from './registry';
 import type { MuscleId, PlannedMove, Variation, Workout } from './types';
 import { computeVolume } from './volume';
-import { outcomeAt, OUTCOME_NOT_LOWER, OUTCOME_RIR_DIFF, OUTCOME_SHORT_REST } from './outcomes';
+import { outcomeAt, softenedFrom, OUTCOME_NOT_LOWER, OUTCOME_RIR_DIFF, OUTCOME_SHORT_REST } from './outcomes';
 import { sessionWindowH, weekdayOf } from './weekPlan';
 
 type Analysis = ReturnType<typeof analyze>;
@@ -181,11 +181,13 @@ function checksFrom(input: ForwardInput, sessions: UpcomingSession[], fromDate: 
       if (gap >= window - RECOVERY_TOLERANCE_H) break; // later sessions are further away still
       const left = window - gap;
       const severity = left >= LIMIT_HOURS_LEFT ? 'limit' as const : 'recommendation' as const;
-      const p = s.exercises.find((e) => e.priority === 'high' && (e.contributions[m] ?? 0) >= INTERFERENCE_MIN_COEF);
-      if (p) { out.push({ check: 'interference', severity, date: s.date, muscle: m, affectsExerciseId: p.exerciseId, hoursLeft: Math.round(left) }); break; }
+      // A session that trains the muscle DIRECTLY while its week is not met is a recovery limit — checked first, because
+      // it is never softened by habits (§N); interference (a high-priority exercise using it at ≥ 0.5) otherwise.
       const q = s.exercises.find((e) => (e.contributions[m] ?? 0) >= DIRECT_COEF);
       // remainingToPreferred already includes today's done sets: subtract only what comes on top; next week resets.
       if (q && s.date <= input.analysis.week.end && weekLeft(m) - (added[m] ?? 0) > 0.5) { out.push({ check: 'recovery', severity, date: s.date, muscle: m, affectsExerciseId: q.exerciseId, hoursLeft: Math.round(left) }); break; }
+      const p = s.exercises.find((e) => e.priority === 'high' && (e.contributions[m] ?? 0) >= INTERFERENCE_MIN_COEF);
+      if (p) { out.push({ check: 'interference', severity, date: s.date, muscle: m, affectsExerciseId: p.exerciseId, hoursLeft: Math.round(left) }); break; }
     }
   }
   return out;
@@ -241,7 +243,8 @@ export interface KeptOutcome { observations: number; notLower: number; lower: nu
 
 /**
  * The last 3 times the owner kept exercise X although it was flagged against upcoming exercise P: did P's session (on
- * that day, or within 2 days after) hold up, i.e. index >= 97 % of its previous comparable session? Like choice_learning.
+ * that day, or within 2 days after) hold up, i.e. index >= 97 % of the median of its last ≤ 3 comparable sessions (≥ 2,
+ * `outcomes.outcomeAt`)? One session of P is one observation. Like choice_learning.
  */
 export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: string, affectsId: string): KeptOutcome {
   const kept = [...data.workouts].sort((a, b) => a.date.localeCompare(b.date))
@@ -249,10 +252,15 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
   const afterKept = (date: string) => kept.some((k) => date >= k.date && diffDays(date, k.date) <= 2);
   const obs: boolean[] = [];
   let lastDate: string | null = null;
+  // One result is one observation: two kept days before the same session (Mon + Tue curls → Wed pull-ups) count once.
+  const used = new Set<string>();
   for (const k of kept) {
     for (const series of analysis.progression.filter((p) => p.exerciseId === affectsId)) {
       const idx = series.sessions.findIndex((x) => x.date >= k.date && diffDays(x.date, k.date) <= 2);
       if (idx < 0) continue;
+      const id = `${series.key}|${series.sessions[idx].workoutId}`;
+      if (used.has(id)) break;
+      used.add(id);
       // Median of the last ≤ 3 comparable sessions of the SAME history not themselves right after a kept conflict (≥ 2);
       // a result that is not comparable is skipped and the next history (another machine) is tried.
       const held = outcomeAt(series.sessions, idx, (x) => afterKept(x.date));
@@ -264,7 +272,7 @@ export function keptOutcome(data: AppData, analysis: Analysis, exerciseId: strin
   }
   const last = obs.slice(-KEPT_MIN_OBSERVATIONS);
   const notLower = last.filter(Boolean).length;
-  return { observations: last.length, notLower, lower: last.length - notLower, softened: last.length >= KEPT_MIN_OBSERVATIONS && notLower >= 2, lastDate };
+  return { observations: last.length, notLower, lower: last.length - notLower, softened: softenedFrom(obs), lastDate };
 }
 
 /**

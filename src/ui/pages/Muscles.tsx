@@ -1,3 +1,4 @@
+import { accentHex } from '../accent';
 import { useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, CartesianGrid, Legend, Line, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { statusLabel, type MuscleWeek, type WeekStatus } from '../../domain/analysis';
@@ -289,8 +290,8 @@ function HistoryCard() {
                 <XAxis dataKey="week" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: 'rgba(135,145,165,0.08)' }} formatter={tipNum} />
-                <Bar dataKey="direct" name={L('Direct (effective)', 'Прямые (эфф.)')} stackId="v" fill="#14b8a6" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="indirect" name={L('Indirect (effective)', 'Косвенные (эфф.)')} stackId="v" fill="#5eead4" fillOpacity={0.55} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="direct" name={L('Direct (effective)', 'Прямые (эфф.)')} stackId="v" fill={accentHex(500)} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="indirect" name={L('Indirect (effective)', 'Косвенные (эфф.)')} stackId="v" fill={accentHex(300)} fillOpacity={0.55} radius={[4, 4, 0, 0]} />
                 <Line dataKey="target" name={L('Target', 'Цель')} type="stepAfter" stroke="#8791a5" strokeDasharray="4 4" dot={false} strokeWidth={1.5} />
                 <ReferenceLine y={t.min} stroke="#f59e0b" strokeOpacity={0.5} strokeDasharray="2 4" />
                 <Legend wrapperStyle={{ fontSize: 11, left: 0, width: '100%' }} />

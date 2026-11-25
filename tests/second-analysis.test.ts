@@ -96,8 +96,8 @@ describe('one "short rest" (owner 2026-11-24: never below 2:30 as the usual)', (
 const T: ExerciseTarget = { sets: 3, weightKg: 40, reps: [{ min: 8, max: 12 }], rir: [{ min: 1, max: 2 }], engine: 'presc-1' };
 const card = (sets = [] as ReturnType<typeof set>[], t: ExerciseTarget = T): WorkoutExercise => ({ ...ex('pec_deck', sets, 'pd'), target: t });
 describe('after-set offer (owner 2026-11-24)', () => {
-  it('EASY at the top of the range, clean → offer one step up (42.5 kg); GOOD → no offer', () => {
-    expect(nextSetsOffer(card([set(40, 12, null, { effort: 'easy', feel: 'bit_easy', completedAt: '2026-11-16T17:20:00Z' })]), 2.5)).toMatchObject({ change: 'add_load', weightKg: 42.5 });
+  it('EASY at the top of the range with a planned weight → no offer (owner 2026-11-25, replaces B-3: "I said easy" is not an analysis); GOOD → no offer', () => {
+    expect(nextSetsOffer(card([set(40, 12, null, { effort: 'easy', feel: 'bit_easy', completedAt: '2026-11-16T17:20:00Z' })]), 2.5)).toBeNull();
     expect(nextSetsOffer(card([set(40, 12, null, { effort: 'appropriate', completedAt: '2026-11-16T17:20:00Z' })]), 2.5)).toBeNull();
   });
   it('two sets well under the range after 90 s rests → the rest, no reduce offer (unified short rest)', () => {

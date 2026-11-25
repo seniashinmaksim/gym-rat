@@ -122,7 +122,9 @@ for (const lang of ['en', 'ru'] as const) {
     await chooser.getByTestId('next-add').click();
     const best = page.getByTestId('best-now');
     await expect(best).toBeVisible();
-    await expectSorted(best);
+    // Grouped by muscle (the most-needed first); inside a muscle sorted by fit.
+    expect(await best.getByTestId('best-group').count()).toBeGreaterThan(0);
+    for (const g of await best.getByTestId('best-group').all()) await expectSorted(g);
     await best.getByTestId('opt-score').first().click();
     await expect(best.getByTestId('opt-why').first()).toBeVisible();
     await noFindings(page, 'picker best now');

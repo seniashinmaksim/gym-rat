@@ -13,6 +13,8 @@ import { MACHINE_KINDS } from './registry';
 import type { AppData } from './appdata';
 import { assessChoice, availableEquipment, exerciseSessionCounts, priorWorkouts, type ChoiceFindingCode, type ChoiceOutcome } from './exerciseChoice';
 import { significantMuscles } from './fatigue';
+import { MUSCLE_BY_ID } from './muscles';
+import type { ExerciseDef } from './types';
 import { L, getLang } from '../i18n/core';
 import { muscleName } from './muscles';
 import { forwardChecks, usualSetCount } from './sequence';
@@ -185,8 +187,8 @@ export function optimality(input: OptimalityInput): Optimality {
   if (pLine && pLine.state === 'LIKELY_READY' && !deductions.some((x) => /^primary|today_share/.test(x.factor))) {
     const left = pLine.todayLeft > 0 ? pLine.todayLeft : pLine.weekLeft;
     if (left > 0) why.push(pLine.todayLeft > 0
-      ? L(`${muscleName(pLine.muscle, 'en')} ready, ${fmtN(left)} effective sets left today.`, `${muscleName(pLine.muscle, 'ru')}: готово, на сегодня ещё ${fmtN(left)} эфф. подх.`)
-      : L(`${muscleName(pLine.muscle, 'en')} ready, ${fmtN(left)} effective sets left this week.`, `${muscleName(pLine.muscle, 'ru')}: готово, на неделе ещё ${fmtN(left)} эфф. подх.`));
+      ? L(`${muscleName(pLine.muscle, 'en')} ready, ${fmtN(left)} effective sets left today.`, `${muscleName(pLine.muscle, 'ru')}: можно нагружать, на сегодня ещё ${fmtN(left)} эфф. подх.`)
+      : L(`${muscleName(pLine.muscle, 'en')} ready, ${fmtN(left)} effective sets left this week.`, `${muscleName(pLine.muscle, 'ru')}: можно нагружать, на неделе ещё ${fmtN(left)} эфф. подх.`));
   }
   for (const x of [...deductions].sort((p, q) => q.points - p.points).slice(0, 2)) why.push(`−${x.points}: ${x.text}`);
   for (const c of caps) why.push(L(`At most ${c.max}: ${c.text}`, `Не выше ${c.max}: ${c.text}`));
@@ -204,4 +206,50 @@ const GROUP_RANK: Record<OptimalityGroup, number> = { suitable: 0, less_optimal:
 export function rankOptions<T extends Optimality>(list: T[], nameOf: (exerciseId: string) => string): T[] {
   return [...list].sort((x, y) => GROUP_RANK[x.group] - GROUP_RANK[y.group] || (y.score ?? -1) - (x.score ?? -1) || y.sessions - x.sessions
     || nameOf(x.exerciseId).localeCompare(nameOf(y.exerciseId)) || x.exerciseId.localeCompare(y.exerciseId) || (x.equipmentId ?? '').localeCompare(y.equipmentId ?? ''));
+}
+
+// ---------------------------------------------------------------- what to do next (owner 2026-11-25: most-needed muscle first)
+
+export interface NextOption extends Optimality { def: ExerciseDef; isNew: boolean }
+export interface NextGroup { muscle: MuscleId; open: number; options: NextOption[] }
+export interface NextSuggestions { groups: NextGroup[]; notToday: NextOption[] }
+
+/** Muscles shown and options per muscle. */
+export const NEXT_MAX_MUSCLES = 4;
+export const NEXT_PER_MUSCLE = 2;
+const SIZE_RANK = { large: 0, medium: 1, small: 2 } as const;
+
+/**
+ * "What next?" — grouped by MUSCLE, the muscle with the most sets open today first (ties: larger muscle, then the
+ * library order); inside a muscle its best exercises by fit score. Exercises new to the owner are included when the
+ * muscle has no familiar one (marked `isNew`) — a muscle never trained must not lose to one trained last time just
+ * because its exercises are new (the owner's Wednesday: incline press 85 over pull-ups 70 with back 6 sets open).
+ * Muscles held by an earlier session's window are not suggested; familiar exercises not recommended today are listed apart.
+ */
+export function suggestNext(input: { data: AppData; analysis: Analysis; workout: Workout | null; outcomes?: Map<string, ChoiceOutcome>; nameOf?: (exerciseId: string) => string }): NextSuggestions {
+  const { data, analysis, workout } = input;
+  const nameOf = input.nameOf ?? ((id: string) => id);
+  const counts = exerciseSessionCounts(priorWorkouts(data, workout));
+  const inSession = new Set((workout?.exercises ?? []).filter((e) => !e.skipped).map((e) => e.exerciseId));
+  const defs = [...analysis.registry.values()];
+  const order = new Map(defs.map((d, i) => [d.id, i]));
+  const primaryOf = (d: ExerciseDef) => significantMuscles(d, null, 0.5)[0]?.muscle ?? null;
+  const score = (d: ExerciseDef): NextOption => ({ ...optimality({ data, analysis, workout, exerciseId: d.id, outcomes: input.outcomes }), def: d, isNew: (counts.get(d.id) ?? 0) === 0 });
+  const tracked = analysis.muscles.map((m) => m.muscle);
+  const open = analysis.muscles.filter((m) => isOpen(m.todayOpen))
+    .sort((a, b) => b.todayOpen - a.todayOpen || SIZE_RANK[MUSCLE_BY_ID[a.muscle].size] - SIZE_RANK[MUSCLE_BY_ID[b.muscle].size] || tracked.indexOf(a.muscle) - tracked.indexOf(b.muscle));
+  const groups: NextGroup[] = [];
+  const notToday: NextOption[] = [];
+  for (const m of open) {
+    const pool = defs.filter((d) => !inSession.has(d.id) && primaryOf(d) === m.muscle);
+    const familiar = pool.filter((d) => (counts.get(d.id) ?? 0) > 0);
+    // New exercises only where nothing familiar exists; the library order stands in for "the usual first choice".
+    const cands = familiar.length ? familiar : pool;
+    const ranked = rankOptions(cands.map(score), nameOf);
+    notToday.push(...ranked.filter((o) => o.group === 'not_today' && !o.isNew));
+    const ok = ranked.filter((o) => o.group !== 'not_today');
+    const options = (familiar.length ? ok : [...ok].sort((x, y) => GROUP_RANK[x.group] - GROUP_RANK[y.group] || (y.score ?? 0) - (x.score ?? 0) || (order.get(x.exerciseId) ?? 0) - (order.get(y.exerciseId) ?? 0))).slice(0, NEXT_PER_MUSCLE);
+    if (options.length && groups.length < NEXT_MAX_MUSCLES) groups.push({ muscle: m.muscle, open: m.todayOpen, options });
+  }
+  return { groups, notToday: notToday.slice(0, 3) };
 }

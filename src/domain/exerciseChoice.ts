@@ -33,7 +33,7 @@ export type ChoiceReason = 'recovery' | 'volume' | 'fatigue' | 'order' | 'uncert
 export type ChoiceLabel = 'GOOD CHOICE' | 'ACCEPTABLE' | 'CONSIDER ALTERNATIVE' | 'CONSIDER LATER';
 
 export const STATE_LABEL: Record<MuscleState, string> = byLang(() => ({
-  LIKELY_READY: L('READY', 'ГОТОВО'), RECENTLY_LOADED: L('RECENTLY LOADED', 'НЕДАВНЯЯ НАГРУЗКА'), RECOVERY_UNCERTAIN: L('RECOVERY UNCERTAIN', 'ВОССТАНОВЛЕНИЕ НЕЯСНО'), PERFORMANCE_DECLINING: L('PERFORMANCE DECLINING', 'РЕЗУЛЬТАТЫ СНИЖАЮТСЯ'),
+  LIKELY_READY: L('READY', 'МОЖНО НАГРУЖАТЬ'), RECENTLY_LOADED: L('RECENTLY LOADED', 'НЕДАВНЯЯ НАГРУЗКА'), RECOVERY_UNCERTAIN: L('RECOVERY UNCERTAIN', 'ВОССТАНОВЛЕНИЕ НЕЯСНО'), PERFORMANCE_DECLINING: L('PERFORMANCE DECLINING', 'РЕЗУЛЬТАТЫ СНИЖАЮТСЯ'),
 }));
 
 /**
@@ -310,7 +310,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     // Only a fully assumed time (no start, no end) makes a nearly-finished window uncertain; a known start time
     // misses only the session's own length.
     const timeUnsure = pr?.lastStimulusTimeSource === 'assumed';
-    if (pr?.status === 'recovering' && pr.hoursLeft > RECOVERY_TOLERANCE_H) {
+    if (pr?.status === 'recovering' && pr.hoursLeftExact > RECOVERY_TOLERANCE_H) {
       // An unknown session time puts a window that is nearly over into doubt.
       if (timeUnsure && pr.hoursLeft <= 18) state = 'RECOVERY_UNCERTAIN';
       else { state = 'RECENTLY_LOADED'; source = 'earlier_session'; }
@@ -381,7 +381,8 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     });
     if (blocked) {
       findings.push({ code: 'order_pending', status: 'reconsider', kind: 'order', text: L(`${muscleName(primary)} also works hard in ${registry.get(blocked.exerciseId)?.name.en ?? 'a planned press/pull'} (still to do) — do that first to keep its reps; isolation after it.`, `${mRu(primary)}: большая нагрузка будет и в ${registry.get(blocked.exerciseId) ? `упражнении «${ruName(registry.get(blocked.exerciseId), '')}»` : 'запланированном жиме или тяге'} (ещё впереди) — сначала сделайте его, чтобы сохранить в нём повторения, а изолирующее упражнение — после.`) });
-    } else if (!pending.length) {
+    } else if (!pending.length && position === 'FIRST HALF') {
+      // Only early in the session (owner 2026-11-25): late in it, "if you still plan chest compounds" is noise.
       const host: Partial<Record<MuscleId, MuscleId[]>> = { triceps: ['chest'], front_delts: ['chest'], biceps: ['lats', 'upper_back'], rear_delts: ['upper_back'] };
       const h = (host[primary] ?? []).find((m) => {
         const mw = analysis.muscles.find((x) => x.muscle === m);
@@ -406,9 +407,9 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
     const names = loadedSyn.map((l) => `${muscleName(l.muscle).toLowerCase()}${l.source === 'this_session' ? ' (today)' : ''}`).join(', ');
     const namesRu = loadedSyn.map((l) => `${mRuLow(l.muscle)}${l.source === 'this_session' ? ' (сегодня)' : ''}`).join(', ');
     if (spare.length) {
-      findings.push({ code: 'synergist_spare', status: 'reconsider', kind: 'recovery', text: L(`${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.`, `${mRu(primary)}: готово, но есть недавняя нагрузка: ${namesRu} — вариант без неё тренирует целевую мышцу не хуже.`) });
+      findings.push({ code: 'synergist_spare', status: 'reconsider', kind: 'recovery', text: L(`${muscleName(primary)} is ready, but ${names} ${loadedSyn.length === 1 ? 'is' : 'are'} recently loaded — an option that spares ${loadedSyn.length === 1 ? 'it' : 'them'} trains ${muscleName(primary).toLowerCase()} just as well.`, `${mRu(primary)}: можно нагружать, но есть недавняя нагрузка: ${namesRu} — вариант без неё тренирует целевую мышцу не хуже.`) });
       if (wantAlt) alternatives = spare;
-    } else findings.push({ code: 'synergist_no_spare', status: 'acceptable', kind: 'recovery', text: L(`${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.`, `${mRu(primary)}: готово; недавняя нагрузка: ${namesRu}, и знакомого варианта без неё здесь нет.`) });
+    } else findings.push({ code: 'synergist_no_spare', status: 'acceptable', kind: 'recovery', text: L(`${muscleName(primary)} is ready; ${names} recently loaded and no familiar option here spares ${loadedSyn.length === 1 ? 'it' : 'them'}.`, `${mRu(primary)}: можно нагружать; недавняя нагрузка: ${namesRu}, и знакомого варианта без неё здесь нет.`) });
   }
 
   // Final status: worst finding; reason by fixed priority.
@@ -425,7 +426,7 @@ export function assessChoice(input: AssessInput): ChoiceAssessment {
 
   const why = findings.sort((a, b) => SEVERITY[b.status] - SEVERITY[a.status] || REASON_ORDER.indexOf(a.kind) - REASON_ORDER.indexOf(b.kind)).map((f) => f.text);
   if (status === 'good') {
-    if (pLine && pLine.todayLeft > 0) why.unshift(L(`${muscleName(pLine.muscle)} is ready with ${fmtSets(pLine.todayLeft)} left today.`, `${mRu(pLine.muscle)}: готово, на сегодня ещё ${ruSets(pLine.todayLeft)}.`));
+    if (pLine && pLine.todayLeft > 0) why.unshift(L(`${muscleName(pLine.muscle)} is ready with ${fmtSets(pLine.todayLeft)} left today.`, `${mRu(pLine.muscle)}: можно нагружать, на сегодня ещё ${ruSets(pLine.todayLeft)}.`));
     if (cost === 'high' && position === 'FIRST HALF') why.push(L('Fatigue cost HIGH early in the session — a good point for it.', 'ВЫСОКОЕ утомление в начале тренировки — подходящий момент для такого упражнения.'));
   }
   if (wantAlt && status !== 'good' && !alternatives.length) why.push(L('No better familiar option here today — continuing is reasonable.', 'Лучшего знакомого варианта здесь сегодня нет — продолжать вполне разумно.'));
@@ -471,7 +472,7 @@ interface AltCtx {
 
 function recentlyLoaded(a: Analysis, m: MuscleId): boolean {
   const pr = a.planRecovery[m];
-  return pr?.status === 'recovering' && pr.hoursLeft > RECOVERY_TOLERANCE_H;
+  return pr?.status === 'recovering' && pr.hoursLeftExact > RECOVERY_TOLERANCE_H;
 }
 
 function candidatePool(c: AltCtx, filter: (d: ExerciseDef) => boolean): { d: ExerciseDef; equipmentId: string | null; sessions: number }[] {

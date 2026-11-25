@@ -11,13 +11,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
-import { loadStep } from '../../domain/increments';
+import { barBreakdown, loadStep } from '../../domain/increments';
 import {
-  ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, keepOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, weightSource, type NextSetsOffer,
+  ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, keepOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, targetText, weightSource, type NextSetsOffer,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
 } from '../../domain/liveFlow';
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
-import { optimality, rankOptions, type Optimality } from '../../domain/optimality';
+import { optimality, rankOptions, suggestNext, type Optimality } from '../../domain/optimality';
+import { muscleCreditText } from '../../domain/fatigue';
+import { setsLeftTodayText } from '../../domain/analysis';
 import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { progressionKey } from '../../domain/progression';
 import { loadUnitLabel, MACHINE_KINDS } from '../../domain/registry';
@@ -74,14 +76,7 @@ function setsLine(sets: WorkoutSet[]): string {
   return parts.join('   ');
 }
 
-function targetLine(e: WorkoutExercise): string | null {
-  const t = e.target;
-  if (!t) return null;
-  if (t.sets <= 0) return L('optional today', 'сегодня по желанию');
-  const r = t.reps[0];
-  const reps = r ? (r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`) : '';
-  return `${t.sets} × ${t.weightKg != null ? `${num(t.weightKg)} ${KG()} × ` : ''}${reps}`;
-}
+const targetLine = (e: WorkoutExercise): string | null => targetText(e.target);
 
 /** The exercise to work on: the one of the last logged set unless it was closed, else the first open one. */
 function pickCurrent(w: Workout): string | null {
@@ -124,6 +119,7 @@ function TrainSession({ initial }: { initial: Workout }) {
     return r && !ended && !midPair && r.elapsedSec < 30 * 60 && r.exerciseId === pickCurrent(initial) ? 'rest' : 'set';
   });
   const [picker, setPicker] = useState<'add' | { change: string } | null>(() => (initial.exercises.length ? null : 'add'));
+  const [preselect, setPreselect] = useState<ExerciseDef | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [preFinish, setPreFinish] = useState<Workout | null>(null);
   const finishing = useRef(false);
@@ -160,6 +156,7 @@ function TrainSession({ initial }: { initial: Workout }) {
   };
   const addExercise = (def: ExerciseDef, opts: AddOpts = {}) => {
     setPicker(null);
+    setPreselect(null);
     const ex = buildExercise(def, w, opts);
     const at = new Date().toISOString();
     update((x) => ({ ...x, exercises: [...x.exercises, { ...ex, order: x.exercises.length }], ...(opts.ackKey || opts.forwardAck ? { choiceAcks: [...(x.choiceAcks ?? []), ...[opts.ackKey, opts.forwardAck].filter((k): k is string => !!k).map((key) => ({ key, at }))] } : {}) }), { now: true });
@@ -383,6 +380,10 @@ function TrainSession({ initial }: { initial: Workout }) {
     })), (id) => names.ex(a.registry.get(id)));
   }, [chooser, w, data, a, names]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Nothing else on today's list (e.g. a session built exercise by exercise): what the week still needs, the
+  // most-needed muscle first (owner 2026-11-25) — one tap adds it.
+  const suggested = useMemo(() => (chooser != null && !openList.length ? suggestNext({ data, analysis: a, workout: w, outcomes: choiceOutcomes(data, a), nameOf: (id) => names.ex(a.registry.get(id)) }) : null), [chooser, w, data, a, names]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const accent = data.settings.trainAccent ?? 'ember';
   const active = w.exercises.filter((e) => !e.skipped);
   const position = cur ? `${active.findIndex((e) => e.id === cur.id) + 1} / ${active.length}` : '';
@@ -400,7 +401,7 @@ function TrainSession({ initial }: { initial: Workout }) {
           sessionStep={sessionStep[cur.id]} setSessionStep={(v) => setSessionStep((m) => ({ ...m, [cur.id]: v }))}
           onLater={() => { postpone(cur.id); setCurId(null); setView('overview'); }} onSkip={() => skip(cur.id)} onChange={() => setPicker({ change: cur.id })} />
       )}
-      <ExercisePicker open={!!picker} title={picker && picker !== 'add' ? L('Change exercise', 'Сменить упражнение') : L('Add exercise', 'Добавить упражнение')} onClose={() => setPicker(null)}
+      <ExercisePicker open={!!picker} title={picker && picker !== 'add' ? L('Change exercise', 'Сменить упражнение') : L('Add exercise', 'Добавить упражнение')} onClose={() => { setPicker(null); setPreselect(null); }} preselect={picker === 'add' ? preselect : null}
         onPick={picker && picker !== 'add' ? (d) => { const id = picker.change; setPicker(null); changeExercise(id, d); } : addExercise} locationId={w.locationId} workout={picker === 'add' ? w : null} />
       {summary && <SummaryModal s={summary} onDone={() => nav('/')} onBack={preFinish ? backToWorkout : undefined} />}
       <Modal open={chooser != null && !picker} onClose={() => setChooser(null)} title={L('Next exercise', 'Следующее упражнение')}>
@@ -417,7 +418,26 @@ function TrainSession({ initial }: { initial: Workout }) {
               </ScoredRow>
             </div>
           ))}
-          {!openList.length && <p className="text-sm text-ink-500">{L('Everything planned is done. Add another exercise, or finish the workout in the overview.', 'Всё запланированное сделано. Добавьте ещё упражнение или завершите тренировку в обзоре.')}</p>}
+          {suggested && suggested.groups.length > 0 && (
+            <div className="space-y-1.5" data-testid="next-suggested">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">{L('Suggested next — the muscle that needs it most first', 'Что дальше — сначала мышца, которой нужнее')}</p>
+              {suggested.groups.map((g) => (
+                <div key={g.muscle} className="space-y-1.5" data-testid="next-group">
+                  <p className="mt-2 break-words text-xs font-semibold text-ink-700 dark:text-ink-200">{names.muscle(g.muscle)} · {setsLeftTodayText(g.open)}</p>
+                  {g.options.map((o) => (
+                    <ScoredRow key={o.exerciseId} o={o}>
+                      <button type="button" onClick={() => { setChooser(null); setPreselect(o.def); setPicker('add'); }} data-testid="next-suggestion"
+                        className="flex min-h-[56px] w-full flex-col items-start justify-center rounded-xl border border-ink-200 px-3 py-2 text-left dark:border-ink-700">
+                        <span className="break-words text-sm font-semibold text-ink-900 dark:text-white">{names.ex(o.def)}</span>
+                        <span className="break-words text-xs text-ink-500">{muscleCreditText(o.def, names.muscle)}{o.isNew ? L(' · new — find your weight', ' · новое — подберите вес') : ''}</span>
+                      </button>
+                    </ScoredRow>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {!openList.length && <p className="text-sm text-ink-500">{L('Nothing else is on today\'s list. Add the next exercise — or finish the workout in the overview.', 'В списке на сегодня больше ничего нет. Добавьте следующее упражнение — или завершите тренировку в обзоре.')}</p>}
           <Button size="lg" variant={openList.length ? 'secondary' : 'primary'} className="w-full" onClick={() => { setChooser(null); setPicker('add'); }} data-testid="next-add"><IconPlus size={18} />{L('Add exercise', 'Добавить упражнение')}</Button>
           <button type="button" className="min-h-[48px] w-full text-sm font-semibold text-ink-500 underline" onClick={() => setChooser(null)} data-testid="next-overview">{L('Overview', 'Обзор')}</button>
         </div>
@@ -526,7 +546,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   // Where the weight in the field came from (owner 2026-11-24): adjusted by the analysis · kept by it · only copied.
   const source = weightSource(ex, last, weight);
 
-  const [sheet, setSheet] = useState<null | 'step' | 'why' | 'setup' | 'menu' | { set: string }>(null);
+  const [sheet, setSheet] = useState<null | 'step' | 'bar' | 'why' | 'setup' | 'menu' | { set: string }>(null);
   const [pickEq, setPickEq] = useState(false);
   const [newEq, setNewEq] = useState(false);
   const [editEq, setEditEq] = useState<Equipment | null>(null);
@@ -548,7 +568,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     const xs = (series?.sessions ?? []).map((x) => x.restAvgSec).filter((r): r is number => r != null).sort((p, q) => p - q);
     return xs.length ? xs[xs.length >> 1] : null;
   }, [series]);
-  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, stepInfo.step, { minKg: eq?.minKg ?? null, maxKg: eq?.maxKg ?? null, restMedianSec: restMedian })), [ex, stepInfo.step, progress.reached, eq, restMedian]);
+  const offer = useMemo(() => (progress.reached ? null : nextSetsOffer(ex, step, { minKg: eq?.minKg ?? null, maxKg: eq?.maxKg ?? null, restMedianSec: restMedian })), [ex, step, progress.reached, eq, restMedian]);
 
   const log = () => {
     const nowMs = Date.now();
@@ -582,6 +602,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     const t = stepTarget(eq, gym, eq?.kind ?? def?.equipmentKind);
     if (t.kind === 'equipment' && eq) { void store.saveEquipment({ ...eq, incrementsKg: withChosenStep(eq.incrementsKg, s) }); toast(L(`Step ${num(s)} kg remembered for ${eq.name}`, `Шаг ${num(s)} кг запомнен: ${eq.name}`), 'info'); }
     else if (t.kind === 'gym_free_weights' && gym) { void store.saveLocation({ ...gym, freeWeightIncrementsKg: withChosenStep(gym.freeWeightIncrementsKg, s) }); toast(L(`Step ${num(s)} kg remembered for the dumbbells at ${gym.name}`, `Шаг ${num(s)} кг запомнен для гантелей: ${gym.name}`), 'info'); }
+    else if (t.kind === 'gym_barbell' && gym) { void store.saveLocation({ ...gym, barbellIncrementsKg: withChosenStep(gym.barbellIncrementsKg, loadMode === 'per_side' ? s * 2 : s) }); toast(L(`Step ${num(s)} kg remembered for barbells at ${gym.name}`, `Шаг ${num(s)} кг запомнен для штанг: ${gym.name}`), 'info'); }
     else { setSessionStep(s); toast(L(`Step ${num(s)} kg for this workout — link a machine to remember it`, `Шаг ${num(s)} кг на эту тренировку — привяжите тренажёр, чтобы запомнить`), 'info'); }
   };
   const chooseEq = (chosen: Equipment | null) => setEx(ex.id, (x) => ({ ...x, equipmentId: chosen?.id ?? null, equipmentConfidence: chosen ? 'confirmed' : 'unknown', settings: chosen ? { ...chosen.settings, ...(x.settings ?? {}) } : x.settings }), true);
@@ -612,6 +633,20 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const unit = unitLabel(def, loadMode);
   const eqLine = eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите') : null;
   const target = targetLine(ex);
+  // Barbell: the total is what counts; with a KNOWN bar weight the plates per side are shown (never assumed).
+  const isBar = loadMode === 'total' && (eq?.kind ?? def?.equipmentKind) === 'barbell';
+  const barKg = eq?.barWeightKg ?? gym?.barWeightKg ?? null;
+  const bd = isBar ? barBreakdown(weight, barKg) : null;
+  const barLine = !isBar || (!eq && !gym) ? null
+    : barKg == null ? L('Total weight with the bar. Set the bar\'s weight to see the plates per side', 'Общий вес вместе с грифом. Укажите вес грифа, чтобы видеть диски на сторону')
+      : bd ? L(`= bar ${num(bd.barKg)} kg + ${num(bd.perSideKg)} kg per side`, `= гриф ${num(bd.barKg)} кг + ${num(bd.perSideKg)} кг на сторону`)
+        : L(`Total with the bar (${num(barKg)} kg)`, `Общий вес с грифом (${num(barKg)} кг)`);
+  const saveBar = (kg: number | null) => {
+    setSheet(null);
+    if (eq) void store.saveEquipment({ ...eq, barWeightKg: kg });
+    else if (gym) void store.saveLocation({ ...gym, barWeightKg: kg });
+    if (kg != null) toast(L(`Bar ${num(kg)} kg remembered`, `Гриф ${num(kg)} кг запомнен`), 'info');
+  };
 
   const chips = (
     <div className="flex flex-wrap gap-2" data-testid="set-chips">
@@ -651,6 +686,13 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
       <Modal open={sheet === 'step'} onClose={() => setSheet(null)} title={L('Weight step', 'Шаг веса')}>
         <p className="mb-3 text-sm text-ink-500">{eq ? L(`The smallest step on ${eq.name}. Remembered for this machine.`, `Наименьший шаг на «${eq.name}». Запоминается для этого тренажёра.`) : L('The smallest step you can add here. Any weight can also be typed — tap the number.', 'Наименьший шаг, который здесь можно добавить. Любой вес можно ввести вручную — нажмите на число.')}</p>
         <StepChoices current={step} onPick={chooseStep} />
+      </Modal>
+      <Modal open={sheet === 'bar'} onClose={() => setSheet(null)} title={L('Bar weight', 'Вес грифа')}>
+        <p className="mb-3 text-sm text-ink-500">{L('The empty bar you use here. You keep entering the TOTAL weight (bar + plates); the app then shows the plates per side. Nothing in your history changes.', 'Пустой гриф, которым вы здесь пользуетесь. Вы по-прежнему вводите ОБЩИЙ вес (гриф + диски); приложение покажет диски на сторону. В истории ничего не меняется.')}</p>
+        <div className="flex flex-wrap gap-2" data-testid="bar-choices">
+          {[20, 15, 10, 7.5].map((kg) => <Toggle key={kg} on={barKg === kg} onClick={() => saveBar(kg)}>{num(kg)} {KG()}</Toggle>)}
+          <Toggle on={barKg == null} onClick={() => saveBar(null)}>{L('Unknown', 'Неизвестен')}</Toggle>
+        </div>
       </Modal>
       {sheet === 'why' && <WhySheet w={w} ex={ex} onClose={() => setSheet(null)} />}
       <Modal open={sheet === 'setup'} onClose={() => setSheet(null)} title={L('Setup', 'Настройка')}>
@@ -740,6 +782,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
           {sides && <div className="flex items-center gap-2"><TLabel>{L('Side', 'Сторона')}</TLabel><span className="rounded-md bg-t-surface px-2 py-1 text-xs font-bold uppercase" data-testid="side">{nextSide === 'left' ? L('Left', 'Левая') : L('Right', 'Правая')}</span></div>}
           {source && <WeightSource source={source} planKg={ex.target?.weightKg ?? null} weightKg={weight} lastKg={(lastSets[sets.length] ?? lastSets.filter((s) => s.type === 'working').at(-1))?.weightKg ?? null} />}
           <WeightControl value={weight} onChange={setWeight} step={step} onStepClick={() => setSheet('step')} unit={unit} />
+          {barLine && <button type="button" onClick={() => setSheet('bar')} className="-mt-1 flex min-h-[44px] w-full items-center text-left text-xs font-semibold text-t-dim underline decoration-dotted" data-testid="bar-line">{barLine}</button>}
           <RepsControl value={reps} onChange={setReps} />
           <div data-testid="effort-entry">
             <TLabel>{L('How did it go? (optional)', 'Как прошёл? (необязательно)')}</TLabel>
@@ -853,13 +896,15 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust,
         {offer && (
           <div className="mb-2 w-full max-w-sm rounded-xl border border-t-accent/60 bg-t-surface px-3 py-2" data-testid="set-offer" data-change={offer.change}>
             <p className="flex items-start gap-1.5 text-sm font-semibold text-t-text"><IconBrain size={18} className="mt-0.5 shrink-0 text-t-accent" />
-              <span className="min-w-0 break-words">{offer.change === 'add_load' || (offer.change === 'reduce' && offer.weightKg !== ex.target?.weightKg)
+              <span className="min-w-0 break-words">{offer.change === 'find_weight' ? L('Too light to calculate from', 'Слишком легко для расчёта')
+                : offer.change === 'calc' ? L(`Calculated working weight: ${num(offer.weightKg ?? 0)} kg`, `Расчётный рабочий вес: ${num(offer.weightKg ?? 0)} кг`)
+                : offer.change === 'add_load' || (offer.change === 'reduce' && offer.weightKg !== ex.target?.weightKg)
                 ? L(`Next sets: ${num(offer.weightKg ?? 0)} kg (${offer.change === 'add_load' ? 'heavier' : 'lighter'})`, `Следующие подходы: ${num(offer.weightKg ?? 0)} кг (${offer.change === 'add_load' ? 'тяжелее' : 'легче'})`)
                 : L(`Next sets: ${offer.reps?.min}–${offer.reps?.max} reps`, `Следующие подходы: ${offer.reps?.min}–${offer.reps?.max} повт.`)}</span></p>
             <p className="mt-0.5 break-words text-xs text-t-dim">{offer.why}</p>
             <div className="mt-1.5 flex gap-2">
-              <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-accent px-3 text-sm font-bold text-t-accent" onClick={() => onUseOffer(offer)} data-testid="offer-use">{L('Use', 'Принять')}</button>
-              <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-line px-3 text-sm font-semibold text-t-dim" onClick={onKeepOffer} data-testid="offer-keep">{L('Keep the plan', 'Оставить план')}</button>
+              {offer.change !== 'find_weight' && <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-accent px-3 text-sm font-bold text-t-accent" onClick={() => onUseOffer(offer)} data-testid="offer-use">{L('Use', 'Принять')}</button>}
+              <button type="button" className="min-h-[44px] flex-1 rounded-lg border border-t-line px-3 text-sm font-semibold text-t-dim" onClick={onKeepOffer} data-testid="offer-keep">{offer.change === 'find_weight' ? L('OK', 'Понятно') : offer.change === 'calc' ? L('Not now', 'Не сейчас') : L('Keep the plan', 'Оставить план')}</button>
             </div>
           </div>
         )}

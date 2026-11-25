@@ -1,3 +1,4 @@
+import { accentHex } from '../accent';
 import { useMemo, useState } from 'react';
 import { CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import { diffDays, formatDate, localNowParts } from '../../domain/dates';
@@ -207,7 +208,7 @@ function WeightChart({ body }: { body: BodyMeasurement[] }) {
           <YAxis domain={[lo, hi]} unit={L(' kg', ' кг')} width={58} />
           <Tooltip labelFormatter={(t) => fmtT(Number(t))} formatter={(v: number, n: string) => [`${fmt(v)} ${KG()}`, n === 'avg' ? L('7-day average', 'Среднее за 7 дней') : L('Weigh-in', 'Взвешивание')]} />
           <Scatter data={daily} dataKey="weight" name="weight" fill="#8791a5" fillOpacity={0.55} />
-          <Line data={line} dataKey="avg" name="avg" type="monotone" stroke="#14b8a6" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+          <Line data={line} dataKey="avg" name="avg" type="monotone" stroke={accentHex(500)} strokeWidth={2.5} dot={false} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -241,7 +242,7 @@ function MiniTrends({ body }: { body: BodyMeasurement[] }) {
                   <ResponsiveContainer>
                     <LineChart data={pts} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
                       <YAxis hide domain={['dataMin - 0.5', 'dataMax + 0.5']} />
-                      <Line dataKey="v" type="monotone" stroke="#14b8a6" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line dataKey="v" type="monotone" stroke={accentHex(500)} strokeWidth={2} dot={false} isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : <span className="text-[11px] text-ink-400">{L('One reading — trend after the next', 'Один замер — тренд после следующего')}</span>}

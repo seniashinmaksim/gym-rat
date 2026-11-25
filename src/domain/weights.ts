@@ -34,11 +34,12 @@ export function normalizeWeight(v: number | null): number | null {
 }
 
 /** Where a remembered step is written: the machine, or the gym's dumbbell / kettlebell steps. */
-export type StepTarget = { kind: 'equipment'; id: string } | { kind: 'gym_free_weights'; id: string } | { kind: 'session' };
+export type StepTarget = { kind: 'equipment'; id: string } | { kind: 'gym_free_weights'; id: string } | { kind: 'gym_barbell'; id: string } | { kind: 'session' };
 
 export function stepTarget(eq: Pick<Equipment, 'id'> | null | undefined, location: Pick<Location, 'id'> | null | undefined, kind: EquipmentKind | undefined): StepTarget {
   if (eq) return { kind: 'equipment', id: eq.id };
   if ((kind === 'dumbbell' || kind === 'kettlebell') && location) return { kind: 'gym_free_weights', id: location.id };
+  if ((kind === 'barbell' || kind === 'smith' || kind === 'plate_loaded') && location) return { kind: 'gym_barbell', id: location.id };
   return { kind: 'session' };
 }
 

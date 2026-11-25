@@ -13,6 +13,7 @@ import { buildDraft, parseImportJson, workoutToExport } from '../src/domain/impo
 import { createBackup, readBackup } from '../src/lib/backup';
 import type { Workout, WorkoutExercise, WorkoutSet } from '../src/domain/types';
 import { data } from './fixtures';
+import { optimality, suggestNext } from '../src/domain/optimality';
 
 const SEED = 20261121;
 const cfg = (numRuns = 150) => ({ seed: SEED, numRuns });
@@ -198,3 +199,31 @@ describe('data integrity', () => {
     }), { seed: SEED, numRuns: 3 });
   }, 60_000);
 });
+
+// Third analysis (2026-11-25): whole-pipeline invariants on random histories.
+describe('pipeline invariants (third analysis)', () => {
+  it('never a negative / NaN volume or open share, never a hold from today’s own sets, scores 5–100 in steps of 5, no empty suggestion group', () => {
+    fc.assert(fc.property(historyArb, (ws) => {
+      const sorted = [...ws].sort((x, y) => x.date.localeCompare(y.date));
+      const today = sorted[sorted.length - 1].date;
+      const d = data(ws);
+      const a = analyze(d, new Date(`${today}T20:00:00Z`));
+      for (const m of a.muscles) {
+        for (const v of [m.completed, m.todayShare, m.todayOpen, m.todayLeft, m.remainingToPreferred]) { expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0); }
+        // Only an earlier DATE can hold a muscle: with every workout dated today nothing is blocked.
+        if (ws.every((w) => w.date === today)) expect(m.todayBlocked).toBe(false);
+        expect(a.recovery[m.muscle].hoursLeftExact).toBeGreaterThanOrEqual(0);
+        expect(Math.abs(a.recovery[m.muscle].hoursLeft - a.recovery[m.muscle].hoursLeftExact)).toBeLessThanOrEqual(0.5 + 1e-9);
+      }
+      for (const id of EXS.slice(0, 5)) {
+        const o = optimality({ data: d, analysis: a, workout: null, exerciseId: id });
+        if (o.group === 'not_today') expect(o.score).toBeNull();
+        else { expect(o.score).toBeGreaterThanOrEqual(5); expect(o.score).toBeLessThanOrEqual(100); expect((o.score as number) % 5).toBe(0); }
+      }
+      const s = suggestNext({ data: d, analysis: a, workout: null });
+      expect(s.groups.length).toBeLessThanOrEqual(4);
+      for (const g of s.groups) { expect(g.options.length).toBeGreaterThan(0); expect(g.open).toBeGreaterThanOrEqual(0.5 - 1e-9); for (const o of g.options) expect(o.group).not.toBe('not_today'); }
+    }), cfg(60));
+  });
+});
+

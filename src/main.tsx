@@ -4,8 +4,10 @@ import './index.css';
 import { App } from './App';
 import { applyTheme, initialTheme } from './ui/hooks';
 import { store } from './lib/store';
+import { applyAccent, storedAccent } from './ui/accent';
 
 applyTheme(initialTheme());
+applyAccent(storedAccent());
 void store.init();
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
