@@ -13,7 +13,7 @@ not from intent. Analysis and visualisation only: no formula, weight, threshold 
 - **Worked examples:** each number is recomputed by a test (synthetic data) — the test is named next to each step.
 
 <!-- map:stats -->
-Code graph: **1025 declarations, 3232 value references**; curated map: **105 nodes, 216 edges in 8 views**.
+Code graph: **1021 declarations, 3218 value references**; curated map: **105 nodes, 216 edges in 8 views**.
 <!-- /map:stats -->
 
 ## Legend

@@ -164,7 +164,13 @@ export function Layout({ children }: { children: ReactNode }) {
                 <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-400">{g.section}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {g.items.map((it) => (
-                    <NavLink key={it.to} to={it.to === '/log' ? logTo : it.to} end={it.to === '/'} className={({ isActive }) => cx('flex min-h-[48px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm', isActive ? 'border-accent-500/50 bg-accent-500/10 text-accent-600 dark:text-accent-400' : 'border-ink-200 text-ink-700 dark:border-ink-800 dark:text-ink-200')}>
+                    <NavLink key={it.to} to={it.to === '/log' ? logTo : it.to} end={it.to === '/'} onClick={(e) => {
+                      // Always close the menu (it otherwise closed only when the path changed, so tapping the screen
+                      // already shown left it open). The screen already shown is not navigated to again: that would
+                      // overwrite the menu's Back entry and leave a duplicate entry for Back.
+                      if ((it.to === '/log' ? logTo : it.to) === loc.pathname && !loc.search) e.preventDefault();
+                      setMore(false);
+                    }} className={({ isActive }) => cx('flex min-h-[48px] items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm', isActive ? 'border-accent-500/50 bg-accent-500/10 text-accent-600 dark:text-accent-400' : 'border-ink-200 text-ink-700 dark:border-ink-800 dark:text-ink-200')}>
                       <it.icon size={18} /> <span className="min-w-0 break-words leading-tight">{it.short ?? it.label}</span>
                     </NavLink>
                   ))}

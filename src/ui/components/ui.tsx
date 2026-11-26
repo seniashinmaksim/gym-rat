@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type Inp
 import { getLang, L, num } from '../../i18n';
 import type { TargetConfidence } from '../../domain/types';
 import { IconChevronDown, IconInfo, IconX } from './icons';
+import { createBackClose } from '../backClose';
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(' ');
@@ -263,48 +264,15 @@ export function Callout({ tone = 'info', title, children, icon }: { tone?: 'info
 
 // ---------------------------------------------------------------- Back gesture closes the open sheet
 
-/**
- * The phone's back gesture / browser Back closes the top-most open sheet instead of leaving the page.
- * Opening a sheet pushes ONE marked history entry (same URL); it is reused by the next sheet and never
- * removed with history.back() on a normal close (that would race with a navigation right after closing).
- * Instead, a Back press that would only land on a same-page entry (or a left-over marked entry) is
- * passed straight through, so Back never has to be pressed twice.
- */
-const backStack: { close: () => void }[] = [];
-const MARK = 'gymratSheet';
-const isMark = (st: unknown) => !!(st as Record<string, unknown> | null)?.[MARK];
-let onMark = typeof window !== 'undefined' && isMark(window.history.state);
-let markHref = onMark && typeof window !== 'undefined' ? window.location.href : '';
-let backListening = false;
-function pushMark() {
-  window.history.pushState({ ...(window.history.state ?? {}), [MARK]: true }, '');
-  onMark = true;
-  markHref = window.location.href;
-}
-function onBackPop(e: PopStateEvent) {
-  const wasMark = onMark;
-  const fromHref = markHref;
-  onMark = isMark(e.state);
-  const top = backStack[backStack.length - 1];
-  if (top) {
-    top.close();
-    if (backStack.length > 1) pushMark(); // a sheet below is still open: it gets its own entry again
-    return;
-  }
-  // No sheet open: skip entries that would show the same page again (left by a sheet closed earlier).
-  if (onMark || (wasMark && window.location.href === fromHref)) window.history.back();
-}
+/** Back closes the top-most open sheet; the history rules (and why) are in `../backClose.ts`. */
+const backClose = typeof window === 'undefined' ? null : createBackClose({
+  history: window.history,
+  href: () => window.location.href,
+  listen: (onPop) => window.addEventListener('popstate', (e) => onPop(e.state)),
+  now: () => Date.now(),
+});
 export function registerBackClose(close: () => void): () => void {
-  if (typeof window === 'undefined') return () => undefined;
-  if (!backListening) { window.addEventListener('popstate', onBackPop); backListening = true; }
-  const entry = { close };
-  backStack.push(entry);
-  if (!isMark(window.history.state)) pushMark();
-  else { onMark = true; markHref = window.location.href; }
-  return () => {
-    const i = backStack.indexOf(entry);
-    if (i >= 0) backStack.splice(i, 1);
-  };
+  return backClose ? backClose.register(close) : () => undefined;
 }
 /** Hook form: while `open`, Back calls `onClose` (latest version). */
 export function useBackToClose(open: boolean, onClose: () => void) {

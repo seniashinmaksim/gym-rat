@@ -3766,6 +3766,27 @@
    "exported": true,
    "line": 31
   },
+  "src/ui/backClose#SHEET_MARK": {
+   "file": "src/ui/backClose",
+   "name": "SHEET_MARK",
+   "kind": "const",
+   "exported": true,
+   "line": 21
+  },
+  "src/ui/backClose#SELF_STEP_MS": {
+   "file": "src/ui/backClose",
+   "name": "SELF_STEP_MS",
+   "kind": "const",
+   "exported": false,
+   "line": 33
+  },
+  "src/ui/backClose#createBackClose": {
+   "file": "src/ui/backClose",
+   "name": "createBackClose",
+   "kind": "function",
+   "exported": true,
+   "line": 35
+  },
   "src/ui/components/AddBodyWeight#CONDITIONS": {
    "file": "src/ui/components/AddBodyWeight",
    "name": "CONDITIONS",
@@ -4289,294 +4310,245 @@
    "name": "cx",
    "kind": "function",
    "exported": true,
-   "line": 6
+   "line": 7
   },
   "src/ui/components/ui#Page": {
    "file": "src/ui/components/ui",
    "name": "Page",
    "kind": "function",
    "exported": true,
-   "line": 12
+   "line": 13
   },
   "src/ui/components/ui#Card": {
    "file": "src/ui/components/ui",
    "name": "Card",
    "kind": "function",
    "exported": true,
-   "line": 27
+   "line": 28
   },
   "src/ui/components/ui#CardTitle": {
    "file": "src/ui/components/ui",
    "name": "CardTitle",
    "kind": "function",
    "exported": true,
-   "line": 35
+   "line": 36
   },
   "src/ui/components/ui#Grid": {
    "file": "src/ui/components/ui",
    "name": "Grid",
    "kind": "function",
    "exported": true,
-   "line": 47
+   "line": 48
   },
   "src/ui/components/ui#Button": {
    "file": "src/ui/components/ui",
    "name": "Button",
    "kind": "function",
    "exported": true,
-   "line": 55
+   "line": 56
   },
   "src/ui/components/ui#Field": {
    "file": "src/ui/components/ui",
    "name": "Field",
    "kind": "function",
    "exported": true,
-   "line": 72
+   "line": 73
   },
   "src/ui/components/ui#inputCls": {
    "file": "src/ui/components/ui",
    "name": "inputCls",
    "kind": "const",
    "exported": false,
-   "line": 82
+   "line": 83
   },
   "src/ui/components/ui#Input": {
    "file": "src/ui/components/ui",
    "name": "Input",
    "kind": "function",
    "exported": true,
-   "line": 84
+   "line": 85
   },
   "src/ui/components/ui#TextArea": {
    "file": "src/ui/components/ui",
    "name": "TextArea",
    "kind": "function",
    "exported": true,
-   "line": 88
+   "line": 89
   },
   "src/ui/components/ui#Select": {
    "file": "src/ui/components/ui",
    "name": "Select",
    "kind": "function",
    "exported": true,
-   "line": 92
+   "line": 93
   },
   "src/ui/components/ui#NumInput": {
    "file": "src/ui/components/ui",
    "name": "NumInput",
    "kind": "function",
    "exported": true,
-   "line": 102
+   "line": 103
   },
   "src/ui/components/ui#Stepper": {
    "file": "src/ui/components/ui",
    "name": "Stepper",
    "kind": "function",
    "exported": true,
-   "line": 132
+   "line": 133
   },
   "src/ui/components/ui#Segmented": {
    "file": "src/ui/components/ui",
    "name": "Segmented",
    "kind": "function",
    "exported": true,
-   "line": 146
+   "line": 147
   },
   "src/ui/components/ui#Toggle": {
    "file": "src/ui/components/ui",
    "name": "Toggle",
    "kind": "function",
    "exported": true,
-   "line": 160
+   "line": 161
   },
   "src/ui/components/ui#toneCls": {
    "file": "src/ui/components/ui",
    "name": "toneCls",
    "kind": "const",
    "exported": false,
-   "line": 175
+   "line": 176
   },
   "src/ui/components/ui#Badge": {
    "file": "src/ui/components/ui",
    "name": "Badge",
    "kind": "function",
    "exported": true,
-   "line": 185
+   "line": 186
   },
   "src/ui/components/ui#ConfidenceBadge": {
    "file": "src/ui/components/ui",
    "name": "ConfidenceBadge",
    "kind": "function",
    "exported": true,
-   "line": 189
+   "line": 190
   },
   "src/ui/components/ui#Stat": {
    "file": "src/ui/components/ui",
    "name": "Stat",
    "kind": "function",
    "exported": true,
-   "line": 194
+   "line": 195
   },
   "src/ui/components/ui#VolumeBar": {
    "file": "src/ui/components/ui",
    "name": "VolumeBar",
    "kind": "function",
    "exported": true,
-   "line": 206
+   "line": 207
   },
   "src/ui/components/ui#Why": {
    "file": "src/ui/components/ui",
    "name": "Why",
    "kind": "function",
    "exported": true,
-   "line": 223
+   "line": 224
   },
   "src/ui/components/ui#Empty": {
    "file": "src/ui/components/ui",
    "name": "Empty",
    "kind": "function",
    "exported": true,
-   "line": 236
+   "line": 237
   },
   "src/ui/components/ui#Callout": {
    "file": "src/ui/components/ui",
    "name": "Callout",
    "kind": "function",
    "exported": true,
-   "line": 246
+   "line": 247
   },
-  "src/ui/components/ui#backStack": {
+  "src/ui/components/ui#backClose": {
    "file": "src/ui/components/ui",
-   "name": "backStack",
+   "name": "backClose",
    "kind": "const",
    "exported": false,
-   "line": 273
-  },
-  "src/ui/components/ui#MARK": {
-   "file": "src/ui/components/ui",
-   "name": "MARK",
-   "kind": "const",
-   "exported": false,
-   "line": 274
-  },
-  "src/ui/components/ui#isMark": {
-   "file": "src/ui/components/ui",
-   "name": "isMark",
-   "kind": "const",
-   "exported": false,
-   "line": 275
-  },
-  "src/ui/components/ui#onMark": {
-   "file": "src/ui/components/ui",
-   "name": "onMark",
-   "kind": "const",
-   "exported": false,
-   "line": 276
-  },
-  "src/ui/components/ui#markHref": {
-   "file": "src/ui/components/ui",
-   "name": "markHref",
-   "kind": "const",
-   "exported": false,
-   "line": 277
-  },
-  "src/ui/components/ui#backListening": {
-   "file": "src/ui/components/ui",
-   "name": "backListening",
-   "kind": "const",
-   "exported": false,
-   "line": 278
-  },
-  "src/ui/components/ui#pushMark": {
-   "file": "src/ui/components/ui",
-   "name": "pushMark",
-   "kind": "function",
-   "exported": false,
-   "line": 279
-  },
-  "src/ui/components/ui#onBackPop": {
-   "file": "src/ui/components/ui",
-   "name": "onBackPop",
-   "kind": "function",
-   "exported": false,
-   "line": 284
+   "line": 268
   },
   "src/ui/components/ui#registerBackClose": {
    "file": "src/ui/components/ui",
    "name": "registerBackClose",
    "kind": "function",
    "exported": true,
-   "line": 297
+   "line": 274
   },
   "src/ui/components/ui#useBackToClose": {
    "file": "src/ui/components/ui",
    "name": "useBackToClose",
    "kind": "function",
    "exported": true,
-   "line": 310
+   "line": 278
   },
   "src/ui/components/ui#Modal": {
    "file": "src/ui/components/ui",
    "name": "Modal",
    "kind": "function",
    "exported": true,
-   "line": 316
+   "line": 284
   },
   "src/ui/components/ui#Table": {
    "file": "src/ui/components/ui",
    "name": "Table",
    "kind": "function",
    "exported": true,
-   "line": 346
+   "line": 314
   },
   "src/ui/components/ui#Td": {
    "file": "src/ui/components/ui",
    "name": "Td",
    "kind": "function",
    "exported": true,
-   "line": 363
+   "line": 331
   },
   "src/ui/components/ui#fmt": {
    "file": "src/ui/components/ui",
    "name": "fmt",
    "kind": "function",
    "exported": true,
-   "line": 367
+   "line": 335
   },
   "src/ui/components/ui#toastFn": {
    "file": "src/ui/components/ui",
    "name": "toastFn",
    "kind": "const",
    "exported": false,
-   "line": 377
+   "line": 345
   },
   "src/ui/components/ui#toast": {
    "file": "src/ui/components/ui",
    "name": "toast",
    "kind": "function",
    "exported": true,
-   "line": 378
+   "line": 346
   },
   "src/ui/components/ui#undoToast": {
    "file": "src/ui/components/ui",
    "name": "undoToast",
    "kind": "function",
    "exported": true,
-   "line": 382
+   "line": 350
   },
   "src/ui/components/ui#Toaster": {
    "file": "src/ui/components/ui",
    "name": "Toaster",
    "kind": "function",
    "exported": true,
-   "line": 385
+   "line": 353
   },
   "src/ui/components/ui#confirmAction": {
    "file": "src/ui/components/ui",
    "name": "confirmAction",
    "kind": "function",
    "exported": true,
-   "line": 423
+   "line": 391
   },
   "src/ui/hooks#useAnalysis": {
    "file": "src/ui/hooks",
@@ -4681,21 +4653,21 @@
    "name": "activeWorkout",
    "kind": "function",
    "exported": true,
-   "line": 182
+   "line": 188
   },
   "src/ui/Layout#SideLink": {
    "file": "src/ui/Layout",
    "name": "SideLink",
    "kind": "function",
    "exported": false,
-   "line": 188
+   "line": 194
   },
   "src/ui/Layout#Brand": {
    "file": "src/ui/Layout",
    "name": "Brand",
    "kind": "function",
    "exported": true,
-   "line": 199
+   "line": 205
   },
   "src/ui/pages/Body#FIELDS": {
    "file": "src/ui/pages/Body",
@@ -15257,6 +15229,18 @@
    "to": "src/ui/accent#storedAccent"
   },
   {
+   "from": "src/ui/backClose#SELF_STEP_MS",
+   "to": "src/ui/backClose#createBackClose"
+  },
+  {
+   "from": "src/ui/backClose#SHEET_MARK",
+   "to": "src/ui/backClose#createBackClose"
+  },
+  {
+   "from": "src/ui/backClose#createBackClose",
+   "to": "src/ui/components/ui#backClose"
+  },
+  {
    "from": "src/ui/components/AddBodyWeight#AddBodyWeightSheet",
    "to": "src/ui/components/AddBodyWeight#AddBodyWeight"
   },
@@ -17157,14 +17141,6 @@
    "to": "src/ui/pages/Train#SetSheet"
   },
   {
-   "from": "src/ui/components/ui#MARK",
-   "to": "src/ui/components/ui#isMark"
-  },
-  {
-   "from": "src/ui/components/ui#MARK",
-   "to": "src/ui/components/ui#pushMark"
-  },
-  {
    "from": "src/ui/components/ui#Modal",
    "to": "src/ui/components/AddBodyWeight#AddBodyWeightSheet"
   },
@@ -17681,15 +17657,7 @@
    "to": "src/ui/pages/Strength#SeriesDetail"
   },
   {
-   "from": "src/ui/components/ui#backListening",
-   "to": "src/ui/components/ui#registerBackClose"
-  },
-  {
-   "from": "src/ui/components/ui#backStack",
-   "to": "src/ui/components/ui#onBackPop"
-  },
-  {
-   "from": "src/ui/components/ui#backStack",
+   "from": "src/ui/components/ui#backClose",
    "to": "src/ui/components/ui#registerBackClose"
   },
   {
@@ -18207,58 +18175,6 @@
   {
    "from": "src/ui/components/ui#inputCls",
    "to": "src/ui/components/ui#TextArea"
-  },
-  {
-   "from": "src/ui/components/ui#isMark",
-   "to": "src/ui/components/ui#onBackPop"
-  },
-  {
-   "from": "src/ui/components/ui#isMark",
-   "to": "src/ui/components/ui#onMark"
-  },
-  {
-   "from": "src/ui/components/ui#isMark",
-   "to": "src/ui/components/ui#registerBackClose"
-  },
-  {
-   "from": "src/ui/components/ui#markHref",
-   "to": "src/ui/components/ui#onBackPop"
-  },
-  {
-   "from": "src/ui/components/ui#markHref",
-   "to": "src/ui/components/ui#pushMark"
-  },
-  {
-   "from": "src/ui/components/ui#markHref",
-   "to": "src/ui/components/ui#registerBackClose"
-  },
-  {
-   "from": "src/ui/components/ui#onBackPop",
-   "to": "src/ui/components/ui#registerBackClose"
-  },
-  {
-   "from": "src/ui/components/ui#onMark",
-   "to": "src/ui/components/ui#markHref"
-  },
-  {
-   "from": "src/ui/components/ui#onMark",
-   "to": "src/ui/components/ui#onBackPop"
-  },
-  {
-   "from": "src/ui/components/ui#onMark",
-   "to": "src/ui/components/ui#pushMark"
-  },
-  {
-   "from": "src/ui/components/ui#onMark",
-   "to": "src/ui/components/ui#registerBackClose"
-  },
-  {
-   "from": "src/ui/components/ui#pushMark",
-   "to": "src/ui/components/ui#onBackPop"
-  },
-  {
-   "from": "src/ui/components/ui#pushMark",
-   "to": "src/ui/components/ui#registerBackClose"
   },
   {
    "from": "src/ui/components/ui#registerBackClose",
