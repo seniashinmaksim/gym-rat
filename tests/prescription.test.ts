@@ -297,9 +297,13 @@ describe('warm-ups', () => {
     expect(p.warmups).toHaveLength(1);
     expect(p.warmups[0].weightKg).toBe(70);
   });
-  it('shorter ramp when a heavy compound for other muscles came first', () => {
+  it('owner 2026-11-27: a compound for OTHER muscles warms nothing (full ramp); one that shared muscles shortens it', () => {
+    // Chest press before squats: no muscle in common -> the full 50 / 70 / 85 % ramp of 100 kg.
     const p = run(d, live([ex('machine_chest_press', [set(60, 10, 2)]), ex('back_squat', [])]), 1);
-    expect(p.warmups.map((w) => w.weightKg)).toEqual([70, 85]);
+    expect(p.warmups.map((w) => w.weightKg)).toEqual([50, 70, 85]);
+    // Romanian deadlift before squats: glutes (0.75 in both) were worked -> shorter ramp, 70 / 85 %.
+    const q = run(d, live([ex('romanian_deadlift', [set(80, 10, 2)]), ex('back_squat', [])]), 1);
+    expect(q.warmups.map((w) => w.weightKg)).toEqual([70, 85]);
   });
   it('machine isolation gets at most one; none after same-muscle work', () => {
     const fresh = run(d, live([ex('leg_extension', [])]));

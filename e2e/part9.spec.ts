@@ -86,6 +86,11 @@ for (const lang of ['en', 'ru'] as const) {
     await page.getByRole('button', { name: lang === 'en' ? 'Start' : 'Начать', exact: true }).click();
     const train = page.getByTestId('train');
     await expect(train).toBeVisible();
+    // Owner 2026-11-27: the body check opens first (today unanswered), then warm-ups are offered.
+    const sore = page.getByTestId('sore-done');
+    if (await sore.waitFor({ timeout: 2_000 }).then(() => true, () => false)) await sore.click();
+    const skipWarm = page.getByTestId('skip-warmup');
+    if (await skipWarm.waitFor({ timeout: 1_500 }).then(() => true, () => false)) { await skipWarm.click(); await expect(page.getByTestId('warmup-line')).toHaveCount(0); await page.waitForTimeout(200); }
     // Where the pre-filled weight came from: smart (brain) or copied, shown above the weight.
     await expect(page.getByTestId('weight-source')).toBeVisible();
     expect(['smart', 'copied']).toContain(await page.getByTestId('weight-source').getAttribute('data-source'));

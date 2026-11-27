@@ -67,6 +67,9 @@ for (const lang of ['en', 'ru'] as const) {
     await page.getByRole('button', { name: t.start }).click();
     const train = page.getByTestId('train');
     await expect(train).toBeVisible();
+    // Owner 2026-11-27: the workout opens with the body check while today is unanswered.
+    const sore = page.getByTestId('sore-done');
+    if (await sore.waitFor({ timeout: 2_000 }).then(() => true, () => false)) await sore.click();
     await page.locator('[role=dialog] input').first().fill(t.pec);
     await page.locator('[role=dialog] li button').filter({ hasText: t.pecName }).first().click();
     await page.waitForTimeout(300);
@@ -74,6 +77,9 @@ for (const lang of ['en', 'ru'] as const) {
     if (await cc.count()) await cc.getByRole('button', { name: t.cont }).click(); // optional advice card
     await expect(train).toHaveAttribute('data-view', 'set');
     await shot('04-train-set-entry');
+    // Owner 2026-11-27: warm-ups are offered first; this screen tour is about the working set.
+    const skipWarm = page.getByTestId('skip-warmup');
+    if (await skipWarm.waitFor({ timeout: 1_500 }).then(() => true, () => false)) { await skipWarm.click(); await expect(page.getByTestId('warmup-line')).toHaveCount(0); await page.waitForTimeout(200); }
     await typeNumber(page, 'reps-value', '12');
     await page.getByTestId('effort-entry').getByRole('button').nth(1).click();
     await shot('04b-train-set-entry-answered');

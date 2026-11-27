@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { weekChip, displaySets } from '../../domain/analysis';
+import { weekChip, weekGroups, displaySets, type WeekGroup } from '../../domain/analysis';
 import { Link } from 'react-router-dom';
 import type { MuscleWeek } from '../../domain/analysis';
 import { formatDate, diffDays } from '../../domain/dates';
@@ -17,7 +17,7 @@ import { NextWorkoutCard } from '../components/NextWorkout';
 import { useData } from '../../lib/store';
 import { BodyMap, type BodyMapMode } from '../components/BodyMap';
 import { IconAlert, IconChevronDown, IconImport, IconPlus } from '../components/icons';
-import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, Why } from '../components/ui';
+import { Badge, Button, Callout, Card, ConfidenceBadge, cx, Empty, fmt, Page, Segmented, undoToast, VolumeBar, VolumeLegend, Why } from '../components/ui';
 import { useAnalysis, useNames } from '../hooks';
 import { activeMoves, forwardHabit, moveNeedsSetup } from '../../domain/sequence';
 import { KG, L, num, ruPlural } from '../../i18n';
@@ -109,10 +109,7 @@ export function DashboardPage() {
     if (pending) void store.saveSnapshot(buildSnapshot(pending, a.targets, data));
   }, [pending?.range.start]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sorted = useMemo(() => {
-    const rank = (m: MuscleWeek) => (m.remainingToPreferred <= 0 ? -1 : m.todayLeft > 0 ? 1000 + m.remainingToPreferred : m.remainingToPreferred);
-    return [...a.muscles].sort((x, y) => rank(y) - rank(x));
-  }, [a.muscles]);
+  const groups = useMemo(() => weekGroups(a.muscles), [a.muscles]);
 
   const subtitle = (
     <span>{formatDate(a.week.start, { day: 'numeric', month: 'short' })} – {formatDate(a.week.end, { day: 'numeric', month: 'short' })} · {L(`${a.daysLeft} day${a.daysLeft === 1 ? '' : 's'} left`, `${ruPlural(a.daysLeft, 'остался', 'осталось', 'осталось')} ${a.daysLeft} ${ruPlural(a.daysLeft, 'день', 'дня', 'дней')}`)}</span>
@@ -154,12 +151,17 @@ export function DashboardPage() {
           </div>
           {a.learning.active && <Badge tone="warn">{L('PROVISIONAL', 'ПРЕДВ.')}</Badge>}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4 pb-1 pt-3 text-label font-bold uppercase text-ink-400 sm:px-5">
-          <span>{L('Muscle · done / target', 'Мышца · сделано / цель')}</span><span className="text-right">{L('Left', 'Осталось')}</span>
-        </div>
-        <ul className="divide-y divide-ink-100 dark:divide-ink-800/70">
-          {sorted.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
-        </ul>
+        <div className="px-4 pt-3 sm:px-5"><VolumeLegend /></div>
+        {groups.map((g) => (
+          <section key={g.group} data-testid={`week-group-${g.group}`}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-4 pb-1 pt-4 text-label font-bold uppercase text-ink-400 sm:px-5">
+              <span>{GROUP_TITLE[g.group]()}</span><span className="text-right">{g.group === 'done' ? '' : L('Left this week', 'Осталось за неделю')}</span>
+            </div>
+            <ul className="divide-y divide-ink-100 dark:divide-ink-800/70">
+              {g.muscles.map((m) => <MuscleRow key={m.muscle} m={m} open={open === m.muscle} onToggle={() => setOpen(open === m.muscle ? null : m.muscle)} />)}
+            </ul>
+          </section>
+        ))}
       </Card>
 
       <WeekStrip />
@@ -199,12 +201,18 @@ function MuscleRow({ m, open, onToggle }: { m: MuscleWeek; open: boolean; onTogg
             <span className={cx('mt-0.5 text-label font-bold uppercase', done ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-500')}>{done ? (m.status === 'over' ? L('Over', 'Сверх') : L('Done', 'Готово')) : L('Left', 'Осталось')}</span>
           </span>
         </div>
-        <div className="mt-2"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} height={4} /></div>
+        <div className="mt-2"><VolumeBar completed={m.completed} preferred={m.target.preferred} today={weekChip(m) === 'today' ? m.todayOpen : 0} height={6} /></div>
       </button>
       {open && <div className="px-4 pb-4 sm:px-5"><MuscleDetail m={m} /></div>}
     </li>
   );
 }
+
+const GROUP_TITLE: Record<WeekGroup, () => string> = {
+  today: () => L('Today', 'Сегодня'),
+  later: () => L('Later this week', 'Позже на неделе'),
+  done: () => L('Done this week', 'Готово на этой неделе'),
+};
 
 /** One small tag: today's share, or recovery (never both). */
 function statusChip(m: MuscleWeek) {

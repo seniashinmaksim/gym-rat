@@ -156,6 +156,9 @@ test('six-month journeys: dashboard, progression, weekly summary, body weight, g
   await page.keyboard.press('Escape');
   await expect(picker).toHaveCount(0);
   await shot(page, 'j2-known-gym', P, '02-set-entry-target');
+  // Warm-ups are offered first (owner 2026-11-27): this journey is about the working set.
+  const skipWarm = page.getByTestId('skip-warmup');
+  if (await skipWarm.waitFor({ timeout: 1_500 }).then(() => true, () => false)) { await skipWarm.click(); await expect(page.getByTestId('warmup-line')).toHaveCount(0); await page.waitForTimeout(200); }
   const w0 = (await page.getByTestId('weight-value').innerText()).trim();
   expect(Number(w0) % 5).toBe(0); // pre-filled on Pec deck A's 5 kg steps
   await logSet(page, null, '12', 1);

@@ -536,13 +536,17 @@ function planWarmups(c: WarmupCtx): { warmups: PrescribedWarmup[]; warmupReason:
   // Earlier done work in this session.
   let priorSameMuscle = 0;
   let heavyEarlier = false;
+  // The muscles this exercise works (>= 0.5): an earlier compound counts as "already warm" only when it worked one of
+  // them at least a little (>= 0.25) — owner 2026-11-27: squats before an incline press warm nothing the press uses.
+  const mine = Object.entries(resolveCoefficients(def, workout.exercises[exerciseIndex]?.variation).contributions).filter(([, v]) => (v ?? 0) >= 0.5).map(([m]) => m);
   workout.exercises.forEach((e, i) => {
     if (i === exerciseIndex) return;
     const done = doneWorking(e.sets);
     if (!done.length) return;
     const d = registry.get(e.exerciseId);
     if (!d) return;
-    if (d.category === 'compound') heavyEarlier = true;
+    const theirs = resolveCoefficients(d, e.variation).contributions as Record<string, number | undefined>;
+    if (d.category === 'compound' && mine.some((m) => (theirs[m] ?? 0) >= 0.25)) heavyEarlier = true;
     const coef = primaryMuscle ? resolveCoefficients(d, e.variation).contributions[primaryMuscle] ?? 0 : 0;
     if (coef >= 0.5) priorSameMuscle += Math.ceil(countedSetCount(done, ['working']));
   });
@@ -574,7 +578,7 @@ function planWarmups(c: WarmupCtx): { warmups: PrescribedWarmup[]; warmupReason:
   let reason = base.reason;
   if (def.category === 'compound' && priorSameMuscle < 2 && heavyEarlier && plan.length >= 2) {
     plan = plan.slice(1);
-    reason = L('A heavy compound was already done this session (generally warm): shorter ramp for this movement.', 'В этой тренировке уже было тяжёлое многосуставное упражнение (тело разогрето): подводка для этого движения короче.');
+    reason = L('A compound that also worked these muscles was already done this session: shorter ramp for this movement.', 'В этой тренировке уже было многосуставное упражнение, которое задействовало эти мышцы: подводка для этого движения короче.');
   }
   if (def.category === 'isolation' && priorSameMuscle === 1) reason = L('Isolation after a little same-muscle work: one moderate set.', 'Изолирующее упражнение после небольшой работы на ту же мышцу: один умеренный подход.');
 

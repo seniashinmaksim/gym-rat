@@ -543,10 +543,13 @@ export function planSnapshot(g: GeneratedWorkout): GeneratedPlanSnapshot {
 export interface ItemEdit { sets?: number; weightKg?: number | null }
 
 /** Today's target for one exercise, from a prescription (Part 6: a line, never set rows). */
-export function targetFromPrescription(p: Pick<Prescription, 'workingWeightKg' | 'sets' | 'setCount'>, sets: number = p.setCount, weightKg: number | null | undefined = undefined, edited = false): ExerciseTarget {
+export function targetFromPrescription(p: Pick<Prescription, 'workingWeightKg' | 'sets' | 'setCount'> & Partial<Pick<Prescription, 'warmups'>>, sets: number = p.setCount, weightKg: number | null | undefined = undefined, edited = false): ExerciseTarget {
   const reps = p.sets.length ? p.sets.map((x) => ({ min: x.repsMin, max: x.repsMax })) : [{ min: 10, max: 12 }];
   const rir = p.sets.length ? p.sets.map((x) => ({ min: x.rirMin, max: x.rirMax })) : undefined;
-  return { sets, weightKg: weightKg !== undefined ? weightKg : p.workingWeightKg, reps, ...(rir ? { rir } : {}), engine: PRESCRIPTION_ENGINE, ...(edited ? { edited: true } : {}) };
+  const w = weightKg !== undefined ? weightKg : p.workingWeightKg;
+  // Warm-ups belong to the prescribed working weight: an edited weight drops them (they would not fit it).
+  const warmups = w === p.workingWeightKg ? (p.warmups ?? []).filter((x): x is { weightKg: number; reps: number } => x.weightKg != null) : [];
+  return { sets, weightKg: w, reps, ...(rir ? { rir } : {}), ...(warmups.length ? { warmups } : {}), engine: PRESCRIPTION_ENGINE, ...(edited ? { edited: true } : {}) };
 }
 
 /**
@@ -640,7 +643,7 @@ export function applyPendingUpdate(e: WorkoutExercise, u: PendingUpdate, _uid?: 
   const next = targetFromPrescription(p);
   if (e.target) {
     if (e.target.edited) return null;
-    const same = e.target.sets === next.sets && e.target.weightKg === next.weightKg && JSON.stringify(e.target.reps) === JSON.stringify(next.reps);
+    const same = e.target.sets === next.sets && e.target.weightKg === next.weightKg && JSON.stringify(e.target.reps) === JSON.stringify(next.reps) && JSON.stringify(e.target.warmups ?? []) === JSON.stringify(next.warmups ?? []);
     return same ? null : { ...e, target: next };
   }
   // Legacy cards (planned rows): only when the app made them and the owner left them alone.

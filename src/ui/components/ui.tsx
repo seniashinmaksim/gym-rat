@@ -204,20 +204,35 @@ export function Stat({ label, value, sub, tone }: { label: ReactNode; value: Rea
 }
 
 /** Progress bar with optional lower-bound marker; overflow past preferred shown in violet. */
-export function VolumeBar({ completed, min, preferred, max, uncertain = 0, height = 8 }: { completed: number; min: number; preferred: number; max: number; uncertain?: number; height?: number }) {
-  const scale = Math.max(max, completed, preferred) || 1;
-  const pct = (v: number) => `${Math.min(100, (v / scale) * 100)}%`;
-  const done = completed >= preferred;
-  const over = completed > max;
-  const color = over ? 'bg-violet-500' : done ? 'bg-emerald-500' : completed >= min ? 'bg-sky-500' : 'bg-amber-500';
-  const certain = Math.max(0, completed - uncertain);
+/**
+ * One muscle's week as a bar (owner 2026-11-27: understandable without text): SOLID = done this week, STRIPED = still
+ * planned today, the TICK = the weekly target. Accent while under the target, green once it is reached; the bar runs
+ * past the tick when the week went over. (Uncertain-mapping volume is listed in the row's details, not in the bar.)
+ */
+export function VolumeBar({ completed, preferred, today = 0, height = 8 }: { completed: number; preferred: number; today?: number; height?: number }) {
+  const t = Math.max(0, today);
+  const scale = Math.max(preferred, completed + t) || 1;
+  const pct = (v: number) => `${Math.min(100, Math.max(0, (v / scale) * 100))}%`;
+  const reached = completed >= preferred - 1e-9;
   return (
-    <div className="relative w-full rounded-full bg-ink-100 dark:bg-ink-800" style={{ height }}>
-      <div className={cx('absolute inset-y-0 left-0 rounded-full opacity-40', color)} style={{ width: pct(completed) }} />
-      <div className={cx('absolute inset-y-0 left-0 rounded-full', color)} style={{ width: pct(certain) }} />
-      {min > 0 && min < preferred && <div className="absolute -top-0.5 h-[calc(100%+4px)] w-px bg-ink-400/70 dark:bg-ink-500" style={{ left: pct(min) }} title={L(`Lower end ${min}`, `Нижняя граница ${num(min)}`)} />}
-      <div className="absolute -top-1 h-[calc(100%+8px)] w-0.5 rounded bg-ink-900 dark:bg-white" style={{ left: pct(preferred) }} title={L(`Target ${preferred}`, `Цель ${num(preferred)}`)} />
+    <div className="relative w-full rounded-full bg-ink-100 dark:bg-ink-800" style={{ height }} data-testid="volume-bar" data-reached={reached || undefined}>
+      {t > 0 && <div className="absolute inset-y-0 rounded-full border border-accent-500/70" style={{ left: pct(completed), width: pct(t), backgroundImage: 'repeating-linear-gradient(135deg, rgb(var(--acc-500) / 0.55) 0 3px, transparent 3px 6px)' }} data-part="today" />}
+      <div className={cx('absolute inset-y-0 left-0 rounded-full', reached ? 'bg-emerald-500' : 'bg-accent-500')} style={{ width: pct(completed) }} data-part="done" />
+      <div className="absolute -top-1 h-[calc(100%+8px)] w-0.5 rounded bg-ink-900 dark:bg-white" style={{ left: `clamp(0px, calc(${pct(preferred)} - 1px), calc(100% - 2px))` }} title={L(`Target ${preferred}`, `Цель ${num(preferred)}`)} data-part="target" />
     </div>
+  );
+}
+
+/** The bar's key, shown once above the list: three pictures, one word each. */
+export function VolumeLegend() {
+  const sw = 'inline-block h-2 w-4 rounded-full align-middle';
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium normal-case tracking-normal text-ink-500" data-testid="volume-legend">
+      <span className="flex items-center gap-1"><span className={cx(sw, 'bg-accent-500')} />{L('done', 'сделано')}</span>
+      <span className="flex items-center gap-1"><span className={cx(sw, 'border border-accent-500/70')} style={{ backgroundImage: 'repeating-linear-gradient(135deg, rgb(var(--acc-500) / 0.55) 0 3px, transparent 3px 6px)' }} />{L('today', 'сегодня')}</span>
+      <span className="flex items-center gap-1"><span className="inline-block h-3 w-0.5 rounded bg-ink-900 align-middle dark:bg-white" />{L('target', 'цель')}</span>
+      <span className="flex items-center gap-1"><span className={cx(sw, 'bg-emerald-500')} />{L('week done', 'неделя готова')}</span>
+    </span>
   );
 }
 

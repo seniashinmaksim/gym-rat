@@ -25,8 +25,17 @@ async function continueChoice(page: Page, lang: 'en' | 'ru') {
   await page.waitForTimeout(250);
   const cc = page.getByTestId('choice-card');
   if (await cc.count()) await cc.getByRole('button', { name: T[lang].cont }).click();
+  // Owner 2026-11-27: an angle exercise asks for the bench angle — the one used last time, else "not sure".
+  const angle = page.getByTestId('angle-choices');
+  if (await angle.waitFor({ timeout: 1_000 }).then(() => true, () => false)) {
+    const last = angle.locator('[aria-pressed="true"]');
+    if (await last.count()) await last.first().click(); else await page.getByTestId('angle-unknown').click();
+  }
 }
 async function pick(page: Page, lang: 'en' | 'ru', query: string, name: RegExp) {
+  // Owner 2026-11-27: a workout opens with the body check while today is unanswered.
+  const sore = page.getByTestId('sore-done');
+  if (await sore.waitFor({ timeout: 1_500 }).then(() => true, () => false)) await sore.click();
   await page.locator('[role=dialog] input').first().fill(query);
   await page.locator('[role=dialog] li button').filter({ hasText: name }).first().click();
   await continueChoice(page, lang);

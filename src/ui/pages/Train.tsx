@@ -12,6 +12,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatDate, localNowParts } from '../../domain/dates';
 import { isFinished } from '../../domain/feedback';
 import { barBreakdown, loadStep } from '../../domain/increments';
+import { barTypeOf, barWeightFor, FREE_VERSION, SMITH_VERSION, smithAt, type BarType } from '../../domain/barType';
 import {
   ANY_DOUBLE_TAP_MS, adjustRest, applyOffer, keepOffer, clearOtherRestEnds, clockStartMs, editSet, effortTapOf, effortTapPatch, exerciseProgress, isDoubleTap, lastEntryFor, lastLogged, logSet, mmss, nextSetsOffer, prefillNext, restState, restTargetFor, targetText, weightSource, type NextSetsOffer,
   setDelta, setScore, toggleWarmup, REST_DEFAULT_SEC, REST_STEP_SEC, type EffortTap,
@@ -19,7 +20,7 @@ import {
 import { applyPendingUpdate, replacementOptions, replanPending, targetFromPrescription, type ReplacementOption } from '../../domain/planner';
 import { optimality, rankOptions, suggestNext, type Optimality } from '../../domain/optimality';
 import { muscleCreditText } from '../../domain/fatigue';
-import { SorenessAsk } from '../components/SorenessAsk';
+import { SorenessAsk, SorenessSheet, useSorenessAnswered } from '../components/SorenessAsk';
 import { setsLeftTodayText } from '../../domain/analysis';
 import { choiceOutcomes } from '../../domain/exerciseChoice';
 import { progressionKey } from '../../domain/progression';
@@ -121,6 +122,15 @@ function TrainSession({ initial }: { initial: Workout }) {
   });
   const [picker, setPicker] = useState<'add' | { change: string } | null>(() => (initial.exercises.length ? null : 'add'));
   const [preselect, setPreselect] = useState<ExerciseDef | null>(null);
+  // Owner 2026-11-27: the body check is the FIRST step of a workout (before the first exercise) while today is not
+  // answered — once per workout; closing it skips it (optional, never blocks).
+  const soreAnswered = useSorenessAnswered();
+  const checkKey = `gymrat.bodycheck.${initial.id}`;
+  const [bodyCheck, setBodyCheck] = useState(() => {
+    if (soreAnswered || initial.exercises.some((e) => e.sets.some((s) => !s.planned))) return false;
+    try { return !sessionStorage.getItem(checkKey); } catch { return true; }
+  });
+  const closeBodyCheck = () => { setBodyCheck(false); try { sessionStorage.setItem(checkKey, '1'); } catch { /* private mode */ } };
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [preFinish, setPreFinish] = useState<Workout | null>(null);
   const finishing = useRef(false);
@@ -164,22 +174,22 @@ function TrainSession({ initial }: { initial: Workout }) {
     setCurId(ex.id);
     setView('set');
   };
-  const changeExercise = (exId: string, def: ExerciseDef) => {
+  const changeExercise = (exId: string, def: ExerciseDef, variation?: WorkoutExercise['variation']) => {
     const old = w.exercises.find((e) => e.id === exId);
     if (!old || old.exerciseId === def.id) return;
     const performed = done(old);
     let next: WorkoutExercise;
     if (!performed.length) {
       const base = { ...w, exercises: w.exercises.filter((e) => e.id !== exId) };
-      next = { ...buildExercise(def, base), id: old.id, order: old.order };
+      next = { ...buildExercise(def, base, variation ? { variation } : {}), id: old.id, order: old.order };
     } else {
       // The sets were done: they stay as they are, only the exercise changes (machine and shared settings kept).
       const { plannedCount: _p, choice: _c, planItem: _i, exerciseNameRaw: _r, target: _t, ...rest } = old;
       void _p; void _c; void _i; void _r; void _t;
       const keepKeys = new Set<string>(['unilateral', 'rom', ...(def.variationFields ?? []).map((f) => (f === 'angle' ? 'benchAngleDeg' : f))]);
       const keptVar = Object.fromEntries(Object.entries(old.variation ?? {}).filter(([k, v]) => keepKeys.has(k) && v != null));
-      const variation = { ...(def.defaultVariation ?? {}), ...keptVar };
-      next = { ...rest, exerciseId: def.id, exerciseConfidence: 'confirmed', variation: Object.keys(variation).length ? variation : undefined, sets: performed };
+      const merged = { ...(def.defaultVariation ?? {}), ...keptVar, ...(variation ?? {}) };
+      next = { ...rest, exerciseId: def.id, exerciseConfidence: 'confirmed', variation: Object.keys(merged).length ? merged : undefined, sets: performed };
     }
     update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === exId ? next : e)) }), { now: true });
     undoable(L(`Changed to ${names.ex(def)}`, `Заменено на: ${names.ex(def)}`), (x) => {
@@ -189,6 +199,35 @@ function TrainSession({ initial }: { initial: Workout }) {
       const sets = performed.length ? e.sets : old.sets;
       return { ...x, exercises: x.exercises.map((y) => (y.id === exId ? { ...old, sets } : y)) };
     });
+  };
+  // Bench angle (owner 2026-11-27: "choose the incline when I choose the exercise"): asked right after picking an
+  // angle exercise; each angle is its own history, so the plan for it is made with the angle.
+  const [anglePick, setAnglePick] = useState<null | { def: ExerciseDef; opts: AddOpts; change?: string }>(null);
+  const pickWithAngle = (def: ExerciseDef, opts: AddOpts = {}, change?: string) => {
+    if (!def.variationFields?.includes('angle')) { if (change) changeExercise(change, def); else addExercise(def, opts); return; }
+    setPicker(null);
+    setPreselect(null);
+    setAnglePick({ def, opts, change });
+  };
+  const lastAngle = (def: ExerciseDef): number | null => lastSessionFor(data.workouts, def.id, null, w.id)?.variation?.benchAngleDeg ?? null;
+  const chooseAngle = (deg: number | null) => {
+    const p = anglePick;
+    if (!p) return;
+    setAnglePick(null);
+    const prevVar = lastSessionFor(data.workouts, p.def.id, null, w.id)?.variation ?? p.def.defaultVariation ?? {};
+    const variation = { ...prevVar, benchAngleDeg: deg };
+    if (p.change === 'self') setAngle(curId as string, deg);
+    else if (p.change) changeExercise(p.change, p.def, variation);
+    else addExercise(p.def, { ...p.opts, variation });
+  };
+  /** A new angle for an exercise: not started yet → planned again for that angle's history; started → recorded. */
+  const setAngle = (exId: string, deg: number | null) => {
+    const old = w.exercises.find((e) => e.id === exId);
+    const def = old ? a.registry.get(old.exerciseId) : undefined;
+    if (!old || !def) return;
+    const variation = { ...(old.variation ?? {}), benchAngleDeg: deg };
+    const next = done(old).length ? { ...old, variation } : { ...buildExercise(def, { ...w, exercises: w.exercises.filter((e) => e.id !== exId) }, { variation }), id: old.id, order: old.order, ...(old.choice ? { choice: old.choice } : {}) };
+    update((x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === exId ? next : e)) }), { now: true });
   };
   const replaceExercise = (exId: string, o: ReplacementOption, reason: PlanDecisionReason | null) => {
     const old = w.exercises.find((e) => e.id === exId);
@@ -400,10 +439,14 @@ function TrainSession({ initial }: { initial: Workout }) {
           setEx={setEx} updateAll={update} undoable={undoable} onNextExercise={nextExercise} onChooseNext={chooseNext} hasNext={w.exercises.some((e) => e.id !== cur.id && !e.skipped && !e.doneAt && !exerciseProgress(e).reached)}
           perSide={perSide[cur.id]} setPerSide={(v) => setPerSide((m) => ({ ...m, [cur.id]: v }))}
           sessionStep={sessionStep[cur.id]} setSessionStep={(v) => setSessionStep((m) => ({ ...m, [cur.id]: v }))}
-          onLater={() => { postpone(cur.id); setCurId(null); setView('overview'); }} onSkip={() => skip(cur.id)} onChange={() => setPicker({ change: cur.id })} />
+          onLater={() => { postpone(cur.id); setCurId(null); setView('overview'); }} onSkip={() => skip(cur.id)} onChange={() => setPicker({ change: cur.id })}
+          onSwitchTo={(id) => { const d = a.registry.get(id); if (d) changeExercise(cur.id, d); }}
+          onAngle={() => { const d = a.registry.get(cur.exerciseId); if (d) setAnglePick({ def: d, opts: {}, change: 'self' }); }} />
       )}
-      <ExercisePicker open={!!picker} title={picker && picker !== 'add' ? L('Change exercise', 'Сменить упражнение') : L('Add exercise', 'Добавить упражнение')} onClose={() => { setPicker(null); setPreselect(null); }} preselect={picker === 'add' ? preselect : null}
-        onPick={picker && picker !== 'add' ? (d) => { const id = picker.change; setPicker(null); changeExercise(id, d); } : addExercise} locationId={w.locationId} workout={picker === 'add' ? w : null} />
+      <SorenessSheet open={bodyCheck} intro onClose={closeBodyCheck} />
+      <ExercisePicker open={!!picker && !bodyCheck} title={picker && picker !== 'add' ? L('Change exercise', 'Сменить упражнение') : L('Add exercise', 'Добавить упражнение')} onClose={() => { setPicker(null); setPreselect(null); }} preselect={picker === 'add' ? preselect : null}
+        onPick={picker && picker !== 'add' ? (d) => { const id = picker.change; setPicker(null); pickWithAngle(d, {}, id); } : (d, o) => pickWithAngle(d, o ?? {})} locationId={w.locationId} workout={picker === 'add' ? w : null} />
+      {anglePick && <AngleSheet def={anglePick.def} current={anglePick.change === 'self' ? (w.exercises.find((e) => e.id === curId)?.variation?.benchAngleDeg ?? null) : lastAngle(anglePick.def)} onPick={chooseAngle} onClose={() => setAnglePick(null)} />}
       {summary && <SummaryModal s={summary} onDone={() => nav('/')} onBack={preFinish ? backToWorkout : undefined} />}
       <Modal open={chooser != null && !picker} onClose={() => setChooser(null)} title={L('Next exercise', 'Следующее упражнение')}>
         <div className="space-y-2" data-testid="next-chooser">
@@ -484,13 +527,13 @@ const quietBtn = 'flex h-12 min-w-[48px] items-center justify-center rounded-xl 
 
 // ---------------------------------------------------------------- set entry + rest for one exercise
 
-function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, updateAll, undoable, onNextExercise, onChooseNext, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange }: {
+function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, updateAll, undoable, onNextExercise, onChooseNext, hasNext, perSide, setPerSide, sessionStep, setSessionStep, onLater, onSkip, onChange, onSwitchTo, onAngle }: {
   w: Workout; ex: WorkoutExercise; view: View; setView: (v: View) => void; position: string; exName: string;
   setEx: (exId: string, fn: (e: WorkoutExercise) => WorkoutExercise, now?: boolean) => void;
   updateAll: (fn: (w: Workout) => Workout, opts?: { now?: boolean }) => void;
   undoable: (msg: string, revert: (x: Workout) => Workout) => void; onNextExercise: () => void; onChooseNext: () => void; hasNext: boolean;
   perSide: boolean | undefined; setPerSide: (v: boolean) => void; sessionStep: number | undefined; setSessionStep: (v: number) => void;
-  onLater: () => void; onSkip: () => void; onChange: () => void;
+  onLater: () => void; onSkip: () => void; onChange: () => void; onSwitchTo: (exerciseId: string) => void; onAngle: () => void;
 }) {
   const data = useData();
   const a = useAnalysis();
@@ -512,11 +555,14 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const progress = exerciseProgress(ex);
 
   // Values offered for the set about to be logged (never counted until LOG SET).
-  const fill = useMemo(() => prefillNext(ex, last), [ex, last]);
+  // Warm-ups are offered first (owner 2026-11-27); "Skip warm-up" goes straight to the working weight.
+  const [skipWarm, setSkipWarm] = useState(false);
+  const fill = useMemo(() => prefillNext(ex, last, ex.target, skipWarm), [ex, last, skipWarm]);
+  const warm = fill.warmup ?? null;
   const [weight, setWeight] = useState<number | null>(fill.weightKg);
   const [reps, setReps] = useState<number | null>(fill.reps);
   // Changes of the target (a Use, also a reps-only one) refresh the pre-filled values too.
-  const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}:${JSON.stringify(ex.target?.reps ?? [])}:${ex.target?.adapted?.at ?? ''}`;
+  const fillKey = `${sets.length}:${last?.id ?? ''}:${ex.target?.weightKg ?? ''}:${JSON.stringify(ex.target?.reps ?? [])}:${ex.target?.adapted?.at ?? ''}:${skipWarm}`;
   // How the set went: answered together with weight and reps, before LOG SET (optional; cleared after each set).
   const [tap, setTap] = useState<EffortTap | null>(null);
   const lastTapSide = useRef<Side | undefined>(undefined);
@@ -578,7 +624,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     if (reps == null || reps < 1) { toast(L('Enter the reps you did', 'Введите число повторений'), 'bad'); return; }
     const kg = weight ?? (loadMode === 'bodyweight_plus' ? 0 : null);
     if (kg == null) { toast(L('Enter the weight', 'Введите вес'), 'bad'); return; }
-    const entry = { weightKg: kg, reps, loadMode, ...(nextSide ? { side: nextSide } : {}) };
+    const entry = { weightKg: kg, reps, loadMode, ...(nextSide ? { side: nextSide } : {}), ...(warm ? { warmup: true } : {}) };
     if (isDoubleTap(ex, entry, nowMs)) return;
     tapGuard.current = nowMs;
     lastTapSide.current = nextSide;
@@ -594,6 +640,11 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
     if (nextSide !== 'left') setTap(null);
     setFlash(id);
     try { navigator.vibrate?.(30); } catch { /* no vibration */ }
+    // A warm-up keeps you on this screen (the next one is a short step away); Undo is one tap.
+    if (warm) {
+      undoable(L(`Warm-up ${warm.n} of ${warm.of} logged`, `Разминка ${warm.n} из ${warm.of} записана`), (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id !== ex.id ? e : editSet(e, id, null, model))) }));
+      return;
+    }
     // After the left side comes the right side directly; rest starts after the pair.
     if (nextSide !== 'left') setView('rest');
   };
@@ -632,22 +683,45 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
   const lastSet = sets[sets.length - 1] ?? null;
   const editing = sheet && typeof sheet === 'object' ? ex.sets.find((s) => s.id === sheet.set) ?? null : null;
   const unit = unitLabel(def, loadMode);
-  // A barbell exercise done in a Smith machine (or on another bar) is another history: one tap links it (owner 2026-11-25).
-  const eqLine = eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите')
-    : def?.equipmentKind === 'barbell' ? L('Free barbell — tap if it is a Smith machine or another bar', 'Свободная штанга — нажмите, если это Смит или другой гриф') : null;
+  // Free barbell or Smith machine: one switch on the set screen (owner 2026-11-27).
+  const barType = barTypeOf(def, eq);
+  const eqLine = barType && (!eq || eq.kind === 'smith') ? null
+    : eq ? eq.name : def && MACHINE_KINDS.has(def.equipmentKind) ? L('Machine not set — tap to choose', 'Тренажёр не выбран — нажмите') : null;
+  const linkSmith = () => {
+    const prev = eq;
+    let s = smithAt(data.equipment, w.locationId);
+    if (!s) {
+      const now = new Date().toISOString();
+      s = { id: uid('eq'), locationId: w.locationId ?? null, name: L('Smith machine', 'Смит'), kind: 'smith', identified: true, incrementsKg: [5], barWeightKg: null, settings: {}, exerciseIds: def ? [def.id] : [], photoIds: [], createdAt: now, updatedAt: now };
+      void store.saveEquipment(s);
+    }
+    chooseEq(s);
+    undoable(L('Smith machine linked', 'Привязан Смит'), (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === ex.id ? { ...e, equipmentId: prev?.id ?? null, equipmentConfidence: prev ? 'confirmed' : 'unknown' } : e)) }));
+  };
+  const switchBar = (to: BarType) => {
+    if (!def || to === barType) return;
+    const other = to === 'smith' ? SMITH_VERSION[def.id] : FREE_VERSION[def.id];
+    if (other) { onSwitchTo(other); return; } // its own exercise (muscle credit and history), with Undo
+    if (to === 'smith') linkSmith();
+    else { const prev = eq; chooseEq(null); undoable(L('Free barbell', 'Свободная штанга'), (x) => ({ ...x, exercises: x.exercises.map((e) => (e.id === ex.id ? { ...e, equipmentId: prev?.id ?? null, equipmentConfidence: prev ? 'confirmed' : 'unknown' } : e)) })); }
+  };
   const target = targetLine(ex);
-  // Barbell: the total is what counts; with a KNOWN bar weight the plates per side are shown (never assumed).
-  const isBar = loadMode === 'total' && (eq?.kind ?? def?.equipmentKind) === 'barbell';
-  const barKg = eq?.barWeightKg ?? gym?.barWeightKg ?? null;
+  // Barbell: the TOTAL is entered; the bar (20 kg for barbell compounds unless set otherwise) gives the plates per side.
+  const barKind = eq?.kind ?? def?.equipmentKind;
+  const isBar = loadMode === 'total' && (barKind === 'barbell' || barKind === 'smith');
+  const isSmith = barKind === 'smith';
+  const bar = barWeightFor(def, eq, gym);
+  const barKg = bar.kg;
   const bd = isBar ? barBreakdown(weight, barKg) : null;
-  const barLine = !isBar || (!eq && !gym) ? null
-    : barKg == null ? L('Total weight with the bar. Set the bar\'s weight to see the plates per side', 'Общий вес вместе с грифом. Укажите вес грифа, чтобы видеть диски на сторону')
-      : bd ? L(`= bar ${num(bd.barKg)} kg + ${num(bd.perSideKg)} kg per side`, `= гриф ${num(bd.barKg)} кг + ${num(bd.perSideKg)} кг на сторону`)
-        : L(`Total with the bar (${num(barKg)} kg)`, `Общий вес с грифом (${num(barKg)} кг)`);
+  const barLine = !isBar ? null
+    : bd ? L(`= bar ${num(bd.barKg)} kg + ${num(bd.perSideKg)} kg per side`, `= гриф ${num(bd.barKg)} кг + ${num(bd.perSideKg)} кг на сторону`)
+      : isSmith && barKg == null ? L('Smith: enter the plates on both sides together (the bar is not counted)', 'Смит: введите диски с обеих сторон вместе (гриф не считается)')
+        : barKg == null ? L('Enter the total: bar + all plates', 'Введите общий вес: гриф + все диски')
+          : L(`Total with the bar (${num(barKg)} kg)`, `Общий вес с грифом (${num(barKg)} кг)`);
   const saveBar = (kg: number | null) => {
     setSheet(null);
     if (eq) void store.saveEquipment({ ...eq, barWeightKg: kg });
-    else if (gym) void store.saveLocation({ ...gym, barWeightKg: kg });
+    else if (gym && !isSmith) void store.saveLocation({ ...gym, barWeightKg: kg });
     if (kg != null) toast(L(`Bar ${num(kg)} kg remembered`, `Гриф ${num(kg)} кг запомнен`), 'info');
   };
 
@@ -690,11 +764,19 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
         <p className="mb-3 text-sm text-ink-500">{eq ? L(`The smallest step on ${eq.name}. Remembered for this machine.`, `Наименьший шаг на «${eq.name}». Запоминается для этого тренажёра.`) : L('The smallest step you can add here. Any weight can also be typed — tap the number.', 'Наименьший шаг, который здесь можно добавить. Любой вес можно ввести вручную — нажмите на число.')}</p>
         <StepChoices current={step} onPick={chooseStep} />
       </Modal>
-      <Modal open={sheet === 'bar'} onClose={() => setSheet(null)} title={L('Bar weight', 'Вес грифа')}>
-        <p className="mb-3 text-sm text-ink-500">{L('The empty bar you use here. You keep entering the TOTAL weight (bar + plates); the app then shows the plates per side. Nothing in your history changes.', 'Пустой гриф, которым вы здесь пользуетесь. Вы по-прежнему вводите ОБЩИЙ вес (гриф + диски); приложение покажет диски на сторону. В истории ничего не меняется.')}</p>
-        <div className="flex flex-wrap gap-2" data-testid="bar-choices">
-          {[20, 15, 10, 7.5].map((kg) => <Toggle key={kg} on={barKg === kg} onClick={() => saveBar(kg)}>{num(kg)} {KG()}</Toggle>)}
-          <Toggle on={barKg == null} onClick={() => saveBar(null)}>{L('Unknown', 'Неизвестен')}</Toggle>
+      <Modal open={sheet === 'bar'} onClose={() => setSheet(null)} title={L('What weight to enter', 'Какой вес вводить')}>
+        {isSmith ? (
+          <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">{L('A Smith bar is counterweighted and its weight is usually unknown. Enter the PLATES on both sides together (2 × 10 kg = 20 kg), the same way every time — then your progress stays comparable. Set the bar only if you know it, and from then on enter bar + plates.', 'Гриф в Смите уравновешен, и его вес обычно неизвестен. Вводите ДИСКИ с обеих сторон вместе (2 × 10 кг = 20 кг), каждый раз одинаково — тогда прогресс сравним. Указывайте гриф, только если знаете его вес, и тогда вводите гриф + диски.')}</p>
+        ) : (
+          <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">{L('Enter the TOTAL: the bar plus every plate. Example: bar 20 kg + 10 kg on each side = 40 kg. The bar below only shows you the plates per side — what you log does not change.', 'Вводите ОБЩИЙ вес: гриф плюс все диски. Пример: гриф 20 кг + по 10 кг с каждой стороны = 40 кг. Гриф ниже нужен только для подсказки «дисков на сторону» — записанный вес не меняется.')}</p>
+        )}
+        <div className="grid grid-cols-1 gap-2" data-testid="bar-choices">
+          {(isSmith ? [[null, L('Unknown — I enter the plates', 'Неизвестен — ввожу диски')]] as [number | null, string][] : [
+            [20, L('20 kg — standard Olympic bar', '20 кг — стандартный олимпийский гриф')],
+            [15, L('15 kg — women\'s Olympic bar', '15 кг — женский олимпийский гриф')],
+            [10, L('10 kg — short / technique bar', '10 кг — короткий / учебный гриф')],
+          ] as [number | null, string][]).map(([kg, label]) => <Toggle key={String(kg)} on={barKg === kg && (kg != null || !bar.assumed)} onClick={() => saveBar(kg)}>{label}</Toggle>)}
+          {isSmith && eq && [10, 15, 20].map((kg) => <Toggle key={kg} on={barKg === kg} onClick={() => saveBar(kg)}>{L(`Bar ${num(kg)} kg (I know it)`, `Гриф ${num(kg)} кг (знаю точно)`)}</Toggle>)}
         </div>
       </Modal>
       {sheet === 'why' && <WhySheet w={w} ex={ex} onClose={() => setSheet(null)} />}
@@ -748,6 +830,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
         <RestScreen w={w} ex={ex} set={lastSet} exName={exName} n={sets.length} reached={progress.reached} hasNext={hasNext}
           offer={offer} onUseOffer={useOffer} onKeepOffer={() => { if (offer) setEx(ex.id, (e) => keepOffer(e, offer), true); }}
           onMore={() => setSheet({ set: lastSet.id })} onChooseNext={onChooseNext}
+          onUndoSet={() => { const s = lastSet; removeSet(s); tapGuard.current = 0; setView('set'); setWeight(s.weightKg); setReps(s.reps); }}
           onAdjust={(d) => setEx(ex.id, (e) => adjustRest(e, d, data.settings.restDefaultSec), true)}
           onNextSet={() => { setEx(ex.id, (e) => ({ ...e, restEndedAt: new Date().toISOString() }), true); setView('set'); }} onNextExercise={onNextExercise} />
         {sheets}
@@ -761,6 +844,26 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
       <div className="flex min-h-0 flex-1 flex-col landscape:max-lg:flex-row">
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-1">
           <h1 className={cx('break-words font-display font-extrabold uppercase leading-none tracking-tight [text-wrap:balance]', exName.length > 26 ? 'text-2xl' : 'text-title')} data-testid="exercise-name">{exName}</h1>
+          {def?.variationFields?.includes('angle') && (
+            <button type="button" onClick={onAngle} className="mt-1 flex min-h-[44px] items-center gap-2 text-left text-sm" data-testid="angle-line">
+              <span className="t-label">{L('Bench', 'Скамья')}</span>
+              <span className={cx('font-bold', ex.variation?.benchAngleDeg == null ? 'text-t-warn' : 'text-t-text')}>{ex.variation?.benchAngleDeg == null ? L('angle not set — tap', 'угол не указан — нажмите') : ex.variation.benchAngleDeg === 0 ? L('flat', 'горизонтально') : `${num(ex.variation.benchAngleDeg)}°`}</span>
+              <span className="text-xs text-t-dim underline">{L('change', 'изменить')}</span>
+            </button>
+          )}
+          {barType && (
+            <div className="flex flex-wrap items-center gap-x-2 text-sm" role="radiogroup" aria-label={L('Bar', 'Гриф')} data-testid="bar-type">
+              {(['free', 'smith'] as BarType[]).map((t, i) => (
+                <span key={t} className="flex items-center gap-x-2">
+                  {i > 0 && <span className="text-t-dim" aria-hidden>·</span>}
+                  <button type="button" role="radio" aria-checked={barType === t} onClick={() => switchBar(t)} data-testid={`bar-${t}`}
+                    className={cx('min-h-[44px] min-w-[44px] font-bold', barType === t ? 'text-t-accent' : 'text-t-dim underline decoration-dotted')}>
+                    {barType === t && '● '}{t === 'free' ? L('Free barbell', 'Свободная штанга') : L('Smith machine', 'Смит')}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           {eqLine && <button type="button" onClick={() => setPickEq(true)} className="flex min-h-[44px] min-w-[44px] items-center text-left text-sm text-t-dim" data-testid="machine-line">{eqLine}{ex.settings && Object.values(ex.settings).some((v) => v.trim()) ? ` · ${Object.entries(ex.settings).filter(([, v]) => v.trim()).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}</button>}
           <dl className="mt-3 space-y-1.5">
             <div data-testid="last-time">
@@ -779,11 +882,21 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
             )}
           </dl>
           {sets.length > 0 && <div className="mt-3">{chips}</div>}
-          {lastSet && <RestPill w={w} onOpen={() => setView('rest')} />}
+          {lastSet && <RestPill w={w} onOpen={() => {
+            // Next set tapped by mistake: back to the rest, which simply goes on (the tap is forgotten).
+            if (ex.restEndedAt) setEx(ex.id, (e) => { const { restEndedAt: _r, ...rest } = e; void _r; return rest; }, true);
+            setView('rest');
+          }} />}
         </div>
         <div className="shrink-0 space-y-2 border-t border-t-line bg-t-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 landscape:max-lg:w-1/2 landscape:max-lg:overflow-y-auto landscape:max-lg:border-l landscape:max-lg:border-t-0" data-testid="entry">
           {sides && <div className="flex items-center gap-2"><TLabel>{L('Side', 'Сторона')}</TLabel><span className="rounded-md bg-t-surface px-2 py-1 text-xs font-bold uppercase" data-testid="side">{nextSide === 'left' ? L('Left', 'Левая') : L('Right', 'Правая')}</span></div>}
-          {source && <WeightSource source={source} planKg={ex.target?.weightKg ?? null} weightKg={weight} lastKg={(lastSets[sets.length] ?? lastSets.filter((s) => s.type === 'working').at(-1))?.weightKg ?? null} />}
+          {warm ? (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs font-semibold text-t-accent" data-testid="warmup-line">
+              <span className="rounded bg-t-accent/15 px-1.5 py-0.5 font-bold uppercase">{L(`Warm-up ${warm.n} of ${warm.of}`, `Разминка ${warm.n} из ${warm.of}`)}</span>
+              <span className="min-w-0 break-words text-t-dim">{L(`not counted · then ${num(ex.target?.weightKg ?? 0)} kg`, `не в зачёт · потом ${num(ex.target?.weightKg ?? 0)} кг`)}</span>
+              <button type="button" className="ml-auto min-h-[44px] min-w-[44px] px-1 text-xs font-semibold text-t-dim underline" onClick={() => setSkipWarm(true)} data-testid="skip-warmup">{L('Skip warm-up', 'Без разминки')}</button>
+            </p>
+          ) : source && <WeightSource source={source} planKg={ex.target?.weightKg ?? null} weightKg={weight} lastKg={(lastSets[sets.length] ?? lastSets.filter((s) => s.type === 'working').at(-1))?.weightKg ?? null} />}
           <WeightControl value={weight} onChange={setWeight} step={step} onStepClick={() => setSheet('step')} unit={unit} />
           {barLine && <button type="button" onClick={() => setSheet('bar')} className="-mt-1 flex min-h-[44px] w-full items-center text-left text-xs font-semibold text-t-dim underline decoration-dotted" data-testid="bar-line">{barLine}</button>}
           <RepsControl value={reps} onChange={setReps} />
@@ -791,7 +904,7 @@ function ExerciseScreens({ w, ex, view, setView, position, exName, setEx, update
             <TLabel>{L('How did it go? (optional)', 'Как прошёл? (необязательно)')}</TLabel>
             <div className="mt-1"><EffortRow value={tap} onPick={(t) => setTap(tap === t ? null : t)} /></div>
           </div>
-          <TButton variant="primary" className="landscape:max-lg:sticky landscape:max-lg:bottom-0 landscape:max-lg:z-10" onClick={log} data-testid="log-set">{L('Log set', 'Записать подход')}{sets.length ? ` ${sets.length + 1}` : ''}</TButton>
+          <TButton variant="primary" className="landscape:max-lg:sticky landscape:max-lg:bottom-0 landscape:max-lg:z-10" onClick={log} data-testid="log-set">{warm ? L(`Log warm-up ${warm.n}`, `Записать разминку ${warm.n}`) : <>{L('Log set', 'Записать подход')}{sets.length ? ` ${sets.length + 1}` : ''}</>}</TButton>
         </div>
       </div>
       {sheets}
@@ -812,7 +925,8 @@ function RestPill({ w, onOpen }: { w: Workout; onOpen: () => void }) {
   if (Number.isFinite(endAt) && Number.isFinite(setAt) && endAt > setAt) {
     return (
       <button type="button" onClick={onOpen} data-testid="rest-pill" data-ended="true" className="t-num mt-3 flex min-h-[48px] items-center gap-2 rounded-xl border border-t-line px-3 font-display text-lg font-bold text-t-text">
-        <span className="t-label">{L('Rested', 'Отдых был')}</span>{mmss(Math.round((endAt - setAt) / 1000))}
+        <IconChevron size={18} className="rotate-180 text-t-dim" />
+        <span className="t-label">{L('Back to rest', 'Назад к отдыху')}</span>{mmss(Math.round((endAt - setAt) / 1000))}
       </button>
     );
   }
@@ -846,9 +960,9 @@ function WeightSource({ source, planKg, weightKg, lastKg }: { source: 'adjusted'
   );
 }
 
-function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust, onNextSet, onNextExercise, onChooseNext, offer, onUseOffer, onKeepOffer }: {
+function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onUndoSet, onAdjust, onNextSet, onNextExercise, onChooseNext, offer, onUseOffer, onKeepOffer }: {
   w: Workout; ex: WorkoutExercise; set: WorkoutSet; exName: string; n: number; reached: boolean; hasNext: boolean;
-  onMore: () => void; onAdjust: (deltaSec: number) => void; onNextSet: () => void; onNextExercise: () => void; onChooseNext: () => void;
+  onMore: () => void; onUndoSet: () => void; onAdjust: (deltaSec: number) => void; onNextSet: () => void; onNextExercise: () => void; onChooseNext: () => void;
   offer: NextSetsOffer | null; onUseOffer: (o: NextSetsOffer) => void; onKeepOffer: () => void;
 }) {
   const data = useData();
@@ -895,6 +1009,7 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust,
           <span className="uppercase">{exName}</span> · {L(`set ${n}`, `подход ${n}`)}: <span className="t-num text-t-text">{setText(set)}</span>
           {effortTapOf(set) && <span className="text-t-text"> · {effortLabel(effortTapOf(set) as EffortTap)}</span>}
           {' '}<button type="button" className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center px-2 align-middle text-xs font-semibold text-t-dim underline" onClick={onMore} data-testid="more">{L('edit', 'изменить')}</button>
+          <button type="button" className="inline-flex min-h-[44px] min-w-[48px] items-center justify-center px-2 align-middle text-xs font-semibold text-t-dim underline" onClick={onUndoSet} data-testid="undo-set">{L('undo set', 'отменить подход')}</button>
         </p>
         {offer && (
           <div className="mb-2 w-full max-w-sm rounded-xl border border-t-accent/60 bg-t-surface px-3 py-2" data-testid="set-offer" data-change={offer.change}>
@@ -946,6 +1061,27 @@ function RestScreen({ w, ex, set, exName, n, reached, hasNext, onMore, onAdjust,
 }
 
 // ---------------------------------------------------------------- sheets
+
+/** Bench angle, asked when an angle exercise is chosen (and from its set screen). Each angle keeps its own history. */
+function AngleSheet({ def, current, onPick, onClose }: { def: ExerciseDef; current: number | null; onPick: (deg: number | null) => void; onClose: () => void }) {
+  const names = useNames();
+  const [other, setOther] = useState('');
+  const chips = def.id === 'decline_press' ? [-15, -30] : def.pattern === 'incline_push' ? [15, 30, 45] : [0, 15, 30, 45];
+  const typed = Number(other.replace(',', '.'));
+  return (
+    <Modal open onClose={onClose} title={L('Bench angle', 'Угол скамьи')}>
+      <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">{names.ex(def)} — {L('each angle keeps its own strength history and plan.', 'у каждого угла своя история силы и свой план.')}</p>
+      <div className="grid grid-cols-3 gap-2" data-testid="angle-choices">
+        {chips.map((d) => <Toggle key={d} on={current === d} onClick={() => onPick(d)}>{d === 0 ? L('Flat', 'Горизонт.') : `${d}°`}</Toggle>)}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Input inputMode="decimal" value={other} onChange={(e) => setOther(e.target.value)} placeholder={L('other angle, °', 'другой угол, °')} aria-label={L('Other angle in degrees', 'Другой угол в градусах')} />
+        <Button onClick={() => { if (other.trim() && Number.isFinite(typed) && typed >= -30 && typed <= 90) onPick(typed); }} disabled={!other.trim()}>{L('Use', 'Взять')}</Button>
+      </div>
+      <button type="button" className="mt-3 min-h-[44px] text-sm font-medium text-ink-500 underline" onClick={() => onPick(null)} data-testid="angle-unknown">{L('Not sure — skip', 'Не знаю — пропустить')}</button>
+    </Modal>
+  );
+}
 
 function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return <button type="button" aria-pressed={on} onClick={onClick} className={cx('min-h-[48px] rounded-xl border px-3 text-sm font-semibold', on ? 'border-accent-500 bg-accent-500 text-ink-950' : 'border-ink-200 bg-ink-50 text-ink-800 dark:border-ink-700 dark:bg-ink-850 dark:text-ink-100')}>{children}</button>;

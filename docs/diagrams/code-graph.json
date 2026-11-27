@@ -77,19 +77,68 @@
    "exported": true,
    "line": 287
   },
+  "src/domain/analysis#weekGroups": {
+   "file": "src/domain/analysis",
+   "name": "weekGroups",
+   "kind": "function",
+   "exported": true,
+   "line": 307
+  },
   "src/domain/analysis#weekChip": {
    "file": "src/domain/analysis",
    "name": "weekChip",
    "kind": "function",
    "exported": true,
-   "line": 299
+   "line": 318
   },
   "src/domain/analysis#setsLeftTodayText": {
    "file": "src/domain/analysis",
    "name": "setsLeftTodayText",
    "kind": "function",
    "exported": true,
-   "line": 306
+   "line": 325
+  },
+  "src/domain/barType#SMITH_VERSION": {
+   "file": "src/domain/barType",
+   "name": "SMITH_VERSION",
+   "kind": "const",
+   "exported": true,
+   "line": 15
+  },
+  "src/domain/barType#FREE_VERSION": {
+   "file": "src/domain/barType",
+   "name": "FREE_VERSION",
+   "kind": "const",
+   "exported": true,
+   "line": 16
+  },
+  "src/domain/barType#DEFAULT_BAR_KG": {
+   "file": "src/domain/barType",
+   "name": "DEFAULT_BAR_KG",
+   "kind": "const",
+   "exported": true,
+   "line": 19
+  },
+  "src/domain/barType#barTypeOf": {
+   "file": "src/domain/barType",
+   "name": "barTypeOf",
+   "kind": "function",
+   "exported": true,
+   "line": 24
+  },
+  "src/domain/barType#barWeightFor": {
+   "file": "src/domain/barType",
+   "name": "barWeightFor",
+   "kind": "function",
+   "exported": true,
+   "line": 35
+  },
+  "src/domain/barType#smithAt": {
+   "file": "src/domain/barType",
+   "name": "smithAt",
+   "kind": "function",
+   "exported": true,
+   "line": 45
   },
   "src/domain/baseline#BASELINE_DAYS": {
    "file": "src/domain/baseline",
@@ -1335,238 +1384,238 @@
    "name": "performed",
    "kind": "const",
    "exported": false,
-   "line": 73
+   "line": 75
   },
   "src/domain/liveFlow#targetReps": {
    "file": "src/domain/liveFlow",
    "name": "targetReps",
    "kind": "const",
    "exported": false,
-   "line": 74
+   "line": 76
   },
   "src/domain/liveFlow#prefillNext": {
    "file": "src/domain/liveFlow",
    "name": "prefillNext",
    "kind": "function",
    "exported": true,
-   "line": 84
+   "line": 86
   },
   "src/domain/liveFlow#lastEntryFor": {
    "file": "src/domain/liveFlow",
    "name": "lastEntryFor",
    "kind": "function",
    "exported": true,
-   "line": 149
+   "line": 160
   },
   "src/domain/liveFlow#isDoubleTap": {
    "file": "src/domain/liveFlow",
    "name": "isDoubleTap",
    "kind": "function",
    "exported": true,
-   "line": 164
+   "line": 175
   },
   "src/domain/liveFlow#logSet": {
    "file": "src/domain/liveFlow",
    "name": "logSet",
    "kind": "function",
    "exported": true,
-   "line": 178
+   "line": 189
   },
   "src/domain/liveFlow#clearOtherRestEnds": {
    "file": "src/domain/liveFlow",
    "name": "clearOtherRestEnds",
    "kind": "function",
    "exported": true,
-   "line": 202
+   "line": 214
   },
   "src/domain/liveFlow#editSet": {
    "file": "src/domain/liveFlow",
    "name": "editSet",
    "kind": "function",
    "exported": true,
-   "line": 213
+   "line": 225
   },
   "src/domain/liveFlow#resyncPrescribed": {
    "file": "src/domain/liveFlow",
    "name": "resyncPrescribed",
    "kind": "function",
    "exported": false,
-   "line": 223
+   "line": 235
   },
   "src/domain/liveFlow#toggleWarmup": {
    "file": "src/domain/liveFlow",
    "name": "toggleWarmup",
    "kind": "function",
    "exported": true,
-   "line": 246
+   "line": 258
   },
   "src/domain/liveFlow#exerciseProgress": {
    "file": "src/domain/liveFlow",
    "name": "exerciseProgress",
    "kind": "function",
    "exported": true,
-   "line": 253
+   "line": 265
   },
   "src/domain/liveFlow#setDelta": {
    "file": "src/domain/liveFlow",
    "name": "setDelta",
    "kind": "function",
    "exported": true,
-   "line": 271
+   "line": 283
   },
   "src/domain/liveFlow#setScore": {
    "file": "src/domain/liveFlow",
    "name": "setScore",
    "kind": "function",
    "exported": true,
-   "line": 286
+   "line": 298
   },
   "src/domain/liveFlow#clockStartMs": {
    "file": "src/domain/liveFlow",
    "name": "clockStartMs",
    "kind": "function",
    "exported": true,
-   "line": 294
+   "line": 306
   },
   "src/domain/liveFlow#lastLogged": {
    "file": "src/domain/liveFlow",
    "name": "lastLogged",
    "kind": "function",
    "exported": true,
-   "line": 306
+   "line": 318
   },
   "src/domain/liveFlow#clampRest": {
    "file": "src/domain/liveFlow",
    "name": "clampRest",
    "kind": "const",
    "exported": true,
-   "line": 316
+   "line": 328
   },
   "src/domain/liveFlow#restTargetFor": {
    "file": "src/domain/liveFlow",
    "name": "restTargetFor",
    "kind": "function",
    "exported": true,
-   "line": 319
+   "line": 331
   },
   "src/domain/liveFlow#restState": {
    "file": "src/domain/liveFlow",
    "name": "restState",
    "kind": "function",
    "exported": true,
-   "line": 334
+   "line": 346
   },
   "src/domain/liveFlow#adjustRest": {
    "file": "src/domain/liveFlow",
    "name": "adjustRest",
    "kind": "function",
    "exported": true,
-   "line": 344
+   "line": 356
   },
   "src/domain/liveFlow#mmss": {
    "file": "src/domain/liveFlow",
    "name": "mmss",
    "kind": "const",
    "exported": true,
-   "line": 348
+   "line": 360
   },
   "src/domain/liveFlow#prescribedFor": {
    "file": "src/domain/liveFlow",
    "name": "prescribedFor",
    "kind": "function",
    "exported": true,
-   "line": 353
+   "line": 365
   },
   "src/domain/liveFlow#withPrescribed": {
    "file": "src/domain/liveFlow",
    "name": "withPrescribed",
    "kind": "function",
    "exported": false,
-   "line": 366
+   "line": 378
   },
   "src/domain/liveFlow#ANCHOR_MAX_RIR": {
    "file": "src/domain/liveFlow",
    "name": "ANCHOR_MAX_RIR",
    "kind": "const",
    "exported": true,
-   "line": 394
+   "line": 406
   },
   "src/domain/liveFlow#ANCHOR_REPS": {
    "file": "src/domain/liveFlow",
    "name": "ANCHOR_REPS",
    "kind": "const",
    "exported": true,
-   "line": 396
+   "line": 408
   },
   "src/domain/liveFlow#anchorRir": {
    "file": "src/domain/liveFlow",
    "name": "anchorRir",
    "kind": "function",
    "exported": true,
-   "line": 399
+   "line": 411
   },
   "src/domain/liveFlow#workingWeightFromSets": {
    "file": "src/domain/liveFlow",
    "name": "workingWeightFromSets",
    "kind": "function",
    "exported": true,
-   "line": 415
+   "line": 427
   },
   "src/domain/liveFlow#offerKey": {
    "file": "src/domain/liveFlow",
    "name": "offerKey",
    "kind": "const",
    "exported": false,
-   "line": 436
+   "line": 448
   },
   "src/domain/liveFlow#nextSetsOffer": {
    "file": "src/domain/liveFlow",
    "name": "nextSetsOffer",
    "kind": "function",
    "exported": true,
-   "line": 443
+   "line": 455
   },
   "src/domain/liveFlow#keepOffer": {
    "file": "src/domain/liveFlow",
    "name": "keepOffer",
    "kind": "function",
    "exported": true,
-   "line": 491
+   "line": 503
   },
   "src/domain/liveFlow#applyOffer": {
    "file": "src/domain/liveFlow",
    "name": "applyOffer",
    "kind": "function",
    "exported": true,
-   "line": 498
+   "line": 510
   },
   "src/domain/liveFlow#weightSource": {
    "file": "src/domain/liveFlow",
    "name": "weightSource",
    "kind": "function",
    "exported": true,
-   "line": 515
+   "line": 527
   },
   "src/domain/liveFlow#targetText": {
    "file": "src/domain/liveFlow",
    "name": "targetText",
    "kind": "function",
    "exported": true,
-   "line": 539
+   "line": 551
   },
   "src/domain/liveFlow#canContinue": {
    "file": "src/domain/liveFlow",
    "name": "canContinue",
    "kind": "function",
    "exported": true,
-   "line": 554
+   "line": 566
   },
   "src/domain/liveFlow#continueWorkout": {
    "file": "src/domain/liveFlow",
    "name": "continueWorkout",
    "kind": "function",
    "exported": true,
-   "line": 559
+   "line": 571
   },
   "src/domain/mappingUncertainty#isUncertainMapping": {
    "file": "src/domain/mappingUncertainty",
@@ -2091,42 +2140,42 @@
    "name": "workoutFromPlan",
    "kind": "function",
    "exported": true,
-   "line": 557
+   "line": 560
   },
   "src/domain/planner#replanPending": {
    "file": "src/domain/planner",
    "name": "replanPending",
    "kind": "function",
    "exported": true,
-   "line": 591
+   "line": 594
   },
   "src/domain/planner#untouchedPlanned": {
    "file": "src/domain/planner",
    "name": "untouchedPlanned",
    "kind": "function",
    "exported": true,
-   "line": 626
+   "line": 629
   },
   "src/domain/planner#applyPendingUpdate": {
    "file": "src/domain/planner",
    "name": "applyPendingUpdate",
    "kind": "function",
    "exported": true,
-   "line": 636
+   "line": 639
   },
   "src/domain/planner#replacementOptions": {
    "file": "src/domain/planner",
    "name": "replacementOptions",
    "kind": "function",
    "exported": true,
-   "line": 663
+   "line": 666
   },
   "src/domain/planner#planAdherence": {
    "file": "src/domain/planner",
    "name": "planAdherence",
    "kind": "function",
    "exported": true,
-   "line": 701
+   "line": 704
   },
   "src/domain/preload#PRELOAD_MIN_SETS": {
    "file": "src/domain/preload",
@@ -2385,21 +2434,21 @@
    "name": "adaptRemaining",
    "kind": "function",
    "exported": true,
-   "line": 638
+   "line": 642
   },
   "src/domain/prescription#WARMUP_RIR": {
    "file": "src/domain/prescription",
    "name": "WARMUP_RIR",
    "kind": "const",
    "exported": false,
-   "line": 732
+   "line": 736
   },
   "src/domain/prescription#toSetPrescription": {
    "file": "src/domain/prescription",
    "name": "toSetPrescription",
    "kind": "function",
    "exported": true,
-   "line": 735
+   "line": 739
   },
   "src/domain/progression#FREE_KINDS": {
    "file": "src/domain/progression",
@@ -4298,12 +4347,33 @@
    "exported": false,
    "line": 19
   },
+  "src/ui/components/SorenessAsk#useSoreness": {
+   "file": "src/ui/components/SorenessAsk",
+   "name": "useSoreness",
+   "kind": "function",
+   "exported": false,
+   "line": 22
+  },
+  "src/ui/components/SorenessAsk#useSorenessAnswered": {
+   "file": "src/ui/components/SorenessAsk",
+   "name": "useSorenessAnswered",
+   "kind": "function",
+   "exported": true,
+   "line": 40
+  },
+  "src/ui/components/SorenessAsk#SorenessSheet": {
+   "file": "src/ui/components/SorenessAsk",
+   "name": "SorenessSheet",
+   "kind": "function",
+   "exported": true,
+   "line": 48
+  },
   "src/ui/components/SorenessAsk#SorenessAsk": {
    "file": "src/ui/components/SorenessAsk",
    "name": "SorenessAsk",
    "kind": "function",
    "exported": true,
-   "line": 21
+   "line": 85
   },
   "src/ui/components/ui#cx": {
    "file": "src/ui/components/ui",
@@ -4443,112 +4513,119 @@
    "name": "VolumeBar",
    "kind": "function",
    "exported": true,
-   "line": 207
+   "line": 212
+  },
+  "src/ui/components/ui#VolumeLegend": {
+   "file": "src/ui/components/ui",
+   "name": "VolumeLegend",
+   "kind": "function",
+   "exported": true,
+   "line": 227
   },
   "src/ui/components/ui#Why": {
    "file": "src/ui/components/ui",
    "name": "Why",
    "kind": "function",
    "exported": true,
-   "line": 224
+   "line": 239
   },
   "src/ui/components/ui#Empty": {
    "file": "src/ui/components/ui",
    "name": "Empty",
    "kind": "function",
    "exported": true,
-   "line": 237
+   "line": 252
   },
   "src/ui/components/ui#Callout": {
    "file": "src/ui/components/ui",
    "name": "Callout",
    "kind": "function",
    "exported": true,
-   "line": 247
+   "line": 262
   },
   "src/ui/components/ui#backClose": {
    "file": "src/ui/components/ui",
    "name": "backClose",
    "kind": "const",
    "exported": false,
-   "line": 268
+   "line": 283
   },
   "src/ui/components/ui#registerBackClose": {
    "file": "src/ui/components/ui",
    "name": "registerBackClose",
    "kind": "function",
    "exported": true,
-   "line": 274
+   "line": 289
   },
   "src/ui/components/ui#useBackToClose": {
    "file": "src/ui/components/ui",
    "name": "useBackToClose",
    "kind": "function",
    "exported": true,
-   "line": 278
+   "line": 293
   },
   "src/ui/components/ui#Modal": {
    "file": "src/ui/components/ui",
    "name": "Modal",
    "kind": "function",
    "exported": true,
-   "line": 284
+   "line": 299
   },
   "src/ui/components/ui#Table": {
    "file": "src/ui/components/ui",
    "name": "Table",
    "kind": "function",
    "exported": true,
-   "line": 314
+   "line": 329
   },
   "src/ui/components/ui#Td": {
    "file": "src/ui/components/ui",
    "name": "Td",
    "kind": "function",
    "exported": true,
-   "line": 331
+   "line": 346
   },
   "src/ui/components/ui#fmt": {
    "file": "src/ui/components/ui",
    "name": "fmt",
    "kind": "function",
    "exported": true,
-   "line": 335
+   "line": 350
   },
   "src/ui/components/ui#toastFn": {
    "file": "src/ui/components/ui",
    "name": "toastFn",
    "kind": "const",
    "exported": false,
-   "line": 345
+   "line": 360
   },
   "src/ui/components/ui#toast": {
    "file": "src/ui/components/ui",
    "name": "toast",
    "kind": "function",
    "exported": true,
-   "line": 346
+   "line": 361
   },
   "src/ui/components/ui#undoToast": {
    "file": "src/ui/components/ui",
    "name": "undoToast",
    "kind": "function",
    "exported": true,
-   "line": 350
+   "line": 365
   },
   "src/ui/components/ui#Toaster": {
    "file": "src/ui/components/ui",
    "name": "Toaster",
    "kind": "function",
    "exported": true,
-   "line": 353
+   "line": 368
   },
   "src/ui/components/ui#confirmAction": {
    "file": "src/ui/components/ui",
    "name": "confirmAction",
    "kind": "function",
    "exported": true,
-   "line": 391
+   "line": 406
   },
   "src/ui/hooks#useAnalysis": {
    "file": "src/ui/hooks",
@@ -4786,77 +4863,84 @@
    "name": "MuscleRow",
    "kind": "function",
    "exported": false,
-   "line": 181
+   "line": 183
+  },
+  "src/ui/pages/Dashboard#GROUP_TITLE": {
+   "file": "src/ui/pages/Dashboard",
+   "name": "GROUP_TITLE",
+   "kind": "const",
+   "exported": false,
+   "line": 211
   },
   "src/ui/pages/Dashboard#statusChip": {
    "file": "src/ui/pages/Dashboard",
    "name": "statusChip",
    "kind": "function",
    "exported": false,
-   "line": 210
+   "line": 218
   },
   "src/ui/pages/Dashboard#MuscleDetail": {
    "file": "src/ui/pages/Dashboard",
    "name": "MuscleDetail",
    "kind": "function",
    "exported": false,
-   "line": 219
+   "line": 227
   },
   "src/ui/pages/Dashboard#Fact": {
    "file": "src/ui/pages/Dashboard",
    "name": "Fact",
    "kind": "function",
    "exported": false,
-   "line": 266
+   "line": 274
   },
   "src/ui/pages/Dashboard#ADVICE_TONE": {
    "file": "src/ui/pages/Dashboard",
    "name": "ADVICE_TONE",
    "kind": "const",
    "exported": false,
-   "line": 277
+   "line": 285
   },
   "src/ui/pages/Dashboard#ADVICE_RANK": {
    "file": "src/ui/pages/Dashboard",
    "name": "ADVICE_RANK",
    "kind": "const",
    "exported": false,
-   "line": 278
+   "line": 286
   },
   "src/ui/pages/Dashboard#AdviceRow": {
    "file": "src/ui/pages/Dashboard",
    "name": "AdviceRow",
    "kind": "function",
    "exported": false,
-   "line": 282
+   "line": 290
   },
   "src/ui/pages/Dashboard#NextWeights": {
    "file": "src/ui/pages/Dashboard",
    "name": "NextWeights",
    "kind": "function",
    "exported": false,
-   "line": 303
+   "line": 311
   },
   "src/ui/pages/Dashboard#WeekStrip": {
    "file": "src/ui/pages/Dashboard",
    "name": "WeekStrip",
    "kind": "function",
    "exported": false,
-   "line": 327
+   "line": 335
   },
   "src/ui/pages/Dashboard#weekQualitySets": {
    "file": "src/ui/pages/Dashboard",
    "name": "weekQualitySets",
    "kind": "function",
    "exported": false,
-   "line": 359
+   "line": 367
   },
   "src/ui/pages/Dashboard#MoreDetails": {
    "file": "src/ui/pages/Dashboard",
    "name": "MoreDetails",
    "kind": "function",
    "exported": false,
-   "line": 363
+   "line": 371
   },
   "src/ui/pages/Equipment#KINDS": {
    "file": "src/ui/pages/Equipment",
@@ -5465,91 +5549,91 @@
    "name": "STATUS_TONE",
    "kind": "const",
    "exported": false,
-   "line": 17
+   "line": 18
   },
   "src/ui/pages/Muscles#GROUP_COLORS": {
    "file": "src/ui/pages/Muscles",
    "name": "GROUP_COLORS",
    "kind": "const",
    "exported": false,
-   "line": 21
+   "line": 22
   },
   "src/ui/pages/Muscles#GROUP_LABEL": {
    "file": "src/ui/pages/Muscles",
    "name": "GROUP_LABEL",
    "kind": "const",
    "exported": false,
-   "line": 22
+   "line": 23
   },
   "src/ui/pages/Muscles#priorityLabel": {
    "file": "src/ui/pages/Muscles",
    "name": "priorityLabel",
    "kind": "const",
    "exported": false,
-   "line": 23
+   "line": 24
   },
   "src/ui/pages/Muscles#sourceLabel": {
    "file": "src/ui/pages/Muscles",
    "name": "sourceLabel",
    "kind": "const",
    "exported": false,
-   "line": 24
+   "line": 25
   },
   "src/ui/pages/Muscles#tipNum": {
    "file": "src/ui/pages/Muscles",
    "name": "tipNum",
    "kind": "const",
    "exported": false,
-   "line": 26
+   "line": 27
   },
   "src/ui/pages/Muscles#MusclesPage": {
    "file": "src/ui/pages/Muscles",
    "name": "MusclesPage",
    "kind": "function",
    "exported": true,
-   "line": 30
+   "line": 31
   },
   "src/ui/pages/Muscles#SetLegend": {
    "file": "src/ui/pages/Muscles",
    "name": "SetLegend",
    "kind": "function",
    "exported": false,
-   "line": 129
+   "line": 130
   },
   "src/ui/pages/Muscles#MuscleCard": {
    "file": "src/ui/pages/Muscles",
    "name": "MuscleCard",
    "kind": "function",
    "exported": false,
-   "line": 150
+   "line": 151
   },
   "src/ui/pages/Muscles#MiniStat": {
    "file": "src/ui/pages/Muscles",
    "name": "MiniStat",
    "kind": "function",
    "exported": false,
-   "line": 196
+   "line": 197
   },
   "src/ui/pages/Muscles#RegionCard": {
    "file": "src/ui/pages/Muscles",
    "name": "RegionCard",
    "kind": "function",
    "exported": false,
-   "line": 205
+   "line": 206
   },
   "src/ui/pages/Muscles#HistoryCard": {
    "file": "src/ui/pages/Muscles",
    "name": "HistoryCard",
    "kind": "function",
    "exported": false,
-   "line": 238
+   "line": 239
   },
   "src/ui/pages/Muscles#TargetEditor": {
    "file": "src/ui/pages/Muscles",
    "name": "TargetEditor",
    "kind": "function",
    "exported": false,
-   "line": 323
+   "line": 324
   },
   "src/ui/pages/Periodization#KIND_LABEL": {
    "file": "src/ui/pages/Periodization",
@@ -6081,168 +6165,175 @@
    "name": "LogPage",
    "kind": "function",
    "exported": true,
-   "line": 46
+   "line": 47
   },
   "src/ui/pages/Train#LogMode": {
    "file": "src/ui/pages/Train",
    "name": "LogMode",
    "kind": "function",
    "exported": false,
-   "line": 57
+   "line": 58
   },
   "src/ui/pages/Train#done": {
    "file": "src/ui/pages/Train",
    "name": "done",
    "kind": "const",
    "exported": false,
-   "line": 64
+   "line": 65
   },
   "src/ui/pages/Train#kgText": {
    "file": "src/ui/pages/Train",
    "name": "kgText",
    "kind": "const",
    "exported": false,
-   "line": 65
+   "line": 66
   },
   "src/ui/pages/Train#setText": {
    "file": "src/ui/pages/Train",
    "name": "setText",
    "kind": "const",
    "exported": false,
-   "line": 66
+   "line": 67
   },
   "src/ui/pages/Train#setsLine": {
    "file": "src/ui/pages/Train",
    "name": "setsLine",
    "kind": "function",
    "exported": false,
-   "line": 69
+   "line": 70
   },
   "src/ui/pages/Train#targetLine": {
    "file": "src/ui/pages/Train",
    "name": "targetLine",
    "kind": "const",
    "exported": false,
-   "line": 80
+   "line": 81
   },
   "src/ui/pages/Train#pickCurrent": {
    "file": "src/ui/pages/Train",
    "name": "pickCurrent",
    "kind": "function",
    "exported": false,
-   "line": 83
+   "line": 84
   },
   "src/ui/pages/Train#unitLabel": {
    "file": "src/ui/pages/Train",
    "name": "unitLabel",
    "kind": "const",
    "exported": false,
-   "line": 91
+   "line": 92
   },
   "src/ui/pages/Train#REASONS": {
    "file": "src/ui/pages/Train",
    "name": "REASONS",
    "kind": "const",
    "exported": false,
-   "line": 96
+   "line": 97
   },
   "src/ui/pages/Train#TrainSession": {
    "file": "src/ui/pages/Train",
    "name": "TrainSession",
    "kind": "function",
    "exported": false,
-   "line": 102
+   "line": 103
   },
   "src/ui/pages/Train#useNow": {
    "file": "src/ui/pages/Train",
    "name": "useNow",
    "kind": "function",
    "exported": false,
-   "line": 452
+   "line": 495
   },
   "src/ui/pages/Train#Clock": {
    "file": "src/ui/pages/Train",
    "name": "Clock",
    "kind": "function",
    "exported": false,
-   "line": 463
+   "line": 506
   },
   "src/ui/pages/Train#TopBar": {
    "file": "src/ui/pages/Train",
    "name": "TopBar",
    "kind": "function",
    "exported": false,
-   "line": 473
+   "line": 516
   },
   "src/ui/pages/Train#quietBtn": {
    "file": "src/ui/pages/Train",
    "name": "quietBtn",
    "kind": "const",
    "exported": false,
-   "line": 483
+   "line": 526
   },
   "src/ui/pages/Train#ExerciseScreens": {
    "file": "src/ui/pages/Train",
    "name": "ExerciseScreens",
    "kind": "function",
    "exported": false,
-   "line": 487
+   "line": 530
   },
   "src/ui/pages/Train#RestPill": {
    "file": "src/ui/pages/Train",
    "name": "RestPill",
    "kind": "function",
    "exported": false,
-   "line": 803
+   "line": 916
   },
   "src/ui/pages/Train#WeightSource": {
    "file": "src/ui/pages/Train",
    "name": "WeightSource",
    "kind": "function",
    "exported": false,
-   "line": 833
+   "line": 947
   },
   "src/ui/pages/Train#RestScreen": {
    "file": "src/ui/pages/Train",
    "name": "RestScreen",
    "kind": "function",
    "exported": false,
-   "line": 849
+   "line": 963
+  },
+  "src/ui/pages/Train#AngleSheet": {
+   "file": "src/ui/pages/Train",
+   "name": "AngleSheet",
+   "kind": "function",
+   "exported": false,
+   "line": 1066
   },
   "src/ui/pages/Train#Toggle": {
    "file": "src/ui/pages/Train",
    "name": "Toggle",
    "kind": "function",
    "exported": false,
-   "line": 950
+   "line": 1086
   },
   "src/ui/pages/Train#SetSheet": {
    "file": "src/ui/pages/Train",
    "name": "SetSheet",
    "kind": "function",
    "exported": false,
-   "line": 955
+   "line": 1091
   },
   "src/ui/pages/Train#painArea": {
    "file": "src/ui/pages/Train",
    "name": "painArea",
    "kind": "const",
    "exported": false,
-   "line": 1006
+   "line": 1142
   },
   "src/ui/pages/Train#WhySheet": {
    "file": "src/ui/pages/Train",
    "name": "WhySheet",
    "kind": "function",
    "exported": false,
-   "line": 1009
+   "line": 1145
   },
   "src/ui/pages/Train#Overview": {
    "file": "src/ui/pages/Train",
    "name": "Overview",
    "kind": "function",
    "exported": false,
-   "line": 1034
+   "line": 1170
   },
   "src/ui/pages/WorkoutCheck#kg": {
    "file": "src/ui/pages/WorkoutCheck",
@@ -7402,7 +7493,55 @@
   },
   {
    "from": "src/domain/analysis#weekChip",
+   "to": "src/domain/analysis#weekGroups"
+  },
+  {
+   "from": "src/domain/analysis#weekChip",
+   "to": "src/ui/pages/Dashboard#MuscleRow"
+  },
+  {
+   "from": "src/domain/analysis#weekChip",
    "to": "src/ui/pages/Dashboard#statusChip"
+  },
+  {
+   "from": "src/domain/analysis#weekChip",
+   "to": "src/ui/pages/Muscles#MuscleCard"
+  },
+  {
+   "from": "src/domain/analysis#weekGroups",
+   "to": "src/ui/pages/Dashboard#DashboardPage"
+  },
+  {
+   "from": "src/domain/barType#DEFAULT_BAR_KG",
+   "to": "src/domain/barType#barWeightFor"
+  },
+  {
+   "from": "src/domain/barType#FREE_VERSION",
+   "to": "src/domain/barType#barTypeOf"
+  },
+  {
+   "from": "src/domain/barType#FREE_VERSION",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/barType#SMITH_VERSION",
+   "to": "src/domain/barType#FREE_VERSION"
+  },
+  {
+   "from": "src/domain/barType#SMITH_VERSION",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/barType#barTypeOf",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/barType#barWeightFor",
+   "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/domain/barType#smithAt",
+   "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
    "from": "src/domain/baseline#BASELINE_DAYS",
@@ -9590,7 +9729,11 @@
   },
   {
    "from": "src/domain/muscles#TRACKED_MUSCLES",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
+  },
+  {
+   "from": "src/domain/muscles#TRACKED_MUSCLES",
+   "to": "src/ui/components/SorenessAsk#useSoreness"
   },
   {
    "from": "src/domain/muscles#TRACKED_MUSCLES",
@@ -11074,7 +11217,7 @@
   },
   {
    "from": "src/domain/recovery#sorenessCandidates",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
   },
   {
    "from": "src/domain/recovery#todayExtraH",
@@ -13122,6 +13265,10 @@
   },
   {
    "from": "src/i18n/index#L",
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
+  },
+  {
+   "from": "src/i18n/index#L",
    "to": "src/ui/components/ui#ConfidenceBadge"
   },
   {
@@ -13139,6 +13286,10 @@
   {
    "from": "src/i18n/index#L",
    "to": "src/ui/components/ui#VolumeBar"
+  },
+  {
+   "from": "src/i18n/index#L",
+   "to": "src/ui/components/ui#VolumeLegend"
   },
   {
    "from": "src/i18n/index#L",
@@ -13191,6 +13342,10 @@
   {
    "from": "src/i18n/index#L",
    "to": "src/ui/pages/Dashboard#ExtraSessionCard"
+  },
+  {
+   "from": "src/i18n/index#L",
+   "to": "src/ui/pages/Dashboard#GROUP_TITLE"
   },
   {
    "from": "src/i18n/index#L",
@@ -13671,6 +13826,10 @@
   {
    "from": "src/i18n/index#L",
    "to": "src/ui/pages/Strength#TREND_WORD"
+  },
+  {
+   "from": "src/i18n/index#L",
+   "to": "src/ui/pages/Train#AngleSheet"
   },
   {
    "from": "src/i18n/index#L",
@@ -14690,7 +14849,7 @@
   },
   {
    "from": "src/lib/store#store",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#useSoreness"
   },
   {
    "from": "src/lib/store#store",
@@ -14870,7 +15029,7 @@
   },
   {
    "from": "src/lib/store#useData",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#useSoreness"
   },
   {
    "from": "src/lib/store#useData",
@@ -15270,7 +15429,7 @@
   },
   {
    "from": "src/ui/components/BodyMap#BodyMap",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
   },
   {
    "from": "src/ui/components/BodyMap#BodyMap",
@@ -15434,11 +15593,11 @@
   },
   {
    "from": "src/ui/components/SorenessAsk#FILL",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
   },
   {
    "from": "src/ui/components/SorenessAsk#NEXT",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#useSoreness"
   },
   {
    "from": "src/ui/components/SorenessAsk#SorenessAsk",
@@ -15447,6 +15606,30 @@
   {
    "from": "src/ui/components/SorenessAsk#SorenessAsk",
    "to": "src/ui/pages/Train#Overview"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#SorenessSheet",
+   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#SorenessSheet",
+   "to": "src/ui/pages/Train#TrainSession"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#useSorenessAnswered",
+   "to": "src/ui/pages/Train#TrainSession"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#useSoreness",
+   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#useSoreness",
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
+  },
+  {
+   "from": "src/ui/components/SorenessAsk#useSoreness",
+   "to": "src/ui/components/SorenessAsk#useSorenessAnswered"
   },
   {
    "from": "src/ui/components/icons#IconAlert",
@@ -15575,6 +15758,10 @@
   {
    "from": "src/ui/components/icons#IconChevron",
    "to": "src/ui/pages/Train#Overview"
+  },
+  {
+   "from": "src/ui/components/icons#IconChevron",
+   "to": "src/ui/pages/Train#RestPill"
   },
   {
    "from": "src/ui/components/icons#IconCopy",
@@ -16274,7 +16461,7 @@
   },
   {
    "from": "src/ui/components/ui#Button",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
   },
   {
    "from": "src/ui/components/ui#Button",
@@ -16423,6 +16610,10 @@
   {
    "from": "src/ui/components/ui#Button",
    "to": "src/ui/pages/Strength#AssignAngle"
+  },
+  {
+   "from": "src/ui/components/ui#Button",
+   "to": "src/ui/pages/Train#AngleSheet"
   },
   {
    "from": "src/ui/components/ui#Button",
@@ -17134,6 +17325,10 @@
   },
   {
    "from": "src/ui/components/ui#Input",
+   "to": "src/ui/pages/Train#AngleSheet"
+  },
+  {
+   "from": "src/ui/components/ui#Input",
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
   {
@@ -17150,7 +17345,7 @@
   },
   {
    "from": "src/ui/components/ui#Modal",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
   },
   {
    "from": "src/ui/components/ui#Modal",
@@ -17187,6 +17382,10 @@
   {
    "from": "src/ui/components/ui#Modal",
    "to": "src/ui/pages/Periodization#BlockEditor"
+  },
+  {
+   "from": "src/ui/components/ui#Modal",
+   "to": "src/ui/pages/Train#AngleSheet"
   },
   {
    "from": "src/ui/components/ui#Modal",
@@ -17605,6 +17804,10 @@
    "to": "src/ui/pages/Muscles#MuscleCard"
   },
   {
+   "from": "src/ui/components/ui#VolumeLegend",
+   "to": "src/ui/pages/Dashboard#DashboardPage"
+  },
+  {
    "from": "src/ui/components/ui#Why",
    "to": "src/ui/components/ChoiceCard#ChoiceCard"
   },
@@ -17738,6 +17941,10 @@
   },
   {
    "from": "src/ui/components/ui#cx",
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
+  },
+  {
+   "from": "src/ui/components/ui#cx",
    "to": "src/ui/components/ui#Badge"
   },
   {
@@ -17807,6 +18014,10 @@
   {
    "from": "src/ui/components/ui#cx",
    "to": "src/ui/components/ui#VolumeBar"
+  },
+  {
+   "from": "src/ui/components/ui#cx",
+   "to": "src/ui/components/ui#VolumeLegend"
   },
   {
    "from": "src/ui/components/ui#cx",
@@ -18382,7 +18593,7 @@
   },
   {
    "from": "src/ui/hooks#useAnalysis",
-   "to": "src/ui/components/SorenessAsk#SorenessAsk"
+   "to": "src/ui/components/SorenessAsk#useSoreness"
   },
   {
    "from": "src/ui/hooks#useAnalysis",
@@ -18642,6 +18853,10 @@
   },
   {
    "from": "src/ui/hooks#useNames",
+   "to": "src/ui/components/SorenessAsk#SorenessSheet"
+  },
+  {
+   "from": "src/ui/hooks#useNames",
    "to": "src/ui/pages/Dashboard#AdviceRow"
   },
   {
@@ -18782,6 +18997,10 @@
   },
   {
    "from": "src/ui/hooks#useNames",
+   "to": "src/ui/pages/Train#AngleSheet"
+  },
+  {
+   "from": "src/ui/hooks#useNames",
    "to": "src/ui/pages/Train#Overview"
   },
   {
@@ -18907,6 +19126,10 @@
   {
    "from": "src/ui/pages/Dashboard#Fact",
    "to": "src/ui/pages/Dashboard#MuscleDetail"
+  },
+  {
+   "from": "src/ui/pages/Dashboard#GROUP_TITLE",
+   "to": "src/ui/pages/Dashboard#DashboardPage"
   },
   {
    "from": "src/ui/pages/Dashboard#HabitLine",
@@ -19749,6 +19972,10 @@
    "to": "src/ui/pages/Strength#SeriesDetail"
   },
   {
+   "from": "src/ui/pages/Train#AngleSheet",
+   "to": "src/ui/pages/Train#TrainSession"
+  },
+  {
    "from": "src/ui/pages/Train#Clock",
    "to": "src/ui/pages/Train#ExerciseScreens"
   },
@@ -19783,6 +20010,10 @@
   {
    "from": "src/ui/pages/Train#SetSheet",
    "to": "src/ui/pages/Train#ExerciseScreens"
+  },
+  {
+   "from": "src/ui/pages/Train#Toggle",
+   "to": "src/ui/pages/Train#AngleSheet"
   },
   {
    "from": "src/ui/pages/Train#Toggle",

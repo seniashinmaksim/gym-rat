@@ -67,14 +67,28 @@ export async function continueChoice(page: Page, lang: Lang = 'en') {
   // Also optional: a next-session warning (Part 8; since the shared recovery window, e.g. a new exercise adds 12 h) —
   // answered "Keep today", which also adds the exercise when it is the only card.
   const fw = page.getByTestId('forward-keep');
-  await expect.poll(async () => (await cc.count()) > 0 || (await fw.count()) > 0 || (await page.locator('[role=dialog]').count()) === 0, { timeout: 10_000 }).toBe(true);
+  // Owner 2026-11-27: an angle exercise asks for the bench angle — the one used last time (pre-selected), else "not sure".
+  const angle = page.getByTestId('angle-choices');
+  const answerAngle = async () => {
+    const last = angle.locator('[aria-pressed="true"]');
+    if (await last.count()) await last.first().click(); else await page.getByTestId('angle-unknown').click();
+  };
+  await expect.poll(async () => (await cc.count()) > 0 || (await fw.count()) > 0 || (await angle.count()) > 0 || (await page.locator('[role=dialog]').count()) === 0, { timeout: 10_000 }).toBe(true);
   if (await cc.count()) await cc.getByRole('button', { name: T[lang].cont }).click();
   else if (await fw.count()) await fw.first().click();
+  if (await angle.count() || await angle.waitFor({ timeout: 1_000 }).then(() => true, () => false)) await answerAngle();
   await expect(page.locator('[role=dialog]')).toHaveCount(0);
 }
 
 /** In the open exercise picker: search and pick the first row whose name matches. */
+/** Owner 2026-11-27: a workout opens with the body check while today is unanswered — "All good" (when it is up). */
+export async function bodyCheck(page: Page) {
+  const done = page.getByTestId('sore-done');
+  if (await done.isVisible().catch(() => false) || await done.waitFor({ timeout: 1_500 }).then(() => true, () => false)) await done.click();
+}
+
 export async function pick(page: Page, query: string, name: RegExp, lang: Lang = 'en') {
+  await bodyCheck(page);
   await page.locator('[role=dialog] input').first().fill(query);
   await page.locator('[role=dialog] li button').filter({ hasText: name }).first().click();
   await continueChoice(page, lang);
@@ -86,6 +100,7 @@ export async function startSession(page: Page, lang: Lang = 'en', gym?: string) 
   if (gym) await page.getByPlaceholder(T[lang].gym).fill(gym);
   await page.getByRole('button', { name: T[lang].start }).click();
   await expect(page.getByTestId('train')).toBeVisible();
+  await bodyCheck(page);
 }
 
 /** Tap the big number and type a value (comma or dot). `page` may be a sheet locator. */
@@ -112,6 +127,9 @@ export async function nextSet(page: Page) {
  */
 export async function logSet(page: Page, weight: string | null, reps: string, effort?: 0 | 1 | 2 | 3) {
   await expect(page.getByTestId('train')).toHaveAttribute('data-view', 'set');
+  // Warm-ups are offered first (owner 2026-11-27); journeys that are not about them go straight to the working sets.
+  const skip = page.getByTestId('skip-warmup');
+  if (await skip.isVisible()) await skip.click();
   if (weight != null) await typeNumber(page, 'weight-value', weight);
   await typeNumber(page, 'reps-value', reps);
   if (effort != null) {
@@ -139,6 +157,7 @@ export async function leaveToOverview(page: Page) {
 
 /** From set entry / rest: open the overview with the top bar's ← button. */
 export async function toOverview(page: Page) {
+  await bodyCheck(page);
   const train = page.getByTestId('train');
   if ((await train.getAttribute('data-view')) !== 'overview') await page.getByTestId('to-overview').click();
   await expect(train).toHaveAttribute('data-view', 'overview');

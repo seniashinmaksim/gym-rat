@@ -296,6 +296,25 @@ export function statusLabel(s: WeekStatus): string {
  * (`todayBlocked`: > 6 h of its window left) — today's own sets never do, and a window inside the tolerance does not;
  * else "today n" while today's share is open; else nothing.
  */
+export type WeekGroup = 'today' | 'later' | 'done';
+
+/**
+ * The Week screen's rows, grouped and ordered by the number each row shows (owner 2026-11-27):
+ * TODAY — sets open today (the "today n" chip), most open first; LATER THIS WEEK — sets left in the week but none
+ * today (recovering, or today's share done), most left first; DONE — the week's target reached, in the usual muscle
+ * order. Ties keep the usual muscle order. Empty groups are left out.
+ */
+export function weekGroups(ms: MuscleWeek[]): { group: WeekGroup; muscles: MuscleWeek[] }[] {
+  const order = new Map(ms.map((m, i) => [m.muscle, i]));
+  const by = (f: (m: MuscleWeek) => number) => (x: MuscleWeek, y: MuscleWeek) => f(y) - f(x) || (order.get(x.muscle) ?? 0) - (order.get(y.muscle) ?? 0);
+  const done = ms.filter((m) => m.remainingToPreferred <= 0);
+  const today = ms.filter((m) => m.remainingToPreferred > 0 && weekChip(m) === 'today')
+    .sort((x, y) => y.todayOpen - x.todayOpen || by((m) => m.remainingToPreferred)(x, y));
+  const later = ms.filter((m) => m.remainingToPreferred > 0 && weekChip(m) !== 'today').sort(by((m) => m.remainingToPreferred));
+  return ([['today', today], ['later', later], ['done', done]] as [WeekGroup, MuscleWeek[]][])
+    .filter(([, list]) => list.length).map(([group, muscles]) => ({ group, muscles }));
+}
+
 export function weekChip(m: Pick<MuscleWeek, 'todayBlocked' | 'remainingToPreferred' | 'todayOpen'>): 'recovering' | 'today' | null {
   if (m.todayBlocked) return 'recovering';
   if (m.remainingToPreferred <= 0) return null;

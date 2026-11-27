@@ -1,3 +1,4 @@
+import { weekChip } from '../../domain/analysis';
 import { accentHex } from '../accent';
 import { useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, CartesianGrid, Legend, Line, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -168,7 +169,7 @@ function MuscleCard({ m, onEdit }: { m: MuscleWeek; onEdit: () => void }) {
         </div>
         <span className="text-xs tabular-nums text-ink-500">{L(`${fmt(m.completed)} done`, `${fmt(m.completed)} сделано`)}</span>
       </div>
-      <div className="mt-2"><VolumeBar completed={m.completed} min={m.target.min} preferred={m.target.preferred} max={m.target.max} uncertain={m.volume.uncertainEffective} /></div>
+      <div className="mt-2"><VolumeBar completed={m.completed} preferred={m.target.preferred} today={weekChip(m) === 'today' ? m.todayOpen : 0} /></div>
       <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-xs">
         <MiniStat k={L('Direct sets', 'Прямые подх.')} v={m.volume.directSets} />
         <MiniStat k={L('Indirect sets', 'Косв. подх.')} v={m.volume.indirectSets} />

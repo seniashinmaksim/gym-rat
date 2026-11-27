@@ -68,6 +68,8 @@ export interface Prefill {
   from: 'session' | 'last' | 'plan' | null;
   /** The other candidate when the plan and last time differ ("last 60 → today 62.5"). */
   alt: { weightKg: number; from: 'last' | 'plan' } | null;
+  /** The next set is one of the target's warm-ups (n of total; never counted). */
+  warmup?: { n: number; of: number };
 }
 
 const performed = (e: WorkoutExercise | null | undefined) => (e ? e.sets.filter((s) => !s.planned) : []);
@@ -81,9 +83,18 @@ const targetReps = (t: ExerciseTarget | null | undefined, k: number) => (t && t.
  * is offered with last time's weight as the alternative.
  * Reps: last time's reps for that set at that weight; else the plan's lower bound; else the previous set's reps.
  */
-export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, target: ExerciseTarget | null | undefined = ex.target): Prefill {
-  const done = performed(ex);
-  const prev = performed(last);
+export function prefillNext(ex: WorkoutExercise, last: WorkoutExercise | null, target: ExerciseTarget | null | undefined = ex.target, skipWarmup = false): Prefill {
+  const all = performed(ex);
+  // Warm-ups first (owner 2026-11-27): before the first working set, the target's warm-ups are offered one by one.
+  const wu = target?.warmups ?? [];
+  const warmDone = all.filter((s) => s.type === 'warmup').length;
+  if (!skipWarmup && wu.length && warmDone < wu.length && !all.some((s) => s.type !== 'warmup')) {
+    const x = wu[warmDone];
+    return { weightKg: x.weightKg, reps: x.reps, from: 'plan', alt: null, warmup: { n: warmDone + 1, of: wu.length } };
+  }
+  // Warm-ups never decide what the working sets follow.
+  const done = all.filter((s) => s.type !== 'warmup' || s.typeSource === 'auto');
+  const prev = performed(last).filter((s) => s.type !== 'warmup' || s.typeSource === 'auto');
   const n = done.length;
   const follows = n > 0 && done.every((s, i) => prev[i] && prev[i].weightKg === s.weightKg);
   let weight: number | null = null;
@@ -158,7 +169,7 @@ export function lastEntryFor(workouts: Workout[], w: Workout, ex: WorkoutExercis
   return null;
 }
 
-export interface SetEntry { weightKg: number | null; reps: number | null; loadMode: LoadMode; side?: Side }
+export interface SetEntry { weightKg: number | null; reps: number | null; loadMode: LoadMode; side?: Side; /** Logged as a warm-up (the owner's choice: never re-tagged). */ warmup?: boolean }
 
 /** A repeated LOG SET (same values right after the previous one) is ignored. */
 export function isDoubleTap(ex: WorkoutExercise, entry: SetEntry, nowMs: number): boolean {
@@ -188,6 +199,7 @@ export function logSet(ex: WorkoutExercise, entry: SetEntry, nowMs: number, id: 
     id, type: 'working', weightKg: entry.weightKg, loadMode: entry.loadMode, reps: entry.reps, rir: null, rirSource: 'unknown',
     restSecBefore: rest, ...(rest != null ? { restSource: pressed ? 'timer' as const : 'estimated' as const } : {}), completedAt: new Date(nowMs).toISOString(),
     ...(entry.side ? { side: entry.side } : {}),
+    ...(entry.warmup ? { type: 'warmup' as const, typeSource: 'owner' as const } : {}),
   };
   const { restEndedAt: _used, ...rest0 } = ex;
   void _used;

@@ -224,6 +224,8 @@ export interface ExerciseTarget {
   edited?: boolean;
   /** Target reps in reserve per set (the last entry repeats). Older targets have none. */
   rir?: { min: number; max: number }[];
+  /** Warm-up sets offered before the first working set (never counted). Older targets have none. */
+  warmups?: { weightKg: number; reps: number }[];
   /** The remaining sets were changed during the exercise from what was done (offered, the owner tapped Use). */
   adapted?: { change: 'add_load' | 'add_reps' | 'reduce' | 'calc'; fromKg: number | null; why: string; at: string };
 }
